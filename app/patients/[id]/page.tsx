@@ -19,6 +19,7 @@ import {
   Clock
 } from 'lucide-react'
 import Link from 'next/link'
+import { calculateAge } from '@/lib/utils/date'
 
 // 仮の患者詳細データ
 const mockPatientDetail = {
@@ -85,18 +86,6 @@ const mockPatientDetail = {
   ]
 }
 
-function calculateAge(birthDate: string): number {
-  const birth = new Date(birthDate)
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const monthDiff = today.getMonth() - birth.getMonth()
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--
-  }
-
-  return age
-}
 
 export default function PatientDetailPage() {
   const params = useParams()

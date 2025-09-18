@@ -5,6 +5,12 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- ENUM型の定義
+CREATE TYPE staff_role AS ENUM ('admin', 'clinic', 'staff');
+CREATE TYPE patient_gender AS ENUM ('male', 'female', 'other');
+CREATE TYPE appointment_status AS ENUM ('未来院', '遅刻', '来院済み', '診療中', '会計', '終了', 'キャンセル');
+CREATE TYPE log_action AS ENUM ('作成', '変更', 'キャンセル', '削除');
+
 -- クリニック（テナント）テーブル
 CREATE TABLE clinics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -44,7 +50,7 @@ CREATE TABLE staff (
     email VARCHAR(255),
     phone VARCHAR(20),
     employee_number VARCHAR(50),
-    role ENUM('admin', 'clinic', 'staff') DEFAULT 'staff',
+    role staff_role DEFAULT 'staff',
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -98,7 +104,7 @@ CREATE TABLE patients (
     last_name_kana VARCHAR(50),
     first_name_kana VARCHAR(50),
     birth_date DATE,
-    gender ENUM('male', 'female', 'other'),
+    gender patient_gender,
 
     -- 連絡先
     phone VARCHAR(20),
@@ -158,7 +164,7 @@ CREATE TABLE appointments (
     staff3_id UUID REFERENCES staff(id),
 
     -- ステータス
-    status ENUM('未来院', '遅刻', '来院済み', '診療中', '会計', '終了', 'キャンセル') DEFAULT '未来院',
+    status appointment_status DEFAULT '未来院',
 
     -- その他
     memo TEXT,
@@ -172,7 +178,7 @@ CREATE TABLE appointments (
 CREATE TABLE appointment_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     appointment_id UUID REFERENCES appointments(id) ON DELETE CASCADE,
-    action ENUM('作成', '変更', 'キャンセル', '削除') NOT NULL,
+    action log_action NOT NULL,
     before_data JSONB,
     after_data JSONB,
     reason TEXT NOT NULL,
@@ -209,6 +215,19 @@ CREATE TABLE clinic_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
     UNIQUE(clinic_id, setting_key)
+);
+
+-- 日次メモテーブル
+CREATE TABLE daily_memos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    memo TEXT,
+    created_by UUID REFERENCES staff(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    UNIQUE(clinic_id, date)
 );
 
 -- インデックス作成

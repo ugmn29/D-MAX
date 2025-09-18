@@ -1,119 +1,117 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Calendar, Users, BarChart3 } from 'lucide-react'
-import { MainLayout } from '@/components/layout/main-layout'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, Settings } from 'lucide-react'
+import { MainCalendar } from '@/components/calendar/main-calendar'
+import { SidebarCalendar } from '@/components/calendar/sidebar-calendar'
+import { Button } from '@/components/ui/button'
+import { Patient } from '@/types/database'
+import { getClinicSettings } from '@/lib/api/clinic'
+
+// 仮のクリニックID（後で認証システムから取得）
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function HomePage() {
+  const [selectedDate, setSelectedDate] = useState(new Date())
   const [mounted, setMounted] = useState(false)
+  const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     setMounted(true)
+    loadSettings()
   }, [])
+
+  // 設定を読み込み
+  const loadSettings = async () => {
+    try {
+      const settings = await getClinicSettings(DEMO_CLINIC_ID)
+      if (settings.timeSlotMinutes) {
+        setTimeSlotMinutes(settings.timeSlotMinutes)
+      }
+    } catch (error) {
+      console.error('設定読み込みエラー:', error)
+    }
+  }
 
   if (!mounted) {
     return null
   }
 
+  // 日付ナビゲーション
+  const goToPreviousDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() - 1)
+    setSelectedDate(newDate)
+  }
+
+  const goToNextDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() + 1)
+    setSelectedDate(newDate)
+  }
+
+  const goToToday = () => {
+    setSelectedDate(new Date())
+  }
+
+  // 患者選択ハンドラー
+  const handlePatientSelect = (patient: Patient) => {
+    // 患者詳細ページに遷移するか、モーダルを開くなどの処理
+    console.log('患者選択:', patient)
+  }
+
+  // 日付フォーマット
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'long'
+    })
+  }
+
   return (
-    <MainLayout>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* カレンダー機能 */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center mb-2">
-              <Calendar className="w-8 h-8 text-dmax-primary mr-3" />
-              <CardTitle className="text-lg">予約カレンダー</CardTitle>
-            </div>
-            <CardDescription>
-              日々の予約を効率的に管理し、スタッフの稼働状況を可視化します。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="text-sm text-gray-500 space-y-1">
-              <li>• ドラッグ&ドロップによる予約編集</li>
-              <li>• リアルタイム同期</li>
-              <li>• 複数表示形式対応</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* 患者管理機能 */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center mb-2">
-              <Users className="w-8 h-8 text-dmax-primary mr-3" />
-              <CardTitle className="text-lg">患者管理</CardTitle>
-            </div>
-            <CardDescription>
-              患者情報を一元管理し、家族連携による効率的な運用を実現します。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="text-sm text-gray-500 space-y-1">
-              <li>• 診療履歴・治療計画</li>
-              <li>• サブカルテ機能</li>
-              <li>• 家族連携管理</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* 経営分析機能 */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center mb-2">
-              <BarChart3 className="w-8 h-8 text-dmax-primary mr-3" />
-              <CardTitle className="text-lg">経営分析</CardTitle>
-            </div>
-            <CardDescription>
-              リアルタイムKPIとAI改善提案により、経営効率化をサポートします。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="text-sm text-gray-500 space-y-1">
-              <li>• マーケティングROI分析</li>
-              <li>• AI経営支援</li>
-              <li>• スタッフ評価分析</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 今日の状況 */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>今日の状況</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <div className="text-2xl font-bold text-gray-400">0</div>
-              <div className="text-sm text-gray-600">未来院</div>
-            </div>
-            <div className="text-center p-4 bg-yellow-50 rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600">0</div>
-              <div className="text-sm text-gray-600">遅刻</div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">0</div>
-              <div className="text-sm text-gray-600">来院済み</div>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">0</div>
-              <div className="text-sm text-gray-600">診療中</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">0</div>
-              <div className="text-sm text-gray-600">会計</div>
-            </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <div className="text-2xl font-bold text-gray-600">0</div>
-              <div className="text-sm text-gray-600">終了</div>
+    <div className="h-screen flex overflow-hidden">
+      {/* 左側: メインカレンダー */}
+      <div className="flex-1">
+        {/* カレンダーヘッダー */}
+        <div className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-lg font-semibold text-gray-900">
+              {formatDate(selectedDate)}
+            </h1>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600">1コマ時間:</span>
+              <span className="text-sm font-medium text-gray-900">{timeSlotMinutes}分</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </MainLayout>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSettings(!showSettings)}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              設定
+            </Button>
+          </div>
+        </div>
+        
+        <MainCalendar
+          clinicId={DEMO_CLINIC_ID}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+        />
+      </div>
+
+      {/* 右側: サイドバー */}
+      <SidebarCalendar
+        clinicId={DEMO_CLINIC_ID}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        onPatientSelect={handlePatientSelect}
+      />
+    </div>
   )
 }

@@ -469,6 +469,35 @@ export type Database = {
           updated_at?: string
         }
       }
+      daily_memos: {
+        Row: {
+          id: string
+          clinic_id: string
+          date: string
+          memo?: string
+          created_by?: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          date: string
+          memo?: string
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          date?: string
+          memo?: string
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -494,6 +523,12 @@ export type BusinessHours = {
     isOpen: boolean
     start?: string
     end?: string
+    timeSlots?: Array<{
+      id: string
+      start: string
+      end: string
+      period: 'morning' | 'afternoon'
+    }>
   }
 }
 
@@ -524,6 +559,10 @@ export type ClinicUpdate = Database['public']['Tables']['clinics']['Update']
 export type TreatmentMenu = Database['public']['Tables']['treatment_menus']['Row']
 export type TreatmentMenuInsert = Database['public']['Tables']['treatment_menus']['Insert']
 export type TreatmentMenuUpdate = Database['public']['Tables']['treatment_menus']['Update']
+
+export type DailyMemo = Database['public']['Tables']['daily_memos']['Row']
+export type DailyMemoInsert = Database['public']['Tables']['daily_memos']['Insert']
+export type DailyMemoUpdate = Database['public']['Tables']['daily_memos']['Update']
 
 // 拡張型定義（JOIN結果など）
 export type AppointmentWithPatient = Appointment & {

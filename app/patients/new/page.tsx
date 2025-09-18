@@ -7,6 +7,10 @@ import { PatientForm } from '@/components/patients/patient-form'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, UserPlus } from 'lucide-react'
 import Link from 'next/link'
+import { createPatient } from '@/lib/api/patients'
+
+// 仮のクリニックID（後で認証システムから取得）
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function NewPatientPage() {
   const router = useRouter()
@@ -16,11 +20,8 @@ export default function NewPatientPage() {
     setIsSubmitting(true)
 
     try {
-      // ここでSupabaseにデータを保存
-      console.log('新規患者データ:', formData)
-
-      // 仮の処理時間をシミュレート
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Supabaseに患者データを保存
+      await createPatient(DEMO_CLINIC_ID, formData)
 
       // 成功したら患者一覧に戻る
       router.push('/patients')

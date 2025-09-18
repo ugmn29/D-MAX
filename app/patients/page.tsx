@@ -7,86 +7,60 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Plus, Users, Phone, Calendar } from 'lucide-react'
 import Link from 'next/link'
+import { getPatients, searchPatients, getPatientsStats } from '@/lib/api/patients'
+import { Patient } from '@/types/database'
+import { calculateAge } from '@/lib/utils/date'
 
-// 仮の患者データ（後でSupabaseから取得）
-const mockPatients = [
-  {
-    id: '1',
-    patient_number: 1,
-    last_name: '田中',
-    first_name: '太郎',
-    last_name_kana: 'タナカ',
-    first_name_kana: 'タロウ',
-    birth_date: '1980-05-15',
-    gender: 'male' as const,
-    phone: '090-1234-5678',
-    email: 'tanaka@example.com',
-    is_registered: true,
-    created_at: '2024-01-15T10:00:00Z'
-  },
-  {
-    id: '2',
-    patient_number: 2,
-    last_name: '佐藤',
-    first_name: '花子',
-    last_name_kana: 'サトウ',
-    first_name_kana: 'ハナコ',
-    birth_date: '1975-12-03',
-    gender: 'female' as const,
-    phone: '080-9876-5432',
-    email: 'sato@example.com',
-    is_registered: true,
-    created_at: '2024-01-10T14:30:00Z'
-  },
-  {
-    id: '3',
-    patient_number: 3,
-    last_name: '山田',
-    first_name: '次郎',
-    last_name_kana: 'ヤマダ',
-    first_name_kana: 'ジロウ',
-    birth_date: '1995-08-22',
-    gender: 'male' as const,
-    phone: '070-5555-1234',
-    email: '',
-    is_registered: false, // 仮登録
-    created_at: '2024-02-01T09:15:00Z'
-  }
-]
-
-function calculateAge(birthDate: string): number {
-  const birth = new Date(birthDate)
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const monthDiff = today.getMonth() - birth.getMonth()
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--
-  }
-
-  return age
-}
+// 仮のクリニックID（後で認証システムから取得）
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function PatientsPage() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [patients, setPatients] = useState(mockPatients)
-  const [filteredPatients, setFilteredPatients] = useState(mockPatients)
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([])
+  const [stats, setStats] = useState({ total: 0, registered: 0, temporary: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // 患者データを読み込み
+  const loadPatients = async () => {
+    try {
+      setLoading(true)
+      const [patientsData, statsData] = await Promise.all([
+        getPatients(DEMO_CLINIC_ID),
+        getPatientsStats(DEMO_CLINIC_ID)
+      ])
+      setPatients(patientsData)
+      setFilteredPatients(patientsData)
+      setStats(statsData)
+      setError(null)
+    } catch (err) {
+      console.error('データ読み込みエラー:', err)
+      setError('患者データの読み込みに失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 検索処理
+  const handleSearch = async (query: string) => {
+    try {
+      setSearchQuery(query)
+      if (query.trim()) {
+        const results = await searchPatients(DEMO_CLINIC_ID, query)
+        setFilteredPatients(results)
+      } else {
+        setFilteredPatients(patients)
+      }
+    } catch (err) {
+      console.error('検索エラー:', err)
+      setError('検索に失敗しました')
+    }
+  }
 
   useEffect(() => {
-    // 検索フィルタリング
-    const filtered = patients.filter(patient => {
-      const query = searchQuery.toLowerCase()
-      return (
-        patient.last_name.toLowerCase().includes(query) ||
-        patient.first_name.toLowerCase().includes(query) ||
-        patient.last_name_kana.toLowerCase().includes(query) ||
-        patient.first_name_kana.toLowerCase().includes(query) ||
-        patient.patient_number.toString().includes(query) ||
-        (patient.phone && patient.phone.includes(query))
-      )
-    })
-    setFilteredPatients(filtered)
-  }, [searchQuery, patients])
+    loadPatients()
+  }, [])
 
   return (
     <MainLayout>
@@ -105,6 +79,21 @@ export default function PatientsPage() {
           </Link>
         </div>
 
+        {/* エラー表示 */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <p className="text-red-800">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadPatients}
+              className="mt-2"
+            >
+              再試行
+            </Button>
+          </div>
+        )}
+
         {/* 統計カード */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
@@ -113,7 +102,9 @@ export default function PatientsPage() {
                 <Users className="w-8 h-8 text-blue-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">総患者数</p>
-                  <p className="text-2xl font-bold text-gray-900">{patients.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {loading ? '...' : stats.total}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -126,7 +117,7 @@ export default function PatientsPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">本登録済み</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {patients.filter(p => p.is_registered).length}
+                    {loading ? '...' : stats.registered}
                   </p>
                 </div>
               </div>
@@ -140,7 +131,7 @@ export default function PatientsPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">仮登録</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {patients.filter(p => !p.is_registered).length}
+                    {loading ? '...' : stats.temporary}
                   </p>
                 </div>
               </div>
@@ -156,7 +147,7 @@ export default function PatientsPage() {
               <Input
                 placeholder="患者名、フリガナ、診察券番号、電話番号で検索..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -166,87 +157,106 @@ export default function PatientsPage() {
         {/* 患者一覧 */}
         <Card>
           <CardHeader>
-            <CardTitle>患者一覧 ({filteredPatients.length}件)</CardTitle>
+            <CardTitle>患者一覧 ({loading ? '...' : filteredPatients.length}件)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">診察券番号</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">患者名</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">フリガナ</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">年齢</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">性別</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">電話番号</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">ステータス</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPatients.map((patient) => (
-                    <tr key={patient.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-sm">{patient.patient_number.toString().padStart(6, '0')}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-gray-900">
-                          {patient.last_name} {patient.first_name}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-gray-600">
-                          {patient.last_name_kana} {patient.first_name_kana}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-gray-900">
-                          {calculateAge(patient.birth_date)}歳
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-gray-600">
-                          {patient.gender === 'male' ? '男性' :
-                           patient.gender === 'female' ? '女性' : 'その他'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-gray-600 font-mono text-sm">
-                          {patient.phone || '-'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          patient.is_registered
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {patient.is_registered ? '本登録' : '仮登録'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex space-x-2">
-                          <Link href={`/patients/${patient.id}`}>
-                            <Button variant="outline" size="sm">
-                              詳細
-                            </Button>
-                          </Link>
-                          <Button variant="outline" size="sm">
-                            編集
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {filteredPatients.length === 0 && (
-              <div className="text-center py-8">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">検索条件に一致する患者が見つかりません</p>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
               </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">診察券番号</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">患者名</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">フリガナ</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">年齢</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">性別</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">電話番号</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">ステータス</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPatients.map((patient) => (
+                        <tr key={patient.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-4">
+                            <span className="font-mono text-sm">{patient.patient_number.toString().padStart(6, '0')}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-gray-900">
+                              {patient.last_name} {patient.first_name}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-gray-600">
+                              {patient.last_name_kana} {patient.first_name_kana}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-gray-900">
+                              {patient.birth_date ? `${calculateAge(patient.birth_date)}歳` : '-'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-gray-600">
+                              {patient.gender === 'male' ? '男性' :
+                               patient.gender === 'female' ? '女性' :
+                               patient.gender === 'other' ? 'その他' : '-'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-gray-600 font-mono text-sm">
+                              {patient.phone || '-'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              patient.is_registered
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {patient.is_registered ? '本登録' : '仮登録'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex space-x-2">
+                              <Link href={`/patients/${patient.id}`}>
+                                <Button variant="outline" size="sm">
+                                  詳細
+                                </Button>
+                              </Link>
+                              <Button variant="outline" size="sm">
+                                編集
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {filteredPatients.length === 0 && !loading && (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">
+                      {searchQuery ? '検索条件に一致する患者が見つかりません' : '患者データがありません'}
+                    </p>
+                    {!searchQuery && (
+                      <Link href="/patients/new">
+                        <Button className="mt-4">
+                          <Plus className="w-4 h-4 mr-2" />
+                          最初の患者を登録
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
