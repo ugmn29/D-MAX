@@ -60,6 +60,7 @@ export default function ClinicSettingsPage() {
 
   // データ読み込み
   useEffect(() => {
+    console.log('useEffect実行: データ読み込み開始')
     const loadData = async () => {
       try {
         setLoading(true)
@@ -87,6 +88,7 @@ export default function ClinicSettingsPage() {
         
         // 休診日設定を読み込み
         const holidaySettings = settings.holidays || []
+        console.log('読み込んだ休診日設定:', holidaySettings)
         setHolidays(holidaySettings)
       } catch (error) {
         console.error('データ読み込みエラー:', error)
@@ -100,20 +102,47 @@ export default function ClinicSettingsPage() {
 
   // 保存処理
   const handleSave = async () => {
+    console.log('=== handleSave関数が呼び出されました ===')
     try {
+      console.log('クリニック設定保存開始:', {
+        clinicInfo,
+        businessHours,
+        breakTimes,
+        timeSlotMinutes,
+        holidays
+      })
+      
       setSaving(true)
       
       // クリニック情報を保存
+      console.log('clinic_info保存中...')
       await setClinicSetting(DEMO_CLINIC_ID, 'clinic_info', clinicInfo)
+      
+      console.log('business_hours保存中...')
       await setClinicSetting(DEMO_CLINIC_ID, 'business_hours', businessHours)
+      
+      console.log('break_times保存中...')
       await setClinicSetting(DEMO_CLINIC_ID, 'break_times', breakTimes)
+      
+      console.log('time_slot_minutes保存中...')
       await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', timeSlotMinutes)
+      
+      console.log('holidays保存中...', holidays)
       await setClinicSetting(DEMO_CLINIC_ID, 'holidays', holidays)
       
+      console.log('全ての設定保存完了')
       alert('設定を保存しました')
-    } catch (error) {
+      
+      // 保存後はデータを再読み込みしない（現在の状態を保持）
+    } catch (error: any) {
       console.error('保存エラー:', error)
-      alert('保存に失敗しました')
+      console.error('エラー詳細:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      alert(`保存に失敗しました: ${error.message}`)
     } finally {
       setSaving(false)
     }
@@ -143,10 +172,20 @@ export default function ClinicSettingsPage() {
 
   // 休診日の変更
   const handleHolidayChange = (day: string, checked: boolean) => {
+    console.log('休診日変更:', { day, checked })
+    
     if (checked) {
-      setHolidays(prev => [...prev, day])
+      setHolidays(prev => {
+        const newHolidays = [...prev, day]
+        console.log('休診日追加:', newHolidays)
+        return newHolidays
+      })
     } else {
-      setHolidays(prev => prev.filter(d => d !== day))
+      setHolidays(prev => {
+        const newHolidays = prev.filter(d => d !== day)
+        console.log('休診日削除:', newHolidays)
+        return newHolidays
+      })
     }
   }
 
@@ -200,7 +239,10 @@ export default function ClinicSettingsPage() {
                 <h2 className="text-2xl font-bold text-gray-900">クリニック設定</h2>
                 <p className="text-gray-600">クリニックの基本情報と診療時間を設定します</p>
               </div>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={() => {
+                console.log('保存ボタンがクリックされました')
+                handleSave()
+              }} disabled={saving}>
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? '保存中...' : '保存'}
               </Button>
@@ -342,9 +384,11 @@ export default function ClinicSettingsPage() {
                           <Checkbox
                             id={`holiday_${day.id}`}
                             checked={holidays.includes(day.id)}
-                            onCheckedChange={(checked) => 
+                            onCheckedChange={(checked) => {
+                              console.log(`休診日チェックボックス変更: ${day.id} = ${checked}`)
+                              console.log('現在の休診日配列:', holidays)
                               handleHolidayChange(day.id, checked as boolean)
-                            }
+                            }}
                           />
                           <Label htmlFor={`holiday_${day.id}`} className="text-sm text-gray-600">
                             休診日

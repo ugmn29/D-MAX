@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Clock, User, Heart, Zap, Smile } from 'lucide-react'
 import { getAppointmentsByDate } from '@/lib/api/appointments'
-import { getWorkingStaffByDate } from '@/lib/api/shifts'
-import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getClinicSettings } from '@/lib/api/clinic'
+// import { getWorkingStaffByDate } from '@/lib/api/shifts' // TODO: 実装予定
+import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
 import { Appointment, BusinessHours, BreakTimes } from '@/types/database'
 
 interface MainCalendarProps {
@@ -32,6 +32,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange }: MainCalen
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
   const [breakTimes, setBreakTimes] = useState<BreakTimes>({})
   const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
+  const [holidays, setHolidays] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   // 時間スロットを生成
@@ -59,23 +60,26 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange }: MainCalen
       try {
         setLoading(true)
         const dateString = selectedDate.toISOString().split('T')[0]
-        const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'lowercase' }) as keyof BusinessHours
+        const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
-        const [staffData, appointmentsData, businessHoursData, breakTimesData, timeSlotData] = await Promise.all([
-          getWorkingStaffByDate(clinicId, dateString),
+        const [appointmentsData, businessHoursData, breakTimesData, timeSlotData, holidaysData] = await Promise.all([
           getAppointmentsByDate(clinicId, dateString),
           getBusinessHours(clinicId),
           getBreakTimes(clinicId),
-          getTimeSlotMinutes(clinicId)
+          getTimeSlotMinutes(clinicId),
+          getHolidays(clinicId)
         ])
 
-        setWorkingStaff(staffData)
+        // スタッフデータは一時的に空配列で設定（TODO: 実装予定）
+        setWorkingStaff([])
         setAppointments(appointmentsData)
         setBusinessHours(businessHoursData)
         setBreakTimes(breakTimesData)
         setTimeSlotMinutes(timeSlotData)
+        setHolidays(holidaysData)
 
         console.log('カレンダー: 取得した時間設定:', timeSlotData)
+        console.log('カレンダー: 取得した休診日:', holidaysData)
         console.log('カレンダー: クリニックID:', clinicId)
       } catch (error) {
         console.error('データ読み込みエラー:', error)
@@ -124,6 +128,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange }: MainCalen
   const timeToMinutes = (time: string): number => {
     const [hours, minutes] = time.split(':').map(Number)
     return hours * 60 + minutes
+  }
+
+  // 休診日かどうかを判定
+  const isHoliday = (date: Date): boolean => {
+    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+    return holidays.includes(dayOfWeek)
   }
 
   // 診療時間外かどうかを判定
@@ -181,6 +191,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange }: MainCalen
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+      </div>
+    )
+  }
+
+  // 休診日の場合の表示
+  if (isHoliday(selectedDate)) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-gray-100">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🏥</div>
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">休診日</h3>
+          <p className="text-gray-500">本日は休診日です</p>
+        </div>
       </div>
     )
   }

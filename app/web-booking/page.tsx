@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getClinicSettings } from '@/lib/api/clinic'
 import { getTreatmentMenus } from '@/lib/api/treatment'
-import { getWorkingStaffByDate } from '@/lib/api/shifts'
+// import { getWorkingStaffByDate } from '@/lib/api/shifts' // TODO: 実装予定
 import { createAppointment } from '@/lib/api/appointments'
 import { Calendar, Clock, User, CheckCircle } from 'lucide-react'
 

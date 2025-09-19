@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Save, Plus, Trash2, Edit } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Edit, Users } from 'lucide-react'
 import { getStaff, createStaff, updateStaff, deleteStaff } from '@/lib/api/staff'
 import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
+import { RoleManagement } from '@/components/staff/role-management'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -34,6 +35,7 @@ interface StaffPosition {
   id: string
   name: string
   sort_order: number
+  enabled?: boolean
 }
 
 export default function StaffSettingsPage() {
@@ -44,9 +46,7 @@ export default function StaffSettingsPage() {
   const [staff, setStaff] = useState<Staff[]>([])
   const [positions, setPositions] = useState<StaffPosition[]>([])
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
-  const [editingPosition, setEditingPosition] = useState<StaffPosition | null>(null)
   const [showAddStaff, setShowAddStaff] = useState(false)
-  const [showAddPosition, setShowAddPosition] = useState(false)
   
   const [newStaff, setNewStaff] = useState({
     name: '',
@@ -57,10 +57,6 @@ export default function StaffSettingsPage() {
     role: 'staff'
   })
   
-  const [newPosition, setNewPosition] = useState({
-    name: '',
-    sort_order: 0
-  })
 
   // データ読み込み
   useEffect(() => {
@@ -111,23 +107,51 @@ export default function StaffSettingsPage() {
   }
 
   // 役職追加
-  const handleAddPosition = async () => {
+  const handleAddPosition = async (role: Omit<StaffPosition, 'id'>) => {
     try {
       setSaving(true)
-      await createStaffPosition(DEMO_CLINIC_ID, newPosition)
+      await createStaffPosition(DEMO_CLINIC_ID, role)
       
       // データを再読み込み
       const data = await getStaffPositions(DEMO_CLINIC_ID)
       setPositions(data)
-      
-      setNewPosition({
-        name: '',
-        sort_order: 0
-      })
-      setShowAddPosition(false)
     } catch (error) {
       console.error('役職追加エラー:', error)
       alert('役職の追加に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 役職更新
+  const handleUpdatePosition = async (positionId: string, updates: Partial<StaffPosition>) => {
+    try {
+      setSaving(true)
+      await updateStaffPosition(DEMO_CLINIC_ID, positionId, updates)
+      
+      // データを再読み込み
+      const data = await getStaffPositions(DEMO_CLINIC_ID)
+      setPositions(data)
+    } catch (error) {
+      console.error('役職更新エラー:', error)
+      alert('役職の更新に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 役職削除
+  const handleDeletePosition = async (positionId: string) => {
+    try {
+      setSaving(true)
+      await deleteStaffPosition(DEMO_CLINIC_ID, positionId)
+      
+      // データを再読み込み
+      const data = await getStaffPositions(DEMO_CLINIC_ID)
+      setPositions(data)
+    } catch (error) {
+      console.error('役職削除エラー:', error)
+      alert('役職の削除に失敗しました')
     } finally {
       setSaving(false)
     }
@@ -183,6 +207,11 @@ export default function StaffSettingsPage() {
                 <h2 className="text-2xl font-bold text-gray-900">スタッフ管理</h2>
                 <p className="text-gray-600">スタッフとユニット（診療台）を管理します</p>
               </div>
+              <div className="flex items-center space-x-4">
+                <Button variant="outline" className="text-gray-600">
+                  初期データ設定(無効)
+                </Button>
+              </div>
             </div>
 
             {/* タブ */}
@@ -198,14 +227,14 @@ export default function StaffSettingsPage() {
                 スタッフ管理
               </button>
               <button
-                onClick={() => setActiveTab('positions')}
+                onClick={() => setActiveTab('units')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'positions'
+                  activeTab === 'units'
                     ? 'bg-blue-100 text-blue-700'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                役職設定
+                ユニット管理
               </button>
             </div>
 
@@ -213,52 +242,85 @@ export default function StaffSettingsPage() {
             {activeTab === 'staff' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">スタッフ一覧</h3>
-                  <Button onClick={() => setShowAddStaff(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    スタッフ追加
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-5 h-5 text-gray-600" />
+                    <h3 className="text-lg font-medium">スタッフ一覧</h3>
+                  </div>
+                  <Button onClick={() => setShowAddStaff(true)} className="rounded-full w-8 h-8 p-0">
+                    <Plus className="w-4 h-4" />
                   </Button>
                 </div>
 
+                {/* 役職ごとのスタッフ表示 */}
                 <div className="space-y-4">
-                  {staff.map(member => (
-                    <Card key={member.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">{member.name}</div>
-                            <div className="text-sm text-gray-500">
-                              {member.position?.name || '役職未設定'} | {member.role}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {member.email} | {member.phone}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
+                  {positions.filter(pos => pos.enabled).map(position => {
+                    const positionStaff = staff.filter(s => s.position_id === position.id)
+                    return (
+                      <div key={position.id} className="bg-white rounded-lg border border-gray-200">
+                        <div className="p-4 border-b border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium text-gray-900">
+                              {position.name} {positionStaff.length}名
+                            </h4>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setEditingStaff(member)}
+                              onClick={() => setShowAddStaff(true)}
                             >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (confirm('このスタッフを削除しますか？')) {
-                                  deleteStaff(DEMO_CLINIC_ID, member.id)
-                                }
-                              }}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
+                              <Plus className="w-4 h-4 mr-1" />
+                              追加
                             </Button>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        
+                        {positionStaff.length > 0 ? (
+                          <div className="divide-y divide-gray-200">
+                            {positionStaff.map(member => (
+                              <div key={member.id} className="p-4 flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900">{member.name}</div>
+                                  <div className="text-sm text-gray-500">{member.email}</div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    size="sm"
+                                    className={`${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                  >
+                                    {member.is_active ? '在籍' : '退職'}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setEditingStaff(member)}
+                                    className="p-1 text-gray-400 hover:text-blue-600"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (confirm('このスタッフを削除しますか？')) {
+                                        deleteStaff(DEMO_CLINIC_ID, member.id)
+                                      }
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-8 text-center text-gray-500">
+                            <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">この役職にスタッフが登録されていません</p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* スタッフ追加フォーム */}
@@ -287,6 +349,25 @@ export default function StaffSettingsPage() {
                             placeholder="例: タナカタロウ"
                           />
                         </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="staff_position">役職</Label>
+                        <Select
+                          value={newStaff.position_id}
+                          onValueChange={(value) => setNewStaff(prev => ({ ...prev, position_id: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="役職を選択してください" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {positions.filter(pos => pos.enabled).map(position => (
+                              <SelectItem key={position.id} value={position.id}>
+                                {position.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -331,100 +412,19 @@ export default function StaffSettingsPage() {
               </div>
             )}
 
-            {/* 役職設定タブ */}
-            {activeTab === 'positions' && (
+            {/* ユニット管理タブ */}
+            {activeTab === 'units' && (
               <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">役職一覧</h3>
-                  <Button onClick={() => setShowAddPosition(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    役職追加
-                  </Button>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">ユニット管理</h2>
+                  <p className="text-gray-600">診療台（ユニット）の設定を管理します</p>
                 </div>
 
-                <div className="space-y-4">
-                  {positions.map(position => (
-                    <Card key={position.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">{position.name}</div>
-                            <div className="text-sm text-gray-500">
-                              並び順: {position.sort_order}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingPosition(position)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (confirm('この役職を削除しますか？')) {
-                                  deleteStaffPosition(DEMO_CLINIC_ID, position.id)
-                                }
-                              }}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-sm">ユニット管理機能は今後実装予定です</p>
+                  </div>
                 </div>
-
-                {/* 役職追加フォーム */}
-                {showAddPosition && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>新しい役職を追加</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="position_name">役職名</Label>
-                          <Input
-                            id="position_name"
-                            value={newPosition.name}
-                            onChange={(e) => setNewPosition(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="例: 院長"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="position_sort">並び順</Label>
-                          <Input
-                            id="position_sort"
-                            type="number"
-                            value={newPosition.sort_order}
-                            onChange={(e) => setNewPosition(prev => ({ ...prev, sort_order: parseInt(e.target.value) }))}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowAddPosition(false)}
-                        >
-                          キャンセル
-                        </Button>
-                        <Button
-                          onClick={handleAddPosition}
-                          disabled={saving || !newPosition.name}
-                        >
-                          {saving ? '追加中...' : '追加'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
             )}
           </div>

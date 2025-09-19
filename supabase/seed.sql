@@ -1,12 +1,39 @@
--- This file contains seed data for your database
--- You can add initial data here that will be loaded when running `supabase db reset`
+-- デモクリニックの作成
+INSERT INTO clinics (id, name, name_kana, phone, email, created_at, updated_at)
+VALUES (
+  '11111111-1111-1111-1111-111111111111',
+  'デモ歯科医院',
+  'デモシカイイン',
+  '03-1234-5678',
+  'demo@example.com',
+  NOW(),
+  NOW()
+) ON CONFLICT (id) DO NOTHING;
 
--- Example: Insert some sample users
--- INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at)
--- VALUES 
---   ('00000000-0000-0000-0000-000000000001', 'test@example.com', crypt('password123', gen_salt('bf')), now(), now(), now());
+-- デフォルト役職の作成
+INSERT INTO staff_positions (id, clinic_id, name, sort_order, enabled, created_at)
+VALUES 
+  ('11111111-1111-1111-1111-111111111101', '11111111-1111-1111-1111-111111111111', '歯科医師', 1, true, NOW()),
+  ('11111111-1111-1111-1111-111111111102', '11111111-1111-1111-1111-111111111111', '歯科衛生士', 2, true, NOW()),
+  ('11111111-1111-1111-1111-111111111103', '11111111-1111-1111-1111-111111111111', '歯科助手', 3, true, NOW()),
+  ('11111111-1111-1111-1111-111111111104', '11111111-1111-1111-1111-111111111111', '受付', 4, true, NOW())
+ON CONFLICT (id) DO NOTHING;
 
--- Example: Insert some sample data
--- INSERT INTO public.profiles (id, username, full_name, avatar_url)
--- VALUES 
---   ('00000000-0000-0000-0000-000000000001', 'testuser', 'Test User', 'https://example.com/avatar.jpg');
+-- デフォルトスタッフの作成
+INSERT INTO staff (id, clinic_id, position_id, name, name_kana, email, phone, role, is_active, created_at, updated_at)
+VALUES 
+  ('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111101', '福永', 'フクナガ', 'fukunaga@example.com', '090-1234-5678', 'staff', true, NOW(), NOW()),
+  ('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111102', '早水', 'ハヤミズ', 'hayamizu@example.com', '090-2345-6789', 'staff', true, NOW(), NOW()),
+  ('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111103', '佐藤 美咲', 'サトウ ミサキ', 'sato.misaki@example.com', '090-3456-7890', 'staff', true, NOW(), NOW()),
+  ('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111103', '山田 健一', 'ヤマダ ケンイチ', 'yamada.kenichi@example.com', '090-4567-8901', 'staff', true, NOW(), NOW()),
+  ('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111103', '早水 花子', 'ハヤミズ ハナコ', 'hayamizu.hanako@example.com', '090-5678-9012', 'staff', true, NOW(), NOW()),
+  ('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111103', '田中 次郎', 'タナカ ジロウ', 'tanaka.jiro@example.com', '090-6789-0123', 'staff', true, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- デフォルト勤務時間パターンの作成
+INSERT INTO shift_patterns (id, clinic_id, abbreviation, name, start_time, end_time, break_start, break_end, memo, created_at)
+VALUES 
+  ('33333333-3333-3333-3333-333333333301', '11111111-1111-1111-1111-111111111111', 'F', 'フルタイム', '09:00', '18:00', '13:00', '14:30', '', NOW()),
+  ('33333333-3333-3333-3333-333333333302', '11111111-1111-1111-1111-111111111111', 'AM', '午前のみ', '09:00', '13:00', '00:00', '00:00', '', NOW()),
+  ('33333333-3333-3333-3333-333333333303', '11111111-1111-1111-1111-111111111111', 'PM', '午後のみ', '14:30', '18:00', '00:00', '00:00', '', NOW())
+ON CONFLICT (id) DO NOTHING;

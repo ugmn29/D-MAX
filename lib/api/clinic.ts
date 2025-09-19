@@ -26,10 +26,14 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
  * クリニック設定を取得
  */
 export async function getClinicSettings(clinicId: string): Promise<Record<string, any>> {
+  console.log('getClinicSettings呼び出し:', clinicId)
+  
   const { data, error } = await supabase
     .from('clinic_settings')
     .select('setting_key, setting_value')
     .eq('clinic_id', clinicId)
+
+  console.log('getClinicSettingsレスポンス:', { data, error })
 
   if (error) {
     console.error('クリニック設定取得エラー:', error)
@@ -41,6 +45,7 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
     settings[setting.setting_key] = setting.setting_value
   })
 
+  console.log('処理後の設定:', settings)
   return settings
 }
 
@@ -77,17 +82,31 @@ export async function setClinicSetting(
   key: string,
   value: any
 ): Promise<void> {
+  console.log('setClinicSetting呼び出し:', { clinicId, key, value })
+  
+  const upsertData = {
+    clinic_id: clinicId,
+    setting_key: key,
+    setting_value: value
+  }
+  
+  console.log('Supabaseに送信するデータ:', upsertData)
+  
   const { error } = await supabase
     .from('clinic_settings')
-    .upsert({
-      clinic_id: clinicId,
-      setting_key: key,
-      setting_value: value
-    })
+    .upsert(upsertData, { onConflict: 'clinic_id,setting_key' })
+
+  console.log('setClinicSettingレスポンス:', { error })
 
   if (error) {
     console.error('設定値保存エラー:', error)
-    throw new Error('設定値の保存に失敗しました')
+    console.error('エラーの詳細:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    })
+    throw new Error(`設定値の保存に失敗しました: ${error.message}`)
   }
 }
 
@@ -150,8 +169,10 @@ export async function saveDailyMemo(
  * 診療時間を取得（デフォルト値付き）
  */
 export async function getBusinessHours(clinicId: string) {
+  console.log('getBusinessHours呼び出し:', clinicId)
+  
   const clinic = await getClinic(clinicId)
-  return clinic?.business_hours || {
+  const businessHours = clinic?.business_hours || {
     monday: { isOpen: true, start: '09:00', end: '18:00' },
     tuesday: { isOpen: true, start: '09:00', end: '18:00' },
     wednesday: { isOpen: true, start: '09:00', end: '18:00' },
@@ -160,6 +181,9 @@ export async function getBusinessHours(clinicId: string) {
     saturday: { isOpen: true, start: '09:00', end: '17:00' },
     sunday: { isOpen: false }
   }
+  
+  console.log('取得した診療時間:', businessHours)
+  return businessHours
 }
 
 /**
@@ -182,8 +206,29 @@ export async function getBreakTimes(clinicId: string) {
  * 1コマ時間を取得（デフォルト値付き）
  */
 export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
+  console.log('getTimeSlotMinutes呼び出し:', clinicId)
+  
   const clinic = await getClinic(clinicId)
-  return clinic?.time_slot_minutes || 15
+  const timeSlotMinutes = clinic?.time_slot_minutes || 15
+  
+  console.log('取得した1コマ時間:', timeSlotMinutes)
+  return timeSlotMinutes
+}
+
+/**
+ * 休診日を取得（デフォルト値付き）
+ */
+export async function getHolidays(clinicId: string): Promise<string[]> {
+  console.log('getHolidays呼び出し:', clinicId)
+  
+  try {
+    const holidays = await getClinicSetting(clinicId, 'holidays')
+    console.log('取得した休診日:', holidays)
+    return holidays || []
+  } catch (error) {
+    console.error('休診日取得エラー:', error)
+    return []
+  }
 }
 
 /**

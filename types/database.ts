@@ -62,6 +62,7 @@ export type Database = {
           clinic_id: string
           name: string
           sort_order: number
+          enabled: boolean
           created_at: string
         }
         Insert: {
@@ -69,6 +70,7 @@ export type Database = {
           clinic_id: string
           name: string
           sort_order?: number
+          enabled?: boolean
           created_at?: string
         }
         Update: {
@@ -76,7 +78,81 @@ export type Database = {
           clinic_id?: string
           name?: string
           sort_order?: number
+          enabled?: boolean
           created_at?: string
+        }
+      }
+      shift_patterns: {
+        Row: {
+          id: string
+          clinic_id: string
+          abbreviation: string
+          name: string
+          start_time: string
+          end_time: string
+          break_start: string | null
+          break_end: string | null
+          memo: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          abbreviation: string
+          name: string
+          start_time: string
+          end_time: string
+          break_start?: string | null
+          break_end?: string | null
+          memo?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          abbreviation?: string
+          name?: string
+          start_time?: string
+          end_time?: string
+          break_start?: string | null
+          break_end?: string | null
+          memo?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      staff_shifts: {
+        Row: {
+          id: string
+          clinic_id: string
+          staff_id: string
+          date: string
+          shift_pattern_id: string | null
+          is_holiday: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          staff_id: string
+          date: string
+          shift_pattern_id?: string | null
+          is_holiday?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          staff_id?: string
+          date?: string
+          shift_pattern_id?: string | null
+          is_holiday?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
       staff: {
@@ -555,6 +631,18 @@ export type StaffUpdate = Database['public']['Tables']['staff']['Update']
 export type Clinic = Database['public']['Tables']['clinics']['Row']
 export type ClinicInsert = Database['public']['Tables']['clinics']['Insert']
 export type ClinicUpdate = Database['public']['Tables']['clinics']['Update']
+
+export type StaffPosition = Database['public']['Tables']['staff_positions']['Row']
+export type StaffPositionInsert = Database['public']['Tables']['staff_positions']['Insert']
+export type StaffPositionUpdate = Database['public']['Tables']['staff_positions']['Update']
+
+export type ShiftPattern = Database['public']['Tables']['shift_patterns']['Row']
+export type ShiftPatternInsert = Database['public']['Tables']['shift_patterns']['Insert']
+export type ShiftPatternUpdate = Database['public']['Tables']['shift_patterns']['Update']
+
+export type StaffShift = Database['public']['Tables']['staff_shifts']['Row']
+export type StaffShiftInsert = Database['public']['Tables']['staff_shifts']['Insert']
+export type StaffShiftUpdate = Database['public']['Tables']['staff_shifts']['Update']
 
 export type TreatmentMenu = Database['public']['Tables']['treatment_menus']['Row']
 export type TreatmentMenuInsert = Database['public']['Tables']['treatment_menus']['Insert']
