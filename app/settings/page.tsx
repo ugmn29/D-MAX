@@ -2281,63 +2281,103 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
-                {/* スタッフ一覧表示 */}
-                <div className="space-y-4">
-                  <div className="bg-white rounded-lg border border-gray-200">
-                    {staff.length > 0 ? (
-                      <div className="divide-y divide-gray-200">
-                        {staff.map(member => (
-                          <div key={member.id} className="p-4 flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900">{member.name}</div>
-                              <div className="text-sm text-gray-500">{member.email}</div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                size="sm"
-                                className={`${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                              >
-                                {member.is_active ? '在籍' : '退職'}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setEditingStaff(member)}
-                                className="p-1 text-gray-400 hover:text-blue-600"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={async () => {
-                                  if (confirm('このスタッフを削除しますか？')) {
-                                    try {
-                                      await deleteStaff(DEMO_CLINIC_ID, member.id)
-                                      const data = await getStaff(DEMO_CLINIC_ID)
-                                      setStaff(data)
-                                      // シフト表をリフレッシュ
-                                      setRefreshTrigger(prev => prev + 1)
-                                    } catch (error) {
-                                      console.error('スタッフ削除エラー:', error)
+                {/* スタッフ一覧表示（役職別グループ化） */}
+                <div className="space-y-6">
+                  {(() => {
+                    // スタッフを役職別にグループ化
+                    const staffByPosition = staff.reduce((groups: { [key: string]: any[] }, member) => {
+                      const positionName = member.position?.name || 'その他'
+                      if (!groups[positionName]) {
+                        groups[positionName] = []
+                      }
+                      groups[positionName].push(member)
+                      return groups
+                    }, {})
+
+                    // 役職の並び順を決定（マスタ設定のsort_orderに基づく）
+                    const sortedPositions = Object.keys(staffByPosition).sort((a, b) => {
+                      const positionA = staffPositions.find(p => p.name === a)
+                      const positionB = staffPositions.find(p => p.name === b)
+                      const orderA = positionA?.sort_order || 999
+                      const orderB = positionB?.sort_order || 999
+                      return orderA - orderB
+                    })
+
+                    return sortedPositions.map(positionName => (
+                      <div key={positionName} className="bg-white rounded-lg border border-gray-200">
+                        {/* 役職ヘッダー */}
+                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                          <h4 className="font-medium text-gray-900">{positionName}</h4>
+                          <p className="text-sm text-gray-500">
+                            {staffByPosition[positionName].length}名
+                          </p>
+                        </div>
+                        
+                        {/* スタッフ一覧 */}
+                        <div className="divide-y divide-gray-200">
+                          {staffByPosition[positionName].map(member => (
+                            <div key={member.id} className="p-4 flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-900">{member.name}</div>
+                                <div className="text-sm text-gray-500">{member.email}</div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  size="sm"
+                                  className={`${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                  {member.is_active ? '在籍' : '退職'}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingStaff(member)}
+                                  className="p-1 text-gray-400 hover:text-blue-600"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (confirm('このスタッフを削除しますか？')) {
+                                      try {
+                                        await deleteStaff(DEMO_CLINIC_ID, member.id)
+                                        const data = await getStaff(DEMO_CLINIC_ID)
+                                        setStaff(data)
+                                        // シフト表をリフレッシュ
+                                        setRefreshTrigger(prev => prev + 1)
+                                      } catch (error) {
+                                        console.error('スタッフ削除エラー:', error)
+                                      }
                                     }
-                                  }
-                                }}
-                                className="p-1 text-gray-400 hover:text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    ) : (
-                      <div className="p-8 text-center text-gray-500">
-                        <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm">スタッフが登録されていません</p>
-                      </div>
-                    )}
-                  </div>
+                    ))
+                  })()}
+                  
+                  {/* スタッフが登録されていない場合 */}
+                  {staff.length === 0 && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                      <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">スタッフが登録されていません</p>
+                      <Button 
+                        onClick={() => setShowAddStaff(true)}
+                        className="mt-2"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        最初のスタッフを追加
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* スタッフ追加モーダル */}
