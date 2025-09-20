@@ -11,6 +11,12 @@ const nextConfig = {
     // 本番デプロイ時はESLintエラーを一時的に無視
     ignoreDuringBuilds: true,
   },
+  // Vercelでのビルド最適化
+  experimental: {
+    esmExternals: 'loose',
+  },
+  // 静的エクスポート用の設定（必要に応じて）
+  output: 'standalone',
 }
 
 module.exports = nextConfig
