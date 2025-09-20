@@ -1912,7 +1912,7 @@ export default function SettingsPage() {
     <div className="h-screen bg-gray-50">
       <div className="flex h-full">
         {/* 左サイドバー */}
-        <div className="w-56 bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div className="w-48 bg-gray-50 border-r border-gray-200 flex flex-col">
           {/* ヘッダー */}
           <div className="p-6 border-b border-gray-200">
             <h1 className="text-xl font-bold text-gray-900 flex items-center">
