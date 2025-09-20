@@ -100,7 +100,14 @@ export default function CalendarSettingsPage() {
       
       // clinic_settingsテーブルに保存
       console.log('設定ページ: clinic_settingsテーブルに保存中...')
-      await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', settings.timeSlotMinutes)
+      console.log('設定ページ: 保存するtimeSlotMinutes値:', settings.timeSlotMinutes)
+      console.log('設定ページ: 保存するtimeSlotMinutesの型:', typeof settings.timeSlotMinutes)
+      
+      // 数値として保存することを確認
+      const numericTimeSlotMinutes = Number(settings.timeSlotMinutes)
+      console.log('設定ページ: 数値変換後の値:', numericTimeSlotMinutes)
+      
+      await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', numericTimeSlotMinutes)
       console.log('設定ページ: time_slot_minutes保存完了')
       
       await setClinicSetting(DEMO_CLINIC_ID, 'unit_count', settings.unitCount)
@@ -168,7 +175,12 @@ export default function CalendarSettingsPage() {
         const timeSlotValue = settings.time_slot_minutes || 15
         console.log('設定ページ: time_slot_minutes設定:', timeSlotValue)
         console.log('設定ページ: time_slot_minutesの型:', typeof timeSlotValue)
-        setTimeSlotMinutes(timeSlotValue)
+        console.log('設定ページ: time_slot_minutesの値（詳細）:', JSON.stringify(timeSlotValue))
+        
+        // 数値に変換してから設定
+        const numericTimeSlotValue = Number(timeSlotValue)
+        console.log('設定ページ: 数値変換後:', numericTimeSlotValue)
+        setTimeSlotMinutes(numericTimeSlotValue)
         setUnitCount(settings.unit_count || 3)
         setUnits(settings.units || ['チェア1', 'チェア2', 'チェア3'])
         setDisplayItems(settings.display_items || [])
