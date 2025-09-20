@@ -29,24 +29,10 @@ import {
   Plus,
   Trash2,
   Edit,
-  Star,
-  Car,
-  AlertCircle,
-  DollarSign,
-  FileText,
-  HelpCircle,
-  User,
-  Heart,
-  Zap,
-  Receipt,
-  Accessibility,
-  Frown,
   FolderOpen,
   Tag
 } from 'lucide-react'
 import { updateClinicSettings, setClinicSetting, getClinicSettings } from '@/lib/api/clinic'
-import { RoleManagement } from '@/components/staff/role-management'
-import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
 import { getStaff, createStaff, updateStaff, deleteStaff } from '@/lib/api/staff'
 import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
 
@@ -71,27 +57,6 @@ const TIME_SLOT_OPTIONS = [
   { value: 60, label: '60分' }
 ]
 
-// アイコンマスターデータ
-const ICON_MASTER_DATA = [
-  { id: 'child', icon: User, title: 'お子さん', enabled: true },
-  { id: 'no_contact', icon: AlertCircle, title: '連絡いらない・しない', enabled: true },
-  { id: 'long_talk', icon: MessageSquare, title: 'お話長め', enabled: true },
-  { id: 'pregnant', icon: Heart, title: '妊娠・授乳中', enabled: true },
-  { id: 'implant', icon: Zap, title: 'インプラント', enabled: true },
-  { id: 'no_receipt', icon: Receipt, title: '領収書不要', enabled: true },
-  { id: 'handicap', icon: Accessibility, title: 'ハンディキャップ有り', enabled: true },
-  { id: 'anxious', icon: Frown, title: '心配・恐怖心あり', enabled: true },
-  { id: 'review_requested', icon: Star, title: 'ロコミお願い済', enabled: true },
-  { id: 'parking', icon: Car, title: '駐車券利用する', enabled: true },
-  { id: 'taxi', icon: Car, title: 'タクシーを呼ばれる方', enabled: true },
-  { id: 'accompanied', icon: Users, title: '付き添い者あり', enabled: true },
-  { id: 'caution', icon: AlertCircle, title: '要注意!', enabled: true },
-  { id: 'money_caution', icon: DollarSign, title: 'お金関係注意!', enabled: true },
-  { id: 'cancellation_policy', icon: FileText, title: 'キャンセルポリシーお渡し済み', enabled: true },
-  { id: 'assistance_required', icon: HelpCircle, title: '要介助必要', enabled: true },
-  { id: 'referrer', icon: Users, title: '紹介者', enabled: true },
-  { id: 'time_specified', icon: Calendar, title: '時間指定あり', enabled: true }
-]
 
 const DISPLAY_ITEMS = [
   { id: 'reservation_time', name: '予約時間', description: '予約の開始・終了時間を表示' },
@@ -175,13 +140,6 @@ const settingCategories = [
     href: '/settings/notification'
   },
   {
-    id: 'master',
-    name: 'マスタ',
-    icon: Database,
-    description: '特記事項アイコンや基本データの管理',
-    href: '/settings/master'
-  },
-  {
     id: 'subkarte',
     name: 'サブカルテ',
     icon: BarChart3,
@@ -194,7 +152,6 @@ export default function SettingsPage() {
   const router = useRouter()
   const pathname = usePathname()
   const [selectedCategory, setSelectedCategory] = useState<string | null>('clinic')
-  const [selectedMasterTab, setSelectedMasterTab] = useState('icons')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -250,13 +207,7 @@ export default function SettingsPage() {
     sort_order: 0
   })
 
-  // アイコンマスターの状態
-  const [iconMaster, setIconMaster] = useState(ICON_MASTER_DATA)
-  const [editingIconId, setEditingIconId] = useState<string | null>(null)
 
-  // 役職管理の状態
-  const [positions, setPositions] = useState<any[]>([])
-  const [positionsLoading, setPositionsLoading] = useState(false)
   
   // スタッフ管理の状態
   const [showAddStaff, setShowAddStaff] = useState(false)
@@ -268,7 +219,6 @@ export default function SettingsPage() {
     name_kana: '',
     email: '',
     phone: '',
-    position_id: '',
     role: 'staff'
   })
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -402,18 +352,6 @@ export default function SettingsPage() {
     
     loadClinicSettings()
 
-    // 役職データの読み込み
-    const loadPositions = async () => {
-      try {
-        setPositionsLoading(true)
-        const data = await getStaffPositions(DEMO_CLINIC_ID)
-        setPositions(data)
-      } catch (error) {
-        console.error('役職データ読み込みエラー:', error)
-      } finally {
-        setPositionsLoading(false)
-      }
-    }
 
     // スタッフデータの読み込み
     const loadStaff = async () => {
@@ -430,7 +368,6 @@ export default function SettingsPage() {
       }
     }
     
-    loadPositions()
     loadStaff()
 
     // 診療メニューデータの読み込み
@@ -1089,67 +1026,7 @@ export default function SettingsPage() {
   )
 
   // 診療メニュー設定コンテンツ
-  // アイコンマスターの関数
-  const handleIconTitleEdit = (iconId: string, newTitle: string) => {
-    setIconMaster(prev => prev.map(icon => 
-      icon.id === iconId ? { ...icon, title: newTitle } : icon
-    ))
-  }
 
-  const handleIconToggle = (iconId: string) => {
-    setIconMaster(prev => prev.map(icon => 
-      icon.id === iconId ? { ...icon, enabled: !icon.enabled } : icon
-    ))
-  }
-
-  // 役職管理のハンドラー
-  const handlePositionUpdate = async (positionId: string, updates: any) => {
-    try {
-      setPositionsLoading(true)
-      await updateStaffPosition(DEMO_CLINIC_ID, positionId, updates)
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
-      setPositions(data)
-      // シフト表をリフレッシュ
-      setRefreshTrigger(prev => prev + 1)
-    } catch (error) {
-      console.error('役職更新エラー:', error)
-      alert('役職の更新に失敗しました')
-    } finally {
-      setPositionsLoading(false)
-    }
-  }
-
-  const handlePositionDelete = async (positionId: string) => {
-    try {
-      setPositionsLoading(true)
-      await deleteStaffPosition(DEMO_CLINIC_ID, positionId)
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
-      setPositions(data)
-      // シフト表をリフレッシュ
-      setRefreshTrigger(prev => prev + 1)
-    } catch (error) {
-      console.error('役職削除エラー:', error)
-      alert('役職の削除に失敗しました')
-    } finally {
-      setPositionsLoading(false)
-    }
-  }
-
-  const handlePositionCreate = async (role: any) => {
-    try {
-      setPositionsLoading(true)
-      await createStaffPosition(DEMO_CLINIC_ID, role)
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
-      setPositions(data)
-      // シフト表をリフレッシュ
-      setRefreshTrigger(prev => prev + 1)
-    } catch (error) {
-      console.error('役職追加エラー:', error)
-      alert('役職の追加に失敗しました')
-    } finally {
-      setPositionsLoading(false)
-    }
-  }
 
   // スタッフ追加
   const handleAddStaff = async () => {
@@ -1175,7 +1052,6 @@ export default function SettingsPage() {
         name_kana: '',
         email: '',
         phone: '',
-        position_id: '',
         role: 'staff'
       })
       setShowAddStaff(false)
@@ -1189,155 +1065,6 @@ export default function SettingsPage() {
     }
   }
 
-  const renderMasterSettings = () => (
-    <div className="space-y-6">
-      {/* サブタブ */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          <button
-            onClick={() => setSelectedMasterTab('icons')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === 'icons'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            アイコン
-          </button>
-          <button
-            onClick={() => setSelectedMasterTab('staff')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === 'staff'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            スタッフ
-          </button>
-          <button
-            onClick={() => setSelectedMasterTab('files')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === 'files'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            ファイル
-          </button>
-        </nav>
-      </div>
-
-      {/* アイコンタブのコンテンツ */}
-      {selectedMasterTab === 'icons' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">アイコン</h3>
-              <p className="text-sm text-gray-500">患者の特記事項を管理します</p>
-            </div>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              新規追加
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            {iconMaster.map((icon) => {
-              const IconComponent = icon.icon
-              return (
-                <div key={icon.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-8 h-8 flex items-center justify-center">
-                      {IconComponent ? (
-                        <IconComponent className="w-6 h-6 text-gray-600" />
-                      ) : (
-                        <div className="w-6 h-6 bg-gray-200 rounded flex items-center justify-center">
-                          <span className="text-xs text-gray-500">?</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      {editingIconId === icon.id ? (
-                        <Input
-                          value={icon.title}
-                          onChange={(e) => handleIconTitleEdit(icon.id, e.target.value)}
-                          onBlur={() => setEditingIconId(null)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              setEditingIconId(null)
-                            }
-                          }}
-                          className="text-sm font-medium"
-                          autoFocus
-                        />
-                      ) : (
-                        <span 
-                          className="text-sm font-medium text-gray-900 cursor-pointer"
-                          onClick={() => setEditingIconId(icon.id)}
-                        >
-                          {icon.title}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={icon.enabled}
-                        onChange={() => handleIconToggle(icon.id)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                    </div>
-                    <button
-                      onClick={() => setEditingIconId(icon.id)}
-                      className="p-1 text-gray-400 hover:text-blue-600"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-red-600">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* スタッフタブのコンテンツ */}
-      {selectedMasterTab === 'staff' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">スタッフ</h2>
-            <p className="text-gray-600">スタッフの設定を管理します</p>
-          </div>
-
-          <RoleManagement
-            roles={positions.map(pos => ({
-              id: pos.id,
-              name: pos.name,
-              enabled: pos.enabled ?? true,
-              sort_order: pos.sort_order
-            }))}
-            onRoleUpdate={handlePositionUpdate}
-            onRoleDelete={handlePositionDelete}
-            onRoleCreate={handlePositionCreate}
-            loading={positionsLoading}
-          />
-        </div>
-      )}
-
-      {/* ファイルタブのコンテンツ */}
-      {selectedMasterTab === 'files' && (
-        <div className="text-center py-8 text-gray-500">
-          ファイル設定のコンテンツがここに表示されます
-        </div>
-      )}
-    </div>
-  )
 
   const renderTreatmentSettings = () => (
     <div className="space-y-6">
@@ -1997,87 +1724,63 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
-                {/* 役職ごとのスタッフ表示 */}
+                {/* スタッフ一覧表示 */}
                 <div className="space-y-4">
-                  {positions.filter(pos => pos.enabled).map(position => {
-                    const positionStaff = staff.filter(s => s.position_id === position.id)
-                    return (
-                      <div key={position.id} className="bg-white rounded-lg border border-gray-200">
-                        <div className="p-4 border-b border-gray-200">
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-medium text-gray-900">
-                              {position.name} {positionStaff.length}名
-                            </h4>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setNewStaff(prev => ({ ...prev, position_id: position.id }))
-                                setShowAddStaff(true)
-                              }}
-                            >
-                              <Plus className="w-4 h-4 mr-1" />
-                              追加
-                            </Button>
+                  <div className="bg-white rounded-lg border border-gray-200">
+                    {staff.length > 0 ? (
+                      <div className="divide-y divide-gray-200">
+                        {staff.map(member => (
+                          <div key={member.id} className="p-4 flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">{member.name}</div>
+                              <div className="text-sm text-gray-500">{member.email}</div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                size="sm"
+                                className={`${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                              >
+                                {member.is_active ? '在籍' : '退職'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditingStaff(member)}
+                                className="p-1 text-gray-400 hover:text-blue-600"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  if (confirm('このスタッフを削除しますか？')) {
+                                    try {
+                                      await deleteStaff(DEMO_CLINIC_ID, member.id)
+                                      const data = await getStaff(DEMO_CLINIC_ID)
+                                      setStaff(data)
+                                      // シフト表をリフレッシュ
+                                      setRefreshTrigger(prev => prev + 1)
+                                    } catch (error) {
+                                      console.error('スタッフ削除エラー:', error)
+                                    }
+                                  }
+                                }}
+                                className="p-1 text-gray-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        
-                        {positionStaff.length > 0 ? (
-                          <div className="divide-y divide-gray-200">
-                            {positionStaff.map(member => (
-                              <div key={member.id} className="p-4 flex items-center justify-between">
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-900">{member.name}</div>
-                                  <div className="text-sm text-gray-500">{member.email}</div>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Button
-                                    size="sm"
-                                    className={`${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                                  >
-                                    {member.is_active ? '在籍' : '退職'}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setEditingStaff(member)}
-                                    className="p-1 text-gray-400 hover:text-blue-600"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={async () => {
-                                      if (confirm('このスタッフを削除しますか？')) {
-                                        try {
-                                          await deleteStaff(DEMO_CLINIC_ID, member.id)
-                                          const data = await getStaff(DEMO_CLINIC_ID)
-                                          setStaff(data)
-                                          // シフト表をリフレッシュ
-                                          setRefreshTrigger(prev => prev + 1)
-                                        } catch (error) {
-                                          console.error('スタッフ削除エラー:', error)
-                                        }
-                                      }
-                                    }}
-                                    className="p-1 text-gray-400 hover:text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="p-8 text-center text-gray-500">
-                            <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                            <p className="text-sm">この役職にスタッフが登録されていません</p>
-                          </div>
-                        )}
+                        ))}
                       </div>
-                    )
-                  })}
+                    ) : (
+                      <div className="p-8 text-center text-gray-500">
+                        <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">スタッフが登録されていません</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* スタッフ追加モーダル */}
@@ -2108,24 +1811,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div>
-                      <Label htmlFor="staff_position">役職</Label>
-                      <Select
-                        value={newStaff.position_id}
-                        onValueChange={(value) => setNewStaff(prev => ({ ...prev, position_id: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="役職を選択してください" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {positions.filter(pos => pos.enabled).map(position => (
-                            <SelectItem key={position.id} value={position.id}>
-                              {position.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -2165,7 +1850,7 @@ export default function SettingsPage() {
                           console.log('newStaff全体:', newStaff)
                           handleAddStaff()
                         }}
-                        disabled={staffLoading || !newStaff.name || !newStaff.position_id}
+                        disabled={staffLoading || !newStaff.name}
                       >
                         {staffLoading ? '追加中...' : '追加'}
                       </Button>
@@ -2214,7 +1899,6 @@ export default function SettingsPage() {
             通知設定のコンテンツがここに表示されます
           </div>
         )}
-        {selectedCategory === 'master' && renderMasterSettings()}
         {selectedCategory === 'subkarte' && (
           <div className="text-center py-8 text-gray-500">
             サブカルテ設定のコンテンツがここに表示されます

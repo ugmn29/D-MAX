@@ -1,9 +1,9 @@
 -- D-MAX 初期データベーススキーマ
 -- マルチテナント対応（クリニックごとにデータ分離）
 
--- 拡張機能の有効化
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- 拡張機能の有効化（Supabaseでは標準で利用可能）
+-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ENUM型の定義
 CREATE TYPE staff_role AS ENUM ('admin', 'clinic', 'staff');
@@ -13,7 +13,7 @@ CREATE TYPE log_action AS ENUM ('作成', '変更', 'キャンセル', '削除')
 
 -- クリニック（テナント）テーブル
 CREATE TABLE clinics (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     name_kana VARCHAR(255),
     phone VARCHAR(20),
@@ -32,7 +32,7 @@ CREATE TABLE clinics (
 
 -- スタッフ役職マスタ
 CREATE TABLE staff_positions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     sort_order INTEGER NOT NULL DEFAULT 0,
@@ -41,7 +41,7 @@ CREATE TABLE staff_positions (
 
 -- スタッフテーブル
 CREATE TABLE staff (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     user_id UUID REFERENCES auth.users(id),
     position_id UUID REFERENCES staff_positions(id),
@@ -58,7 +58,7 @@ CREATE TABLE staff (
 
 -- ユニット（診療台）テーブル
 CREATE TABLE units (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     sort_order INTEGER NOT NULL DEFAULT 0,
@@ -68,7 +68,7 @@ CREATE TABLE units (
 
 -- 診療メニューテーブル（3階層）
 CREATE TABLE treatment_menus (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     parent_id UUID REFERENCES treatment_menus(id),
     level INTEGER NOT NULL CHECK (level IN (1, 2, 3)),
@@ -82,7 +82,7 @@ CREATE TABLE treatment_menus (
 
 -- 患者特記事項マスタ
 CREATE TABLE patient_note_types (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     icon VARCHAR(10),
@@ -93,10 +93,10 @@ CREATE TABLE patient_note_types (
 
 -- 患者テーブル
 CREATE TABLE patients (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     patient_number INTEGER NOT NULL, -- クリニック内での連番
-    global_uuid UUID UNIQUE DEFAULT uuid_generate_v4(), -- 全システム共通ID
+    global_uuid UUID UNIQUE DEFAULT gen_random_uuid(), -- 全システム共通ID
 
     -- 基本情報
     last_name VARCHAR(50) NOT NULL,
@@ -135,7 +135,7 @@ CREATE TABLE patients (
 
 -- 患者特記事項紐付け
 CREATE TABLE patient_notes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     note_type_id UUID NOT NULL REFERENCES patient_note_types(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -143,7 +143,7 @@ CREATE TABLE patient_notes (
 
 -- 予約テーブル
 CREATE TABLE appointments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
 
@@ -176,7 +176,7 @@ CREATE TABLE appointments (
 
 -- 予約操作ログテーブル
 CREATE TABLE appointment_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     appointment_id UUID REFERENCES appointments(id) ON DELETE CASCADE,
     action log_action NOT NULL,
     before_data JSONB,
@@ -189,7 +189,7 @@ CREATE TABLE appointment_logs (
 
 -- シフトテーブル
 CREATE TABLE shifts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
     date DATE NOT NULL,
@@ -207,7 +207,7 @@ CREATE TABLE shifts (
 
 -- 設定テーブル
 CREATE TABLE clinic_settings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     setting_key VARCHAR(100) NOT NULL,
     setting_value JSONB,
@@ -219,7 +219,7 @@ CREATE TABLE clinic_settings (
 
 -- 日次メモテーブル
 CREATE TABLE daily_memos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     memo TEXT,
