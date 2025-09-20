@@ -26,7 +26,7 @@ interface StaffPosition {
   id: string
   name: string
   sort_order: number
-  enabled: boolean
+  enabled?: boolean
 }
 
 export default function MasterSettingsPage() {
@@ -389,7 +389,7 @@ export default function MasterSettingsPage() {
                           <div>
                             <div className="font-medium">{position.name}</div>
                             <div className="text-sm text-gray-500">
-                              並び順: {position.sort_order} | ステータス: {position.enabled ? '有効' : '無効'}
+                              並び順: {position.sort_order} | ステータス: {position.enabled !== false ? '有効' : '無効'}
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">

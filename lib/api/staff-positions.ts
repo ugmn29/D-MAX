@@ -16,7 +16,11 @@ export async function getStaffPositions(clinicId: string): Promise<StaffPosition
     throw new Error('スタッフ役職の取得に失敗しました')
   }
 
-  return data || []
+  // enabledフィールドが存在しない場合のデフォルト値を設定
+  return (data || []).map(position => ({
+    ...position,
+    enabled: position.enabled ?? true
+  }))
 }
 
 /**
@@ -26,9 +30,16 @@ export async function createStaffPosition(
   clinicId: string,
   positionData: Omit<StaffPositionInsert, 'clinic_id'>
 ): Promise<StaffPosition> {
-  const newPosition: StaffPositionInsert = {
-    ...positionData,
-    clinic_id: clinicId
+  // enabledカラムが存在しない場合に備えて、必要なフィールドのみを送信
+  const newPosition: any = {
+    clinic_id: clinicId,
+    name: positionData.name,
+    sort_order: positionData.sort_order || 0
+  }
+
+  // enabledカラムが存在する場合のみ追加
+  if (positionData.enabled !== undefined) {
+    newPosition.enabled = positionData.enabled
   }
 
   const { data, error } = await supabase
@@ -39,10 +50,15 @@ export async function createStaffPosition(
 
   if (error) {
     console.error('スタッフ役職作成エラー:', error)
-    throw new Error('スタッフ役職の作成に失敗しました')
+    console.error('エラー詳細:', error)
+    throw new Error(`スタッフ役職の作成に失敗しました: ${error.message}`)
   }
 
-  return data
+  // レスポンスにenabledフィールドがない場合のデフォルト値を設定
+  return {
+    ...data,
+    enabled: data.enabled ?? true
+  }
 }
 
 /**
