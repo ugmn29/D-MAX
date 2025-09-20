@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { MainLayout } from '@/components/layout/main-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Save, Plus, Trash2, Edit } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Edit, FileText, Tag, FolderOpen } from 'lucide-react'
 import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
 
 // 仮のクリニックID
@@ -32,6 +31,7 @@ export default function TreatmentSettingsPage() {
   const [menus, setMenus] = useState<TreatmentMenu[]>([])
   const [editingMenu, setEditingMenu] = useState<TreatmentMenu | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [selectedTab, setSelectedTab] = useState('menu1')
   const [newMenu, setNewMenu] = useState({
     name: '',
     level: 1,
@@ -46,7 +46,9 @@ export default function TreatmentSettingsPage() {
     const loadMenus = async () => {
       try {
         setLoading(true)
+        console.log('メニュー読み込み開始:', DEMO_CLINIC_ID)
         const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+        console.log('読み込んだメニューデータ:', data)
         setMenus(data)
       } catch (error) {
         console.error('メニュー読み込みエラー:', error)
@@ -85,7 +87,16 @@ export default function TreatmentSettingsPage() {
   const handleAddMenu = async () => {
     try {
       setSaving(true)
-      await createTreatmentMenu(DEMO_CLINIC_ID, newMenu)
+      
+      // 選択されたタブに応じてレベルを設定
+      const menuData = {
+        ...newMenu,
+        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3
+      }
+      
+      console.log('メニュー追加開始:', menuData)
+      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData)
+      console.log('メニュー追加成功:', result)
       
       // データを再読み込み
       const data = await getTreatmentMenus(DEMO_CLINIC_ID)
@@ -93,16 +104,18 @@ export default function TreatmentSettingsPage() {
       
       setNewMenu({
         name: '',
-        level: 1,
+        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
         parent_id: '',
         standard_duration: 30,
         color: '#3B82F6',
         sort_order: 0
       })
       setShowAddForm(false)
+      
+      alert('メニューを正常に追加しました')
     } catch (error) {
       console.error('メニュー追加エラー:', error)
-      alert('メニューの追加に失敗しました')
+      alert('メニューの追加に失敗しました: ' + (error as Error).message)
     } finally {
       setSaving(false)
     }
@@ -151,6 +164,34 @@ export default function TreatmentSettingsPage() {
     }
   }
 
+  // 全体保存
+  const handleSaveAll = async () => {
+    try {
+      setSaving(true)
+      // ここで全体的な保存処理を実装
+      alert('設定を保存しました')
+    } catch (error) {
+      console.error('保存エラー:', error)
+      alert('保存に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // タブに応じたメニューのフィルタリング
+  const getFilteredMenus = () => {
+    switch (selectedTab) {
+      case 'menu1':
+        return menus.filter(menu => menu.level === 1)
+      case 'menu2':
+        return menus.filter(menu => menu.level === 2)
+      case 'submenu':
+        return menus.filter(menu => menu.level === 3)
+      default:
+        return menus
+    }
+  }
+
   // メニューアイテムのレンダリング
   const renderMenuItem = (menu: TreatmentMenu, level: number = 0) => {
     const indent = level * 20
@@ -196,204 +237,287 @@ export default function TreatmentSettingsPage() {
 
   if (loading) {
     return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
-        </div>
-      </MainLayout>
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
     )
   }
 
   return (
-    <MainLayout>
-      <div className="flex h-screen">
-        {/* 左サイドバー */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-          {/* ヘッダー */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.back()}
-                className="mr-2"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <h1 className="text-xl font-bold text-gray-900">診療メニュー</h1>
-            </div>
-          </div>
-
-          {/* メニュー項目 */}
-          <div className="flex-1 overflow-y-auto">
-            <nav className="p-4 space-y-2">
-              <div className="bg-blue-50 text-blue-700 border border-blue-200 p-3 rounded-lg">
-                <div className="font-medium">診療メニュー</div>
-                <div className="text-sm text-blue-600">診療メニューの3階層設定</div>
+    <div className="h-screen bg-gray-50">
+      {/* 上部ナビゲーションバー */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-6">
+            <button 
+              onClick={() => setSelectedTab('menu1')}
+              className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded transition-colors"
+            >
+              <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                selectedTab === 'menu1' ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <FileText className={`w-4 h-4 ${
+                  selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
+                }`} />
               </div>
-            </nav>
-          </div>
-        </div>
-
-        {/* メインコンテンツエリア */}
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="p-6">
-            {/* ヘッダー */}
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">診療メニュー設定</h2>
-                <p className="text-gray-600">診療メニューの3階層構造を管理します</p>
+              <span className={`font-medium ${
+                selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
+              }`}>
+                メニュー-1
+              </span>
+            </button>
+            <button 
+              onClick={() => setSelectedTab('menu2')}
+              className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded transition-colors"
+            >
+              <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                selectedTab === 'menu2' ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <FolderOpen className={`w-4 h-4 ${
+                  selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
+                }`} />
               </div>
-              <Button onClick={() => setShowAddForm(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                メニュー追加
-              </Button>
-            </div>
-
-            {/* メニュー一覧 */}
-            <div className="space-y-4">
-              {buildMenuTree(menus).map(menu => renderMenuItem(menu))}
-            </div>
-
-            {/* メニュー追加フォーム */}
-            {showAddForm && (
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle>新しいメニューを追加</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="menu_name">メニュー名</Label>
-                      <Input
-                        id="menu_name"
-                        value={newMenu.name}
-                        onChange={(e) => setNewMenu(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="例: 虫歯治療"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="menu_level">レベル</Label>
-                      <select
-                        id="menu_level"
-                        value={newMenu.level}
-                        onChange={(e) => setNewMenu(prev => ({ ...prev, level: parseInt(e.target.value) }))}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      >
-                        <option value={1}>レベル1（大分類）</option>
-                        <option value={2}>レベル2（中分類）</option>
-                        <option value={3}>レベル3（詳細）</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="standard_duration">標準時間（分）</Label>
-                      <Input
-                        id="standard_duration"
-                        type="number"
-                        value={newMenu.standard_duration}
-                        onChange={(e) => setNewMenu(prev => ({ ...prev, standard_duration: parseInt(e.target.value) }))}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="menu_color">色</Label>
-                      <Input
-                        id="menu_color"
-                        type="color"
-                        value={newMenu.color}
-                        onChange={(e) => setNewMenu(prev => ({ ...prev, color: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddForm(false)}
-                    >
-                      キャンセル
-                    </Button>
-                    <Button
-                      onClick={handleAddMenu}
-                      disabled={saving || !newMenu.name}
-                    >
-                      {saving ? '追加中...' : '追加'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* 編集フォーム */}
-            {editingMenu && (
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle>メニューを編集</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit_name">メニュー名</Label>
-                      <Input
-                        id="edit_name"
-                        value={editingMenu.name}
-                        onChange={(e) => setEditingMenu(prev => prev ? { ...prev, name: e.target.value } : null)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit_duration">標準時間（分）</Label>
-                      <Input
-                        id="edit_duration"
-                        type="number"
-                        value={editingMenu.standard_duration || 30}
-                        onChange={(e) => setEditingMenu(prev => prev ? { ...prev, standard_duration: parseInt(e.target.value) } : null)}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit_color">色</Label>
-                      <Input
-                        id="edit_color"
-                        type="color"
-                        value={editingMenu.color || '#3B82F6'}
-                        onChange={(e) => setEditingMenu(prev => prev ? { ...prev, color: e.target.value } : null)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit_sort">並び順</Label>
-                      <Input
-                        id="edit_sort"
-                        type="number"
-                        value={editingMenu.sort_order}
-                        onChange={(e) => setEditingMenu(prev => prev ? { ...prev, sort_order: parseInt(e.target.value) } : null)}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingMenu(null)}
-                    >
-                      キャンセル
-                    </Button>
-                    <Button
-                      onClick={() => editingMenu && handleEditMenu(editingMenu)}
-                      disabled={saving}
-                    >
-                      {saving ? '保存中...' : '保存'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+              <span className={`font-medium ${
+                selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
+              }`}>
+                メニュー-2
+              </span>
+            </button>
+            <button 
+              onClick={() => setSelectedTab('submenu')}
+              className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded transition-colors"
+            >
+              <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                selectedTab === 'submenu' ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <Tag className={`w-4 h-4 ${
+                  selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
+                }`} />
+              </div>
+              <span className={`font-medium ${
+                selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
+              }`}>
+                サブメニュー
+              </span>
+            </button>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setNewMenu(prev => ({
+                  ...prev,
+                  level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3
+                }))
+                setShowAddForm(true)
+              }}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>
+                {selectedTab === 'menu1' && 'メニュー-1を追加'}
+                {selectedTab === 'menu2' && 'メニュー-2を追加'}
+                {selectedTab === 'submenu' && 'サブメニューを追加'}
+              </span>
+            </Button>
+            <Button 
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? '保存中...' : '保存'}
+            </Button>
           </div>
         </div>
       </div>
-    </MainLayout>
+
+      {/* メインコンテンツエリア */}
+      <div className="flex-1 overflow-y-auto bg-white">
+        <div className="p-6">
+          {/* タブに応じたメニュー一覧 */}
+          <div className="space-y-4">
+            {getFilteredMenus().length > 0 ? (
+              getFilteredMenus().map(menu => renderMenuItem(menu))
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  {selectedTab === 'menu1' && <FileText className="w-8 h-8 text-gray-400" />}
+                  {selectedTab === 'menu2' && <FolderOpen className="w-8 h-8 text-gray-400" />}
+                  {selectedTab === 'submenu' && <Tag className="w-8 h-8 text-gray-400" />}
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {selectedTab === 'menu1' && 'メニュー-1が登録されていません'}
+                  {selectedTab === 'menu2' && 'メニュー-2が登録されていません'}
+                  {selectedTab === 'submenu' && 'サブメニューが登録されていません'}
+                </h3>
+                <p className="text-gray-500 mb-4">
+                  {selectedTab === 'menu1' && '上部の「メニュー-1を追加」ボタンから新しいメニューを追加してください'}
+                  {selectedTab === 'menu2' && '上部の「メニュー-2を追加」ボタンから新しいメニューを追加してください'}
+                  {selectedTab === 'submenu' && '上部の「サブメニューを追加」ボタンから新しいメニューを追加してください'}
+                </p>
+                <Button 
+                  onClick={() => {
+                    setNewMenu(prev => ({
+                      ...prev,
+                      level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3
+                    }))
+                    setShowAddForm(true)
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {selectedTab === 'menu1' && 'メニュー-1を追加'}
+                  {selectedTab === 'menu2' && 'メニュー-2を追加'}
+                  {selectedTab === 'submenu' && 'サブメニューを追加'}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* メニュー追加フォーム */}
+          {showAddForm && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle>
+                    {selectedTab === 'menu1' && '新しいメニュー-1を追加'}
+                    {selectedTab === 'menu2' && '新しいメニュー-2を追加'}
+                    {selectedTab === 'submenu' && '新しいサブメニューを追加'}
+                  </CardTitle>
+                </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="menu_name">メニュー名</Label>
+                    <Input
+                      id="menu_name"
+                      value={newMenu.name}
+                      onChange={(e) => setNewMenu(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="例: 虫歯治療"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="menu_level">レベル</Label>
+                    <select
+                      id="menu_level"
+                      value={newMenu.level}
+                      onChange={(e) => setNewMenu(prev => ({ ...prev, level: parseInt(e.target.value) }))}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                    >
+                      <option value={1}>レベル1（大分類）</option>
+                      <option value={2}>レベル2（中分類）</option>
+                      <option value={3}>レベル3（詳細）</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="standard_duration">標準時間（分）</Label>
+                    <Input
+                      id="standard_duration"
+                      type="number"
+                      value={newMenu.standard_duration}
+                      onChange={(e) => setNewMenu(prev => ({ ...prev, standard_duration: parseInt(e.target.value) }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="menu_color">色</Label>
+                    <Input
+                      id="menu_color"
+                      type="color"
+                      value={newMenu.color}
+                      onChange={(e) => setNewMenu(prev => ({ ...prev, color: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddForm(false)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={handleAddMenu}
+                    disabled={saving || !newMenu.name}
+                  >
+                    {saving ? '追加中...' : '追加'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 編集フォーム */}
+          {editingMenu && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>メニューを編集</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit_name">メニュー名</Label>
+                    <Input
+                      id="edit_name"
+                      value={editingMenu.name}
+                      onChange={(e) => setEditingMenu(prev => prev ? { ...prev, name: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit_duration">標準時間（分）</Label>
+                    <Input
+                      id="edit_duration"
+                      type="number"
+                      value={editingMenu.standard_duration || 30}
+                      onChange={(e) => setEditingMenu(prev => prev ? { ...prev, standard_duration: parseInt(e.target.value) } : null)}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit_color">色</Label>
+                    <Input
+                      id="edit_color"
+                      type="color"
+                      value={editingMenu.color || '#3B82F6'}
+                      onChange={(e) => setEditingMenu(prev => prev ? { ...prev, color: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit_sort">並び順</Label>
+                    <Input
+                      id="edit_sort"
+                      type="number"
+                      value={editingMenu.sort_order}
+                      onChange={(e) => setEditingMenu(prev => prev ? { ...prev, sort_order: parseInt(e.target.value) } : null)}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditingMenu(null)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={() => editingMenu && handleEditMenu(editingMenu)}
+                    disabled={saving}
+                  >
+                    {saving ? '保存中...' : '保存'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

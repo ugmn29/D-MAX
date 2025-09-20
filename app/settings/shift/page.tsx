@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { MainLayout } from '@/components/layout/main-layout'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save, Plus, Trash2, Edit } from 'lucide-react'
-import { getShiftsByMonth, createShift, updateShift, deleteShift } from '@/lib/api/shifts'
+import { getStaffShifts, upsertStaffShift, deleteStaffShift } from '@/lib/api/shifts'
 import { getStaff } from '@/lib/api/staff'
 import { getClinicSettings } from '@/lib/api/clinic'
+import { getShiftPatterns } from '@/lib/api/shift-patterns'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -32,6 +34,7 @@ export default function ShiftSettingsPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [shifts, setShifts] = useState<any[]>([])
   const [staff, setStaff] = useState<any[]>([])
+  const [shiftPatterns, setShiftPatterns] = useState<any[]>([])
   const [editingShift, setEditingShift] = useState<any>(null)
   const [showAddShift, setShowAddShift] = useState(false)
   const [units, setUnits] = useState<string[]>(['チェア1', 'チェア2', 'チェア3'])
@@ -39,11 +42,7 @@ export default function ShiftSettingsPage() {
   const [newShift, setNewShift] = useState({
     staff_id: '',
     date: '',
-    start_time: '09:00',
-    end_time: '18:00',
-    break_start_time: '12:00',
-    break_end_time: '13:00',
-    pattern_name: 'fulltime',
+    shift_pattern_id: null as string | null,
     is_absent: false
   })
 
@@ -55,14 +54,16 @@ export default function ShiftSettingsPage() {
         const year = currentMonth.getFullYear()
         const month = currentMonth.getMonth() + 1
         
-        const [shiftsData, staffData, settings] = await Promise.all([
-          getShiftsByMonth(DEMO_CLINIC_ID, year, month),
+        const [shiftsData, staffData, settings, patternsData] = await Promise.all([
+          getStaffShifts(DEMO_CLINIC_ID, year, month),
           getStaff(DEMO_CLINIC_ID),
-          getClinicSettings(DEMO_CLINIC_ID)
+          getClinicSettings(DEMO_CLINIC_ID),
+          getShiftPatterns(DEMO_CLINIC_ID)
         ])
         
         setShifts(shiftsData)
         setStaff(staffData)
+        setShiftPatterns(patternsData)
         // カレンダー設定からユニット情報を取得
         setUnits(settings.units || ['チェア1', 'チェア2', 'チェア3'])
       } catch (error) {
@@ -100,22 +101,18 @@ export default function ShiftSettingsPage() {
   const handleAddShift = async () => {
     try {
       setSaving(true)
-      await createShift(DEMO_CLINIC_ID, newShift)
+      await upsertStaffShift(DEMO_CLINIC_ID, { ...newShift, clinic_id: DEMO_CLINIC_ID })
       
       // データを再読み込み
       const year = currentMonth.getFullYear()
       const month = currentMonth.getMonth() + 1
-      const data = await getShiftsByMonth(DEMO_CLINIC_ID, year, month)
+      const data = await getStaffShifts(DEMO_CLINIC_ID, year, month)
       setShifts(data)
       
       setNewShift({
         staff_id: '',
         date: '',
-        start_time: '09:00',
-        end_time: '18:00',
-        break_start_time: '12:00',
-        break_end_time: '13:00',
-        pattern_name: 'fulltime',
+        shift_pattern_id: null,
         is_absent: false
       })
       setShowAddShift(false)
@@ -261,8 +258,9 @@ export default function ShiftSettingsPage() {
                               key={shift.id}
                               className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded"
                             >
-                              {shift.staff.name}
+                              {shift.staff?.name || 'スタッフ不明'}
                               {shift.is_absent && ' (休)'}
+                              {shift.shift_patterns && ` (${shift.shift_patterns.abbreviation})`}
                             </div>
                           ))}
                         </div>
@@ -314,66 +312,20 @@ export default function ShiftSettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        開始時間
-                      </label>
-                      <input
-                        type="time"
-                        value={newShift.start_time}
-                        onChange={(e) => setNewShift(prev => ({ ...prev, start_time: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        終了時間
-                      </label>
-                      <input
-                        type="time"
-                        value={newShift.end_time}
-                        onChange={(e) => setNewShift(prev => ({ ...prev, end_time: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        休憩開始
-                      </label>
-                      <input
-                        type="time"
-                        value={newShift.break_start_time}
-                        onChange={(e) => setNewShift(prev => ({ ...prev, break_start_time: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        休憩終了
-                      </label>
-                      <input
-                        type="time"
-                        value={newShift.break_end_time}
-                        onChange={(e) => setNewShift(prev => ({ ...prev, break_end_time: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         勤務パターン
                       </label>
                       <select
-                        value={newShift.pattern_name}
-                        onChange={(e) => setNewShift(prev => ({ ...prev, pattern_name: e.target.value }))}
+                        value={newShift.shift_pattern_id || ''}
+                        onChange={(e) => setNewShift(prev => ({ 
+                          ...prev, 
+                          shift_pattern_id: e.target.value === '' ? null : e.target.value 
+                        }))}
                         className="w-full p-2 border border-gray-300 rounded-md"
                       >
-                        {WORK_PATTERNS.map(pattern => (
+                        <option value="">パターンを選択</option>
+                        {shiftPatterns.map(pattern => (
                           <option key={pattern.id} value={pattern.id}>
-                            {pattern.name}
+                            {pattern.name} ({pattern.abbreviation})
                           </option>
                         ))}
                       </select>

@@ -89,6 +89,19 @@ export async function getStaffShiftsByDate(clinicId: string, date: string): Prom
     .from('staff_shifts')
     .select(`
       *,
+      staff:staff_id (
+        id,
+        name,
+        name_kana,
+        position_id,
+        role,
+        is_active,
+        position:staff_positions (
+          id,
+          name,
+          sort_order
+        )
+      ),
       shift_patterns (
         abbreviation,
         name,

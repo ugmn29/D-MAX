@@ -75,7 +75,8 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
         end_time: newPattern.end_time,
         break_start: newPattern.no_break ? null : newPattern.break_start,
         break_end: newPattern.no_break ? null : newPattern.break_end,
-        memo: newPattern.memo || null
+        memo: newPattern.memo || null,
+        clinic_id: clinicId
       }
       
       console.log('送信するデータ:', patternData)

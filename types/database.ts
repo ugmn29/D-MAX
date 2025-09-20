@@ -133,6 +133,27 @@ export type Database = {
           is_holiday: boolean
           created_at: string
           updated_at: string
+          staff?: {
+            id: string
+            name: string
+            name_kana?: string
+            position_id?: string
+            role: string
+            is_active: boolean
+            position?: {
+              id: string
+              name: string
+              sort_order: number
+            }
+          }
+          shift_patterns?: {
+            abbreviation: string
+            name: string
+            start_time: string
+            end_time: string
+            break_start: string | null
+            break_end: string | null
+          }
         }
         Insert: {
           id?: string

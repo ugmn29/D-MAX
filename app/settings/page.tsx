@@ -40,12 +40,15 @@ import {
   Zap,
   Receipt,
   Accessibility,
-  Frown
+  Frown,
+  FolderOpen,
+  Tag
 } from 'lucide-react'
 import { updateClinicSettings, setClinicSetting, getClinicSettings } from '@/lib/api/clinic'
 import { RoleManagement } from '@/components/staff/role-management'
 import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
 import { getStaff, createStaff, updateStaff, deleteStaff } from '@/lib/api/staff'
+import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -190,7 +193,7 @@ const settingCategories = [
 export default function SettingsPage() {
   const router = useRouter()
   const pathname = usePathname()
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>('clinic')
   const [selectedMasterTab, setSelectedMasterTab] = useState('icons')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -269,6 +272,22 @@ export default function SettingsPage() {
     role: 'staff'
   })
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  // 診療メニュー関連の状態
+  const [treatmentMenus, setTreatmentMenus] = useState<any[]>([])
+  const [editingTreatmentMenu, setEditingTreatmentMenu] = useState<any>(null)
+  const [showTreatmentAddForm, setShowTreatmentAddForm] = useState(false)
+  const [selectedTab, setSelectedTab] = useState('menu1')
+  const [parentMenuForChild, setParentMenuForChild] = useState<any>(null) // 子メニュー作成用の親メニュー
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set()) // 展開されたメニューのID
+  const [newTreatmentMenu, setNewTreatmentMenu] = useState({
+    name: '',
+    level: 1,
+    parent_id: '',
+    standard_duration: 30,
+    color: '#3B82F6',
+    sort_order: 0
+  })
 
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(categoryId)
@@ -413,6 +432,20 @@ export default function SettingsPage() {
     
     loadPositions()
     loadStaff()
+
+    // 診療メニューデータの読み込み
+    const loadTreatmentMenus = async () => {
+      try {
+        console.log('メニュー読み込み開始:', DEMO_CLINIC_ID)
+        const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+        console.log('読み込んだメニューデータ:', data)
+        setTreatmentMenus(data)
+      } catch (error) {
+        console.error('メニュー読み込みエラー:', error)
+      }
+    }
+    
+    loadTreatmentMenus()
   }, [])
 
   // 診療時間の変更
@@ -446,12 +479,43 @@ export default function SettingsPage() {
         console.log('新しい休診日リスト:', newHolidays)
         return newHolidays
       })
+      // 休診日がチェックされた場合、その日の診療時間をクリア
+      setBusinessHours(prev => ({
+        ...prev,
+        [day]: {
+          ...prev[day],
+          isOpen: false,
+          timeSlots: []
+        }
+      }))
     } else {
       setHolidays(prev => {
         const newHolidays = prev.filter(d => d !== day)
         console.log('新しい休診日リスト:', newHolidays)
         return newHolidays
       })
+      // 休診日がチェック解除された場合、デフォルトの診療時間を設定
+      setBusinessHours(prev => ({
+        ...prev,
+        [day]: {
+          ...prev[day],
+          isOpen: true,
+          timeSlots: [
+            {
+              id: `${day}_morning`,
+              start: '09:00',
+              end: '13:00',
+              period: 'morning' as 'morning'
+            },
+            {
+              id: `${day}_afternoon`,
+              start: '14:30',
+              end: '18:00',
+              period: 'afternoon' as 'afternoon'
+            }
+          ]
+        }
+      }))
     }
   }
 
@@ -550,6 +614,8 @@ export default function SettingsPage() {
       console.log('保存データ:', settings)
       console.log('クリニックID:', DEMO_CLINIC_ID)
       console.log('現在の timeSlotMinutes:', timeSlotMinutes)
+      console.log('現在の holidays:', holidays)
+      console.log('現在の businessHours:', businessHours)
 
       // Supabaseに保存
       if (selectedCategory === 'clinic') {
@@ -560,6 +626,7 @@ export default function SettingsPage() {
         await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', settings.timeSlotMinutes)
         await setClinicSetting(DEMO_CLINIC_ID, 'holidays', settings.holidays)
         console.log('クリニック設定をclinic_settingsテーブルに保存しました')
+        console.log('保存されたholidays:', settings.holidays)
       } else {
         // その他の設定は従来通り
         const result = await updateClinicSettings(DEMO_CLINIC_ID, settings)
@@ -706,40 +773,6 @@ export default function SettingsPage() {
                           const checked = e.target.checked
                           console.log('チェックボックス変更:', day.id, checked)
                           handleHolidayChange(day.id, checked)
-                          // 休診日がチェックされた場合、その日の診療時間をクリア
-                          if (checked) {
-                            setBusinessHours(prev => ({
-                              ...prev,
-                              [day.id]: {
-                                ...prev[day.id],
-                                isOpen: false,
-                                timeSlots: []
-                              }
-                            }))
-                          } else {
-                            // 休診日がチェック解除された場合、デフォルトの診療時間を設定
-                            setBusinessHours(prev => ({
-                              ...prev,
-                              [day.id]: {
-                                ...prev[day.id],
-                                isOpen: true,
-                                timeSlots: [
-                                  {
-                                    id: `${day.id}_morning`,
-                                    start: '09:00',
-                                    end: '13:00',
-                                    period: 'morning' as 'morning' as 'morning'
-                                  },
-                                  {
-                                    id: `${day.id}_afternoon`,
-                                    start: '14:30',
-                                    end: '18:00',
-                                    period: 'afternoon' as 'afternoon' as 'afternoon'
-                                  }
-                                ]
-                              }
-                            }))
-                          }
                         }}
                         className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
@@ -1149,7 +1182,7 @@ export default function SettingsPage() {
       console.log('モーダルを閉じました')
     } catch (error) {
       console.error('スタッフ追加エラー:', error)
-      alert('スタッフの追加に失敗しました: ' + error.message)
+      alert('スタッフの追加に失敗しました: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setStaffLoading(false)
       console.log('staffLoadingをfalseに設定')
@@ -1308,137 +1341,577 @@ export default function SettingsPage() {
 
   const renderTreatmentSettings = () => (
     <div className="space-y-6">
-      {/* メニュー一覧 */}
-      <div className="space-y-4">
-        {menus.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            診療メニューが登録されていません
-          </div>
-        ) : (
-          menus.map((menu, index) => (
-            <Card key={index}>
-              <CardContent className="p-4">
+      {/* 上部ナビゲーションバー */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div 
-                      className="w-4 h-4 rounded"
-                      style={{ backgroundColor: menu.color || '#3B82F6' }}
-                    />
-                    <div>
-                      <div className="font-medium">{menu.name}</div>
-                      <div className="text-sm text-gray-500">
-                        レベル{menu.level} | 標準時間: {menu.standard_duration}分
+          <div className="flex items-center space-x-6">
+            <div className="relative">
+              <button 
+                onClick={() => setSelectedTab('menu1')}
+                className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
+              >
+                <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                  selectedTab === 'menu1' ? 'bg-blue-100' : 'bg-gray-100'
+                }`}>
+                  <FileText className={`w-4 h-4 ${
+                    selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
+                  }`} />
                       </div>
+                <span className={`font-medium text-xs ${
+                  selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
+                }`}>
+                  メニュー1
+                </span>
+              </button>
                     </div>
+            
+            <button 
+              onClick={() => setSelectedTab('menu2')}
+              className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
+            >
+              <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                selectedTab === 'menu2' ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <FolderOpen className={`w-4 h-4 ${
+                  selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
+                }`} />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingMenu(menu)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                <span className={`font-medium text-xs ${
+                  selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
+                }`}>
+                  メニュー2
+                </span>
+            </button>
+            
+            <button 
+              onClick={() => setSelectedTab('submenu')}
+              className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
+            >
+              <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                selectedTab === 'submenu' ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <Tag className={`w-4 h-4 ${
+                  selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
+                }`} />
+              </div>
+                <span className={`font-medium text-xs ${
+                  selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
+                }`}>
+                  サブメニュー
+                </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* メインコンテンツエリア */}
+      <div className="flex-1 overflow-y-auto bg-white">
+        <div className="p-4">
+          {/* タブに応じたメニュー一覧（階層表示） */}
+          <div className="space-y-1">
+            {getFilteredTreatmentMenus().length > 0 ? (
+              <div className="space-y-1">
+                {getFilteredTreatmentMenus().map(menu => renderMenuItem(menu, 0))}
+                
+                {/* メニュー-1を追加ボタン */}
+                <div className="ml-4 mt-12">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setNewTreatmentMenu(prev => ({
+                        ...prev,
+                        level: 1
+                      }))
+                      setShowTreatmentAddForm(true)
+                    }}
+                    className="flex items-center space-x-1 text-xs px-2 py-1 h-7"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>メニュー1を追加</span>
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          ))
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  {selectedTab === 'menu1' && <FileText className="w-8 h-8 text-gray-400" />}
+                  {selectedTab === 'menu2' && <FolderOpen className="w-8 h-8 text-gray-400" />}
+                  {selectedTab === 'submenu' && <Tag className="w-8 h-8 text-gray-400" />}
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {selectedTab === 'menu1' && 'メニュー-1が登録されていません'}
+                  {selectedTab === 'menu2' && 'メニュー-2が登録されていません'}
+                  {selectedTab === 'submenu' && 'サブメニューが登録されていません'}
+                </h3>
+                <p className="text-gray-500 mb-4">
+                  {selectedTab === 'menu1' && '上部の「メニュー-1を追加」ボタンから新しいメニューを追加してください'}
+                  {selectedTab === 'menu2' && '上部の「メニュー-2を追加」ボタンから新しいメニューを追加してください'}
+                  {selectedTab === 'submenu' && '上部の「サブメニューを追加」ボタンから新しいメニューを追加してください'}
+                </p>
+                    <Button
+                  onClick={() => {
+                    setNewTreatmentMenu(prev => ({
+                      ...prev,
+                      level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3
+                    }))
+                    setShowTreatmentAddForm(true)
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {selectedTab === 'menu1' && 'メニュー-1を追加'}
+                  {selectedTab === 'menu2' && 'メニュー-2を追加'}
+                  {selectedTab === 'submenu' && 'サブメニューを追加'}
+                    </Button>
+                  </div>
         )}
       </div>
 
-      {/* メニュー追加フォーム */}
-      {showAddForm && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>新しいメニューを追加</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* メニュー追加モーダル */}
+          {showTreatmentAddForm && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+              onClick={() => {
+                setShowTreatmentAddForm(false)
+                setParentMenuForChild(null)
+                setNewTreatmentMenu({
+                  name: '',
+                  level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
+                  parent_id: '',
+                  standard_duration: 30,
+                  color: '#3B82F6',
+                  sort_order: 0
+                })
+              }}
+            >
+              <div 
+                className="bg-white rounded-lg p-6 w-96 max-w-md mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold mb-4">
+                  {parentMenuForChild ? 
+                    `「${parentMenuForChild.name}」の子メニューを追加` : 
+                    selectedTab === 'menu1' ? '新しいメニュー-1を追加' :
+                    selectedTab === 'menu2' ? '新しいメニュー-2を追加' :
+                    '新しいサブメニューを追加'
+                  }
+                </h3>
+                
+                <div className="space-y-4">
               <div>
-                <Label htmlFor="menu_name">メニュー名</Label>
+                    <Label htmlFor="modal_menu_name">メニュー名</Label>
                 <Input
-                  id="menu_name"
-                  value={newMenu.name}
-                  onChange={(e) => setNewMenu(prev => ({ ...prev, name: e.target.value }))}
+                      id="modal_menu_name"
+                      value={newTreatmentMenu.name}
+                      onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="例: 虫歯治療"
+                      className="mt-1"
                 />
               </div>
+                  
               <div>
-                <Label htmlFor="menu_level">レベル</Label>
-                <select
-                  id="menu_level"
-                  value={newMenu.level}
-                  onChange={(e) => setNewMenu(prev => ({ ...prev, level: parseInt(e.target.value) }))}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                >
-                  <option value={1}>レベル1（大分類）</option>
-                  <option value={2}>レベル2（中分類）</option>
-                  <option value={3}>レベル3（詳細）</option>
-                </select>
+                    <Label htmlFor="modal_standard_duration">標準時間（分）</Label>
+                    <Input
+                      id="modal_standard_duration"
+                      type="number"
+                      value={newTreatmentMenu.standard_duration}
+                      onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, standard_duration: parseInt(e.target.value) }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="modal_menu_color">色</Label>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Input
+                        id="modal_menu_color"
+                        type="color"
+                        value={newTreatmentMenu.color}
+                        onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))}
+                        className="w-12 h-8 p-1"
+                      />
+                      <Input
+                        value={newTreatmentMenu.color}
+                        onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))}
+                        placeholder="#3B82F6"
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-2 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowTreatmentAddForm(false)
+                      setParentMenuForChild(null)
+                      setNewTreatmentMenu({
+                        name: '',
+                        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
+                        parent_id: '',
+                        standard_duration: 30,
+                        color: '#3B82F6',
+                        sort_order: 0
+                      })
+                    }}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={parentMenuForChild ? handleAddChildMenu : handleAddTreatmentMenu}
+                    disabled={saving || !newTreatmentMenu.name}
+                  >
+                    {saving ? '追加中...' : '追加'}
+                  </Button>
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            </div>
+          )}
+
+          {/* 編集モーダル */}
+          {editingTreatmentMenu && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+              onClick={() => setEditingTreatmentMenu(null)}
+            >
+              <div 
+                className="bg-white rounded-lg p-6 w-96 max-w-md mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold mb-4">メニューを編集</h3>
+                
+                <div className="space-y-4">
               <div>
-                <Label htmlFor="standard_duration">標準時間（分）</Label>
+                    <Label htmlFor="modal_edit_name">メニュー名</Label>
                 <Input
-                  id="standard_duration"
+                      id="modal_edit_name"
+                      value={editingTreatmentMenu.name}
+                      onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, name: e.target.value } : null)}
+                      className="mt-1"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="modal_edit_duration">標準時間（分）</Label>
+                    <Input
+                      id="modal_edit_duration"
                   type="number"
-                  value={newMenu.standard_duration}
-                  onChange={(e) => setNewMenu(prev => ({ ...prev, standard_duration: parseInt(e.target.value) }))}
+                      value={editingTreatmentMenu.standard_duration || 30}
+                      onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, standard_duration: parseInt(e.target.value) } : null)}
+                      className="mt-1"
                 />
               </div>
+                  
               <div>
-                <Label htmlFor="menu_color">色</Label>
+                    <Label htmlFor="modal_edit_color">色</Label>
+                    <div className="flex items-center space-x-2 mt-1">
                 <Input
-                  id="menu_color"
+                        id="modal_edit_color"
                   type="color"
-                  value={newMenu.color}
-                  onChange={(e) => setNewMenu(prev => ({ ...prev, color: e.target.value }))}
+                        value={editingTreatmentMenu.color || '#3B82F6'}
+                        onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, color: e.target.value } : null)}
+                        className="w-12 h-8 p-1"
+                      />
+                      <Input
+                        value={editingTreatmentMenu.color || '#3B82F6'}
+                        onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, color: e.target.value } : null)}
+                        placeholder="#3B82F6"
+                        className="flex-1"
                 />
               </div>
             </div>
             
-            <div className="flex justify-end space-x-2">
+                </div>
+                
+                <div className="flex justify-end space-x-2 mt-6">
               <Button
                 variant="outline"
-                onClick={() => setShowAddForm(false)}
+                    onClick={() => setEditingTreatmentMenu(null)}
               >
                 キャンセル
               </Button>
               <Button
-                onClick={() => {
-                  // メニュー追加処理
-                  setShowAddForm(false)
-                }}
-                disabled={!newMenu.name}
-              >
-                追加
+                    onClick={() => editingTreatmentMenu && handleEditTreatmentMenu(editingTreatmentMenu)}
+                    disabled={saving}
+                  >
+                    {saving ? '保存中...' : '保存'}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 
-      {/* 追加ボタン */}
-      {!showAddForm && (
-        <div className="flex justify-end">
-          <Button onClick={() => setShowAddForm(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            メニュー追加
+  // 診療メニュー関連の関数
+  const handleAddTreatmentMenu = async () => {
+    try {
+      setSaving(true)
+      
+      // 選択されたタブに応じてレベルを設定
+      const menuData = {
+        ...newTreatmentMenu,
+        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
+        parent_id: newTreatmentMenu.parent_id || undefined // 空文字列の場合はundefinedに変換
+      }
+      
+      console.log('メニュー追加開始:', menuData)
+      console.log('DEMO_CLINIC_ID:', DEMO_CLINIC_ID)
+      
+      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData)
+      console.log('メニュー追加成功:', result)
+      
+      // データを再読み込み
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+      setTreatmentMenus(data)
+      
+      setNewTreatmentMenu({
+        name: '',
+        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
+        parent_id: '',
+        standard_duration: 30,
+        color: '#3B82F6',
+        sort_order: 0
+      })
+      setShowTreatmentAddForm(false)
+      
+      alert('メニューを正常に追加しました')
+    } catch (error) {
+      console.error('メニュー追加エラー:', error)
+      console.error('エラーの詳細:', error)
+      alert('メニューの追加に失敗しました: ' + (error as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 子メニュー作成用の関数
+  const handleAddChildMenu = async () => {
+    try {
+      setSaving(true)
+      
+      if (!parentMenuForChild) return
+      
+      // 親メニューのレベルに基づいて子メニューのレベルを決定
+      const childLevel = parentMenuForChild.level + 1
+      if (childLevel > 3) {
+        alert('最大3階層までしか作成できません')
+        return
+      }
+      
+      const menuData = {
+        ...newTreatmentMenu,
+        level: childLevel,
+        parent_id: parentMenuForChild.id,
+        standard_duration: newTreatmentMenu.standard_duration || 30
+      }
+      
+      console.log('子メニュー追加開始:', menuData)
+      
+      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData)
+      console.log('子メニュー追加成功:', result)
+      
+      // データを再読み込み
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+      setTreatmentMenus(data)
+      
+      setNewTreatmentMenu({
+        name: '',
+        level: childLevel,
+        parent_id: '',
+        standard_duration: 30,
+        color: '#3B82F6',
+        sort_order: 0
+      })
+      setParentMenuForChild(null)
+      setShowTreatmentAddForm(false)
+      
+      alert('子メニューを正常に追加しました')
+    } catch (error) {
+      console.error('子メニュー追加エラー:', error)
+      console.error('エラーの詳細:', error)
+      alert('子メニューの追加に失敗しました: ' + (error as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditTreatmentMenu = async (menu: any) => {
+    try {
+      setSaving(true)
+      await updateTreatmentMenu(DEMO_CLINIC_ID, menu.id, {
+        name: menu.name,
+        standard_duration: menu.standard_duration,
+        color: menu.color,
+        sort_order: menu.sort_order,
+        is_active: menu.is_active
+      })
+      
+      // データを再読み込み
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+      setTreatmentMenus(data)
+      setEditingTreatmentMenu(null)
+    } catch (error) {
+      console.error('メニュー編集エラー:', error)
+      alert('メニューの編集に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteTreatmentMenu = async (menuId: string) => {
+    if (!confirm('このメニューを削除しますか？')) return
+    
+    try {
+      setSaving(true)
+      await deleteTreatmentMenu(DEMO_CLINIC_ID, menuId)
+      
+      // データを再読み込み
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+      setTreatmentMenus(data)
+    } catch (error) {
+      console.error('メニュー削除エラー:', error)
+      alert('メニューの削除に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // タブに応じたメニューのフィルタリング（階層構造で表示）
+  const getFilteredTreatmentMenus = () => {
+    const allMenus = treatmentMenus
+    
+    // レベル1のメニューを取得し、子メニューを追加
+    const buildHierarchy = (menus: any[], parentId: string | null = null): any[] => {
+      return menus
+        .filter(menu => menu.parent_id === parentId)
+        .map(menu => ({
+          ...menu,
+          children: buildHierarchy(menus, menu.id)
+        }))
+    }
+    
+    switch (selectedTab) {
+      case 'menu1':
+        return buildHierarchy(allMenus, null)
+      case 'menu2':
+        // レベル1のメニューのみ表示（子メニューも含む）
+        return buildHierarchy(allMenus, null)
+      case 'submenu':
+        // 全てのメニューを階層表示
+        return buildHierarchy(allMenus, null)
+      default:
+        return buildHierarchy(allMenus, null)
+    }
+  }
+
+  // 展開・収縮のトグル関数
+  const toggleMenuExpansion = (menuId: string) => {
+    setExpandedMenus(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(menuId)) {
+        newSet.delete(menuId)
+      } else {
+        newSet.add(menuId)
+      }
+      return newSet
+    })
+  }
+
+  // メニューアイテムのレンダリング（階層表示）
+  const renderMenuItem = (menu: any, level: number = 0) => {
+    const indent = level * 24
+    const isParent = menu.children && menu.children.length > 0
+    const isExpanded = expandedMenus.has(menu.id)
+    
+    return (
+      <div key={menu.id}>
+        <div 
+          className="border rounded-lg p-3 mb-1 bg-white"
+          style={{ marginLeft: `${indent}px` }}
+        >
+          <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center space-x-3 cursor-pointer flex-1"
+              onClick={() => isParent && toggleMenuExpansion(menu.id)}
+            >
+              {isParent && (
+                <div className="w-4 h-4 flex items-center justify-center">
+                  {isExpanded ? (
+                    <ChevronRight className="w-3 h-3 rotate-90 text-gray-500" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3 text-gray-500" />
+                  )}
+                </div>
+              )}
+              <div 
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: menu.color }}
+              />
+              <div>
+                <div className="font-medium">
+                  {menu.name}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {menu.standard_duration}分
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {menu.level < 3 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setParentMenuForChild(menu)
+                    setNewTreatmentMenu({
+                      name: '',
+                      level: menu.level + 1,
+                      parent_id: menu.id,
+                      standard_duration: 30,
+                      color: '#3B82F6',
+                      sort_order: 0
+                    })
+                    setShowTreatmentAddForm(true)
+                  }}
+                  className="text-green-600 hover:text-green-700"
+                  title="子メニューを追加"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingTreatmentMenu(menu)}
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDeleteTreatmentMenu(menu.id)}
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="w-4 h-4" />
           </Button>
+            </div>
+          </div>
+        </div>
+        
+        {/* 子メニューを階層表示（展開時のみ） */}
+        {isParent && isExpanded && (
+          <div className="ml-4">
+            {menu.children.map((child: any) => renderMenuItem(child, level + 1))}
         </div>
       )}
     </div>
   )
+  }
 
   // 右側コンテンツのレンダリング
   const renderRightContent = () => {

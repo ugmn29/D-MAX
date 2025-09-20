@@ -180,8 +180,8 @@ export function SidebarCalendar({
   return (
     <div className="w-72 bg-white border-l border-gray-200 flex flex-col h-screen">
       {/* 日付ナビゲーション */}
-      <div className="px-3 py-0.5 border-b border-gray-200">
-        <div className="flex items-center justify-between">
+      <div className="px-3 py-1 border-b border-gray-200 h-11 flex items-center">
+        <div className="flex items-center justify-between w-full">
           <Button variant="ghost" size="sm" onClick={() => {
             const newDate = new Date(selectedDate)
             newDate.setDate(newDate.getDate() - 1)
@@ -190,7 +190,7 @@ export function SidebarCalendar({
             <ChevronLeft className="w-4 h-4" />
           </Button>
           
-          <div className="text-center">
+          <div className="flex-1 text-center">
             <div className="text-base font-medium text-gray-900">
               {formatDate(selectedDate)}
             </div>
@@ -199,13 +199,13 @@ export function SidebarCalendar({
           <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
-              size="xs" 
+              size="xs"
               onClick={() => {
                 const today = new Date()
                 setCurrentMonth(today)
                 onDateChange(today)
               }}
-              className="bg-blue-600 text-white hover:bg-blue-700 text-xs px-2 py-0.5 h-5"
+              className="bg-blue-600 text-white hover:bg-blue-700 h-4"
             >
               本日
             </Button>

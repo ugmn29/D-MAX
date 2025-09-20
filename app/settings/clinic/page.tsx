@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowLeft, Save } from 'lucide-react'
-import { getClinic, getClinicSettings, setClinicSetting } from '@/lib/api/clinic'
+import { getClinic, getClinicSettings, setClinicSetting, updateClinicSettings } from '@/lib/api/clinic'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -81,8 +81,8 @@ export default function ClinicSettingsPage() {
             phone: clinic.phone || ''
           })
           
-          setBusinessHours(clinic.business_hours || {})
-          setBreakTimes(clinic.break_times || {})
+          setBusinessHours((clinic.business_hours as Record<string, { isOpen: boolean; start: string; end: string; }>) || {})
+          setBreakTimes((clinic.break_times as Record<string, { start: string; end: string; }>) || {})
           setTimeSlotMinutes(clinic.time_slot_minutes || 15)
         }
         
@@ -114,19 +114,34 @@ export default function ClinicSettingsPage() {
       
       setSaving(true)
       
-      // クリニック情報を保存
-      console.log('clinic_info保存中...')
-      await setClinicSetting(DEMO_CLINIC_ID, 'clinic_info', clinicInfo)
+      // 診療時間をtimeSlots配列形式に変換
+      const formattedBusinessHours = Object.keys(businessHours).reduce((acc, day) => {
+        const dayData = businessHours[day]
+        if (dayData?.isOpen && dayData?.start && dayData?.end) {
+          acc[day] = {
+            isOpen: true,
+            timeSlots: [{ start: dayData.start, end: dayData.end }]
+          }
+        } else {
+          acc[day] = { isOpen: false, timeSlots: [] }
+        }
+        return acc
+      }, {} as any)
+
+      // クリニック情報を保存（clinicテーブルとclinic_settingsテーブルの両方）
+      console.log('clinicテーブル更新中...')
+      await updateClinicSettings(DEMO_CLINIC_ID, {
+        timeSlotMinutes,
+        businessHours: formattedBusinessHours,
+        breakTimes,
+        clinicInfo
+      })
       
-      console.log('business_hours保存中...')
-      await setClinicSetting(DEMO_CLINIC_ID, 'business_hours', businessHours)
-      
-      console.log('break_times保存中...')
+      // clinic_settingsテーブルにも保存
+      await setClinicSetting(DEMO_CLINIC_ID, 'business_hours', formattedBusinessHours)
       await setClinicSetting(DEMO_CLINIC_ID, 'break_times', breakTimes)
       
-      console.log('time_slot_minutes保存中...')
-      await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', timeSlotMinutes)
-      
+      // 休診日設定をclinic_settingsテーブルに保存
       console.log('holidays保存中...', holidays)
       await setClinicSetting(DEMO_CLINIC_ID, 'holidays', holidays)
       

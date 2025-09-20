@@ -42,10 +42,12 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
 
   const settings: Record<string, any> = {}
   data?.forEach(setting => {
+    console.log(`設定項目: ${setting.setting_key} = ${setting.setting_value}`)
     settings[setting.setting_key] = setting.setting_value
   })
 
   console.log('処理後の設定:', settings)
+  console.log('time_slot_minutesの値:', settings.time_slot_minutes)
   return settings
 }
 
@@ -92,11 +94,12 @@ export async function setClinicSetting(
   
   console.log('Supabaseに送信するデータ:', upsertData)
   
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clinic_settings')
     .upsert(upsertData, { onConflict: 'clinic_id,setting_key' })
+    .select()
 
-  console.log('setClinicSettingレスポンス:', { error })
+  console.log('setClinicSettingレスポンス:', { data, error })
 
   if (error) {
     console.error('設定値保存エラー:', error)
@@ -107,6 +110,8 @@ export async function setClinicSetting(
       code: error.code
     })
     throw new Error(`設定値の保存に失敗しました: ${error.message}`)
+  } else {
+    console.log('設定値保存成功:', data)
   }
 }
 
@@ -171,15 +176,27 @@ export async function saveDailyMemo(
 export async function getBusinessHours(clinicId: string) {
   console.log('getBusinessHours呼び出し:', clinicId)
   
+  try {
+    // まずclinic_settingsテーブルから取得を試行
+    const settingsBusinessHours = await getClinicSetting(clinicId, 'business_hours')
+    if (settingsBusinessHours) {
+      console.log('clinic_settingsから取得した診療時間:', settingsBusinessHours)
+      return settingsBusinessHours
+    }
+  } catch (error) {
+    console.log('clinic_settingsから取得失敗、clinicテーブルから取得を試行')
+  }
+  
+  // clinic_settingsにない場合はclinicテーブルから取得
   const clinic = await getClinic(clinicId)
   const businessHours = clinic?.business_hours || {
-    monday: { isOpen: true, start: '09:00', end: '18:00' },
-    tuesday: { isOpen: true, start: '09:00', end: '18:00' },
-    wednesday: { isOpen: true, start: '09:00', end: '18:00' },
-    thursday: { isOpen: true, start: '09:00', end: '18:00' },
-    friday: { isOpen: true, start: '09:00', end: '18:00' },
-    saturday: { isOpen: true, start: '09:00', end: '17:00' },
-    sunday: { isOpen: false }
+    monday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+    tuesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+    wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+    thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+    friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+    saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '17:00' }] },
+    sunday: { isOpen: false, timeSlots: [] }
   }
   
   console.log('取得した診療時間:', businessHours)
@@ -190,6 +207,18 @@ export async function getBusinessHours(clinicId: string) {
  * 休憩時間を取得（デフォルト値付き）
  */
 export async function getBreakTimes(clinicId: string) {
+  try {
+    // まずclinic_settingsテーブルから取得を試行
+    const settingsBreakTimes = await getClinicSetting(clinicId, 'break_times')
+    if (settingsBreakTimes) {
+      console.log('clinic_settingsから取得した休憩時間:', settingsBreakTimes)
+      return settingsBreakTimes
+    }
+  } catch (error) {
+    console.log('clinic_settingsから取得失敗、clinicテーブルから取得を試行')
+  }
+  
+  // clinic_settingsにない場合はclinicテーブルから取得
   const clinic = await getClinic(clinicId)
   return clinic?.break_times || {
     monday: { start: '12:00', end: '13:00' },
@@ -208,6 +237,18 @@ export async function getBreakTimes(clinicId: string) {
 export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
   console.log('getTimeSlotMinutes呼び出し:', clinicId)
   
+  try {
+    // まずclinic_settingsテーブルから取得を試行
+    const settingsTimeSlotMinutes = await getClinicSetting(clinicId, 'time_slot_minutes')
+    if (settingsTimeSlotMinutes !== null) {
+      console.log('clinic_settingsから取得した1コマ時間:', settingsTimeSlotMinutes)
+      return settingsTimeSlotMinutes
+    }
+  } catch (error) {
+    console.log('clinic_settingsから取得失敗、clinicテーブルから取得を試行')
+  }
+  
+  // clinic_settingsにない場合はclinicテーブルから取得
   const clinic = await getClinic(clinicId)
   const timeSlotMinutes = clinic?.time_slot_minutes || 15
   

@@ -33,15 +33,20 @@ export async function createTreatmentMenu(
     clinic_id: clinicId
   }
 
+  console.log('createTreatmentMenu呼び出し:', { clinicId, menuData, newMenu })
+
   const { data, error } = await supabase
     .from('treatment_menus')
     .insert(newMenu)
     .select()
     .single()
 
+  console.log('createTreatmentMenuレスポンス:', { data, error })
+
   if (error) {
     console.error('診療メニュー作成エラー:', error)
-    throw new Error('診療メニューの作成に失敗しました')
+    console.error('エラーの詳細:', JSON.stringify(error, null, 2))
+    throw new Error(`診療メニューの作成に失敗しました: ${error.message || error.details || JSON.stringify(error)}`)
   }
 
   return data

@@ -36,7 +36,7 @@ export const WorkingDayModal: React.FC<WorkingDayModalProps> = ({
       setLoading(true)
       
       // 個別休診日設定を削除（診療日に戻す）
-      const { error } = await fetch('/api/individual-holidays', {
+      const response = await fetch('/api/individual-holidays', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -46,6 +46,12 @@ export const WorkingDayModal: React.FC<WorkingDayModalProps> = ({
           date
         })
       })
+      
+      if (!response.ok) {
+        throw new Error('休診日設定の削除に失敗しました')
+      }
+      
+      const { error } = await response.json()
 
       if (error) {
         console.error('個別休診日削除エラー:', error)

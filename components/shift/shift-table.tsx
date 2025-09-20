@@ -41,7 +41,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
   const [shifts, setShifts] = useState<StaffShift[]>([])
   const [holidays, setHolidays] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedCell, setSelectedCell] = useState<{ staffId: string; date: string } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ staffId: string; date: string; dateString: string } | null>(null)
   const [showShiftModal, setShowShiftModal] = useState(false)
   const [selectedStaffName, setSelectedStaffName] = useState('')
   const [showStaffScheduleModal, setShowStaffScheduleModal] = useState(false)
@@ -180,7 +180,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
   const handleCellClick = (staffId: string, dateString: string) => {
     const staffMember = staff.find(s => s.id === staffId)
     const existingShift = getStaffShift(staffId, dateString)
-    setSelectedCell({ staffId, dateString })
+    setSelectedCell({ staffId, date: dateString, dateString })
     setSelectedStaffName(staffMember?.name || '')
     setShowShiftModal(true)
   }
@@ -195,7 +195,8 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
         staff_id: selectedCell.staffId,
         date: selectedCell.dateString,
         shift_pattern_id: shiftPatternId,
-        is_holiday: isHoliday
+        is_holiday: isHoliday,
+        clinic_id: clinicId
       })
       
       // データを再読み込み
@@ -387,7 +388,8 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
             staff_id: selectedStaffForSchedule.id,
             date: dateString,
             shift_pattern_id: patternId, // nullの場合はそのままnull、それ以外はそのまま
-            is_holiday: false
+            is_holiday: false,
+            clinic_id: clinicId
           }
           
           console.log(`保存対象: ${dateString} (${dayKey}) = ${patternId}`)
@@ -527,7 +529,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            {console.log('シフト表レンダリング:', { staff: staff.length, positions: positions.length, patterns: patterns.length, shifts: shifts.length })}
+            {/* シフト表レンダリング */}
             <table className="w-full border-collapse">
               <thead>
                 <tr>

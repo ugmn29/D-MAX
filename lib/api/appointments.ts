@@ -103,7 +103,7 @@ export async function createAppointment(
 
   const { data, error } = await supabase
     .from('appointments')
-    .insert(newAppointment)
+    .insert(newAppointment as any)
     .select()
     .single()
 
@@ -125,7 +125,7 @@ export async function updateAppointment(
 ): Promise<Appointment> {
   const { data, error } = await supabase
     .from('appointments')
-    .update(appointmentData)
+    .update(appointmentData as any)
     .eq('clinic_id', clinicId)
     .eq('id', appointmentId)
     .select()

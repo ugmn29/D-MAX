@@ -15,6 +15,11 @@ export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [mounted, setMounted] = useState(false)
   const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
+  
+  // timeSlotMinutesの変更をログ出力
+  useEffect(() => {
+    console.log('メインページ: timeSlotMinutes変更:', timeSlotMinutes)
+  }, [timeSlotMinutes])
   const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
@@ -22,12 +27,77 @@ export default function HomePage() {
     loadSettings()
   }, [])
 
+  // ページがフォーカスされた時に設定を再読み込み
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('メインページ: ページフォーカス - 設定を再読み込み')
+      loadSettings()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
+
+  // ページの可視性変更時に設定を再読み込み
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('メインページ: ページが可視になった - 設定を再読み込み')
+        loadSettings()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  // localStorageの変更を監視して設定を自動更新
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'clinic_settings_updated' && e.newValue) {
+        try {
+          const updateData = JSON.parse(e.newValue)
+          if (updateData.timeSlotMinutes && updateData.timeSlotMinutes !== timeSlotMinutes) {
+            console.log('メインページ: localStorageから設定変更を検知:', updateData.timeSlotMinutes)
+            setTimeSlotMinutes(updateData.timeSlotMinutes)
+          }
+        } catch (error) {
+          console.error('設定更新データの解析エラー:', error)
+        }
+      }
+    }
+
+    const handleCustomEvent = (e: CustomEvent) => {
+      if (e.detail?.timeSlotMinutes && e.detail.timeSlotMinutes !== timeSlotMinutes) {
+        console.log('メインページ: カスタムイベントから設定変更を検知:', e.detail.timeSlotMinutes)
+        setTimeSlotMinutes(e.detail.timeSlotMinutes)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('clinicSettingsUpdated', handleCustomEvent as EventListener)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('clinicSettingsUpdated', handleCustomEvent as EventListener)
+    }
+  }, [timeSlotMinutes])
+
   // 設定を読み込み
   const loadSettings = async () => {
     try {
+      console.log('メインページ: 設定読み込み開始')
       const settings = await getClinicSettings(DEMO_CLINIC_ID)
-      if (settings.timeSlotMinutes) {
-        setTimeSlotMinutes(settings.timeSlotMinutes)
+      console.log('メインページ: 取得した設定:', settings)
+      console.log('メインページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
+      
+      if (settings.time_slot_minutes) {
+        console.log('メインページ: time_slot_minutes設定:', settings.time_slot_minutes)
+        console.log('メインページ: time_slot_minutesの型:', typeof settings.time_slot_minutes)
+        setTimeSlotMinutes(settings.time_slot_minutes)
+      } else {
+        console.log('メインページ: time_slot_minutes設定なし、デフォルト値15を使用')
+        setTimeSlotMinutes(15)
       }
     } catch (error) {
       console.error('設定読み込みエラー:', error)
@@ -75,33 +145,12 @@ export default function HomePage() {
     <div className="h-screen flex overflow-hidden">
       {/* 左側: メインカレンダー */}
       <div className="flex-1">
-        {/* カレンダーヘッダー */}
-        <div className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-lg font-semibold text-gray-900">
-              {formatDate(selectedDate)}
-            </h1>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">1コマ時間:</span>
-              <span className="text-sm font-medium text-gray-900">{timeSlotMinutes}分</span>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSettings(!showSettings)}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              設定
-            </Button>
-          </div>
-        </div>
         
         <MainCalendar
           clinicId={DEMO_CLINIC_ID}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
+          timeSlotMinutes={timeSlotMinutes}
         />
       </div>
 

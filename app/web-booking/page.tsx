@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getClinicSettings } from '@/lib/api/clinic'
+import { getClinicSettings, getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
 import { getTreatmentMenus } from '@/lib/api/treatment'
-// import { getWorkingStaffByDate } from '@/lib/api/shifts' // TODO: 実装予定
+import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
 import { Calendar, Clock, User, CheckCircle } from 'lucide-react'
 
@@ -117,10 +117,21 @@ export default function WebBookingPage() {
   // 空き枠を取得
   const loadAvailableSlots = async (date: string) => {
     try {
-      const staffData = await getWorkingStaffByDate(DEMO_CLINIC_ID, date)
+      const staffData = await getStaff(DEMO_CLINIC_ID)
       setWorkingStaff(staffData)
       
-      // 仮の空き枠データ（実際は予約状況を確認して空き枠を計算）
+      // 診療時間と休憩時間を取得
+      const [businessHours, breakTimes] = await Promise.all([
+        getBusinessHours(DEMO_CLINIC_ID),
+        getBreakTimes(DEMO_CLINIC_ID)
+      ])
+      
+      const selectedDate = new Date(date)
+      const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+      const dayHours = businessHours[dayOfWeek]
+      const dayBreaks = breakTimes[dayOfWeek]
+      
+      // 空き枠データを生成
       const slots = []
       const startHour = 9
       const endHour = 18
@@ -128,10 +139,33 @@ export default function WebBookingPage() {
       for (let hour = startHour; hour < endHour; hour++) {
         for (let minute = 0; minute < 60; minute += 30) {
           const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+          
+          // 診療時間外かどうかをチェック
+          const isOutsideBusinessHours = !dayHours?.isOpen || !dayHours?.timeSlots || 
+            !dayHours.timeSlots.some((slot: any) => {
+              const timeMinutes = hour * 60 + minute
+              const startMinutes = parseInt(slot.start.split(':')[0]) * 60 + parseInt(slot.start.split(':')[1])
+              const endMinutes = parseInt(slot.end.split(':')[0]) * 60 + parseInt(slot.end.split(':')[1])
+              return timeMinutes >= startMinutes && timeMinutes < endMinutes
+            })
+          
+          // 休憩時間かどうかをチェック
+          const isBreakTime = dayBreaks?.start && dayBreaks?.end && (() => {
+            const timeMinutes = hour * 60 + minute
+            const breakStartMinutes = parseInt(dayBreaks.start.split(':')[0]) * 60 + parseInt(dayBreaks.start.split(':')[1])
+            const breakEndMinutes = parseInt(dayBreaks.end.split(':')[0]) * 60 + parseInt(dayBreaks.end.split(':')[1])
+            return timeMinutes >= breakStartMinutes && timeMinutes < breakEndMinutes
+          })()
+          
+          // 診療時間外または休憩時間の場合は予約不可
+          const available = !isOutsideBusinessHours && !isBreakTime && Math.random() > 0.3
+          
           slots.push({
             time,
-            available: Math.random() > 0.3, // 70%の確率で空いている
-            staff: staffData.map(s => s.staff.name)
+            available,
+            isBreakTime,
+            isOutsideBusinessHours,
+            staff: staffData.map(s => s.name)
           })
         }
       }
@@ -165,10 +199,16 @@ export default function WebBookingPage() {
   const handleConfirmBooking = async () => {
     try {
       // 実際の予約作成APIを呼び出す
-      await createAppointment({
-        ...bookingData,
-        clinic_id: DEMO_CLINIC_ID
-      })
+      const appointmentData = {
+        patient_id: 'temp-patient-id', // 実際の実装では患者IDを取得
+        appointment_date: bookingData.selectedDate,
+        start_time: bookingData.selectedTime,
+        end_time: bookingData.selectedTime, // 実際の実装では終了時間を計算
+        menu1_id: bookingData.selectedMenu,
+        staff_id: bookingData.selectedStaff,
+        // その他の必要なフィールドを追加
+      }
+      await createAppointment(DEMO_CLINIC_ID, appointmentData)
       
       // 問診表が有効で、予約前に送信する設定の場合
       if (questionnaireSettings?.isEnabled && questionnaireSettings.sendTiming === 'before_appointment') {
@@ -349,14 +389,22 @@ export default function WebBookingPage() {
                       {availableSlots.map((slot, index) => (
                         <button
                           key={index}
-                          onClick={() => setBookingData(prev => ({ ...prev, selectedTime: slot.time }))}
-                          disabled={!slot.available}
+                          onClick={() => {
+                            if (slot.available && !slot.isBreakTime && !slot.isOutsideBusinessHours) {
+                              setBookingData(prev => ({ ...prev, selectedTime: slot.time }))
+                            }
+                          }}
+                          disabled={!slot.available || slot.isBreakTime || slot.isOutsideBusinessHours}
                           className={`p-2 text-sm rounded ${
-                            slot.available
-                              ? bookingData.selectedTime === slot.time
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-green-100 text-green-800 hover:bg-green-200'
-                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            slot.isBreakTime
+                              ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                              : slot.isOutsideBusinessHours
+                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                : slot.available
+                                  ? bookingData.selectedTime === slot.time
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-green-100 text-green-800 hover:bg-green-200'
+                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
                         >
                           {slot.time}
@@ -371,6 +419,10 @@ export default function WebBookingPage() {
                       <div className="flex items-center space-x-1">
                         <div className="w-3 h-3 bg-gray-100 rounded"></div>
                         <span>予約済み</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div className="w-3 h-3 bg-gray-400 rounded"></div>
+                        <span>休憩時間</span>
                       </div>
                     </div>
                   </div>

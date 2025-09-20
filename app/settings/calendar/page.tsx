@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { MainLayout } from '@/components/layout/main-layout'
 import { Button } from '@/components/ui/button'
@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
-import { ArrowLeft, Save } from 'lucide-react'
-import { getClinicSettings, setClinicSetting } from '@/lib/api/clinic'
+import { ArrowLeft } from 'lucide-react'
+import { getClinicSettings, setClinicSetting, updateClinicSettings } from '@/lib/api/clinic'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -53,6 +53,7 @@ export default function CalendarSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('basic')
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
   
   // 基本設定
   const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
@@ -69,14 +70,73 @@ export default function CalendarSettingsPage() {
     penaltyPeriod: 30
   })
 
+  // 自動保存関数
+  const autoSave = useCallback(async (settings: any) => {
+    if (isInitialLoad) return // 初期読み込み時は保存しない
+    
+    try {
+      console.log('設定ページ: 自動保存開始', settings)
+      console.log('設定ページ: timeSlotMinutes保存値:', settings.timeSlotMinutes)
+      setSaving(true)
+      
+      // clinic_settingsテーブルに保存
+      console.log('設定ページ: clinic_settingsテーブルに保存中...')
+      await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', settings.timeSlotMinutes)
+      console.log('設定ページ: time_slot_minutes保存完了')
+      
+      await setClinicSetting(DEMO_CLINIC_ID, 'unit_count', settings.unitCount)
+      await setClinicSetting(DEMO_CLINIC_ID, 'units', settings.units)
+      await setClinicSetting(DEMO_CLINIC_ID, 'display_items', settings.displayItems)
+      await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', settings.cellHeight)
+      await setClinicSetting(DEMO_CLINIC_ID, 'cancel_types', settings.cancelTypes)
+      await setClinicSetting(DEMO_CLINIC_ID, 'penalty_settings', settings.penaltySettings)
+      
+      // clinicsテーブルにも保存（後方互換性のため）
+      console.log('設定ページ: clinicsテーブルにも保存中...')
+      await updateClinicSettings(DEMO_CLINIC_ID, {
+        timeSlotMinutes: settings.timeSlotMinutes
+      })
+      console.log('設定ページ: clinicsテーブル保存完了')
+      
+      // 保存後に設定を再読み込みして確認
+      console.log('設定ページ: 保存後の設定確認中...')
+      const savedSettings = await getClinicSettings(DEMO_CLINIC_ID)
+      console.log('設定ページ: 保存後の設定:', savedSettings)
+      console.log('設定ページ: 保存後のtime_slot_minutes:', savedSettings.time_slot_minutes)
+      
+      console.log('設定ページ: 自動保存完了')
+      
+      // メインページに設定変更を通知（localStorageを使用）
+      window.localStorage.setItem('clinic_settings_updated', JSON.stringify({
+        timestamp: Date.now(),
+        timeSlotMinutes: settings.timeSlotMinutes
+      }))
+      
+      // 同じタブ内でのリアルタイム更新のためカスタムイベントを発火
+      window.dispatchEvent(new CustomEvent('clinicSettingsUpdated', {
+        detail: { timeSlotMinutes: settings.timeSlotMinutes }
+      }))
+    } catch (error) {
+      console.error('自動保存エラー:', error)
+    } finally {
+      setSaving(false)
+    }
+  }, [isInitialLoad])
+
   // データ読み込み
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
+        console.log('設定ページ: データ読み込み開始')
         const settings = await getClinicSettings(DEMO_CLINIC_ID)
+        console.log('設定ページ: 取得した設定:', settings)
+        console.log('設定ページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
         
-        setTimeSlotMinutes(settings.time_slot_minutes || 15)
+        const timeSlotValue = settings.time_slot_minutes || 15
+        console.log('設定ページ: time_slot_minutes設定:', timeSlotValue)
+        console.log('設定ページ: time_slot_minutesの型:', typeof timeSlotValue)
+        setTimeSlotMinutes(timeSlotValue)
         setUnitCount(settings.unit_count || 3)
         setUnits(settings.units || ['チェア1', 'チェア2', 'チェア3'])
         setDisplayItems(settings.display_items || [])
@@ -87,6 +147,10 @@ export default function CalendarSettingsPage() {
           webReservationLimit: true,
           penaltyPeriod: 30
         })
+        
+        // 初期読み込み完了
+        setIsInitialLoad(false)
+        console.log('設定ページ: 初期読み込み完了')
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
@@ -97,27 +161,33 @@ export default function CalendarSettingsPage() {
     loadData()
   }, [])
 
-  // 保存処理
-  const handleSave = async () => {
-    try {
-      setSaving(true)
-      
-      await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', timeSlotMinutes)
-      await setClinicSetting(DEMO_CLINIC_ID, 'unit_count', unitCount)
-      await setClinicSetting(DEMO_CLINIC_ID, 'units', units)
-      await setClinicSetting(DEMO_CLINIC_ID, 'display_items', displayItems)
-      await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', cellHeight)
-      await setClinicSetting(DEMO_CLINIC_ID, 'cancel_types', cancelTypes)
-      await setClinicSetting(DEMO_CLINIC_ID, 'penalty_settings', penaltySettings)
-      
-      alert('設定を保存しました')
-    } catch (error) {
-      console.error('保存エラー:', error)
-      alert('保存に失敗しました')
-    } finally {
-      setSaving(false)
+  // 設定値変更時の自動保存
+  useEffect(() => {
+    if (isInitialLoad) return // 初期読み込み時は保存しない
+    
+    console.log('設定ページ: timeSlotMinutes変更検知:', timeSlotMinutes)
+    
+    const settings = {
+      timeSlotMinutes,
+      unitCount,
+      units,
+      displayItems,
+      cellHeight,
+      cancelTypes,
+      penaltySettings
     }
-  }
+    
+    console.log('設定ページ: 保存する設定:', settings)
+    
+    // デバウンス処理（500ms後に保存）
+    const timeoutId = setTimeout(() => {
+      console.log('設定ページ: デバウンス処理完了、自動保存実行')
+      autoSave(settings)
+    }, 500)
+    
+    return () => clearTimeout(timeoutId)
+  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings, autoSave, isInitialLoad])
+
 
   // 表示項目の変更
   const handleDisplayItemChange = (itemId: string, checked: boolean) => {
@@ -192,12 +262,21 @@ export default function CalendarSettingsPage() {
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">カレンダー表示設定</h2>
-                <p className="text-gray-600">カレンダーの表示形式とレイアウトを設定します</p>
+                <p className="text-gray-600">カレンダーの表示形式とレイアウトを設定します（変更は自動保存されます）</p>
               </div>
-              <Button onClick={handleSave} disabled={saving}>
-                <Save className="w-4 h-4 mr-2" />
-                {saving ? '保存中...' : '保存'}
-              </Button>
+              <div className="flex items-center space-x-2">
+                {saving && (
+                  <div className="flex items-center text-sm text-gray-500">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                    保存中...
+                  </div>
+                )}
+                {!saving && !isInitialLoad && (
+                  <div className="text-sm text-green-600">
+                    ✓ 保存済み
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* タブ */}
