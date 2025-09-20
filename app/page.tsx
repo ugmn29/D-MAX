@@ -74,12 +74,24 @@ export default function HomePage() {
       }
     }
 
+    const handlePostMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'clinicSettingsUpdated' && e.data?.data?.timeSlotMinutes) {
+        const newTimeSlotMinutes = e.data.data.timeSlotMinutes
+        if (newTimeSlotMinutes !== timeSlotMinutes) {
+          console.log('メインページ: postMessageから設定変更を検知:', newTimeSlotMinutes)
+          setTimeSlotMinutes(newTimeSlotMinutes)
+        }
+      }
+    }
+
     window.addEventListener('storage', handleStorageChange)
     window.addEventListener('clinicSettingsUpdated', handleCustomEvent as EventListener)
+    window.addEventListener('message', handlePostMessage)
     
     return () => {
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('clinicSettingsUpdated', handleCustomEvent as EventListener)
+      window.removeEventListener('message', handlePostMessage)
     }
   }, [timeSlotMinutes])
 
@@ -94,10 +106,21 @@ export default function HomePage() {
       if (settings.time_slot_minutes) {
         console.log('メインページ: time_slot_minutes設定:', settings.time_slot_minutes)
         console.log('メインページ: time_slot_minutesの型:', typeof settings.time_slot_minutes)
-        setTimeSlotMinutes(settings.time_slot_minutes)
+        console.log('メインページ: 現在のtimeSlotMinutes状態:', timeSlotMinutes)
+        console.log('メインページ: 設定値と状態値の比較:', settings.time_slot_minutes, 'vs', timeSlotMinutes)
+        
+        // 値が異なる場合のみ状態を更新
+        if (settings.time_slot_minutes !== timeSlotMinutes) {
+          console.log('メインページ: timeSlotMinutes状態を更新します')
+          setTimeSlotMinutes(settings.time_slot_minutes)
+        } else {
+          console.log('メインページ: timeSlotMinutesは既に最新です')
+        }
       } else {
         console.log('メインページ: time_slot_minutes設定なし、デフォルト値15を使用')
-        setTimeSlotMinutes(15)
+        if (timeSlotMinutes !== 15) {
+          setTimeSlotMinutes(15)
+        }
       }
     } catch (error) {
       console.error('設定読み込みエラー:', error)

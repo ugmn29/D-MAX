@@ -70,6 +70,25 @@ export default function CalendarSettingsPage() {
     penaltyPeriod: 30
   })
 
+  // timeSlotMinutesの変更を監視して即座にメインページに通知
+  useEffect(() => {
+    if (!isInitialLoad && timeSlotMinutes !== undefined) {
+      console.log('設定ページ: timeSlotMinutes変更検知、即座にメインページに通知:', timeSlotMinutes)
+      
+      // 即座にメインページに通知
+      const updateData = {
+        timestamp: Date.now(),
+        timeSlotMinutes: timeSlotMinutes
+      }
+      window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
+      
+      const customEvent = new CustomEvent('clinicSettingsUpdated', {
+        detail: { timeSlotMinutes: timeSlotMinutes }
+      })
+      window.dispatchEvent(customEvent)
+    }
+  }, [timeSlotMinutes, isInitialLoad])
+
   // 自動保存関数
   const autoSave = useCallback(async (settings: any) => {
     if (isInitialLoad) return // 初期読み込み時は保存しない
@@ -107,15 +126,28 @@ export default function CalendarSettingsPage() {
       console.log('設定ページ: 自動保存完了')
       
       // メインページに設定変更を通知（localStorageを使用）
-      window.localStorage.setItem('clinic_settings_updated', JSON.stringify({
+      const updateData = {
         timestamp: Date.now(),
         timeSlotMinutes: settings.timeSlotMinutes
-      }))
+      }
+      window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
+      console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
       
       // 同じタブ内でのリアルタイム更新のためカスタムイベントを発火
-      window.dispatchEvent(new CustomEvent('clinicSettingsUpdated', {
+      const customEvent = new CustomEvent('clinicSettingsUpdated', {
         detail: { timeSlotMinutes: settings.timeSlotMinutes }
-      }))
+      })
+      window.dispatchEvent(customEvent)
+      console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
+      
+      // 追加の通知方法：window.postMessageを使用
+      if (window.parent !== window) {
+        window.parent.postMessage({
+          type: 'clinicSettingsUpdated',
+          data: { timeSlotMinutes: settings.timeSlotMinutes }
+        }, '*')
+        console.log('設定ページ: postMessageで通知を送信')
+      }
     } catch (error) {
       console.error('自動保存エラー:', error)
     } finally {
