@@ -26,6 +26,7 @@ interface StaffPosition {
   id: string
   name: string
   sort_order: number
+  enabled: boolean
 }
 
 export default function MasterSettingsPage() {
@@ -49,7 +50,8 @@ export default function MasterSettingsPage() {
   
   const [newPosition, setNewPosition] = useState({
     name: '',
-    sort_order: 0
+    sort_order: 0,
+    enabled: true
   })
 
   // データ読み込み
@@ -111,12 +113,14 @@ export default function MasterSettingsPage() {
       
       setNewPosition({
         name: '',
-        sort_order: 0
+        sort_order: 0,
+        enabled: true
       })
       setShowAddPosition(false)
     } catch (error) {
       console.error('役職追加エラー:', error)
-      alert('役職の追加に失敗しました')
+      const errorMessage = error instanceof Error ? error.message : '役職の追加に失敗しました'
+      alert(`役職の追加に失敗しました: ${errorMessage}`)
     } finally {
       setSaving(false)
     }
@@ -364,7 +368,14 @@ export default function MasterSettingsPage() {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium">スタッフ役職設定</h3>
-                  <Button onClick={() => setShowAddPosition(true)}>
+                  <Button onClick={() => {
+                    setNewPosition({
+                      name: '',
+                      sort_order: staffPositions.length,
+                      enabled: true
+                    })
+                    setShowAddPosition(true)
+                  }}>
                     <Plus className="w-4 h-4 mr-2" />
                     役職追加
                   </Button>
@@ -378,7 +389,7 @@ export default function MasterSettingsPage() {
                           <div>
                             <div className="font-medium">{position.name}</div>
                             <div className="text-sm text-gray-500">
-                              並び順: {position.sort_order}
+                              並び順: {position.sort_order} | ステータス: {position.enabled ? '有効' : '無効'}
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -431,7 +442,8 @@ export default function MasterSettingsPage() {
                             id="position_sort"
                             type="number"
                             value={newPosition.sort_order}
-                            onChange={(e) => setNewPosition(prev => ({ ...prev, sort_order: parseInt(e.target.value) }))}
+                            onChange={(e) => setNewPosition(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                            placeholder="0"
                           />
                         </div>
                       </div>
