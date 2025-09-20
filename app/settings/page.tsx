@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { updateClinicSettings, setClinicSetting, getClinicSettings } from '@/lib/api/clinic'
 import { getStaff, createStaff, updateStaff, deleteStaff } from '@/lib/api/staff'
+import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
 import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
 
 // 仮のクリニックID
@@ -138,6 +139,13 @@ const settingCategories = [
     icon: Bell,
     description: 'メール・SMS・LINE通知の設定',
     href: '/settings/notification'
+  },
+  {
+    id: 'master',
+    name: 'マスタ',
+    icon: Database,
+    description: '特記事項アイコンや基本データの管理',
+    href: '/settings/master'
   },
   {
     id: 'subkarte',
@@ -1897,6 +1905,18 @@ export default function SettingsPage() {
         {selectedCategory === 'notification' && (
           <div className="text-center py-8 text-gray-500">
             通知設定のコンテンツがここに表示されます
+          </div>
+        )}
+        {selectedCategory === 'master' && (
+          <div className="text-center py-8 text-gray-500">
+            <p className="text-lg font-medium mb-2">マスタ設定</p>
+            <p className="text-sm">特記事項アイコンや基本データの管理</p>
+            <Button 
+              onClick={() => window.location.href = '/settings/master'}
+              className="mt-4"
+            >
+              マスタ設定ページへ移動
+            </Button>
           </div>
         )}
         {selectedCategory === 'subkarte' && (
