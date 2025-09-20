@@ -9,7 +9,6 @@ import { ShiftPattern, StaffShift } from '@/types/database'
 import { getShiftPatterns } from '@/lib/api/shift-patterns'
 import { getStaffShifts, upsertStaffShift } from '@/lib/api/shifts'
 import { getStaff } from '@/lib/api/staff'
-import { getStaffPositions } from '@/lib/api/staff-positions'
 import { getHolidays, setClinicSetting } from '@/lib/api/clinic'
 import { getIndividualHolidays, setIndividualHoliday } from '@/lib/api/individual-holidays'
 import { ShiftModal } from './shift-modal'
@@ -84,14 +83,14 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
 
       console.log('シフト表データ読み込み開始:', { clinicId, year, month })
 
-      const [staffData, positionsData, patternsData, shiftsData, holidaysData, individualHolidaysData] = await Promise.all([
+      const [staffData, patternsData, shiftsData, holidaysData, individualHolidaysData] = await Promise.all([
         getStaff(clinicId),
-        getStaffPositions(clinicId),
         getShiftPatterns(clinicId),
         getStaffShifts(clinicId, year, month),
         getHolidays(clinicId),
         getIndividualHolidays(clinicId, year, month)
       ])
+      const positionsData: any[] = [] // 役職データは削除されたため空配列
 
       console.log('読み込んだデータ:', {
         staff: staffData.length,
