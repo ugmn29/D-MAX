@@ -432,7 +432,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     <div
                       key={staffIndex}
                       className={`flex-1 border-r border-gray-200 ${
-                        isBreak ? 'bg-gray-400' : ''
+                        isBreak ? 'bg-gray-200' : ''
                       }`}
                       style={{ 
                         minWidth: getColumnMinWidth(),
@@ -441,11 +441,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     />
                   )
                 })}
-                {isBreak && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-xs text-gray-500 font-medium">休憩時間</span>
-                  </div>
-                )}
               </div>
             )
           })}
