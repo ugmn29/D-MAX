@@ -11,7 +11,7 @@ interface MainCalendarProps {
   clinicId: string
   selectedDate: Date
   onDateChange: (date: Date) => void
-  timeSlotMinutes?: number // 外部から時間スロットを指定可能
+  timeSlotMinutes: number // 必須パラメータに変更
 }
 
 interface TimeSlot {
@@ -37,27 +37,15 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
-export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes: externalTimeSlotMinutes }: MainCalendarProps) {
+export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes }: MainCalendarProps) {
   const [workingStaff, setWorkingStaff] = useState<WorkingStaff[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
   const [breakTimes, setBreakTimes] = useState<BreakTimes>({})
-  const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
-  
+
   // デバッグログ
-  console.log('MainCalendar: externalTimeSlotMinutes:', externalTimeSlotMinutes)
-  console.log('MainCalendar: internal timeSlotMinutes:', timeSlotMinutes)
-  
-  // externalTimeSlotMinutesの変更を監視
-  useEffect(() => {
-    console.log('MainCalendar: externalTimeSlotMinutes変更検知:', externalTimeSlotMinutes)
-    console.log('MainCalendar: externalTimeSlotMinutesの型:', typeof externalTimeSlotMinutes)
-    if (externalTimeSlotMinutes !== undefined) {
-      console.log('MainCalendar: 外部から渡された値を使用します')
-    } else {
-      console.log('MainCalendar: 外部から渡された値がundefined、内部値を使用します')
-    }
-  }, [externalTimeSlotMinutes])
+  console.log('MainCalendar: timeSlotMinutes:', timeSlotMinutes)
+  console.log('MainCalendar: timeSlotMinutesの型:', typeof timeSlotMinutes)
   const [holidays, setHolidays] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [staffLoading, setStaffLoading] = useState(false)
@@ -144,14 +132,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const slots: TimeSlot[] = []
     const startHour = 9
     const endHour = 18
-    const currentTimeSlotMinutes = externalTimeSlotMinutes ?? timeSlotMinutes
-    
-    console.log('MainCalendar: 時間スロット生成 - currentTimeSlotMinutes:', currentTimeSlotMinutes)
-    console.log('MainCalendar: 時間スロット生成 - externalTimeSlotMinutes:', externalTimeSlotMinutes)
-    console.log('MainCalendar: 時間スロット生成 - internal timeSlotMinutes:', timeSlotMinutes)
-    
+
+    console.log('MainCalendar: 時間スロット生成 - timeSlotMinutes:', timeSlotMinutes)
+
     for (let hour = startHour; hour <= endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += currentTimeSlotMinutes) {
+      for (let minute = 0; minute < 60; minute += timeSlotMinutes) {
         if (hour === endHour && minute > 0) break
         slots.push({
           time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
@@ -163,7 +148,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     console.log('MainCalendar: 生成された時間スロット数:', slots.length)
     console.log('MainCalendar: 最初の5つのスロット:', slots.slice(0, 5))
     return slots
-  }, [timeSlotMinutes, externalTimeSlotMinutes])
+  }, [timeSlotMinutes])
 
   // データを読み込み
   useEffect(() => {
@@ -173,33 +158,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         const dateString = selectedDate.toISOString().split('T')[0]
         const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
-        // externalTimeSlotMinutesが渡されていない場合のみデータベースから取得
-        const promises = [
+        const [appointmentsData, businessHoursData, breakTimesData, holidaysData] = await Promise.all([
           getAppointmentsByDate(clinicId, dateString),
           getBusinessHours(clinicId),
           getBreakTimes(clinicId),
           getHolidays(clinicId)
-        ]
-        
-        // externalTimeSlotMinutesが渡されていない場合のみデータベースから取得
-        if (externalTimeSlotMinutes === undefined) {
-          promises.push(getTimeSlotMinutes(clinicId))
-        }
-
-        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, timeSlotData] = await Promise.all(promises)
+        ])
 
         setAppointments(appointmentsData)
         setBusinessHours(businessHoursData)
         setBreakTimes(breakTimesData)
         setHolidays(holidaysData)
-        
-        // externalTimeSlotMinutesが渡されていない場合のみ内部状態を更新
-        if (externalTimeSlotMinutes === undefined && timeSlotData !== undefined) {
-          setTimeSlotMinutes(timeSlotData)
-          console.log('カレンダー: データベースから取得した時間設定:', timeSlotData)
-        } else {
-          console.log('カレンダー: 外部から渡された時間設定を使用:', externalTimeSlotMinutes)
-        }
         
         console.log('カレンダー: 取得した休診日:', holidaysData)
         console.log('カレンダー: クリニックID:', clinicId)
@@ -211,7 +180,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
 
     loadData()
-  }, [clinicId, selectedDate, externalTimeSlotMinutes])
+  }, [clinicId, selectedDate])
 
   // スタッフデータを読み込み（日付変更時）
   useEffect(() => {
@@ -236,9 +205,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       )
       
       if (staffIndex !== -1) {
-        const currentTimeSlotMinutes = externalTimeSlotMinutes ?? timeSlotMinutes
-        const top = (startMinutes - 9 * 60) / currentTimeSlotMinutes * 40 // 40px per slot
-        const height = (endMinutes - startMinutes) / currentTimeSlotMinutes * 40
+        const top = (startMinutes - 9 * 60) / timeSlotMinutes * 40 // 40px per slot
+        const height = (endMinutes - startMinutes) / timeSlotMinutes * 40
         
         blocks.push({
           appointment,
@@ -250,7 +218,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     })
     
     return blocks
-  }, [appointments, workingStaff, timeSlotMinutes, externalTimeSlotMinutes])
+  }, [appointments, workingStaff, timeSlotMinutes])
 
   // 列の幅を計算するヘルパー関数
   const getColumnWidth = () => {

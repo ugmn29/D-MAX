@@ -14,8 +14,9 @@ const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [mounted, setMounted] = useState(false)
-  const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
-  
+  const [timeSlotMinutes, setTimeSlotMinutes] = useState<number | undefined>(undefined)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+
   // timeSlotMinutesの変更をログ出力
   useEffect(() => {
     console.log('メインページ: timeSlotMinutes変更:', timeSlotMinutes)
@@ -108,37 +109,29 @@ export default function HomePage() {
       const settings = await getClinicSettings(DEMO_CLINIC_ID)
       console.log('メインページ: 取得した設定:', settings)
       console.log('メインページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
-      
-      if (settings.time_slot_minutes) {
-        console.log('メインページ: time_slot_minutes設定:', settings.time_slot_minutes)
-        console.log('メインページ: time_slot_minutesの型:', typeof settings.time_slot_minutes)
-        console.log('メインページ: 現在のtimeSlotMinutes状態:', timeSlotMinutes)
-        
-        // 数値に変換してから比較
-        const numericTimeSlotMinutes = Number(settings.time_slot_minutes)
-        console.log('メインページ: 数値変換後の値:', numericTimeSlotMinutes)
-        console.log('メインページ: 設定値と状態値の比較:', numericTimeSlotMinutes, 'vs', timeSlotMinutes)
-        
-        // 値が異なる場合のみ状態を更新
-        if (numericTimeSlotMinutes !== timeSlotMinutes) {
-          console.log('メインページ: timeSlotMinutes状態を更新します')
-          setTimeSlotMinutes(numericTimeSlotMinutes)
-        } else {
-          console.log('メインページ: timeSlotMinutesは既に最新です')
-        }
-      } else {
-        console.log('メインページ: time_slot_minutes設定なし、デフォルト値15を使用')
-        if (timeSlotMinutes !== 15) {
-          setTimeSlotMinutes(15)
-        }
-      }
+
+      // 数値に変換、設定がない場合はデフォルト値15
+      const numericTimeSlotMinutes = settings.time_slot_minutes ? Number(settings.time_slot_minutes) : 15
+      console.log('メインページ: 最終的な時間設定値:', numericTimeSlotMinutes)
+
+      setTimeSlotMinutes(numericTimeSlotMinutes)
+      setSettingsLoaded(true)
+
+      console.log('メインページ: 設定読み込み完了')
     } catch (error) {
       console.error('設定読み込みエラー:', error)
+      // エラー時もデフォルト値で初期化
+      setTimeSlotMinutes(15)
+      setSettingsLoaded(true)
     }
   }
 
-  if (!mounted) {
-    return null
+  if (!mounted || !settingsLoaded) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   // 日付ナビゲーション
@@ -183,7 +176,7 @@ export default function HomePage() {
           clinicId={DEMO_CLINIC_ID}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
-          timeSlotMinutes={timeSlotMinutes}
+          timeSlotMinutes={timeSlotMinutes ?? 15}
         />
       </div>
 

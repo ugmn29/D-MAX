@@ -74,16 +74,17 @@ export default function CalendarSettingsPage() {
   useEffect(() => {
     if (!isInitialLoad && timeSlotMinutes !== undefined) {
       console.log('設定ページ: timeSlotMinutes変更検知、即座にメインページに通知:', timeSlotMinutes)
-      
-      // 即座にメインページに通知
+
+      // 数値として確実に送信
+      const numericTimeSlotMinutes = Number(timeSlotMinutes)
       const updateData = {
         timestamp: Date.now(),
-        timeSlotMinutes: timeSlotMinutes
+        timeSlotMinutes: numericTimeSlotMinutes
       }
       window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
-      
+
       const customEvent = new CustomEvent('clinicSettingsUpdated', {
-        detail: { timeSlotMinutes: timeSlotMinutes }
+        detail: { timeSlotMinutes: numericTimeSlotMinutes }
       })
       window.dispatchEvent(customEvent)
     }
@@ -102,59 +103,36 @@ export default function CalendarSettingsPage() {
       console.log('設定ページ: clinic_settingsテーブルに保存中...')
       console.log('設定ページ: 保存するtimeSlotMinutes値:', settings.timeSlotMinutes)
       console.log('設定ページ: 保存するtimeSlotMinutesの型:', typeof settings.timeSlotMinutes)
-      
+
       // 数値として保存することを確認
       const numericTimeSlotMinutes = Number(settings.timeSlotMinutes)
       console.log('設定ページ: 数値変換後の値:', numericTimeSlotMinutes)
-      
+
       await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', numericTimeSlotMinutes)
       console.log('設定ページ: time_slot_minutes保存完了')
-      
+
       await setClinicSetting(DEMO_CLINIC_ID, 'unit_count', settings.unitCount)
       await setClinicSetting(DEMO_CLINIC_ID, 'units', settings.units)
       await setClinicSetting(DEMO_CLINIC_ID, 'display_items', settings.displayItems)
       await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', settings.cellHeight)
       await setClinicSetting(DEMO_CLINIC_ID, 'cancel_types', settings.cancelTypes)
       await setClinicSetting(DEMO_CLINIC_ID, 'penalty_settings', settings.penaltySettings)
-      
-      // clinicsテーブルにも保存（後方互換性のため）
-      console.log('設定ページ: clinicsテーブルにも保存中...')
-      await updateClinicSettings(DEMO_CLINIC_ID, {
-        timeSlotMinutes: settings.timeSlotMinutes
-      })
-      console.log('設定ページ: clinicsテーブル保存完了')
-      
-      // 保存後に設定を再読み込みして確認
-      console.log('設定ページ: 保存後の設定確認中...')
-      const savedSettings = await getClinicSettings(DEMO_CLINIC_ID)
-      console.log('設定ページ: 保存後の設定:', savedSettings)
-      console.log('設定ページ: 保存後のtime_slot_minutes:', savedSettings.time_slot_minutes)
-      
       console.log('設定ページ: 自動保存完了')
-      
-      // メインページに設定変更を通知（localStorageを使用）
+
+      // メインページに設定変更を通知
       const updateData = {
         timestamp: Date.now(),
-        timeSlotMinutes: settings.timeSlotMinutes
+        timeSlotMinutes: numericTimeSlotMinutes
       }
       window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
       console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
-      
-      // 同じタブ内でのリアルタイム更新のためカスタムイベントを発火
+
+      // カスタムイベントを発火
       const customEvent = new CustomEvent('clinicSettingsUpdated', {
-        detail: { timeSlotMinutes: settings.timeSlotMinutes }
+        detail: { timeSlotMinutes: numericTimeSlotMinutes }
       })
       window.dispatchEvent(customEvent)
       console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
-      
-      // 追加の通知方法：window.postMessageを使用
-      if (window.parent !== window) {
-        window.parent.postMessage({
-          type: 'clinicSettingsUpdated',
-          data: { timeSlotMinutes: settings.timeSlotMinutes }
-        }, '*')
-        console.log('設定ページ: postMessageで通知を送信')
-      }
     } catch (error) {
       console.error('自動保存エラー:', error)
     } finally {
