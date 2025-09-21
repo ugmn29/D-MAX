@@ -204,7 +204,12 @@ export default function CalendarSettingsPage() {
 
   // 設定値変更時の自動保存
   useEffect(() => {
-    if (isInitialLoad) return // 初期読み込み時は保存しない
+    console.log('設定ページ: 自動保存useEffect実行 - isInitialLoad:', isInitialLoad, 'timeSlotMinutes:', timeSlotMinutes)
+    
+    if (isInitialLoad) {
+      console.log('設定ページ: 初期読み込み中のため自動保存をスキップ')
+      return // 初期読み込み時は保存しない
+    }
     
     console.log('設定ページ: timeSlotMinutes変更検知:', timeSlotMinutes)
     
@@ -317,6 +322,25 @@ export default function CalendarSettingsPage() {
                     ✓ 保存済み
                   </div>
                 )}
+                <Button
+                  onClick={() => {
+                    console.log('設定ページ: 手動保存ボタンクリック')
+                    const settings = {
+                      timeSlotMinutes,
+                      unitCount,
+                      units,
+                      displayItems,
+                      cellHeight,
+                      cancelTypes,
+                      penaltySettings
+                    }
+                    autoSave(settings)
+                  }}
+                  size="sm"
+                  disabled={saving}
+                >
+                  手動保存
+                </Button>
               </div>
             </div>
 
