@@ -12,6 +12,7 @@ import { getStaff } from '@/lib/api/staff'
 import { getStaffPositions } from '@/lib/api/staff-positions'
 import { getHolidays, setClinicSetting } from '@/lib/api/clinic'
 import { getIndividualHolidays, setIndividualHoliday } from '@/lib/api/individual-holidays'
+import { formatDateForDB } from '@/lib/utils/date'
 import { ShiftModal } from './shift-modal'
 import { StaffScheduleModal } from './staff-schedule-modal'
 import { DateHolidayModal } from './date-holiday-modal'
@@ -445,7 +446,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
 
   // 休診日かどうかを判定（医院設定の休診日 + 個別休診日）
   const isHoliday = (date: Date): boolean => {
-    const dateString = date.toISOString().split('T')[0]
+    const dateString = formatDateForDB(date) // 日本時間で日付を処理
     
     // 個別休診日の設定がある場合はそれを優先
     if (individualHolidays.hasOwnProperty(dateString)) {

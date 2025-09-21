@@ -11,12 +11,12 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- デフォルト役職の作成
-INSERT INTO staff_positions (id, clinic_id, name, sort_order, enabled, created_at)
+INSERT INTO staff_positions (id, clinic_id, name, sort_order, created_at)
 VALUES 
-  ('11111111-1111-1111-1111-111111111101', '11111111-1111-1111-1111-111111111111', '歯科医師', 1, true, NOW()),
-  ('11111111-1111-1111-1111-111111111102', '11111111-1111-1111-1111-111111111111', '歯科衛生士', 2, true, NOW()),
-  ('11111111-1111-1111-1111-111111111103', '11111111-1111-1111-1111-111111111111', '歯科助手', 3, true, NOW()),
-  ('11111111-1111-1111-1111-111111111104', '11111111-1111-1111-1111-111111111111', '受付', 4, true, NOW())
+  ('11111111-1111-1111-1111-111111111101', '11111111-1111-1111-1111-111111111111', '歯科医師', 1, NOW()),
+  ('11111111-1111-1111-1111-111111111102', '11111111-1111-1111-1111-111111111111', '歯科衛生士', 2, NOW()),
+  ('11111111-1111-1111-1111-111111111103', '11111111-1111-1111-1111-111111111111', '歯科助手', 3, NOW()),
+  ('11111111-1111-1111-1111-111111111104', '11111111-1111-1111-1111-111111111111', '受付', 4, NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- デフォルトスタッフの作成
@@ -37,3 +37,18 @@ VALUES
   ('33333333-3333-3333-3333-333333333302', '11111111-1111-1111-1111-111111111111', 'AM', '午前のみ', '09:00', '13:00', '00:00', '00:00', '', NOW()),
   ('33333333-3333-3333-3333-333333333303', '11111111-1111-1111-1111-111111111111', 'PM', '午後のみ', '14:30', '18:00', '00:00', '00:00', '', NOW())
 ON CONFLICT (id) DO NOTHING;
+
+-- デフォルトクリニック設定の作成
+INSERT INTO clinic_settings (clinic_id, setting_key, setting_value, created_at, updated_at)
+VALUES 
+  ('11111111-1111-1111-1111-111111111111', 'time_slot_minutes', '15', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'unit_count', '3', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'units', '["チェア1", "チェア2", "チェア3"]', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'display_items', '[]', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'cell_height', '40', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'cancel_types', '[]', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'penalty_settings', '{"noShowThreshold": 3, "webReservationLimit": true, "penaltyPeriod": 30}', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'business_hours', '{"monday": {"isOpen": true, "timeSlots": [{"start": "09:00", "end": "18:00"}]}, "tuesday": {"isOpen": true, "timeSlots": [{"start": "09:00", "end": "18:00"}]}, "wednesday": {"isOpen": true, "timeSlots": [{"start": "09:00", "end": "18:00"}]}, "thursday": {"isOpen": true, "timeSlots": [{"start": "09:00", "end": "18:00"}]}, "friday": {"isOpen": true, "timeSlots": [{"start": "09:00", "end": "18:00"}]}, "saturday": {"isOpen": false, "timeSlots": []}, "sunday": {"isOpen": false, "timeSlots": []}}', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'break_times', '{"monday": {"start": "13:00", "end": "14:30"}, "tuesday": {"start": "13:00", "end": "14:30"}, "wednesday": {"start": "13:00", "end": "14:30"}, "thursday": {"start": "13:00", "end": "14:30"}, "friday": {"start": "13:00", "end": "14:30"}, "saturday": null, "sunday": null}', NOW(), NOW()),
+  ('11111111-1111-1111-1111-111111111111', 'holidays', '["sunday"]', NOW(), NOW())
+ON CONFLICT (clinic_id, setting_key) DO NOTHING;

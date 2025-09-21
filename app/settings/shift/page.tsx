@@ -10,6 +10,7 @@ import { getStaffShifts, upsertStaffShift, deleteStaffShift } from '@/lib/api/sh
 import { getStaff } from '@/lib/api/staff'
 import { getClinicSettings } from '@/lib/api/clinic'
 import { getShiftPatterns } from '@/lib/api/shift-patterns'
+import { formatDateForDB } from '@/lib/utils/date'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -148,7 +149,7 @@ export default function ShiftSettingsPage() {
 
   // 特定の日付のシフトを取得
   const getShiftsForDate = (date: Date) => {
-    const dateString = date.toISOString().split('T')[0]
+    const dateString = formatDateForDB(date) // 日本時間で日付を処理
     return shifts.filter(shift => shift.date === dateString)
   }
 

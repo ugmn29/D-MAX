@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getClinicSettings, getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
+import { formatDateForDB } from '@/lib/utils/date'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
@@ -377,8 +378,8 @@ export default function WebBookingPage() {
                     type="date"
                     value={bookingData.selectedDate}
                     onChange={(e) => handleDateSelect(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    max={new Date(Date.now() + webSettings.reservationPeriod * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    min={formatDateForDB(new Date())}
+                    max={formatDateForDB(new Date(Date.now() + webSettings.reservationPeriod * 24 * 60 * 60 * 1000))}
                   />
                 </div>
                 

@@ -6,12 +6,16 @@ import { getAppointmentsByDate } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
 import { Appointment, BusinessHours, BreakTimes, StaffShift } from '@/types/database'
+import { AppointmentEditModal } from '@/components/forms/appointment-edit-modal'
+import { formatDateForDB } from '@/lib/utils/date'
 
 interface MainCalendarProps {
   clinicId: string
   selectedDate: Date
   onDateChange: (date: Date) => void
   timeSlotMinutes: number // 必須パラメータに変更
+  displayItems?: string[] // 表示項目の設定
+  cellHeight?: number // セルの高さ設定
 }
 
 interface TimeSlot {
@@ -37,11 +41,17 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
-export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes }: MainCalendarProps) {
+export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40 }: MainCalendarProps) {
   const [workingStaff, setWorkingStaff] = useState<WorkingStaff[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
   const [breakTimes, setBreakTimes] = useState<BreakTimes>({})
+
+  // 複数選択関連の状態
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([])
+  const [selectionStart, setSelectionStart] = useState<string | null>(null)
+  const [selectionEnd, setSelectionEnd] = useState<string | null>(null)
 
   // デバッグログ
   console.log('MainCalendar: timeSlotMinutes:', timeSlotMinutes)
@@ -50,6 +60,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [loading, setLoading] = useState(true)
   const [staffLoading, setStaffLoading] = useState(false)
   const [staffError, setStaffError] = useState<string | null>(null)
+  
+  // 予約編集モーダル
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('')
+  const [selectedStaffIndex, setSelectedStaffIndex] = useState<number | undefined>(undefined)
   
   // スタッフデータのキャッシュ
   const [staffCache, setStaffCache] = useState<Map<string, WorkingStaff[]>>(new Map())
@@ -73,7 +88,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
   // 出勤スタッフデータを取得する関数
   const loadWorkingStaff = async (date: Date) => {
-    const dateString = date.toISOString().split('T')[0]
+    const dateString = formatDateForDB(date) // 日本時間で日付を処理
     
     // キャッシュをチェック
     if (staffCache.has(dateString)) {
@@ -155,12 +170,98 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     return slots
   }, [timeSlotMinutes])
 
+  // 時間文字列を分に変換する関数
+  const timeToMinutes = (time: string): number => {
+    const [hour, minute] = time.split(':').map(Number)
+    return hour * 60 + minute
+  }
+
+  // 分を時間文字列に変換する関数
+  const minutesToTime = (minutes: number): string => {
+    const hour = Math.floor(minutes / 60)
+    const minute = minutes % 60
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+  }
+
+  // 選択範囲内の時間スロットを計算する関数
+  const getSelectedTimeSlots = (startTime: string, endTime: string): string[] => {
+    const startMinutes = timeToMinutes(startTime)
+    const endMinutes = timeToMinutes(endTime)
+    const slots: string[] = []
+    
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += timeSlotMinutes) {
+      slots.push(minutesToTime(minutes))
+    }
+    
+    return slots
+  }
+
+  // 長押し開始の処理
+  const handleMouseDown = (timeSlot: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsSelecting(true)
+    setSelectionStart(timeSlot)
+    setSelectionEnd(timeSlot)
+    setSelectedTimeSlots([timeSlot])
+  }
+
+  // マウス移動時の処理
+  const handleMouseMove = (timeSlot: string) => {
+    if (!isSelecting || !selectionStart) return
+    
+    setSelectionEnd(timeSlot)
+    
+    // 開始時間と終了時間を比較して範囲を決定
+    const startMinutes = timeToMinutes(selectionStart)
+    const endMinutes = timeToMinutes(timeSlot)
+    
+    if (startMinutes <= endMinutes) {
+      setSelectedTimeSlots(getSelectedTimeSlots(selectionStart, timeSlot))
+    } else {
+      setSelectedTimeSlots(getSelectedTimeSlots(timeSlot, selectionStart))
+    }
+  }
+
+  // 長押し終了の処理
+  const handleMouseUp = () => {
+    if (!isSelecting) return
+    
+    setIsSelecting(false)
+    
+    // 選択された時間範囲で予約編集モーダルを開く
+    if (selectedTimeSlots.length > 0) {
+      const startTime = selectedTimeSlots[0]
+      // 選択されたスロット数に基づいて終了時間を計算
+      const totalSlots = selectedTimeSlots.length
+      const totalDuration = totalSlots * timeSlotMinutes
+      const startMinutes = timeToMinutes(startTime)
+      const endMinutes = startMinutes + totalDuration
+      const endTimeString = minutesToTime(endMinutes)
+      
+      console.log('複数選択完了:', { 
+        startTime, 
+        endTime: endTimeString, 
+        totalSlots,
+        totalDuration,
+        timeSlotMinutes,
+        selectedSlots: selectedTimeSlots 
+      })
+      setSelectedTimeSlot(startTime)
+      setShowAppointmentModal(true)
+    }
+    
+    // 選択状態をリセット（モーダルが閉じられた時にリセット）
+    // setSelectedTimeSlots([])
+    // setSelectionStart(null)
+    // setSelectionEnd(null)
+  }
+
   // データを読み込み
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
-        const dateString = selectedDate.toISOString().split('T')[0]
+        const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
         const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
         const [appointmentsData, businessHoursData, breakTimesData, holidaysData] = await Promise.all([
@@ -242,11 +343,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     return '120px'
   }
 
-  // 時間を分に変換するヘルパー関数
-  const timeToMinutes = (time: string): number => {
-    const [hours, minutes] = time.split(':').map(Number)
-    return hours * 60 + minutes
-  }
 
   // 休診日かどうかを判定
   const isHoliday = (date: Date): boolean => {
@@ -412,10 +508,28 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     ? 'bg-gray-100' 
                     : isBreak 
                       ? 'bg-gray-400 cursor-not-allowed' 
-                      : 'bg-white'
+                      : selectedTimeSlots.includes(slot.time)
+                        ? 'bg-blue-200 border-blue-400'
+                        : 'bg-white'
                 }`}
                 style={{
                   borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB'
+                }}
+                onMouseDown={(e) => {
+                  if (isBreak || isOutside) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    return
+                  }
+                  handleMouseDown(slot.time, e)
+                }}
+                onMouseMove={() => {
+                  if (isBreak || isOutside) return
+                  handleMouseMove(slot.time)
+                }}
+                onMouseUp={() => {
+                  if (isBreak || isOutside) return
+                  handleMouseUp()
                 }}
                 onClick={(e) => {
                   if (isBreak || isOutside) {
@@ -423,7 +537,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     e.stopPropagation()
                     return
                   }
-                  // 予約作成処理（通常の診療時間内のみ）
+                  // 単一クリックの場合は従来通り
+                  if (!isSelecting) {
+                    console.log('空のセルクリック:', slot.time, 'スタッフインデックス:', workingStaff.length > 0 ? '複数スタッフ' : 'スタッフなし')
+                    setSelectedTimeSlot(slot.time)
+                    setSelectedStaffIndex(undefined) // 空のセルなのでスタッフインデックスは未設定
+                    setShowAppointmentModal(true)
+                  }
                 }}
               >
                 {workingStaff.map((_, staffIndex) => {
@@ -437,6 +557,18 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       style={{ 
                         minWidth: getColumnMinWidth(),
                         maxWidth: getColumnWidth()
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (isBreak || isOutside) {
+                          return
+                        }
+                        // スタッフ列をクリックした場合
+                        console.log('スタッフ列クリック:', slot.time, 'スタッフインデックス:', staffIndex)
+                        setSelectedTimeSlot(slot.time)
+                        setSelectedStaffIndex(staffIndex)
+                        setShowAppointmentModal(true)
                       }}
                     />
                   )
@@ -460,38 +592,70 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   width: getColumnWidth(),
                   minWidth: getColumnMinWidth(),
                   backgroundColor: menuColor,
-                  color: 'white'
+                  color: 'white',
+                  borderLeft: '3px solid #0288D1'
                 }}
                 onClick={() => {
                   // 予約編集モーダルを開く
                   console.log('予約編集:', block.appointment)
+                  setSelectedTimeSlot(block.appointment.start_time)
+                  setSelectedStaffIndex(block.staffIndex)
+                  setShowAppointmentModal(true)
                 }}
               >
-                <div className="font-medium text-sm">
-                  {block.appointment.start_time} - {block.appointment.end_time} / {(block.appointment as any).patient?.patient_number || '1'}
-                </div>
-                <div className="mt-1 text-sm">
-                  {(block.appointment as any).patient ? 
-                    `${(block.appointment as any).patient.last_name} ${(block.appointment as any).patient.first_name}` : 
-                    '患者情報なし'
-                  }
-                </div>
-                <div className="mt-1 text-sm">
-                  {(block.appointment as any).patient?.name_kana && `${(block.appointment as any).patient.name_kana}`}
-                </div>
-                <div className="mt-1 text-sm">
-                  {(block.appointment as any).patient?.birth_date && 
-                    `${new Date().getFullYear() - new Date((block.appointment as any).patient.birth_date).getFullYear()}歳`
-                  }
-                </div>
-                <div className="mt-1 text-sm">
-                  {(block.appointment as any).menu1?.name || '診療メニューなし'}
-                </div>
-                <div className="mt-1 text-sm">
-                  {(block.appointment as any).staff1?.name || '担当者なし'}
+                {/* 1段目: 診療時間、診察券番号 */}
+                {(displayItems.includes('reservation_time') || displayItems.includes('medical_card_number')) && (
+                  <div className="font-medium text-xs mb-1">
+                    {displayItems.includes('reservation_time') && `${block.appointment.start_time} - ${block.appointment.end_time}`}
+                    {displayItems.includes('reservation_time') && displayItems.includes('medical_card_number') && ' / '}
+                    {displayItems.includes('medical_card_number') && `/${(block.appointment as any).patient?.patient_number || '1'}`}
+                  </div>
+                )}
+                
+                {/* 2段目: メイン情報 */}
+                <div className="text-sm space-y-1">
+                  {/* 患者名 */}
+                  <div className="font-medium">
+                    {(block.appointment as any).patient ? 
+                      `${(block.appointment as any).patient.last_name} ${(block.appointment as any).patient.first_name}` : 
+                      '患者情報なし'
+                    }
+                  </div>
+                  
+                  {/* フリガナ */}
+                  {displayItems.includes('furigana') && (block.appointment as any).patient?.last_name_kana && (block.appointment as any).patient?.first_name_kana && (
+                    <div className="text-xs opacity-90">
+                      {(block.appointment as any).patient.last_name_kana} {(block.appointment as any).patient.first_name_kana}
+                    </div>
+                  )}
+                  
+                  {/* 年齢 */}
+                  {displayItems.includes('age') && (block.appointment as any).patient?.birth_date && (
+                    <div className="text-xs opacity-90">
+                      {new Date().getFullYear() - new Date((block.appointment as any).patient.birth_date).getFullYear()}歳
+                    </div>
+                  )}
+                  
+                  {/* 診療内容1-3 */}
+                  {(displayItems.includes('treatment_content_1') || displayItems.includes('treatment_content_2') || displayItems.includes('treatment_content_3')) && (
+                    <div className="text-xs opacity-90">
+                      {displayItems.includes('treatment_content_1') && (block.appointment as any).menu1?.name || ''}
+                      {displayItems.includes('treatment_content_1') && displayItems.includes('treatment_content_2') && (block.appointment as any).menu2?.name && ` / ${(block.appointment as any).menu2.name}`}
+                      {displayItems.includes('treatment_content_1') && displayItems.includes('treatment_content_2') && displayItems.includes('treatment_content_3') && (block.appointment as any).menu3?.name && ` / ${(block.appointment as any).menu3.name}`}
+                    </div>
+                  )}
+                  
+                  {/* 担当者1-3 */}
+                  {(displayItems.includes('staff_1') || displayItems.includes('staff_2') || displayItems.includes('staff_3')) && (
+                    <div className="text-xs opacity-90">
+                      {displayItems.includes('staff_1') && (block.appointment as any).staff1?.name || ''}
+                      {displayItems.includes('staff_1') && displayItems.includes('staff_2') && (block.appointment as any).staff2?.name && ` / ${(block.appointment as any).staff2.name}`}
+                      {displayItems.includes('staff_1') && displayItems.includes('staff_2') && displayItems.includes('staff_3') && (block.appointment as any).staff3?.name && ` / ${(block.appointment as any).staff3.name}`}
+                    </div>
+                  )}
                 </div>
                 
-                {/* 特記事項アイコン */}
+                {/* 特記事項アイコン（下部） */}
                 <div className="flex items-center space-x-1 mt-2">
                   <Clock className="w-3 h-3" />
                   <User className="w-3 h-3" />
@@ -513,6 +677,34 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           })}
         </div>
       </div>
+
+      {/* 予約編集モーダル */}
+      <AppointmentEditModal
+        isOpen={showAppointmentModal}
+        onClose={() => {
+          setShowAppointmentModal(false)
+          // モーダルが閉じられた時に選択状態をリセット
+          setSelectedTimeSlots([])
+          setSelectionStart(null)
+          setSelectionEnd(null)
+        }}
+        clinicId={clinicId}
+        selectedDate={formatDateForDB(selectedDate)}
+        selectedTime={selectedTimeSlot}
+        selectedStaffIndex={selectedStaffIndex}
+        selectedTimeSlots={selectedTimeSlots}
+        timeSlotMinutes={timeSlotMinutes}
+        workingStaff={workingStaff}
+        onSave={(appointmentData) => {
+          console.log('予約保存:', appointmentData)
+          // TODO: 予約保存処理を実装
+          setShowAppointmentModal(false)
+          // 保存後も選択状態をリセット
+          setSelectedTimeSlots([])
+          setSelectionStart(null)
+          setSelectionEnd(null)
+        }}
+      />
     </div>
   )
 }

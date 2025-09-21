@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { searchPatients } from '@/lib/api/patients'
 import { getDailyMemo, saveDailyMemo } from '@/lib/api/clinic'
+import { formatDateForDB } from '@/lib/utils/date'
 import { Patient, DailyMemo } from '@/types/database'
 
 interface SidebarCalendarProps {
@@ -63,7 +64,7 @@ export function SidebarCalendar({
   useEffect(() => {
     const loadMemo = async () => {
       try {
-        const dateString = selectedDate.toISOString().split('T')[0]
+        const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
         const memoData = await getDailyMemo(clinicId, dateString)
         setMemo(memoData?.memo || '')
       } catch (error) {

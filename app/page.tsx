@@ -16,6 +16,8 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false)
   const [timeSlotMinutes, setTimeSlotMinutes] = useState<number | undefined>(undefined)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [displayItems, setDisplayItems] = useState<string[]>([])
+  const [cellHeight, setCellHeight] = useState<number>(40)
 
   // timeSlotMinutesの変更をログ出力
   useEffect(() => {
@@ -118,6 +120,8 @@ export default function HomePage() {
       console.log('メインページ: 最終的な時間設定値:', numericTimeSlotMinutes)
 
       setTimeSlotMinutes(numericTimeSlotMinutes)
+      setDisplayItems(settings.display_items || [])
+      setCellHeight(settings.cell_height || 40)
       setSettingsLoaded(true)
 
       console.log('メインページ: 設定読み込み完了')
@@ -125,6 +129,8 @@ export default function HomePage() {
       console.error('設定読み込みエラー:', error)
       // エラー時もデフォルト値で初期化
       setTimeSlotMinutes(15)
+      setDisplayItems([])
+      setCellHeight(40)
       setSettingsLoaded(true)
     }
   }
@@ -180,6 +186,8 @@ export default function HomePage() {
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           timeSlotMinutes={timeSlotMinutes ?? 15}
+          displayItems={displayItems}
+          cellHeight={cellHeight}
         />
       </div>
 
