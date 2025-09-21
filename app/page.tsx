@@ -60,8 +60,9 @@ export default function HomePage() {
           const updateData = JSON.parse(e.newValue)
           if (updateData.timeSlotMinutes) {
             const numericTimeSlotMinutes = Number(updateData.timeSlotMinutes)
+            console.log('メインページ: localStorageから設定変更を検知:', numericTimeSlotMinutes, '現在の値:', timeSlotMinutes)
             if (numericTimeSlotMinutes !== timeSlotMinutes) {
-              console.log('メインページ: localStorageから設定変更を検知:', numericTimeSlotMinutes)
+              console.log('メインページ: timeSlotMinutesを更新:', timeSlotMinutes, '→', numericTimeSlotMinutes)
               setTimeSlotMinutes(numericTimeSlotMinutes)
             }
           }
@@ -74,8 +75,9 @@ export default function HomePage() {
     const handleCustomEvent = (e: CustomEvent) => {
       if (e.detail?.timeSlotMinutes) {
         const numericTimeSlotMinutes = Number(e.detail.timeSlotMinutes)
+        console.log('メインページ: カスタムイベントから設定変更を検知:', numericTimeSlotMinutes, '現在の値:', timeSlotMinutes)
         if (numericTimeSlotMinutes !== timeSlotMinutes) {
-          console.log('メインページ: カスタムイベントから設定変更を検知:', numericTimeSlotMinutes)
+          console.log('メインページ: timeSlotMinutesを更新:', timeSlotMinutes, '→', numericTimeSlotMinutes)
           setTimeSlotMinutes(numericTimeSlotMinutes)
         }
       }
@@ -84,8 +86,9 @@ export default function HomePage() {
     const handlePostMessage = (e: MessageEvent) => {
       if (e.data?.type === 'clinicSettingsUpdated' && e.data?.data?.timeSlotMinutes) {
         const numericTimeSlotMinutes = Number(e.data.data.timeSlotMinutes)
+        console.log('メインページ: postMessageから設定変更を検知:', numericTimeSlotMinutes, '現在の値:', timeSlotMinutes)
         if (numericTimeSlotMinutes !== timeSlotMinutes) {
-          console.log('メインページ: postMessageから設定変更を検知:', numericTimeSlotMinutes)
+          console.log('メインページ: timeSlotMinutesを更新:', timeSlotMinutes, '→', numericTimeSlotMinutes)
           setTimeSlotMinutes(numericTimeSlotMinutes)
         }
       }

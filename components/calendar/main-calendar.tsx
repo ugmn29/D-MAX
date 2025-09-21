@@ -134,9 +134,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const endHour = 18
 
     console.log('MainCalendar: 時間スロット生成 - timeSlotMinutes:', timeSlotMinutes)
+    console.log('MainCalendar: 時間スロット生成 - timeSlotMinutesの型:', typeof timeSlotMinutes)
+
+    // timeSlotMinutesが有効な数値でない場合はデフォルト値15を使用
+    const validTimeSlotMinutes = (typeof timeSlotMinutes === 'number' && timeSlotMinutes > 0) ? timeSlotMinutes : 15
+    console.log('MainCalendar: 使用する時間スロット値:', validTimeSlotMinutes)
 
     for (let hour = startHour; hour <= endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += timeSlotMinutes) {
+      for (let minute = 0; minute < 60; minute += validTimeSlotMinutes) {
         if (hour === endHour && minute > 0) break
         slots.push({
           time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
@@ -191,6 +196,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const appointmentBlocks = useMemo(() => {
     const blocks: AppointmentBlock[] = []
     
+    // timeSlotMinutesが有効な数値でない場合はデフォルト値15を使用
+    const validTimeSlotMinutes = (typeof timeSlotMinutes === 'number' && timeSlotMinutes > 0) ? timeSlotMinutes : 15
+    
     appointments.forEach(appointment => {
       const startTime = appointment.start_time
       const endTime = appointment.end_time
@@ -205,8 +213,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       )
       
       if (staffIndex !== -1) {
-        const top = (startMinutes - 9 * 60) / timeSlotMinutes * 40 // 40px per slot
-        const height = (endMinutes - startMinutes) / timeSlotMinutes * 40
+        const top = (startMinutes - 9 * 60) / validTimeSlotMinutes * 40 // 40px per slot
+        const height = (endMinutes - startMinutes) / validTimeSlotMinutes * 40
         
         blocks.push({
           appointment,
