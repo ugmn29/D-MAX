@@ -28,27 +28,42 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
 export async function getClinicSettings(clinicId: string): Promise<Record<string, any>> {
   console.log('getClinicSettings呼び出し:', clinicId)
   
-  const { data, error } = await supabase
-    .from('clinic_settings')
-    .select('setting_key, setting_value')
-    .eq('clinic_id', clinicId)
+  try {
+    const { data, error } = await supabase
+      .from('clinic_settings')
+      .select('setting_key, setting_value')
+      .eq('clinic_id', clinicId)
 
-  console.log('getClinicSettingsレスポンス:', { data, error })
+    console.log('getClinicSettingsレスポンス:', { data, error })
 
-  if (error) {
-    console.error('クリニック設定取得エラー:', error)
-    throw new Error('クリニック設定の取得に失敗しました')
+    if (error) {
+      console.error('クリニック設定取得エラー:', error)
+      // エラーが発生した場合はデフォルト設定を返す
+      return {
+        time_slot_minutes: 15,
+        display_items: [],
+        cell_height: 40
+      }
+    }
+
+    const settings: Record<string, any> = {}
+    data?.forEach(setting => {
+      console.log(`設定項目: ${setting.setting_key} = ${setting.setting_value}`)
+      settings[setting.setting_key] = setting.setting_value
+    })
+
+    console.log('処理後の設定:', settings)
+    console.log('time_slot_minutesの値:', settings.time_slot_minutes)
+    return settings
+  } catch (error) {
+    console.error('getClinicSettings全体エラー:', error)
+    // エラーが発生した場合はデフォルト設定を返す
+    return {
+      time_slot_minutes: 15,
+      display_items: [],
+      cell_height: 40
+    }
   }
-
-  const settings: Record<string, any> = {}
-  data?.forEach(setting => {
-    console.log(`設定項目: ${setting.setting_key} = ${setting.setting_value}`)
-    settings[setting.setting_key] = setting.setting_value
-  })
-
-  console.log('処理後の設定:', settings)
-  console.log('time_slot_minutesの値:', settings.time_slot_minutes)
-  return settings
 }
 
 /**

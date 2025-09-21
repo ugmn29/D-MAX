@@ -857,7 +857,7 @@ export default function SettingsPage() {
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-3">
                         {timeSlots.map((slot, index) => (
-                          <div key={slot.id} className={`flex items-center space-x-2 rounded-md px-3 py-2 ${
+                          <div key={`${day.id}-${slot.id}`} className={`flex items-center space-x-2 rounded-md px-3 py-2 ${
                             isHoliday ? 'bg-gray-100' : 'bg-gray-50'
                           }`}>
                             <span className={`text-xs font-medium ${
@@ -997,7 +997,7 @@ export default function SettingsPage() {
                 
                 <div className="space-y-3">
                   {units.map((unit, index) => (
-                    <div key={index} className="flex items-center space-x-4">
+                    <div key={`unit-${index}-${unit}`} className="flex items-center space-x-4">
                       <Label className="w-20 text-sm font-medium text-gray-700">ユニット{index + 1}:</Label>
                       <Input
                         value={unit}
@@ -1751,7 +1751,11 @@ export default function SettingsPage() {
           <div className="space-y-1">
             {getFilteredTreatmentMenus().length > 0 ? (
               <div className="space-y-1">
-                {getFilteredTreatmentMenus().map(menu => renderMenuItem(menu, 0))}
+                {getFilteredTreatmentMenus().map(menu => (
+                  <div key={`root-${menu.id}`}>
+                    {renderMenuItem(menu, 0)}
+                  </div>
+                ))}
                 
                 {/* メニュー-1を追加ボタン */}
                 <div className="ml-4 mt-12">
@@ -2246,7 +2250,11 @@ export default function SettingsPage() {
         {/* 子メニューを階層表示（展開時のみ） */}
         {isParent && isExpanded && (
           <div className="ml-4">
-            {menu.children.map((child: any) => renderMenuItem(child, level + 1))}
+            {menu.children.map((child: any) => (
+              <div key={`${child.id}-${level + 1}`}>
+                {renderMenuItem(child, level + 1)}
+              </div>
+            ))}
         </div>
       )}
     </div>
