@@ -224,6 +224,7 @@ export default function SettingsPage() {
   const [breakTimes, setBreakTimes] = useState<Record<string, { start: string; end: string }>>({})
   const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
   const [holidays, setHolidays] = useState<string[]>([]) // 休診日は空で開始
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   // カレンダー設定の状態
   const [unitCount, setUnitCount] = useState(3)
@@ -415,6 +416,8 @@ export default function SettingsPage() {
     
     loadClinicSettings()
 
+    // 初期読み込み完了フラグを設定
+    setIsInitialLoad(false)
 
     // スタッフデータの読み込み
     const loadStaff = async () => {
@@ -463,6 +466,59 @@ export default function SettingsPage() {
     
     loadTreatmentMenus()
   }, [])
+
+  // timeSlotMinutesの変更を監視して自動保存
+  useEffect(() => {
+    console.log('設定ページ: 自動保存useEffect実行 - isInitialLoad:', isInitialLoad, 'timeSlotMinutes:', timeSlotMinutes)
+    
+    if (isInitialLoad) {
+      console.log('設定ページ: 初期読み込み中のため自動保存をスキップ')
+      return // 初期読み込み時は保存しない
+    }
+    
+    console.log('設定ページ: timeSlotMinutes変更検知:', timeSlotMinutes)
+    
+    // デバウンス処理（500ms後に保存）
+    const timeoutId = setTimeout(async () => {
+      try {
+        console.log('設定ページ: 自動保存開始')
+        console.log('設定ページ: timeSlotMinutes保存値:', timeSlotMinutes)
+        
+        // 数値として保存することを確認
+        const numericTimeSlotMinutes = Number(timeSlotMinutes)
+        console.log('設定ページ: 数値変換後の値:', numericTimeSlotMinutes)
+
+        await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', numericTimeSlotMinutes)
+        console.log('設定ページ: time_slot_minutes保存完了')
+
+        // メインページに設定変更を通知
+        const updateData = {
+          timestamp: Date.now(),
+          timeSlotMinutes: numericTimeSlotMinutes
+        }
+        window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
+        console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
+
+        // カスタムイベントを発火
+        const customEvent = new CustomEvent('clinicSettingsUpdated', {
+          detail: { timeSlotMinutes: numericTimeSlotMinutes }
+        })
+        window.dispatchEvent(customEvent)
+        console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
+
+        // postMessageも発火（追加の通知方法）
+        window.postMessage({
+          type: 'clinicSettingsUpdated',
+          data: { timeSlotMinutes: numericTimeSlotMinutes }
+        }, window.location.origin)
+        console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
+      } catch (error) {
+        console.error('自動保存エラー:', error)
+      }
+    }, 500)
+    
+    return () => clearTimeout(timeoutId)
+  }, [timeSlotMinutes, isInitialLoad])
 
   // 診療時間の変更
   const handleBusinessHoursChange = (day: string, field: string, value: any) => {
