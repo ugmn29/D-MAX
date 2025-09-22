@@ -264,7 +264,8 @@ export default function SettingsPage() {
     name_kana: '',
     email: '',
     phone: '',
-    role: 'staff'
+    role: 'staff',
+    position_id: ''
   })
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -1282,7 +1283,8 @@ export default function SettingsPage() {
         name_kana: '',
         email: '',
         phone: '',
-        role: 'staff'
+        role: 'staff',
+        position_id: ''
       })
       setShowAddStaff(false)
       console.log('モーダルを閉じました')
@@ -2493,6 +2495,30 @@ export default function SettingsPage() {
                           placeholder="例: 03-1234-5678"
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="staff_position">役職</Label>
+                      <Select
+                        value={newStaff.position_id}
+                        onValueChange={(value) => setNewStaff(prev => ({ ...prev, position_id: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="役職を選択してください" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {staffPositions.map(position => (
+                            <SelectItem key={position.id} value={position.id}>
+                              {position.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {staffPositions.length === 0 && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          役職が登録されていません。マスタタブで役職を追加してください。
+                        </p>
+                      )}
                     </div>
                     
                     <div className="flex justify-end space-x-2 pt-4">

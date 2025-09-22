@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { MOCK_MODE, getMockStaff, addMockStaff, removeMockStaff, updateMockStaff, getMockStaffPositions } from '@/lib/utils/mock-mode'
 
 export interface Staff {
   id: string
@@ -55,8 +56,26 @@ export interface UpdateStaffPositionData {
 
 // スタッフ一覧取得
 export async function getStaff(clinicId: string): Promise<Staff[]> {
+  // モックモードの場合はモックデータを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: スタッフデータを返します')
+    const staffData = getMockStaff().filter(item => item.clinic_id === clinicId)
+    const positions = getMockStaffPositions()
+    
+    // スタッフデータに役職情報を追加
+    return staffData.map(staff => ({
+      ...staff,
+      position: positions.find(pos => pos.id === staff.position_id) || {
+        id: staff.position_id || '',
+        name: '未設定',
+        sort_order: 999
+      }
+    }))
+  }
+
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient()
+  const { data, error } = await client
       .from('staff')
       .select(`
         *,
@@ -124,6 +143,26 @@ export async function getStaff(clinicId: string): Promise<Staff[]> {
 
 // スタッフ作成
 export async function createStaff(clinicId: string, data: CreateStaffData): Promise<Staff> {
+  // モックモードの場合はモックデータを生成して返す
+  if (MOCK_MODE) {
+    console.log('モックモード: スタッフを作成します', { clinicId, data })
+    const newStaff: Staff = {
+      id: `mock-staff-${Date.now()}`,
+      clinic_id: clinicId,
+      name: data.name,
+      name_kana: data.name_kana,
+      email: data.email,
+      phone: data.phone,
+      position_id: data.position_id,
+      role: data.role,
+      is_active: data.is_active ?? true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+    addMockStaff(newStaff)
+    return newStaff
+  }
+
   try {
     const { data: newStaff, error } = await supabase
       .from('staff')
@@ -211,7 +250,8 @@ export async function deleteStaff(clinicId: string, staffId: string): Promise<vo
 // スタッフ役職一覧取得
 export async function getStaffPositions(clinicId: string): Promise<StaffPosition[]> {
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient()
+  const { data, error } = await client
       .from('staff_positions')
       .select('*')
       .eq('clinic_id', clinicId)

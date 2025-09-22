@@ -102,10 +102,17 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
         holidays: holidaysData.length
       })
       
+      // スタッフデータの詳細をログ出力
+      console.log('スタッフデータ詳細:', staffData)
+      console.log('役職データ詳細:', positionsData)
+      
       // シフトデータの詳細をログ出力
       console.log('シフトデータ詳細:', JSON.stringify(shiftsData.slice(0, 5), null, 2))
 
       // スタッフデータを役職情報と結合
+      console.log('フィルタリング前のスタッフデータ:', staffData)
+      console.log('is_activeフィルタリング後のスタッフデータ:', staffData.filter(s => s.is_active))
+      
       const staffWithPositions = staffData
         .filter(s => s.is_active)
         .map(s => {
@@ -192,13 +199,26 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
 
     try {
       setLoading(true)
-      await upsertStaffShift(clinicId, {
+      
+      // シフトパターンから時間情報を取得
+      const selectedPattern = patterns.find(p => p.id === shiftPatternId)
+      const shiftData: any = {
         staff_id: selectedCell.staffId,
         date: selectedCell.dateString,
         shift_pattern_id: shiftPatternId,
         is_holiday: isHoliday,
         clinic_id: clinicId
-      })
+      }
+      
+      // シフトパターンが選択されている場合は時間情報を追加
+      if (selectedPattern) {
+        shiftData.start_time = selectedPattern.start_time
+        shiftData.end_time = selectedPattern.end_time
+        shiftData.break_start = selectedPattern.break_start
+        shiftData.break_end = selectedPattern.break_end
+      }
+      
+      await upsertStaffShift(clinicId, shiftData)
       
       // データを再読み込み
       const year = currentDate.getFullYear()

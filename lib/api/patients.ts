@@ -1,5 +1,6 @@
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { Patient, PatientInsert, PatientUpdate } from '@/types/database'
+import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 // 患者API関数
 
@@ -7,7 +8,8 @@ import { Patient, PatientInsert, PatientUpdate } from '@/types/database'
  * 全患者を取得
  */
 export async function getPatients(clinicId: string): Promise<Patient[]> {
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('patients')
     .select('*')
     .eq('clinic_id', clinicId)
@@ -28,7 +30,8 @@ export async function searchPatients(
   clinicId: string,
   searchQuery: string
 ): Promise<Patient[]> {
-  const query = supabase
+  const client = getSupabaseClient()
+  const query = client
     .from('patients')
     .select('*')
     .eq('clinic_id', clinicId)
@@ -65,7 +68,8 @@ export async function getPatientById(
   clinicId: string,
   patientId: string
 ): Promise<Patient | null> {
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('patients')
     .select('*')
     .eq('clinic_id', clinicId)
@@ -88,7 +92,8 @@ export async function getPatientById(
  * 新しい患者番号を生成
  */
 export async function generatePatientNumber(clinicId: string): Promise<number> {
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('patients')
     .select('patient_number')
     .eq('clinic_id', clinicId)
@@ -111,6 +116,30 @@ export async function createPatient(
   clinicId: string,
   patientData: Omit<PatientInsert, 'clinic_id' | 'patient_number'>
 ): Promise<Patient> {
+  if (MOCK_MODE) {
+    // モックモードの場合
+    const { getMockPatients, addMockPatient } = await import('@/lib/utils/mock-mode')
+    
+    // 新しい患者番号を生成
+    const existingPatients = getMockPatients()
+    const maxNumber = existingPatients.length > 0 
+      ? Math.max(...existingPatients.map(p => p.patient_number || 0))
+      : 0
+    const patientNumber = maxNumber + 1
+
+    const newPatient = {
+      id: `patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      clinic_id: clinicId,
+      patient_number: patientNumber,
+      ...patientData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    return addMockPatient(newPatient)
+  }
+
+  // 通常モードの場合
   // 新しい患者番号を生成
   const patientNumber = await generatePatientNumber(clinicId)
 
@@ -121,7 +150,8 @@ export async function createPatient(
     is_registered: true // 新規作成時は本登録とする
   }
 
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('patients')
     .insert(newPatient)
     .select()
@@ -143,7 +173,8 @@ export async function updatePatient(
   patientId: string,
   patientData: PatientUpdate
 ): Promise<Patient> {
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('patients')
     .update(patientData)
     .eq('clinic_id', clinicId)
@@ -187,7 +218,8 @@ export async function deletePatient(
  * 統計情報を取得
  */
 export async function getPatientsStats(clinicId: string) {
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('patients')
     .select('is_registered')
     .eq('clinic_id', clinicId)

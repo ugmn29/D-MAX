@@ -8,8 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
-import { getClinicSettings } from '@/lib/api/clinic'
+import { getClinicSettings, getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
 import { TreatmentMenu } from '@/types/database'
+import { TimeWarningModal } from '@/components/ui/time-warning-modal'
+import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
 
 interface AppointmentFormProps {
   clinicId: string
@@ -59,6 +61,11 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
   const [selectedMenu1, setSelectedMenu1] = useState<TreatmentMenu | null>(null)
   const [selectedMenu2, setSelectedMenu2] = useState<TreatmentMenu | null>(null)
   const [selectedMenu3, setSelectedMenu3] = useState<TreatmentMenu | null>(null)
+
+  // 警告モーダル関連の状態
+  const [showWarningModal, setShowWarningModal] = useState(false)
+  const [timeValidation, setTimeValidation] = useState<TimeValidationResult | null>(null)
+  const [pendingAppointmentData, setPendingAppointmentData] = useState<any>(null)
 
   // データ読み込み
   useEffect(() => {
@@ -157,6 +164,23 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
   const handleSave = async () => {
     try {
       setSaving(true)
+      
+      // 時間検証を実行
+      const validationResult = await validateAppointmentTimeForSave()
+      
+      if (!validationResult.isValid) {
+        // 警告が必要な場合はモーダルを表示
+        setTimeValidation(validationResult)
+        setPendingAppointmentData({
+          ...appointmentData,
+          date: selectedDate,
+          clinic_id: clinicId
+        })
+        setShowWarningModal(true)
+        return
+      }
+      
+      // 検証OKの場合は直接保存
       await onSave({
         ...appointmentData,
         date: selectedDate,
@@ -169,6 +193,58 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
     }
   }
 
+  // 時間検証を実行
+  const validateAppointmentTimeForSave = async (): Promise<TimeValidationResult> => {
+    try {
+      const selectedDateObj = new Date(selectedDate)
+      const dayOfWeek = selectedDateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+      
+      const [businessHours, breakTimes] = await Promise.all([
+        getBusinessHours(clinicId),
+        getBreakTimes(clinicId)
+      ])
+      
+      const dayBusinessHours = businessHours[dayOfWeek] || { isOpen: false, timeSlots: [] }
+      const dayBreakTimes = breakTimes[dayOfWeek] || null
+      
+      return validateAppointmentTime(
+        appointmentData.start_time,
+        appointmentData.end_time,
+        dayBusinessHours,
+        dayBreakTimes,
+        dayOfWeek
+      )
+    } catch (error) {
+      console.error('時間検証エラー:', error)
+      // エラーの場合は警告なしで通す
+      return { isValid: true, isBreakTime: false, isOutsideBusinessHours: false }
+    }
+  }
+
+  // 警告モーダルでの確定処理
+  const handleConfirmSave = async () => {
+    try {
+      setSaving(true)
+      setShowWarningModal(false)
+      
+      if (pendingAppointmentData) {
+        await onSave(pendingAppointmentData)
+        setPendingAppointmentData(null)
+      }
+    } catch (error) {
+      console.error('予約保存エラー:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 警告モーダルを閉じる
+  const handleCloseWarningModal = () => {
+    setShowWarningModal(false)
+    setTimeValidation(null)
+    setPendingAppointmentData(null)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -178,6 +254,7 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
   }
 
   return (
+    <>
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle>新規予約作成</CardTitle>
@@ -384,5 +461,20 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
         </div>
       </CardContent>
     </Card>
+
+    {/* 時間警告モーダル */}
+    {timeValidation && (
+      <TimeWarningModal
+        isOpen={showWarningModal}
+        onClose={handleCloseWarningModal}
+        onConfirm={handleConfirmSave}
+        isBreakTime={timeValidation.isBreakTime}
+        isOutsideBusinessHours={timeValidation.isOutsideBusinessHours}
+        warningMessage={timeValidation.warningMessage || ''}
+        startTime={appointmentData.start_time}
+        endTime={appointmentData.end_time}
+      />
+    )}
+  </>
   )
 }

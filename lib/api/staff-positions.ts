@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { MOCK_MODE, getMockStaffPositions, addMockStaffPosition, updateMockStaffPosition, removeMockStaffPosition } from '@/lib/utils/mock-mode'
 
 export interface StaffPosition {
   id: string
@@ -18,7 +19,14 @@ export interface StaffPositionInsert {
 }
 
 export async function getStaffPositions(clinicId: string): Promise<StaffPosition[]> {
-  const { data, error } = await supabase
+  // モックモードの場合はモックデータを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: スタッフ役職データを返します')
+    return getMockStaffPositions().filter(item => item.clinic_id === clinicId)
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('staff_positions')
     .select('*')
     .eq('clinic_id', clinicId)
@@ -40,6 +48,22 @@ export async function createStaffPosition(
   clinicId: string,
   positionData: Omit<StaffPositionInsert, 'clinic_id'>
 ): Promise<StaffPosition> {
+  // モックモードの場合はモックデータを生成して返す
+  if (MOCK_MODE) {
+    console.log('モックモード: スタッフ役職を作成します', { clinicId, positionData })
+    const newPosition: StaffPosition = {
+      id: `mock-pos-${Date.now()}`,
+      clinic_id: clinicId,
+      name: positionData.name,
+      sort_order: positionData.sort_order || 0,
+      enabled: positionData.enabled ?? true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+    addMockStaffPosition(newPosition)
+    return newPosition
+  }
+
   // enabledカラムが存在しない場合に備えて、必要なフィールドのみを送信
   const newPosition: any = {
     clinic_id: clinicId,
@@ -52,7 +76,8 @@ export async function createStaffPosition(
     newPosition.enabled = positionData.enabled
   }
 
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('staff_positions')
     .insert(newPosition)
     .select()
@@ -76,7 +101,19 @@ export async function updateStaffPosition(
   positionId: string,
   updates: Partial<Omit<StaffPositionInsert, 'clinic_id'>>
 ): Promise<StaffPosition> {
-  const { data, error } = await supabase
+  // モックモードの場合はモックデータを更新
+  if (MOCK_MODE) {
+    console.log('モックモード: スタッフ役職を更新します', { clinicId, positionId, updates })
+    updateMockStaffPosition(positionId, updates)
+    const data = getMockStaffPositions().find(item => item.id === positionId)
+    if (!data) {
+      throw new Error('スタッフ役職が見つかりません')
+    }
+    return data
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('staff_positions')
     .update(updates)
     .eq('id', positionId)
@@ -99,7 +136,15 @@ export async function deleteStaffPosition(
   clinicId: string,
   positionId: string
 ): Promise<void> {
-  const { error } = await supabase
+  // モックモードの場合はモックデータから削除
+  if (MOCK_MODE) {
+    console.log('モックモード: スタッフ役職を削除します', { clinicId, positionId })
+    removeMockStaffPosition(positionId)
+    return
+  }
+
+  const client = getSupabaseClient()
+  const { error } = await client
     .from('staff_positions')
     .delete()
     .eq('id', positionId)

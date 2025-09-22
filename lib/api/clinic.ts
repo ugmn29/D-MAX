@@ -1,11 +1,14 @@
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { initializeDatabase } from '@/lib/utils/database-setup'
 import { Clinic, ClinicSettings, DailyMemo, DailyMemoInsert, DailyMemoUpdate } from '@/types/database'
+import { MOCK_MODE, MOCK_CLINIC_SETTINGS } from '@/lib/utils/mock-mode'
 
 /**
  * クリニック情報を取得
  */
 export async function getClinic(clinicId: string): Promise<Clinic | null> {
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('clinics')
     .select('*')
     .eq('id', clinicId)
@@ -28,8 +31,17 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
 export async function getClinicSettings(clinicId: string): Promise<Record<string, any>> {
   console.log('getClinicSettings呼び出し:', clinicId)
   
+  // モックモードの場合はモックデータを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: クリニック設定データを返します')
+    return MOCK_CLINIC_SETTINGS
+  }
+  
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient()
+    console.log('使用するクライアント:', client ? 'クライアント取得成功' : 'クライアント取得失敗')
+    
+    const { data, error } = await client
       .from('clinic_settings')
       .select('setting_key, setting_value')
       .eq('clinic_id', clinicId)
@@ -38,7 +50,15 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
 
     if (error) {
       console.error('クリニック設定取得エラー:', error)
-      // エラーが発生した場合はデフォルト設定を返す
+      console.error('エラーの詳細:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      
+      // テーブルが存在しない場合はデフォルト設定を返す
+      console.warn('clinic_settingsテーブルが存在しません。デフォルト設定を返します。')
       return {
         time_slot_minutes: 15,
         display_items: [],
@@ -57,6 +77,8 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
     return settings
   } catch (error) {
     console.error('getClinicSettings全体エラー:', error)
+    console.error('エラーの型:', typeof error)
+    console.error('エラーの詳細:', error instanceof Error ? error.message : error)
     // エラーが発生した場合はデフォルト設定を返す
     return {
       time_slot_minutes: 15,
@@ -73,7 +95,8 @@ export async function getClinicSetting(
   clinicId: string,
   key: string
 ): Promise<any> {
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('clinic_settings')
     .select('setting_value')
     .eq('clinic_id', clinicId)
@@ -101,6 +124,12 @@ export async function setClinicSetting(
 ): Promise<void> {
   console.log('setClinicSetting呼び出し:', { clinicId, key, value })
   
+  // モックモードの場合は保存処理をスキップ（ログのみ出力）
+  if (MOCK_MODE) {
+    console.log('モックモード: 設定保存をシミュレートします', { clinicId, key, value })
+    return
+  }
+  
   const upsertData = {
     clinic_id: clinicId,
     setting_key: key,
@@ -109,7 +138,8 @@ export async function setClinicSetting(
   
   console.log('Supabaseに送信するデータ:', upsertData)
   
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('clinic_settings')
     .upsert(upsertData, { onConflict: 'clinic_id,setting_key' })
     .select()
@@ -137,7 +167,14 @@ export async function getDailyMemo(
   clinicId: string,
   date: string
 ): Promise<DailyMemo | null> {
-  const { data, error } = await supabase
+  // モックモードの場合はnullを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 日次メモデータを返します（null）', { clinicId, date })
+    return null
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('daily_memos')
     .select('*')
     .eq('clinic_id', clinicId)
@@ -171,7 +208,8 @@ export async function saveDailyMemo(
     created_by: createdBy
   }
 
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('daily_memos')
     .upsert(memoData)
     .select()
@@ -190,6 +228,21 @@ export async function saveDailyMemo(
  */
 export async function getBusinessHours(clinicId: string) {
   console.log('getBusinessHours呼び出し:', clinicId)
+  
+  // モックモードの場合はデフォルトの診療時間を返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 診療時間データを返します（デフォルト値）')
+    const defaultBusinessHours = {
+      monday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+      tuesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+      wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+      thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+      friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+      saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '17:00' }] },
+      sunday: { isOpen: false, timeSlots: [] }
+    }
+    return defaultBusinessHours
+  }
   
   try {
     // まずclinic_settingsテーブルから取得を試行
@@ -222,6 +275,20 @@ export async function getBusinessHours(clinicId: string) {
  * 休憩時間を取得（デフォルト値付き）
  */
 export async function getBreakTimes(clinicId: string) {
+  // モックモードの場合はデフォルトの休憩時間を返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 休憩時間データを返します（デフォルト値）')
+    return {
+      monday: { start: '12:00', end: '13:00' },
+      tuesday: { start: '12:00', end: '13:00' },
+      wednesday: { start: '12:00', end: '13:00' },
+      thursday: { start: '12:00', end: '13:00' },
+      friday: { start: '12:00', end: '13:00' },
+      saturday: { start: '12:00', end: '13:00' },
+      sunday: null
+    }
+  }
+
   try {
     // まずclinic_settingsテーブルから取得を試行
     const settingsBreakTimes = await getClinicSetting(clinicId, 'break_times')
@@ -277,6 +344,12 @@ export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
 export async function getHolidays(clinicId: string): Promise<string[]> {
   console.log('getHolidays呼び出し:', clinicId)
   
+  // モックモードの場合は空配列を返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 休診日データを返します（空配列）')
+    return []
+  }
+  
   try {
     const holidays = await getClinicSetting(clinicId, 'holidays')
     console.log('取得した休診日:', holidays)
@@ -315,7 +388,8 @@ export async function updateClinicSettings(clinicId: string, settings: {
       Object.assign(updateData, settings.clinicInfo)
     }
 
-    const { data, error } = await supabase
+    const client = getSupabaseClient()
+    const { data, error } = await client
       .from('clinics')
       .update(updateData)
       .eq('id', clinicId)

@@ -4,6 +4,7 @@ import { Database } from '@/types/database'
 // 環境変数の取得とフォールバック
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // 環境変数が設定されていない場合の警告
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -24,6 +25,24 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   db: {
     schema: 'public'
   }
+})
+
+// 開発環境用：RLSをバイパスするためのサービスロールクライアント
+export const supabaseAdmin = supabaseServiceKey 
+  ? createClient<Database>(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : null
+
+// デバッグ情報
+console.log('Supabaseクライアント初期化:', {
+  supabaseUrl,
+  hasAnonKey: !!supabaseAnonKey,
+  hasServiceKey: !!supabaseServiceKey,
+  hasSupabaseAdmin: !!supabaseAdmin
 })
 
 // マルチテナント対応のためのヘルパー関数

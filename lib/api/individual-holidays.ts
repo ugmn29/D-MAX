@@ -1,12 +1,20 @@
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 // 個別休診日の取得（月単位）
 export async function getIndividualHolidays(clinicId: string, year: number, month: number): Promise<Record<string, boolean>> {
+  // モックモードの場合は空のオブジェクトを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 個別休診日データを返します（空オブジェクト）', { clinicId, year, month })
+    return {}
+  }
+
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`
   const lastDay = new Date(year, month, 0).getDate()
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('individual_holidays')
     .select('date, is_holiday')
     .eq('clinic_id', clinicId)
@@ -39,7 +47,8 @@ export async function setIndividualHoliday(clinicId: string, date: string, isHol
   
   console.log('Supabaseに送信するデータ:', upsertData)
   
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('individual_holidays')
     .upsert(upsertData, { onConflict: 'clinic_id,date' })
     .select()

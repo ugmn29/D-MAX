@@ -26,7 +26,10 @@ import {
 import { getPatients, createPatient } from '@/lib/api/patients'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
+import { getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
 import { Patient, TreatmentMenu, Staff } from '@/types/database'
+import { TimeWarningModal } from '@/components/ui/time-warning-modal'
+import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
 
 interface WorkingStaff {
   staff: {
@@ -160,6 +163,11 @@ export function AppointmentEditModal({
   // 予約データ
   const [appointmentData, setAppointmentData] = useState(getInitialAppointmentData())
 
+  // 警告モーダル関連の状態
+  const [showWarningModal, setShowWarningModal] = useState(false)
+  const [timeValidation, setTimeValidation] = useState<TimeValidationResult | null>(null)
+  const [pendingAppointmentData, setPendingAppointmentData] = useState<any>(null)
+
   // モーダルが開かれた時に予約データを再初期化
   useEffect(() => {
     if (isOpen) {
@@ -265,33 +273,6 @@ export function AppointmentEditModal({
     setSearchResults([])
   }
 
-  // 新規患者作成（仮登録）
-  const handleCreatePatient = async () => {
-    try {
-      setSaving(true)
-      const newPatient = await createPatient(clinicId, {
-        ...newPatientData,
-        is_registered: false // 仮登録
-      })
-      
-      setSelectedPatient(newPatient)
-      setShowNewPatientForm(false)
-      setNewPatientData({
-        last_name: '',
-        first_name: '',
-        last_name_kana: '',
-        first_name_kana: '',
-        phone: '',
-        email: '',
-        birth_date: '',
-        gender: ''
-      })
-    } catch (error) {
-      console.error('患者作成エラー:', error)
-    } finally {
-      setSaving(false)
-    }
-  }
 
   // 診療メニュー階層の取得
   const getMenuLevel1 = () => treatmentMenus.filter(menu => menu.level === 1)
@@ -392,28 +373,118 @@ export function AppointmentEditModal({
   }
 
   // 予約保存
-  const handleSave = () => {
-    if (!selectedPatient) {
-      alert('患者を選択してください')
-      return
-    }
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+      
+      let patientToUse = selectedPatient
+      
+      // 新規患者フォームが表示されている場合は、まず患者を作成
+      if (showNewPatientForm) {
+        if (!newPatientData.last_name || !newPatientData.first_name || !newPatientData.phone) {
+          alert('患者情報を入力してください')
+          return
+        }
+        
+        // 新規患者を作成
+        patientToUse = await createPatient(clinicId, {
+          ...newPatientData,
+          is_registered: false // 仮登録
+        })
+        
+        setSelectedPatient(patientToUse)
+        setShowNewPatientForm(false)
+      }
+      
+      if (!patientToUse) {
+        alert('患者を選択してください')
+        return
+      }
 
-    const appointment = {
-      patient_id: selectedPatient.id,
-      start_time: appointmentData.start_time,
-      end_time: appointmentData.end_time,
-      menu1_id: appointmentData.menu1_id,
-      menu2_id: appointmentData.menu2_id,
-      menu3_id: appointmentData.menu3_id,
-      staff1_id: appointmentData.staff1_id,
-      staff2_id: appointmentData.staff2_id,
-      staff3_id: appointmentData.staff3_id,
-      notes: appointmentData.notes,
-      status: '予約済み'
-    }
+      const appointment = {
+        patient_id: patientToUse.id,
+        start_time: appointmentData.start_time,
+        end_time: appointmentData.end_time,
+        menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
+        menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
+        menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+        staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
+        staff2_id: appointmentData.staff2_id,
+        staff3_id: appointmentData.staff3_id,
+        notes: appointmentData.notes,
+        status: '予約済み'
+      }
 
-    onSave(appointment)
-    onClose()
+      // 時間検証を実行
+      const validationResult = await validateAppointmentTimeForSave()
+      
+      if (!validationResult.isValid) {
+        // 警告が必要な場合はモーダルを表示
+        setTimeValidation(validationResult)
+        setPendingAppointmentData(appointment)
+        setShowWarningModal(true)
+        return
+      }
+      
+      // 検証OKの場合は直接保存
+      onSave(appointment)
+      onClose()
+    } catch (error) {
+      console.error('予約保存エラー:', error)
+      alert('予約の保存に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 時間検証を実行
+  const validateAppointmentTimeForSave = async (): Promise<TimeValidationResult> => {
+    try {
+      const selectedDateObj = new Date(selectedDate)
+      const dayOfWeek = selectedDateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+      
+      const [businessHours, breakTimes] = await Promise.all([
+        getBusinessHours(clinicId),
+        getBreakTimes(clinicId)
+      ])
+      
+      const dayBusinessHours = businessHours[dayOfWeek] || { isOpen: false, timeSlots: [] }
+      const dayBreakTimes = breakTimes[dayOfWeek] || null
+      
+      return validateAppointmentTime(
+        appointmentData.start_time,
+        appointmentData.end_time,
+        dayBusinessHours,
+        dayBreakTimes,
+        dayOfWeek
+      )
+    } catch (error) {
+      console.error('時間検証エラー:', error)
+      // エラーの場合は警告なしで通す
+      return { isValid: true, isBreakTime: false, isOutsideBusinessHours: false }
+    }
+  }
+
+  // 警告モーダルでの確定処理
+  const handleConfirmSave = async () => {
+    try {
+      setShowWarningModal(false)
+      
+      if (pendingAppointmentData) {
+        onSave(pendingAppointmentData)
+        onClose()
+        setPendingAppointmentData(null)
+      }
+    } catch (error) {
+      console.error('予約保存エラー:', error)
+    }
+  }
+
+  // 警告モーダルを閉じる
+  const handleCloseWarningModal = () => {
+    setShowWarningModal(false)
+    setTimeValidation(null)
+    setPendingAppointmentData(null)
   }
 
   // モーダルリセット
@@ -426,6 +497,16 @@ export function AppointmentEditModal({
     setSelectedMenu2(null)
     setSelectedMenu3(null)
     setSelectedStaff([])
+    setNewPatientData({
+      last_name: '',
+      first_name: '',
+      last_name_kana: '',
+      first_name_kana: '',
+      phone: '',
+      email: '',
+      birth_date: '',
+      gender: ''
+    })
     setAppointmentData({
       start_time: selectedTime,
       end_time: '',
@@ -444,6 +525,7 @@ export function AppointmentEditModal({
   if (!isOpen) return null
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* オーバーレイ */}
       <div 
@@ -470,29 +552,31 @@ export function AppointmentEditModal({
               {/* 患者情報 */}
               <div className="mb-6">
                 
-                {/* 患者検索 */}
+                  {/* 患者検索 */}
                 <div className="mb-4">
-                  <div className="flex space-x-2 mb-3">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input
-                        placeholder="ID/名"
-                        value={searchQuery}
-                        onChange={(e) => {
-                          setSearchQuery(e.target.value)
-                          handleSearch(e.target.value)
-                        }}
-                        className="pl-10"
-                      />
+                  {!showNewPatientForm && (
+                    <div className="flex space-x-2 mb-3 items-center">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          placeholder="ID/名"
+                          value={searchQuery}
+                          onChange={(e) => {
+                            setSearchQuery(e.target.value)
+                            handleSearch(e.target.value)
+                          }}
+                          className="pl-10 h-10"
+                        />
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowNewPatientForm(true)}
+                        className="px-4 h-10"
+                      >
+                        新規
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowNewPatientForm(true)}
-                      className="px-4"
-                    >
-                      新規
-                    </Button>
-                  </div>
+                  )}
                   
                   {/* 検索結果 */}
                   {searchResults.length > 0 && (
@@ -541,46 +625,30 @@ export function AppointmentEditModal({
                   {/* 新規患者フォーム */}
                   {showNewPatientForm && (
                     <div className="p-4 border border-gray-200 rounded-md bg-gray-50 mt-3">
-                      <div className="text-sm font-medium mb-3">新規患者登録（仮登録）</div>
-                      <div className="space-y-2">
+                      <div className="text-sm font-medium mb-3">新規患者登録</div>
+                      <div className="space-y-3">
+                        {/* 1行目: 姓名 */}
                         <div className="grid grid-cols-2 gap-2">
                           <Input
                             placeholder="姓"
                             value={newPatientData.last_name}
                             onChange={(e) => setNewPatientData(prev => ({ ...prev, last_name: e.target.value }))}
-                            className="text-sm"
+                            className="text-sm h-10"
                           />
                           <Input
                             placeholder="名"
                             value={newPatientData.first_name}
                             onChange={(e) => setNewPatientData(prev => ({ ...prev, first_name: e.target.value }))}
-                            className="text-sm"
+                            className="text-sm h-10"
                           />
                         </div>
+                        {/* 2行目: 電話番号 */}
                         <Input
                           placeholder="電話番号"
                           value={newPatientData.phone}
                           onChange={(e) => setNewPatientData(prev => ({ ...prev, phone: e.target.value }))}
-                          className="text-sm"
+                          className="text-sm h-10"
                         />
-                        <div className="flex space-x-2">
-                          <Button 
-                            onClick={handleCreatePatient}
-                            disabled={saving || !newPatientData.last_name || !newPatientData.first_name || !newPatientData.phone}
-                            className="flex-1 text-sm"
-                            size="sm"
-                          >
-                            {saving ? '作成中...' : '仮登録'}
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => setShowNewPatientForm(false)}
-                            className="flex-1 text-sm"
-                            size="sm"
-                          >
-                            キャンセル
-                          </Button>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -794,8 +862,11 @@ export function AppointmentEditModal({
                     <Copy className="w-4 h-4 mr-1" />
                     コピー
                   </Button>
-                  <Button onClick={handleSave}>
-                    登録
+                  <Button 
+                    onClick={handleSave}
+                    disabled={saving || (!selectedPatient && !showNewPatientForm)}
+                  >
+                    {saving ? '登録中...' : '登録'}
                   </Button>
                 </div>
               </div>
@@ -918,5 +989,20 @@ export function AppointmentEditModal({
         </div>
       )}
     </div>
+
+    {/* 時間警告モーダル */}
+    {timeValidation && (
+      <TimeWarningModal
+        isOpen={showWarningModal}
+        onClose={handleCloseWarningModal}
+        onConfirm={handleConfirmSave}
+        isBreakTime={timeValidation.isBreakTime}
+        isOutsideBusinessHours={timeValidation.isOutsideBusinessHours}
+        warningMessage={timeValidation.warningMessage || ''}
+        startTime={appointmentData.start_time}
+        endTime={appointmentData.end_time}
+      />
+    )}
+  </>
   )
 }

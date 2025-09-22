@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Clock, User, Heart, Zap, Smile } from 'lucide-react'
-import { getAppointmentsByDate } from '@/lib/api/appointments'
+import { getAppointmentsByDate, createAppointment } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
 import { Appointment, BusinessHours, BreakTimes, StaffShift } from '@/types/database'
 import { AppointmentEditModal } from '@/components/forms/appointment-edit-modal'
 import { formatDateForDB } from '@/lib/utils/date'
+import { initializeMockData } from '@/lib/utils/mock-mode'
 
 interface MainCalendarProps {
   clinicId: string
@@ -102,6 +103,16 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       
       const shifts = await getStaffShiftsByDate(clinicId, dateString)
       
+      // デバッグログを追加
+      console.log('メインカレンダー: 取得したシフトデータ:', shifts)
+      console.log('メインカレンダー: シフトデータの詳細:', shifts.map(shift => ({
+        id: shift.id,
+        staff_id: shift.staff_id,
+        staff: shift.staff,
+        shift_patterns: shift.shift_patterns,
+        is_holiday: shift.is_holiday
+      })))
+      
       // 出勤しているスタッフのみフィルタリング（休暇でないスタッフ）
       const workingStaffData: WorkingStaff[] = shifts
         .filter(shift => !shift.is_holiday) // 休暇でないスタッフのみ
@@ -145,15 +156,46 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // 時間スロットを生成
   const timeSlots = useMemo(() => {
     const slots: TimeSlot[] = []
-    const startHour = 9
-    const endHour = 18
-
+    
     console.log('MainCalendar: 時間スロット生成 - timeSlotMinutes:', timeSlotMinutes)
     console.log('MainCalendar: 時間スロット生成 - timeSlotMinutesの型:', typeof timeSlotMinutes)
+    console.log('MainCalendar: 診療時間設定:', businessHours)
 
     // timeSlotMinutesが有効な数値でない場合はデフォルト値15を使用
     const validTimeSlotMinutes = (typeof timeSlotMinutes === 'number' && timeSlotMinutes > 0) ? timeSlotMinutes : 15
     console.log('MainCalendar: 使用する時間スロット値:', validTimeSlotMinutes)
+
+    // 現在の曜日の診療時間を取得
+    const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+    const dayMapping: Record<string, string> = {
+      'monday': 'monday',
+      'tuesday': 'tuesday', 
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    }
+    
+    const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
+    const dayHours = businessHours[dayId]
+    
+    // 診療時間が設定されている場合はその時間範囲を使用、そうでなければデフォルト値
+    let startHour = 9
+    let endHour = 18
+    
+    if (dayHours?.isOpen && dayHours?.timeSlots && dayHours.timeSlots.length > 0) {
+      // 最初の時間枠の開始時間と最後の時間枠の終了時間を使用
+      const firstSlot = dayHours.timeSlots[0]
+      const lastSlot = dayHours.timeSlots[dayHours.timeSlots.length - 1]
+      
+      startHour = parseInt(firstSlot.start.split(':')[0])
+      endHour = parseInt(lastSlot.end.split(':')[0])
+      
+      console.log('MainCalendar: 診療時間に基づく時間範囲:', { startHour, endHour })
+    } else {
+      console.log('MainCalendar: デフォルト時間範囲を使用:', { startHour, endHour })
+    }
 
     for (let hour = startHour; hour <= endHour; hour++) {
       for (let minute = 0; minute < 60; minute += validTimeSlotMinutes) {
@@ -168,7 +210,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     console.log('MainCalendar: 生成された時間スロット数:', slots.length)
     console.log('MainCalendar: 最初の5つのスロット:', slots.slice(0, 5))
     return slots
-  }, [timeSlotMinutes])
+  }, [timeSlotMinutes, businessHours, selectedDate])
 
   // 時間文字列を分に変換する関数
   const timeToMinutes = (time: string): number => {
@@ -199,6 +241,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // 長押し開始の処理
   const handleMouseDown = (timeSlot: string, e: React.MouseEvent) => {
     e.preventDefault()
+    console.log('複数選択開始:', timeSlot)
     setIsSelecting(true)
     setSelectionStart(timeSlot)
     setSelectionEnd(timeSlot)
@@ -209,6 +252,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const handleMouseMove = (timeSlot: string) => {
     if (!isSelecting || !selectionStart) return
     
+    console.log('複数選択拡張:', timeSlot, '開始:', selectionStart)
     setSelectionEnd(timeSlot)
     
     // 開始時間と終了時間を比較して範囲を決定
@@ -226,6 +270,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const handleMouseUp = () => {
     if (!isSelecting) return
     
+    console.log('複数選択完了:', selectedTimeSlots)
     setIsSelecting(false)
     
     // 選択された時間範囲で予約編集モーダルを開く
@@ -261,6 +306,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const loadData = async () => {
       try {
         setLoading(true)
+        
+        // モックデータを初期化
+        initializeMockData()
+        
         const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
         const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
@@ -276,6 +325,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         setBreakTimes(breakTimesData)
         setHolidays(holidaysData)
         
+        console.log('カレンダー: 取得した予約データ:', appointmentsData)
         console.log('カレンダー: 取得した休診日:', holidaysData)
         console.log('カレンダー: クリニックID:', clinicId)
       } catch (error) {
@@ -297,34 +347,67 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const appointmentBlocks = useMemo(() => {
     const blocks: AppointmentBlock[] = []
     
+    console.log('予約ブロック計算開始:', {
+      appointmentsCount: appointments.length,
+      workingStaffCount: workingStaff.length,
+      timeSlotMinutes
+    })
+    console.log('予約データ:', appointments)
+    console.log('出勤スタッフ:', workingStaff)
+    
     // timeSlotMinutesが有効な数値でない場合はデフォルト値15を使用
     const validTimeSlotMinutes = (typeof timeSlotMinutes === 'number' && timeSlotMinutes > 0) ? timeSlotMinutes : 15
     
-    appointments.forEach(appointment => {
+    appointments.forEach((appointment, index) => {
       const startTime = appointment.start_time
       const endTime = appointment.end_time
+      
+      console.log(`予約${index}:`, {
+        startTime,
+        endTime,
+        staff1_id: appointment.staff1_id,
+        staff2_id: appointment.staff2_id,
+        staff3_id: appointment.staff3_id
+      })
       
       // 時間を分に変換
       const startMinutes = timeToMinutes(startTime)
       const endMinutes = timeToMinutes(endTime)
       
-      // スタッフのインデックスを取得
-      const staffIndex = workingStaff.findIndex(staff => 
-        staff.staff.id === appointment.staff1_id
+      // スタッフのインデックスを取得（staff1_id, staff2_id, staff3_idのいずれかで検索）
+      let staffIndex = workingStaff.findIndex(staff => 
+        staff.staff.id === appointment.staff1_id ||
+        staff.staff.id === appointment.staff2_id ||
+        staff.staff.id === appointment.staff3_id
       )
       
-      if (staffIndex !== -1) {
-        const top = (startMinutes - 9 * 60) / validTimeSlotMinutes * 40 // 40px per slot
-        const height = (endMinutes - startMinutes) / validTimeSlotMinutes * 40
-        
-        blocks.push({
-          appointment,
-          top,
-          height,
-          staffIndex
-        })
+      // スタッフが見つからない場合は最初のスタッフを使用
+      if (staffIndex === -1) {
+        staffIndex = 0
+        console.log('スタッフが見つからないため、最初のスタッフを使用:', staffIndex)
       }
+      
+      const top = (startMinutes - 9 * 60) / validTimeSlotMinutes * 40 // 40px per slot
+      const height = (endMinutes - startMinutes) / validTimeSlotMinutes * 40
+      
+      console.log(`予約${index}のブロック計算:`, {
+        startMinutes,
+        endMinutes,
+        staffIndex,
+        top,
+        height
+      })
+      
+      blocks.push({
+        appointment,
+        top,
+        height,
+        staffIndex
+      })
     })
+    
+    console.log('計算された予約ブロック数:', blocks.length)
+    console.log('予約ブロック詳細:', blocks)
     
     return blocks
   }, [appointments, workingStaff, timeSlotMinutes])
@@ -347,13 +430,41 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // 休診日かどうかを判定
   const isHoliday = (date: Date): boolean => {
     const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
-    return holidays.includes(dayOfWeek)
+    
+    // 曜日名のマッピング（英語 → 設定で使用されるID）
+    const dayMapping: Record<string, string> = {
+      'monday': 'monday',
+      'tuesday': 'tuesday', 
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    }
+    
+    const dayId = dayMapping[dayOfWeek]
+    console.log('休診日判定:', { dayOfWeek, dayId, holidays })
+    
+    return dayId ? holidays.includes(dayId) : false
   }
 
   // 診療時間外かどうかを判定
   const isOutsideBusinessHours = (time: string): boolean => {
-    const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
-    const dayHours = businessHours[dayOfWeek]
+    const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+    
+    // 曜日名のマッピング（英語 → 設定で使用されるID）
+    const dayMapping: Record<string, string> = {
+      'monday': 'monday',
+      'tuesday': 'tuesday', 
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    }
+    
+    const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
+    const dayHours = businessHours[dayId]
     
     // 休診日または診療時間が設定されていない場合は診療時間外
     if (!dayHours?.isOpen || !dayHours?.timeSlots || dayHours.timeSlots.length === 0) return true
@@ -372,8 +483,21 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
   // 休憩時間かどうかを判定
   const isBreakTime = (time: string): boolean => {
-    const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BreakTimes
-    const dayBreaks = breakTimes[dayOfWeek]
+    const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+    
+    // 曜日名のマッピング（英語 → 設定で使用されるID）
+    const dayMapping: Record<string, string> = {
+      'monday': 'monday',
+      'tuesday': 'tuesday', 
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    }
+    
+    const dayId = dayMapping[dayOfWeek] as keyof BreakTimes
+    const dayBreaks = breakTimes[dayId]
     
     if (!dayBreaks?.start || !dayBreaks?.end) return false
     
@@ -504,42 +628,36 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               <div
                 key={index}
                 className={`h-10 flex ${
-                  isOutside 
-                    ? 'bg-gray-100' 
-                    : isBreak 
-                      ? 'bg-gray-400 cursor-not-allowed' 
-                      : selectedTimeSlots.includes(slot.time)
-                        ? 'bg-blue-200 border-blue-400'
+                  selectedTimeSlots.includes(slot.time)
+                    ? isBreak 
+                      ? 'bg-blue-300 border-blue-500 border-2' // 休憩時間での複数選択時はより濃い青
+                      : 'bg-blue-200 border-blue-400' // 通常時間での複数選択時
+                    : isOutside 
+                      ? 'bg-gray-100' 
+                      : isBreak 
+                        ? 'bg-gray-400 cursor-pointer' 
                         : 'bg-white'
                 }`}
                 style={{
                   borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB'
                 }}
                 onMouseDown={(e) => {
-                  if (isBreak || isOutside) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    return
-                  }
+                  // 休憩時間や時間外でもマウスダウンを許可（選択範囲の開始）
                   handleMouseDown(slot.time, e)
                 }}
                 onMouseMove={() => {
-                  if (isBreak || isOutside) return
+                  // 休憩時間や時間外でもマウス移動を許可（選択範囲の拡張）
                   handleMouseMove(slot.time)
                 }}
                 onMouseUp={() => {
-                  if (isBreak || isOutside) return
+                  // 休憩時間や時間外でもマウスアップを許可（選択範囲の終了処理）
                   handleMouseUp()
                 }}
                 onClick={(e) => {
-                  if (isBreak || isOutside) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    return
-                  }
+                  // 休憩時間や時間外でもクリックを許可（警告モーダルで対応）
                   // 単一クリックの場合は従来通り
                   if (!isSelecting) {
-                    console.log('空のセルクリック:', slot.time, 'スタッフインデックス:', workingStaff.length > 0 ? '複数スタッフ' : 'スタッフなし')
+                    console.log('空のセルクリック:', slot.time, 'スタッフインデックス:', workingStaff.length > 0 ? '複数スタッフ' : 'スタッフなし', '休憩時間:', isBreak, '時間外:', isOutside)
                     setSelectedTimeSlot(slot.time)
                     setSelectedStaffIndex(undefined) // 空のセルなのでスタッフインデックスは未設定
                     setShowAppointmentModal(true)
@@ -561,11 +679,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        if (isBreak || isOutside) {
-                          return
-                        }
+                        // 休憩時間や時間外でもクリックを許可（警告モーダルで対応）
                         // スタッフ列をクリックした場合
-                        console.log('スタッフ列クリック:', slot.time, 'スタッフインデックス:', staffIndex)
+                        console.log('スタッフ列クリック:', slot.time, 'スタッフインデックス:', staffIndex, '休憩時間:', isBreak, '時間外:', isOutside)
                         setSelectedTimeSlot(slot.time)
                         setSelectedStaffIndex(staffIndex)
                         setShowAppointmentModal(true)
@@ -580,6 +696,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           {/* 予約ブロック */}
           {appointmentBlocks.map((block, index) => {
             const menuColor = (block.appointment as any).menu1?.color || '#3B82F6'
+            const patient = (block.appointment as any).patient
+            const patientAge = patient?.birth_date ? 
+              new Date().getFullYear() - new Date(patient.birth_date).getFullYear() : null
             
             return (
               <div
@@ -604,64 +723,41 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 }}
               >
                 {/* 1段目: 診療時間、診察券番号 */}
-                {(displayItems.includes('reservation_time') || displayItems.includes('medical_card_number')) && (
-                  <div className="font-medium text-xs mb-1">
-                    {displayItems.includes('reservation_time') && `${block.appointment.start_time} - ${block.appointment.end_time}`}
-                    {displayItems.includes('reservation_time') && displayItems.includes('medical_card_number') && ' / '}
-                    {displayItems.includes('medical_card_number') && `/${(block.appointment as any).patient?.patient_number || '1'}`}
-                  </div>
-                )}
-                
-                {/* 2段目: メイン情報 */}
-                <div className="text-sm space-y-1">
-                  {/* 患者名 */}
-                  <div className="font-medium">
-                    {(block.appointment as any).patient ? 
-                      `${(block.appointment as any).patient.last_name} ${(block.appointment as any).patient.first_name}` : 
-                      '患者情報なし'
-                    }
-                  </div>
-                  
-                  {/* フリガナ */}
-                  {displayItems.includes('furigana') && (block.appointment as any).patient?.last_name_kana && (block.appointment as any).patient?.first_name_kana && (
-                    <div className="text-xs opacity-90">
-                      {(block.appointment as any).patient.last_name_kana} {(block.appointment as any).patient.first_name_kana}
-                    </div>
-                  )}
-                  
-                  {/* 年齢 */}
-                  {displayItems.includes('age') && (block.appointment as any).patient?.birth_date && (
-                    <div className="text-xs opacity-90">
-                      {new Date().getFullYear() - new Date((block.appointment as any).patient.birth_date).getFullYear()}歳
-                    </div>
-                  )}
-                  
-                  {/* 診療内容1-3 */}
-                  {(displayItems.includes('treatment_content_1') || displayItems.includes('treatment_content_2') || displayItems.includes('treatment_content_3')) && (
-                    <div className="text-xs opacity-90">
-                      {displayItems.includes('treatment_content_1') && (block.appointment as any).menu1?.name || ''}
-                      {displayItems.includes('treatment_content_1') && displayItems.includes('treatment_content_2') && (block.appointment as any).menu2?.name && ` / ${(block.appointment as any).menu2.name}`}
-                      {displayItems.includes('treatment_content_1') && displayItems.includes('treatment_content_2') && displayItems.includes('treatment_content_3') && (block.appointment as any).menu3?.name && ` / ${(block.appointment as any).menu3.name}`}
-                    </div>
-                  )}
-                  
-                  {/* 担当者1-3 */}
-                  {(displayItems.includes('staff_1') || displayItems.includes('staff_2') || displayItems.includes('staff_3')) && (
-                    <div className="text-xs opacity-90">
-                      {displayItems.includes('staff_1') && (block.appointment as any).staff1?.name || ''}
-                      {displayItems.includes('staff_1') && displayItems.includes('staff_2') && (block.appointment as any).staff2?.name && ` / ${(block.appointment as any).staff2.name}`}
-                      {displayItems.includes('staff_1') && displayItems.includes('staff_2') && displayItems.includes('staff_3') && (block.appointment as any).staff3?.name && ` / ${(block.appointment as any).staff3.name}`}
-                    </div>
-                  )}
+                <div className="font-medium text-xs mb-1">
+                  {block.appointment.start_time} - {block.appointment.end_time}
+                  {patient?.patient_number && ` / ${patient.patient_number}`}
                 </div>
                 
-                {/* 特記事項アイコン（下部） */}
-                <div className="flex items-center space-x-1 mt-2">
-                  <Clock className="w-3 h-3" />
-                  <User className="w-3 h-3" />
-                  <Heart className="w-3 h-3" />
-                  <Zap className="w-3 h-3" />
-                  <Smile className="w-3 h-3" />
+                {/* 2段目: 患者名 */}
+                <div className="font-medium text-sm mb-1">
+                  {patient ? 
+                    `${patient.last_name} ${patient.first_name}` : 
+                    '患者情報なし'
+                  }
+                </div>
+                
+                {/* 3段目: 年齢、診療メニュー、担当者 */}
+                <div className="text-xs opacity-90 space-y-1">
+                  {/* 年齢 */}
+                  {patientAge && (
+                    <div>{patientAge}歳</div>
+                  )}
+                  
+                  {/* 診療メニュー */}
+                  <div>
+                    {(block.appointment as any).menu1?.name || 
+                     (block.appointment as any).menu2?.name || 
+                     (block.appointment as any).menu3?.name || 
+                     '診療メニュー'}
+                  </div>
+                  
+                  {/* 担当者 */}
+                  <div>
+                    {(block.appointment as any).staff1?.name || 
+                     (block.appointment as any).staff2?.name || 
+                     (block.appointment as any).staff3?.name || 
+                     '担当者未設定'}
+                  </div>
                 </div>
                 
                 {/* ステータスアイコン（右上） */}
@@ -695,14 +791,35 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         selectedTimeSlots={selectedTimeSlots}
         timeSlotMinutes={timeSlotMinutes}
         workingStaff={workingStaff}
-        onSave={(appointmentData) => {
-          console.log('予約保存:', appointmentData)
-          // TODO: 予約保存処理を実装
-          setShowAppointmentModal(false)
-          // 保存後も選択状態をリセット
-          setSelectedTimeSlots([])
-          setSelectionStart(null)
-          setSelectionEnd(null)
+        onSave={async (appointmentData) => {
+          try {
+            console.log('予約保存:', appointmentData)
+            
+            // 予約データを保存
+            const savedAppointment = await createAppointment(clinicId, {
+              ...appointmentData,
+              appointment_date: formatDateForDB(selectedDate) // YYYY-MM-DD形式
+            })
+            
+            console.log('予約保存完了:', savedAppointment)
+            
+            // モーダルを閉じる
+            setShowAppointmentModal(false)
+            
+            // 選択状態をリセット
+            setSelectedTimeSlots([])
+            setSelectionStart(null)
+            setSelectionEnd(null)
+            
+            // 予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+            
+          } catch (error) {
+            console.error('予約保存エラー:', error)
+            alert('予約の保存に失敗しました')
+          }
         }}
       />
     </div>

@@ -1,5 +1,6 @@
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { Appointment, AppointmentInsert, AppointmentUpdate } from '@/types/database'
+import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 /**
  * 予約を取得
@@ -9,7 +10,37 @@ export async function getAppointments(
   startDate?: string,
   endDate?: string
 ): Promise<Appointment[]> {
-  let query = supabase
+  // モックモードの場合はlocalStorageから取得
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約データを取得します', { clinicId, startDate, endDate })
+    const { getMockAppointments } = await import('@/lib/utils/mock-mode')
+    const appointments = getMockAppointments()
+    
+    console.log('モックモード: localStorageの全予約データ:', appointments)
+    
+    // 日付でフィルタリング
+    let filteredAppointments = appointments
+    if (startDate) {
+      console.log('日付フィルタリング（開始）:', startDate)
+      filteredAppointments = filteredAppointments.filter(apt => {
+        console.log('予約日付:', apt.appointment_date, '比較対象:', startDate, '結果:', apt.appointment_date >= startDate)
+        return apt.appointment_date >= startDate
+      })
+    }
+    if (endDate) {
+      console.log('日付フィルタリング（終了）:', endDate)
+      filteredAppointments = filteredAppointments.filter(apt => {
+        console.log('予約日付:', apt.appointment_date, '比較対象:', endDate, '結果:', apt.appointment_date <= endDate)
+        return apt.appointment_date <= endDate
+      })
+    }
+    
+    console.log('モックモード: フィルタリング後の予約データ:', filteredAppointments)
+    return filteredAppointments
+  }
+
+  const client = getSupabaseClient()
+  let query = client
     .from('appointments')
     .select(`
       *,
@@ -61,7 +92,14 @@ export async function getAppointmentById(
   clinicId: string,
   appointmentId: string
 ): Promise<Appointment | null> {
-  const { data, error } = await supabase
+  // モックモードの場合はnullを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約詳細データを返します（null）', { clinicId, appointmentId })
+    return null
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('appointments')
     .select(`
       *,
@@ -96,12 +134,59 @@ export async function createAppointment(
   clinicId: string,
   appointmentData: Omit<AppointmentInsert, 'clinic_id'>
 ): Promise<Appointment> {
+  // モックモードの場合はlocalStorageに保存
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約を作成します', { clinicId, appointmentData })
+    const { addMockAppointment, getMockPatients, getMockTreatmentMenus } = await import('@/lib/utils/mock-mode')
+    
+    // 患者情報を取得
+    const patients = getMockPatients()
+    const patient = patients.find(p => p.id === appointmentData.patient_id)
+    console.log('モックモード: 患者情報:', patient)
+    
+    // メニュー情報を取得
+    const menus = getMockTreatmentMenus()
+    const menu1 = appointmentData.menu1_id ? menus.find(m => m.id === appointmentData.menu1_id) : null
+    const menu2 = appointmentData.menu2_id ? menus.find(m => m.id === appointmentData.menu2_id) : null
+    const menu3 = appointmentData.menu3_id ? menus.find(m => m.id === appointmentData.menu3_id) : null
+    console.log('モックモード: メニュー情報:', { menu1, menu2, menu3 })
+    
+    const mockAppointment: Appointment = {
+      id: `mock-appointment-${Date.now()}`,
+      clinic_id: clinicId,
+      ...appointmentData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      // 関連データを含める
+      patient: patient ? {
+        id: patient.id,
+        last_name: patient.last_name,
+        first_name: patient.first_name,
+        last_name_kana: patient.last_name_kana,
+        first_name_kana: patient.first_name_kana,
+        phone: patient.phone,
+        patient_number: patient.patient_number,
+        birth_date: patient.birth_date
+      } : null,
+      menu1: menu1,
+      menu2: menu2,
+      menu3: menu3
+    } as Appointment
+    
+    console.log('モックモード: 保存する予約データ:', mockAppointment)
+    const savedAppointment = addMockAppointment(mockAppointment)
+    console.log('モックモード: 保存完了:', savedAppointment)
+    
+    return savedAppointment
+  }
+
   const newAppointment: AppointmentInsert = {
     ...appointmentData,
     clinic_id: clinicId
   }
 
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('appointments')
     .insert(newAppointment as any)
     .select()
@@ -123,7 +208,21 @@ export async function updateAppointment(
   appointmentId: string,
   appointmentData: AppointmentUpdate
 ): Promise<Appointment> {
-  const { data, error } = await supabase
+  // モックモードの場合はダミーデータを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約を更新します', { clinicId, appointmentId, appointmentData })
+    const mockAppointment: Appointment = {
+      id: appointmentId,
+      clinic_id: clinicId,
+      ...appointmentData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as Appointment
+    return mockAppointment
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('appointments')
     .update(appointmentData as any)
     .eq('clinic_id', clinicId)
@@ -160,7 +259,14 @@ export async function deleteAppointment(
   clinicId: string,
   appointmentId: string
 ): Promise<void> {
-  const { error } = await supabase
+  // モックモードの場合は何もしない
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約を削除します', { clinicId, appointmentId })
+    return
+  }
+
+  const client = getSupabaseClient()
+  const { error } = await client
     .from('appointments')
     .delete()
     .eq('clinic_id', clinicId)
@@ -176,7 +282,20 @@ export async function deleteAppointment(
  * 予約統計を取得
  */
 export async function getAppointmentStats(clinicId: string, date?: string) {
-  let query = supabase
+  // モックモードの場合は空の統計を返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約統計を返します（空の統計）', { clinicId, date })
+    return {
+      total: 0,
+      completed: 0,
+      inProgress: 0,
+      waiting: 0,
+      cancelled: 0
+    }
+  }
+
+  const client = getSupabaseClient()
+  let query = client
     .from('appointments')
     .select('status')
     .eq('clinic_id', clinicId)
