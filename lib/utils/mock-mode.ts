@@ -186,7 +186,9 @@ export const updateMockAppointment = (id: string, updates: any) => {
   if (index !== -1) {
     data[index] = { ...data[index], ...updates, updated_at: new Date().toISOString() }
     saveToStorage(APPOINTMENTS_KEY, data)
+    return data[index] // 更新されたアイテムを返す
   }
+  return null // 見つからない場合はnullを返す
 }
 export const removeMockAppointment = (id: string) => {
   const data = getMockAppointments()

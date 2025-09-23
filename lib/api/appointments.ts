@@ -13,13 +13,94 @@ export async function getAppointments(
   // モックモードの場合はlocalStorageから取得
   if (MOCK_MODE) {
     console.log('モックモード: 予約データを取得します', { clinicId, startDate, endDate })
-    const { getMockAppointments } = await import('@/lib/utils/mock-mode')
+    const { getMockAppointments, getMockStaff, getMockTreatmentMenus, updateMockAppointment } = await import('@/lib/utils/mock-mode')
     const appointments = getMockAppointments()
     
     console.log('モックモード: localStorageの全予約データ:', appointments)
     
+    // 既存の予約データにスタッフ情報、メニュー情報、患者情報を追加（不足している場合）
+    const staff = getMockStaff()
+    const menus = getMockTreatmentMenus()
+    const { getMockPatients } = await import('@/lib/utils/mock-mode')
+    const patients = getMockPatients()
+    
+    for (const appointment of appointments) {
+      let needsUpdate = false
+      const updatedAppointment = { ...appointment }
+      
+      // スタッフ情報を追加
+      if (!(appointment as any).staff1 && appointment.staff1_id) {
+        const staff1 = staff.find(s => s.id === appointment.staff1_id)
+        if (staff1) {
+          (updatedAppointment as any).staff1 = staff1
+          needsUpdate = true
+        }
+      }
+      if (!(appointment as any).staff2 && appointment.staff2_id) {
+        const staff2 = staff.find(s => s.id === appointment.staff2_id)
+        if (staff2) {
+          (updatedAppointment as any).staff2 = staff2
+          needsUpdate = true
+        }
+      }
+      if (!(appointment as any).staff3 && appointment.staff3_id) {
+        const staff3 = staff.find(s => s.id === appointment.staff3_id)
+        if (staff3) {
+          (updatedAppointment as any).staff3 = staff3
+          needsUpdate = true
+        }
+      }
+      
+      // メニュー情報を追加
+      if (!(appointment as any).menu1 && appointment.menu1_id) {
+        const menu1 = menus.find(m => m.id === appointment.menu1_id)
+        if (menu1) {
+          (updatedAppointment as any).menu1 = menu1
+          needsUpdate = true
+        }
+      }
+      if (!(appointment as any).menu2 && appointment.menu2_id) {
+        const menu2 = menus.find(m => m.id === appointment.menu2_id)
+        if (menu2) {
+          (updatedAppointment as any).menu2 = menu2
+          needsUpdate = true
+        }
+      }
+      if (!(appointment as any).menu3 && appointment.menu3_id) {
+        const menu3 = menus.find(m => m.id === appointment.menu3_id)
+        if (menu3) {
+          (updatedAppointment as any).menu3 = menu3
+          needsUpdate = true
+        }
+      }
+      
+      // 患者情報を追加
+      if (!(appointment as any).patient && appointment.patient_id) {
+        const patient = patients.find(p => p.id === appointment.patient_id)
+        console.log('患者情報検索:', {
+          appointmentId: appointment.id,
+          patientId: appointment.patient_id,
+          foundPatient: patient,
+          allPatients: patients.map(p => ({ id: p.id, name: `${p.last_name} ${p.first_name}` }))
+        })
+        if (patient) {
+          (updatedAppointment as any).patient = patient
+          needsUpdate = true
+          console.log('患者情報を追加:', patient)
+        }
+      }
+      
+      // 更新が必要な場合は保存
+      if (needsUpdate) {
+        updateMockAppointment(appointment.id, updatedAppointment)
+      }
+    }
+    
+    // 更新されたデータを再取得
+    const updatedAppointments = getMockAppointments()
+    
     // 日付でフィルタリング
-    let filteredAppointments = appointments
+    let filteredAppointments = updatedAppointments
     if (startDate) {
       console.log('日付フィルタリング（開始）:', startDate)
       filteredAppointments = filteredAppointments.filter(apt => {
@@ -151,6 +232,14 @@ export async function createAppointment(
     const menu3 = appointmentData.menu3_id ? menus.find(m => m.id === appointmentData.menu3_id) : null
     console.log('モックモード: メニュー情報:', { menu1, menu2, menu3 })
     
+    // スタッフ情報を取得
+    const { getMockStaff } = await import('@/lib/utils/mock-mode')
+    const staff = getMockStaff()
+    const staff1 = appointmentData.staff1_id ? staff.find(s => s.id === appointmentData.staff1_id) : null
+    const staff2 = appointmentData.staff2_id ? staff.find(s => s.id === appointmentData.staff2_id) : null
+    const staff3 = appointmentData.staff3_id ? staff.find(s => s.id === appointmentData.staff3_id) : null
+    console.log('モックモード: スタッフ情報:', { staff1, staff2, staff3 })
+    
     const mockAppointment: Appointment = {
       id: `mock-appointment-${Date.now()}`,
       clinic_id: clinicId,
@@ -170,7 +259,10 @@ export async function createAppointment(
       } : null,
       menu1: menu1,
       menu2: menu2,
-      menu3: menu3
+      menu3: menu3,
+      staff1: staff1,
+      staff2: staff2,
+      staff3: staff3
     } as Appointment
     
     console.log('モックモード: 保存する予約データ:', mockAppointment)
@@ -200,43 +292,6 @@ export async function createAppointment(
   return data
 }
 
-/**
- * 予約を更新
- */
-export async function updateAppointment(
-  clinicId: string,
-  appointmentId: string,
-  appointmentData: AppointmentUpdate
-): Promise<Appointment> {
-  // モックモードの場合はダミーデータを返す
-  if (MOCK_MODE) {
-    console.log('モックモード: 予約を更新します', { clinicId, appointmentId, appointmentData })
-    const mockAppointment: Appointment = {
-      id: appointmentId,
-      clinic_id: clinicId,
-      ...appointmentData,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    } as Appointment
-    return mockAppointment
-  }
-
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('appointments')
-    .update(appointmentData as any)
-    .eq('clinic_id', clinicId)
-    .eq('id', appointmentId)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('予約更新エラー:', error)
-    throw new Error('予約情報の更新に失敗しました')
-  }
-
-  return data
-}
 
 /**
  * 予約ステータスを更新
@@ -246,7 +301,7 @@ export async function updateAppointmentStatus(
   appointmentId: string,
   status: string
 ): Promise<Appointment> {
-  return updateAppointment(clinicId, appointmentId, {
+  return updateAppointment(appointmentId, {
     status: status as any,
     updated_at: new Date().toISOString()
   })
@@ -324,4 +379,86 @@ export async function getAppointmentStats(clinicId: string, date?: string) {
     waiting,
     cancelled
   }
+}
+
+/**
+ * 予約を更新
+ */
+export async function updateAppointment(
+  appointmentId: string,
+  appointmentData: Partial<AppointmentUpdate>
+): Promise<Appointment> {
+  // モックモードの場合はlocalStorageに保存
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約を更新します', { appointmentId, appointmentData })
+    const { updateMockAppointment, getMockPatients, getMockTreatmentMenus, getMockStaff } = await import('@/lib/utils/mock-mode')
+    
+    // 関連データを取得して埋め込む
+    const patients = getMockPatients()
+    const menus = getMockTreatmentMenus()
+    const staff = getMockStaff()
+    
+    const patient = appointmentData.patient_id ? patients.find(p => p.id === appointmentData.patient_id) : null
+    const menu1 = appointmentData.menu1_id ? menus.find(m => m.id === appointmentData.menu1_id) : null
+    const menu2 = appointmentData.menu2_id ? menus.find(m => m.id === appointmentData.menu2_id) : null
+    const menu3 = appointmentData.menu3_id ? menus.find(m => m.id === appointmentData.menu3_id) : null
+    const staff1 = appointmentData.staff1_id ? staff.find(s => s.id === appointmentData.staff1_id) : null
+    const staff2 = appointmentData.staff2_id ? staff.find(s => s.id === appointmentData.staff2_id) : null
+    const staff3 = appointmentData.staff3_id ? staff.find(s => s.id === appointmentData.staff3_id) : null
+    
+    const updatedData = {
+      ...appointmentData,
+      updated_at: new Date().toISOString(),
+      // 関連データを含める
+      patient: patient ? {
+        id: patient.id,
+        last_name: patient.last_name,
+        first_name: patient.first_name,
+        last_name_kana: patient.last_name_kana,
+        first_name_kana: patient.first_name_kana,
+        phone: patient.phone,
+        patient_number: patient.patient_number,
+        birth_date: patient.birth_date
+      } : null,
+      menu1: menu1,
+      menu2: menu2,
+      menu3: menu3,
+      staff1: staff1,
+      staff2: staff2,
+      staff3: staff3
+    }
+    
+    console.log('モックモード: 更新する予約データ:', updatedData)
+    console.log('モックモード: 更新対象ID:', appointmentId)
+    
+    const updatedAppointment = updateMockAppointment(appointmentId, updatedData)
+    console.log('モックモード: updateMockAppointmentの戻り値:', updatedAppointment)
+    
+    if (!updatedAppointment) {
+      console.error('モックモード: 予約の更新に失敗しました。IDが見つかりません:', appointmentId)
+      throw new Error('予約の更新に失敗しました')
+    }
+    
+    console.log('モックモード: 更新完了:', updatedAppointment)
+    return updatedAppointment
+  }
+
+  // 通常モードの場合
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from('appointments')
+    .update({
+      ...appointmentData,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', appointmentId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('予約更新エラー:', error)
+    throw error
+  }
+
+  return data
 }

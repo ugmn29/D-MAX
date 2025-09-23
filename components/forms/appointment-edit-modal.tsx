@@ -27,6 +27,7 @@ import { getPatients, createPatient } from '@/lib/api/patients'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 import { getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
+import { getAppointments, updateAppointment } from '@/lib/api/appointments'
 import { Patient, TreatmentMenu, Staff } from '@/types/database'
 import { TimeWarningModal } from '@/components/ui/time-warning-modal'
 import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
@@ -51,7 +52,9 @@ interface AppointmentEditModalProps {
   selectedTimeSlots?: string[]
   timeSlotMinutes?: number
   workingStaff?: WorkingStaff[]
+  editingAppointment?: any
   onSave: (appointmentData: any) => void
+  onUpdate?: (appointmentData: any) => void
 }
 
 interface PatientSearchResult extends Patient {
@@ -63,15 +66,18 @@ export function AppointmentEditModal({
   onClose, 
   clinicId, 
   selectedDate, 
-  selectedTime,
-  selectedStaffIndex,
-  selectedTimeSlots = [],
-  timeSlotMinutes = 15,
+  selectedTime, 
+  selectedStaffIndex, 
+  selectedTimeSlots = [], 
+  timeSlotMinutes = 15, 
   workingStaff = [],
-  onSave 
+  editingAppointment,
+  onSave,
+  onUpdate
 }: AppointmentEditModalProps) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [patientAppointments, setPatientAppointments] = useState<any[]>([])
   
   // 患者検索
   const [searchQuery, setSearchQuery] = useState('')
@@ -172,9 +178,42 @@ export function AppointmentEditModal({
   useEffect(() => {
     if (isOpen) {
       console.log('Modal opened or dependencies changed, re-initializing appointmentData')
-      setAppointmentData(getInitialAppointmentData())
+      if (editingAppointment) {
+        console.log('既存の予約データを設定:', editingAppointment)
+        // 既存の予約データを設定
+        setAppointmentData({
+          start_time: editingAppointment.start_time,
+          end_time: editingAppointment.end_time,
+          duration: editingAppointment.duration || 60,
+          menu1_id: editingAppointment.menu1_id || '',
+          menu2_id: editingAppointment.menu2_id || '',
+          menu3_id: editingAppointment.menu3_id || '',
+          staff1_id: editingAppointment.staff1_id || '',
+          staff2_id: editingAppointment.staff2_id || '',
+          staff3_id: editingAppointment.staff3_id || '',
+          notes: editingAppointment.notes || ''
+        })
+        
+        // 既存の患者を設定
+        if (editingAppointment.patient) {
+          setSelectedPatient(editingAppointment.patient)
+        }
+        
+        // 既存のメニューを設定
+        if (editingAppointment.menu1) {
+          setSelectedMenu1(editingAppointment.menu1)
+        }
+        if (editingAppointment.menu2) {
+          setSelectedMenu2(editingAppointment.menu2)
+        }
+        if (editingAppointment.menu3) {
+          setSelectedMenu3(editingAppointment.menu3)
+        }
+      } else {
+        setAppointmentData(getInitialAppointmentData())
+      }
     }
-  }, [isOpen, getInitialAppointmentData])
+  }, [isOpen, getInitialAppointmentData, editingAppointment])
 
   // 選択されたスタッフインデックスに基づいて担当者を自動選択
   useEffect(() => {
@@ -202,6 +241,34 @@ export function AppointmentEditModal({
       console.log('担当者をクリア（空のセル選択）')
     }
   }, [isOpen, selectedStaffIndex, workingStaff])
+
+  // 患者が選択された時に予約履歴を取得
+  useEffect(() => {
+    const loadPatientAppointments = async () => {
+      if (selectedPatient && isOpen) {
+        try {
+          console.log('患者の予約履歴を取得:', selectedPatient.id)
+          const appointments = await getAppointments(clinicId)
+          console.log('取得した全予約:', appointments)
+          
+          // 選択された患者の予約のみをフィルタリング
+          const patientAppointments = appointments.filter(apt => 
+            apt.patient_id === selectedPatient.id
+          )
+          console.log('患者の予約履歴:', patientAppointments)
+          
+          setPatientAppointments(patientAppointments)
+        } catch (error) {
+          console.error('予約履歴の取得エラー:', error)
+          setPatientAppointments([])
+        }
+      } else {
+        setPatientAppointments([])
+      }
+    }
+
+    loadPatientAppointments()
+  }, [selectedPatient, isOpen, clinicId])
   
   // 新規患者データ
   const [newPatientData, setNewPatientData] = useState({
@@ -273,6 +340,19 @@ export function AppointmentEditModal({
     setSearchResults([])
   }
 
+  // 診療時間の総合計を計算
+  const calculateDuration = (startTime: string, endTime: string) => {
+    if (!startTime || !endTime) return 0
+    
+    const start = new Date(`2000-01-01T${startTime}:00`)
+    const end = new Date(`2000-01-01T${endTime}:00`)
+    
+    const diffMs = end.getTime() - start.getTime()
+    const diffMinutes = Math.round(diffMs / (1000 * 60))
+    
+    return diffMinutes
+  }
+
 
   // 診療メニュー階層の取得
   const getMenuLevel1 = () => treatmentMenus.filter(menu => menu.level === 1)
@@ -338,7 +418,25 @@ export function AppointmentEditModal({
       const endMinutes = timeToMinutes(updatedData.end_time)
       const newDuration = endMinutes - startMinutes
       
-      return { ...updatedData, duration: newDuration }
+      const finalData = { ...updatedData, duration: newDuration }
+      
+      // 既存の予約を編集している場合は即座にカレンダーを更新
+      if (editingAppointment && onUpdate) {
+        onUpdate({
+          ...finalData,
+          patient_id: editingAppointment.patient_id,
+          menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
+          menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
+          menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+          staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
+          staff2_id: appointmentData.staff2_id,
+          staff3_id: appointmentData.staff3_id,
+          notes: appointmentData.notes,
+          status: editingAppointment.status
+        })
+      }
+      
+      return finalData
     })
   }
 
@@ -355,7 +453,25 @@ export function AppointmentEditModal({
       const endMinutes = timeToMinutes(updatedData.end_time)
       const newDuration = endMinutes - startMinutes
       
-      return { ...updatedData, duration: newDuration }
+      const finalData = { ...updatedData, duration: newDuration }
+      
+      // 既存の予約を編集している場合は即座にカレンダーを更新
+      if (editingAppointment && onUpdate) {
+        onUpdate({
+          ...finalData,
+          patient_id: editingAppointment.patient_id,
+          menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
+          menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
+          menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+          staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
+          staff2_id: appointmentData.staff2_id,
+          staff3_id: appointmentData.staff3_id,
+          notes: appointmentData.notes,
+          status: editingAppointment.status
+        })
+      }
+      
+      return finalData
     })
   }
 
@@ -379,30 +495,33 @@ export function AppointmentEditModal({
       
       let patientToUse = selectedPatient
       
-      // 新規患者フォームが表示されている場合は、まず患者を作成
-      if (showNewPatientForm) {
-        if (!newPatientData.last_name || !newPatientData.first_name || !newPatientData.phone) {
-          alert('患者情報を入力してください')
-          return
+      // 既存の予約を編集する場合は、新規患者作成をスキップ
+      if (!editingAppointment) {
+        // 新規患者フォームが表示されている場合は、まず患者を作成
+        if (showNewPatientForm) {
+          if (!newPatientData.last_name || !newPatientData.first_name || !newPatientData.phone) {
+            alert('患者情報を入力してください')
+            return
+          }
+          
+          // 新規患者を作成
+          patientToUse = await createPatient(clinicId, {
+            ...newPatientData,
+            is_registered: false // 仮登録
+          })
+          
+          setSelectedPatient(patientToUse)
+          setShowNewPatientForm(false)
         }
         
-        // 新規患者を作成
-        patientToUse = await createPatient(clinicId, {
-          ...newPatientData,
-          is_registered: false // 仮登録
-        })
-        
-        setSelectedPatient(patientToUse)
-        setShowNewPatientForm(false)
-      }
-      
-      if (!patientToUse) {
-        alert('患者を選択してください')
-        return
+        if (!patientToUse) {
+          alert('患者を選択してください')
+          return
+        }
       }
 
       const appointment = {
-        patient_id: patientToUse.id,
+        patient_id: editingAppointment ? editingAppointment.patient_id : patientToUse.id,
         start_time: appointmentData.start_time,
         end_time: appointmentData.end_time,
         menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
@@ -412,7 +531,7 @@ export function AppointmentEditModal({
         staff2_id: appointmentData.staff2_id,
         staff3_id: appointmentData.staff3_id,
         notes: appointmentData.notes,
-        status: '予約済み'
+        status: editingAppointment ? editingAppointment.status : '予約済み'
       }
 
       // 時間検証を実行
@@ -426,8 +545,15 @@ export function AppointmentEditModal({
         return
       }
       
-      // 検証OKの場合は直接保存
-      onSave(appointment)
+      // 検証OKの場合は保存
+      if (editingAppointment) {
+        // 既存の予約を更新
+        await updateAppointment(editingAppointment.id, appointment)
+        console.log('既存予約を更新:', editingAppointment.id, appointment)
+      } else {
+        // 新規予約を作成
+        onSave(appointment)
+      }
       onClose()
     } catch (error) {
       console.error('予約保存エラー:', error)
@@ -471,7 +597,14 @@ export function AppointmentEditModal({
       setShowWarningModal(false)
       
       if (pendingAppointmentData) {
-        onSave(pendingAppointmentData)
+        if (editingAppointment) {
+          // 既存の予約を更新
+          await updateAppointment(editingAppointment.id, pendingAppointmentData)
+          console.log('既存予約を更新（警告後）:', editingAppointment.id, pendingAppointmentData)
+        } else {
+          // 新規予約を作成
+          onSave(pendingAppointmentData)
+        }
         onClose()
         setPendingAppointmentData(null)
       }
@@ -554,7 +687,8 @@ export function AppointmentEditModal({
                 
                   {/* 患者検索 */}
                 <div className="mb-4">
-                  {!showNewPatientForm && (
+                  {/* 既存予約編集時は患者検索を非表示 */}
+                  {!editingAppointment && !showNewPatientForm && (
                     <div className="flex space-x-2 mb-3 items-center">
                       <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -579,7 +713,7 @@ export function AppointmentEditModal({
                   )}
                   
                   {/* 検索結果 */}
-                  {searchResults.length > 0 && (
+                  {!editingAppointment && searchResults.length > 0 && (
                     <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md mb-3">
                       {searchResults.map((patient) => (
                         <div
@@ -598,26 +732,39 @@ export function AppointmentEditModal({
 
                   {/* 選択された患者情報 */}
                   {selectedPatient ? (
-                    <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
+                    <div className="p-4 border border-gray-100 rounded-md bg-blue-50">
+                      {/* 患者名（入力フィールド形式） */}
                       <div className="flex items-center justify-between mb-3">
                         <Input
                           value={`${selectedPatient.last_name} ${selectedPatient.first_name}`}
-                          className="text-lg font-medium border-none bg-transparent p-0 h-auto"
                           readOnly
+                          className="text-lg font-medium text-gray-900 bg-white border-gray-300"
                         />
-                        <Button variant="ghost" size="sm" className="p-1">
+                        <Button variant="ghost" size="sm" className="p-1 ml-2">
                           <Edit className="w-4 h-4" />
                         </Button>
                       </div>
-                      <div className="text-sm text-gray-600 mb-2">
-                        ID: {selectedPatient.patient_number} 年齢: {selectedPatient.birth_date ? `${new Date().getFullYear() - new Date(selectedPatient.birth_date).getFullYear()}歳` : '--歳'} 生年月日: {selectedPatient.birth_date || '--'} 性別: {selectedPatient.gender === 'male' ? '男性' : selectedPatient.gender === 'female' ? '女性' : '--'}
+                      
+                      {/* 患者詳細情報 */}
+                      <div className="text-sm text-gray-600 mb-2 flex flex-wrap gap-1">
+                        <div className="bg-gray-100 px-2 py-1 rounded">
+                          ID: {selectedPatient.patient_number}
+                        </div>
+                        <div className="bg-gray-100 px-2 py-1 rounded">
+                          年齢: {selectedPatient.birth_date ? `${new Date().getFullYear() - new Date(selectedPatient.birth_date).getFullYear()}歳` : '--歳'}
+                        </div>
+                        <div className="bg-gray-100 px-2 py-1 rounded">
+                          生年月日: {selectedPatient.birth_date || '--'}
+                        </div>
+                        <div className="bg-gray-100 px-2 py-1 rounded">
+                          性別: {selectedPatient.gender === 'male' ? '男性' : selectedPatient.gender === 'female' ? '女性' : '--'}
+                        </div>
                       </div>
-                      <div className="flex items-center text-sm text-gray-600">
+                      
+                      {/* 電話番号 */}
+                      <div className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded flex items-center w-fit">
                         <Phone className="w-4 h-4 mr-1" />
-                        <span className="flex-1">{selectedPatient.phone}</span>
-                        <Button variant="ghost" size="sm" className="p-1">
-                          <Copy className="w-4 h-4" />
-                        </Button>
+                        <span>電話: {selectedPatient.phone}</span>
                       </div>
                     </div>
                   ) : null}
@@ -655,10 +802,10 @@ export function AppointmentEditModal({
                 </div>
               </div>
 
-              {/* 予約履歴 - 左下の1/2に配置 */}
-              <div className="mt-auto h-1/2 flex flex-col">
-                <h3 className="text-lg font-medium mb-4">予約履歴</h3>
-                <div className="border border-gray-200 rounded-md flex-1 flex flex-col">
+              {/* 予約履歴 - 患者情報のすぐ下に配置 */}
+              <div className="mt-1 flex-1 flex flex-col bg-gray-50 border border-gray-100 rounded-md p-4">
+                <h3 className="text-base font-medium mb-4">予約履歴</h3>
+                <div className="border border-gray-200 rounded-md flex-1 flex flex-col bg-white">
                   <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                     <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-600">
                       <div>予約日時</div>
@@ -667,36 +814,79 @@ export function AppointmentEditModal({
                       <div>キャンセル</div>
                     </div>
                   </div>
-                  <div className="divide-y divide-gray-200 flex-1 overflow-y-auto">
+                  <div 
+                    className="divide-y divide-gray-200 flex-1 overflow-y-auto"
+                    style={{
+                      maxHeight: '400px',
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: '#d1d5db #f3f4f6'
+                    }}
+                  >
                     {selectedPatient ? (
-                      // 仮の予約履歴データ（実際のデータは今後実装）
-                      [
-                        { date: '2025/09/26(金)', time: '09:00', staff: '福永', menu: '定期健診', hasStaff: true },
-                        { date: '2025/09/19(金)', time: '09:00', staff: '福永', menu: '定期健診', hasStaff: true },
-                        { date: '2025/09/12(金)', time: '16:00', staff: '未設定', menu: '診療', hasStaff: false },
-                        { date: '2025/09/11(木)', time: '11:00', staff: '福永', menu: '定期健診', hasStaff: true }
-                      ].map((appointment, index) => (
-                        <div key={index} className="px-4 py-3">
-                          <div className="grid grid-cols-4 gap-4 text-sm">
-                            <div className="text-gray-900">{appointment.date} {appointment.time}</div>
-                            <div>
-                              {appointment.hasStaff ? (
-                                <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                                  {appointment.staff}
-                                </span>
-                              ) : (
-                                <span className="text-gray-500">{appointment.staff}</span>
-                              )}
-                            </div>
-                            <div className="text-gray-900">{appointment.menu}</div>
-                            <div>
-                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 p-1">
-                                ×
-                              </Button>
-                            </div>
-                          </div>
+                      patientAppointments.length > 0 ? (
+                        patientAppointments
+                          .sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()) // 新しい順にソート
+                          .map((appointment, index) => {
+                            const appointmentDate = new Date(appointment.appointment_date)
+                            const formattedDate = format(appointmentDate, 'yyyy/MM/dd(E)', { locale: ja })
+                            const staffName = (appointment as any).staff1?.name || (appointment as any).staff2?.name || (appointment as any).staff3?.name || '未設定'
+                            const menuName = (appointment as any).menu1?.name || (appointment as any).menu2?.name || (appointment as any).menu3?.name || '診療メニュー'
+                            const hasStaff = staffName !== '未設定'
+                            
+                            return (
+                              <div key={appointment.id || index} className="px-4 py-3">
+                                <div className="grid grid-cols-4 gap-4 text-sm">
+                                  <div className="text-gray-900">
+                                    {formattedDate} {appointment.start_time}
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <div 
+                                      className="break-words"
+                                      style={{
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        lineHeight: '1.2',
+                                        maxHeight: '2.4em'
+                                      }}
+                                    >
+                                      {hasStaff ? (
+                                        <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                                          {staffName}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-500">{staffName}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-gray-900 overflow-hidden">
+                                    <div 
+                                      className="break-words"
+                                      style={{
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        lineHeight: '1.2',
+                                        maxHeight: '2.4em'
+                                      }}
+                                    >
+                                      {menuName}
+                                    </div>
+                                  </div>
+                                  <div className="text-gray-500">
+                                    -
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })
+                      ) : (
+                        <div className="px-4 py-8 text-center text-gray-500 text-sm">
+                          予約履歴がありません
                         </div>
-                      ))
+                      )
                     ) : (
                       <div className="px-4 py-8 text-center text-gray-500 text-sm">
                         患者を選択すると予約履歴が表示されます
@@ -704,13 +894,6 @@ export function AppointmentEditModal({
                     )}
                   </div>
                 </div>
-                {selectedPatient && (
-                  <div className="mt-4">
-                    <Button variant="destructive" className="w-full">
-                      × 予約をキャンセル
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -788,16 +971,54 @@ export function AppointmentEditModal({
                       </SelectContent>
                     </Select>
                     <span className="text-sm">分</span>
-                    <Select value={appointmentData.duration?.toString() || ''} onValueChange={(value) => handleDurationChange(Number(value))}>
+                    <Select 
+                      value={calculateDuration(appointmentData.start_time, appointmentData.end_time).toString()} 
+                      onValueChange={(value) => {
+                        const duration = Number(value)
+                        const startTime = appointmentData.start_time
+                        const startMinutes = timeToMinutes(startTime)
+                        const endMinutes = startMinutes + duration
+                        const endTime = minutesToTime(endMinutes)
+                        
+                        setAppointmentData(prev => {
+                          const updatedData = {
+                            ...prev,
+                            duration,
+                            end_time: endTime
+                          }
+                          
+                          // 既存の予約を編集している場合は即座にカレンダーを更新
+                          if (editingAppointment && onUpdate) {
+                            onUpdate({
+                              ...updatedData,
+                              patient_id: editingAppointment.patient_id,
+                              menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
+                              menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
+                              menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+                              staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
+                              staff2_id: appointmentData.staff2_id,
+                              staff3_id: appointmentData.staff3_id,
+                              notes: appointmentData.notes,
+                              status: editingAppointment.status
+                            })
+                          }
+                          
+                          return updatedData
+                        })
+                      }}
+                    >
                       <SelectTrigger className="w-16">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[15, 30, 45, 60, 90, 120].map(duration => (
-                          <SelectItem key={duration} value={duration.toString()}>
-                            {duration}
-                          </SelectItem>
-                        ))}
+                        {Array.from({ length: 20 }, (_, i) => {
+                          const duration = (i + 1) * timeSlotMinutes
+                          return (
+                            <SelectItem key={duration} value={duration.toString()}>
+                              {duration}
+                            </SelectItem>
+                          )
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -811,21 +1032,9 @@ export function AppointmentEditModal({
                   >
                     メニュー
                   </button>
-                  {selectedMenu3 && (
-                    <div className="text-gray-600 font-medium">
-                      : {selectedMenu3.name}
-                    </div>
-                  )}
-                  {selectedMenu2 && !selectedMenu3 && (
-                    <div className="text-gray-600 font-medium">
-                      : {selectedMenu2.name}
-                    </div>
-                  )}
-                  {selectedMenu1 && !selectedMenu2 && !selectedMenu3 && (
-                    <div className="text-gray-600 font-medium">
-                      : {selectedMenu1.name}
-                    </div>
-                  )}
+                  <div className="text-gray-600 font-medium">
+                    : {selectedMenu1?.name || selectedMenu2?.name || selectedMenu3?.name || '未選択'}
+                  </div>
                 </div>
 
                 {/* 担当者選択 */}
@@ -867,6 +1076,13 @@ export function AppointmentEditModal({
                     disabled={saving || (!selectedPatient && !showNewPatientForm)}
                   >
                     {saving ? '登録中...' : '登録'}
+                  </Button>
+                </div>
+                
+                {/* 予約キャンセルボタン */}
+                <div className="flex justify-end pt-2">
+                  <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50">
+                    予約キャンセル
                   </Button>
                 </div>
               </div>

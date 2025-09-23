@@ -37,7 +37,7 @@ export function isBreakTime(
   const breakStartMinutes = timeToMinutes(breakTimes.start)
   const breakEndMinutes = timeToMinutes(breakTimes.end)
 
-  return timeMinutes >= breakStartMinutes && timeMinutes < breakEndMinutes
+  return timeMinutes > breakStartMinutes && timeMinutes <= breakEndMinutes
 }
 
 /**
