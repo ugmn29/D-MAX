@@ -23,13 +23,14 @@ import {
   Bell,
   Database,
   BarChart3,
+  Edit,
+  Trash2,
+  Plus,
   Clock,
   ChevronRight,
   Save,
-  Plus,
-  Trash2,
-  Edit,
   FolderOpen,
+  X,
   Tag,
   User,
   AlertCircle,
@@ -299,6 +300,15 @@ export default function SettingsPage() {
     is_active: true
   })
 
+  // デフォルトテキストの状態
+  const [defaultTexts, setDefaultTexts] = useState<Array<{id: string, title: string, content: string, createdAt: string, updatedAt: string}>>([])
+  const [showAddDefaultTextModal, setShowAddDefaultTextModal] = useState(false)
+  const [editingDefaultText, setEditingDefaultText] = useState<any>(null)
+  const [newDefaultText, setNewDefaultText] = useState({
+    title: '',
+    content: ''
+  })
+
   // 診療メニュー関連の状態
   const [treatmentMenus, setTreatmentMenus] = useState<any[]>([])
   const [editingTreatmentMenu, setEditingTreatmentMenu] = useState<any>(null)
@@ -323,6 +333,67 @@ export default function SettingsPage() {
     }
   }
 
+  // デフォルトテキストの保存
+  const saveDefaultTexts = (texts: Array<{id: string, title: string, content: string, createdAt: string, updatedAt: string}>) => {
+    setDefaultTexts(texts)
+    localStorage.setItem('default_texts', JSON.stringify(texts))
+  }
+
+  // デフォルトテキストの追加
+  const handleAddDefaultText = () => {
+    if (!newDefaultText.title.trim() || !newDefaultText.content.trim()) {
+      alert('タイトルと内容を入力してください')
+      return
+    }
+
+    const newText = {
+      id: Date.now().toString(),
+      title: newDefaultText.title,
+      content: newDefaultText.content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    const updatedTexts = [...defaultTexts, newText]
+    saveDefaultTexts(updatedTexts)
+    setNewDefaultText({ title: '', content: '' })
+    setShowAddDefaultTextModal(false)
+  }
+
+  // デフォルトテキストの編集
+  const handleEditDefaultText = (text: any) => {
+    setEditingDefaultText(text)
+    setNewDefaultText({ title: text.title, content: text.content })
+    setShowAddDefaultTextModal(true)
+  }
+
+  // デフォルトテキストの編集保存
+  const handleEditDefaultTextSave = () => {
+    if (!newDefaultText.title.trim() || !newDefaultText.content.trim()) {
+      alert('タイトルと内容を入力してください')
+      return
+    }
+
+    const updatedTexts = defaultTexts.map(text =>
+      text.id === editingDefaultText?.id
+        ? { ...text, title: newDefaultText.title, content: newDefaultText.content, updatedAt: new Date().toISOString() }
+        : text
+    )
+
+    saveDefaultTexts(updatedTexts)
+    setNewDefaultText({ title: '', content: '' })
+    setEditingDefaultText(null)
+    setShowAddDefaultTextModal(false)
+  }
+
+  // デフォルトテキストの削除
+  const handleDeleteDefaultText = (id: string) => {
+    if (confirm('このデフォルトテキストを削除しますか？')) {
+      const updatedTexts = defaultTexts.filter(text => text.id !== id)
+      saveDefaultTexts(updatedTexts)
+    }
+  }
+
 
   // 問診票データの読み込み
   useEffect(() => {
@@ -338,6 +409,14 @@ export default function SettingsPage() {
     }
     loadQuestionnaires()
   }, [selectedCategory])
+
+  // デフォルトテキストの読み込み
+  useEffect(() => {
+    const savedTexts = localStorage.getItem('default_texts')
+    if (savedTexts) {
+      setDefaultTexts(JSON.parse(savedTexts))
+    }
+  }, [])
 
   // 初期データの設定
   useEffect(() => {
@@ -2930,8 +3009,64 @@ export default function SettingsPage() {
         )}
         {selectedCategory === 'master' && renderMasterSettings()}
         {selectedCategory === 'subkarte' && (
-          <div className="text-center py-8 text-gray-500">
-            サブカルテ設定のコンテンツがここに表示されます
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">デフォルトテキスト管理</h2>
+              <p className="text-gray-600 mb-6">サブカルテで使用するデフォルトテキストを作成・管理できます</p>
+              
+              <div className="space-y-4">
+                {defaultTexts.map((text) => (
+                  <div key={text.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900">{text.title}</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                          作成日: {new Date(text.createdAt).toLocaleDateString('ja-JP')}
+                          {text.updatedAt !== text.createdAt && (
+                            <span className="ml-2">
+                              更新日: {new Date(text.updatedAt).toLocaleDateString('ja-JP')}
+                            </span>
+                          )}
+                        </p>
+                        <div className="mt-2 bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap">
+                          {text.content}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        <button
+                          onClick={() => handleEditDefaultText(text)}
+                          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDefaultText(text.id)}
+                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {defaultTexts.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    デフォルトテキストがありません
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowAddDefaultTextModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  新規追加
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -3006,6 +3141,74 @@ export default function SettingsPage() {
             setSelectedQuestionnaire(null)
           }}
         />
+      )}
+
+      {/* デフォルトテキスト追加・編集モーダル */}
+      {showAddDefaultTextModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">
+                {editingDefaultText ? 'デフォルトテキスト編集' : 'デフォルトテキスト追加'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddDefaultTextModal(false)
+                  setEditingDefaultText(null)
+                  setNewDefaultText({ title: '', content: '' })
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  タイトル
+                </label>
+                <Input
+                  value={newDefaultText.title}
+                  onChange={(e) => setNewDefaultText({ ...newDefaultText, title: e.target.value })}
+                  placeholder="デフォルトテキストのタイトル"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  内容
+                </label>
+                <textarea
+                  value={newDefaultText.content}
+                  onChange={(e) => setNewDefaultText({ ...newDefaultText, content: e.target.value })}
+                  placeholder="デフォルトテキストの内容"
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowAddDefaultTextModal(false)
+                  setEditingDefaultText(null)
+                  setNewDefaultText({ title: '', content: '' })
+                }}
+              >
+                キャンセル
+              </Button>
+              <Button 
+                onClick={editingDefaultText ? handleEditDefaultTextSave : handleAddDefaultText}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

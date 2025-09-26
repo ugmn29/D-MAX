@@ -6,10 +6,11 @@ interface ModalProps {
   onClose: () => void
   title?: string
   size?: 'small' | 'medium' | 'large'
+  className?: string
   children: React.ReactNode
 }
 
-export function Modal({ isOpen, onClose, title, size = 'medium', children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, size = 'medium', className, children }: ModalProps) {
   if (!isOpen) return null
 
   return (
@@ -22,9 +23,11 @@ export function Modal({ isOpen, onClose, title, size = 'medium', children }: Mod
       
       {/* モーダルコンテンツ */}
       <div className={`relative bg-white rounded-lg shadow-xl w-full max-h-[85vh] overflow-y-auto ${
-        size === 'small' ? 'max-w-md' : 
-        size === 'large' ? 'max-w-5xl' : 
-        'max-w-4xl'
+        className || (
+          size === 'small' ? 'max-w-md' : 
+          size === 'large' ? 'max-w-5xl' : 
+          'max-w-4xl'
+        )
       }`}>
         {/* ヘッダー */}
         {title && (

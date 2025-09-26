@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { RecordingContractModal } from '@/components/ui/recording-contract-modal'
+// 古いRecordingContractModalは削除
+import { HandwritingModal } from '@/components/ui/handwriting-modal'
+import { AudioRecordingModal } from '@/components/ui/audio-recording-modal'
 import { getStaff } from '@/lib/api/staff'
 import {
   FileText,
@@ -50,13 +52,15 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
   const [loading, setLoading] = useState(true)
   const [activeInputType, setActiveInputType] = useState<'text' | 'handwriting' | 'audio' | 'file'>('text')
   const [textContent, setTextContent] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
+  // 古い録音機能は削除 - 新しいAudioRecordingModalを使用
   const [selectedColor, setSelectedColor] = useState('#000000')
   const [brushSize, setBrushSize] = useState(2)
   const [isErasing, setIsErasing] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
-  const [showRecordingModal, setShowRecordingModal] = useState(false)
+  // 古いRecordingContractModalは削除
+  const [showHandwritingModal, setShowHandwritingModal] = useState(false)
+  const [showAudioRecordingModal, setShowAudioRecordingModal] = useState(false)
+  const [editingHandwritingEntry, setEditingHandwritingEntry] = useState<string | null>(null)
   const [editingEntry, setEditingEntry] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [textColor, setTextColor] = useState('#000000')
@@ -64,14 +68,20 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
   const [isTextSelected, setIsTextSelected] = useState(false)
   const [selectedText, setSelectedText] = useState('')
   const [richTextContent, setRichTextContentState] = useState('')
+  const [activeColorMode, setActiveColorMode] = useState<'text' | 'marker' | null>(null)
   const [selectedStaff, setSelectedStaff] = useState<string[]>([])
   const [showStaffModal, setShowStaffModal] = useState(false)
   const [staffList, setStaffList] = useState<Array<{id: string, name: string, position?: {id: string, name: string, sort_order: number}}>>([])
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDefaultTextModal, setShowDefaultTextModal] = useState(false)
+  const [defaultTexts, setDefaultTexts] = useState<Array<{id: string, title: string, content: string}>>([])
+  const [editTextColor, setEditTextColor] = useState('#000000')
+  const [editMarkerColor, setEditMarkerColor] = useState<string | null>(null)
+  const [editRichTextContent, setEditRichTextContent] = useState('')
+  const [editActiveColorMode, setEditActiveColorMode] = useState<'text' | 'marker' | null>(null)
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // 古い録音機能のrefは削除 - 新しいAudioRecordingModalを使用
 
   // ローカルストレージからデータを読み込み
   useEffect(() => {
@@ -128,6 +138,23 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
     }
     
     loadStaff()
+  }, [])
+
+  // デフォルトテキストの読み込み
+  useEffect(() => {
+    const savedTexts = localStorage.getItem('default_texts')
+    console.log('ローカルストレージから取得したデフォルトテキスト:', savedTexts)
+    if (savedTexts) {
+      try {
+        const parsedTexts = JSON.parse(savedTexts)
+        setDefaultTexts(parsedTexts)
+        console.log('読み込んだデフォルトテキスト:', parsedTexts)
+      } catch (error) {
+        console.error('デフォルトテキストの読み込みエラー:', error)
+      }
+    } else {
+      console.log('デフォルトテキストが見つかりません')
+    }
   }, [])
 
   // スタッフ選択の処理
@@ -223,55 +250,18 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
       return groups
     }, {} as Record<string, SubKarteEntry[]>)
 
+    // 各日付グループ内でエントリを新しい順にソート
+    Object.keys(grouped).forEach(date => {
+      grouped[date].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    })
+
     // 日付順でソート
     return Object.entries(grouped).sort(([a], [b]) => 
       new Date(b).getTime() - new Date(a).getTime()
     )
   }
 
-  // 録音開始
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
-      mediaRecorderRef.current = mediaRecorder
-      audioChunksRef.current = []
-
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data)
-      }
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
-        // ここで音声データをサーバーに送信
-        console.log('録音完了:', audioBlob)
-      }
-
-      mediaRecorder.start()
-      setIsRecording(true)
-      setRecordingTime(0)
-
-      // 録音時間のカウント
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1)
-      }, 1000)
-
-    } catch (error) {
-      console.error('録音開始エラー:', error)
-      alert('マイクへのアクセスが許可されていません')
-    }
-  }
-
-  // 録音停止
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      setIsRecording(false)
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current)
-      }
-    }
-  }
+  // 古い録音機能は削除 - 新しいAudioRecordingModalを使用
 
   // 手書き機能の初期化
   useEffect(() => {
@@ -340,22 +330,73 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
       }
       return true
     })
-    setUploadedFiles(prev => [...prev, ...validFiles])
+    
+    if (validFiles.length > 0) {
+      setUploadedFiles(prev => [...prev, ...validFiles])
+      // ファイル選択後、すぐにエントリとして保存
+      validFiles.forEach(file => {
+        const entry: SubKarteEntry = {
+          id: `entry_${Date.now()}_${Math.random()}`,
+          type: 'file',
+          content: file.name,
+          staffName: selectedStaff.length > 0 ? getSelectedStaffNames() : '現在のスタッフ',
+          createdAt: new Date().toISOString(),
+          metadata: {
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type
+          }
+        }
+        setEntries(prev => [entry, ...prev])
+        
+        // ローカルストレージに保存
+        const newEntries = [entry, ...entries]
+        localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(newEntries))
+      })
+    }
+    
+    // ファイル入力をリセット
+    e.target.value = ''
   }
 
   // エントリ編集開始
   const startEditEntry = (entry: SubKarteEntry) => {
     setEditingEntry(entry.id)
     setEditContent(entry.content)
+    // HTMLコンテンツをそのまま使用（色情報を保持）
+    setEditRichTextContent(entry.content)
+    setEditTextColor(entry.metadata?.color || '#000000')
+    setEditMarkerColor(entry.metadata?.markerColor || null)
+    
+    // 色モードを設定
+    if (entry.metadata?.markerColor) {
+      setEditActiveColorMode('marker')
+    } else if (entry.metadata?.color && entry.metadata.color !== '#000000') {
+      setEditActiveColorMode('text')
+    } else {
+      setEditActiveColorMode(null)
+    }
+    
+    setShowEditModal(true)
   }
 
   // エントリ編集保存
   const saveEditEntry = async (entryId: string) => {
     try {
+      // HTMLコンテンツをそのまま保存（色情報はHTMLに含まれている）
+      const content = editRichTextContent
       setEntries(prev => {
         const newEntries = prev.map(entry => 
           entry.id === entryId 
-            ? { ...entry, content: editContent }
+            ? { 
+                ...entry, 
+                content: content,
+                metadata: {
+                  ...entry.metadata,
+                  color: editTextColor,
+                  markerColor: editMarkerColor
+                }
+              }
             : entry
         )
         // ローカルストレージに保存
@@ -364,9 +405,154 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
       })
       setEditingEntry(null)
       setEditContent('')
+      setEditRichTextContent('')
+      setEditTextColor('#000000')
+      setEditMarkerColor(null)
+      setEditActiveColorMode(null)
+      setShowEditModal(false)
     } catch (error) {
       console.error('編集保存エラー:', error)
       alert('編集の保存に失敗しました')
+    }
+  }
+
+  // 編集用テキスト色の変更
+  const applyEditTextColor = (color: string) => {
+    const editor = document.getElementById('edit-rich-text-editor') as HTMLDivElement
+    if (editor) {
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const selectedText = range.toString()
+        
+        if (selectedText) {
+          // 選択されたテキストを色付きspanで囲む
+          const span = document.createElement('span')
+          span.style.color = color
+          span.textContent = selectedText
+          
+          range.deleteContents()
+          range.insertNode(span)
+          
+          // 選択を解除してカーソルをspanの後に移動
+          selection.removeAllRanges()
+          const newRange = document.createRange()
+          newRange.setStartAfter(span)
+          newRange.setEndAfter(span)
+          selection.addRange(newRange)
+          
+          // エディタの内容を更新
+          setEditRichTextContent(editor.innerHTML)
+          
+          // 色モードを解除
+          setEditActiveColorMode(null)
+          setEditTextColor('#000000')
+        } else {
+          // 選択されていない場合は何もしない
+          return
+        }
+      }
+    }
+  }
+
+  // 編集用マーカー色の適用
+  const applyEditMarkerColor = (color: string) => {
+    const editor = document.getElementById('edit-rich-text-editor') as HTMLDivElement
+    if (editor) {
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const selectedText = range.toString()
+        
+        if (selectedText) {
+          // シンプルな方法：選択範囲内にspanタグがあるかチェック
+          const container = range.commonAncestorContainer
+          const isAlreadyMarked = container.nodeType === Node.ELEMENT_NODE && 
+            (container as HTMLElement).tagName === 'SPAN' &&
+            (container as HTMLElement).style.backgroundColor &&
+            (container as HTMLElement).style.backgroundColor !== 'transparent'
+          
+          if (isAlreadyMarked) {
+            // 既にマーカーが適用されている場合は解除
+            const textNode = document.createTextNode(selectedText)
+            range.deleteContents()
+            range.insertNode(textNode)
+            
+            // 選択を解除してカーソルをテキストノードの後に移動
+            selection.removeAllRanges()
+            const newRange = document.createRange()
+            newRange.setStartAfter(textNode)
+            newRange.setEndAfter(textNode)
+            selection.addRange(newRange)
+          } else {
+            // マーカーを適用
+            const span = document.createElement('span')
+            span.style.backgroundColor = color
+            span.style.color = '#000000'
+            span.textContent = selectedText
+            
+            range.deleteContents()
+            range.insertNode(span)
+            
+            // 選択を解除してカーソルをspanの後に移動
+            selection.removeAllRanges()
+            const newRange = document.createRange()
+            newRange.setStartAfter(span)
+            newRange.setEndAfter(span)
+            selection.addRange(newRange)
+          }
+          
+          // エディタの内容を更新
+          setEditRichTextContent(editor.innerHTML)
+          
+          // マーカーモードを解除
+          setEditActiveColorMode(null)
+          setEditMarkerColor(null)
+        } else {
+          // 選択されていない場合は何もしない
+          return
+        }
+      }
+    }
+  }
+
+  // 編集用色の解除
+  const removeEditColor = () => {
+    const editor = document.getElementById('edit-rich-text-editor') as HTMLDivElement
+    if (editor) {
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const selectedText = range.toString()
+        
+        if (selectedText) {
+          // フォーカスをエディタに設定
+          editor.focus()
+          
+          // 選択範囲を削除してプレーンテキストを挿入
+          const textNode = document.createTextNode(selectedText)
+          range.deleteContents()
+          range.insertNode(textNode)
+          
+          // 選択を解除してカーソルをテキストノードの後に移動
+          selection.removeAllRanges()
+          const newRange = document.createRange()
+          newRange.setStartAfter(textNode)
+          newRange.setEndAfter(textNode)
+          selection.addRange(newRange)
+          
+          // エディタの内容を更新
+          setEditRichTextContent(editor.innerHTML)
+          
+          // 色モードを解除
+          setEditActiveColorMode(null)
+          setEditTextColor('#000000')
+          setEditMarkerColor(null)
+        } else {
+          // 選択されていない場合は何もしない
+          return
+        }
+      }
     }
   }
 
@@ -374,7 +560,74 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
   const cancelEditEntry = () => {
     setEditingEntry(null)
     setEditContent('')
+    setEditRichTextContent('')
+    setEditTextColor('#000000')
+    setEditMarkerColor(null)
+    setEditActiveColorMode(null)
+    setShowEditModal(false)
   }
+
+  // 編集モーダルの内容を更新（カーソル位置を保持）
+  useEffect(() => {
+    if (showEditModal) {
+      const editor = document.getElementById('edit-rich-text-editor') as HTMLDivElement
+      if (editor && editRichTextContent !== editor.innerHTML) {
+        // カーソル位置を保存
+        const selection = window.getSelection()
+        const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+        const cursorOffset = range ? range.startOffset : 0
+        
+        // 内容を更新
+        editor.innerHTML = editRichTextContent
+        
+        // カーソル位置を復元
+        if (range) {
+          try {
+            const newRange = document.createRange()
+            const textNode = editor.firstChild
+            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+              newRange.setStart(textNode, Math.min(cursorOffset, textNode.textContent?.length || 0))
+              newRange.setEnd(textNode, Math.min(cursorOffset, textNode.textContent?.length || 0))
+              selection?.removeAllRanges()
+              selection?.addRange(newRange)
+            }
+          } catch (e) {
+            // カーソル位置の復元に失敗した場合は無視
+          }
+        }
+      }
+    }
+  }, [editRichTextContent, showEditModal])
+
+  // メイン入力欄の内容を更新（カーソル位置を保持）
+  useEffect(() => {
+    const editor = document.getElementById('main-rich-text-editor') as HTMLDivElement
+    if (editor && richTextContent !== editor.innerHTML) {
+      // カーソル位置を保存
+      const selection = window.getSelection()
+      const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+      const cursorOffset = range ? range.startOffset : 0
+      
+      // 内容を更新
+      editor.innerHTML = richTextContent
+      
+      // カーソル位置を復元
+      if (range) {
+        try {
+          const newRange = document.createRange()
+          const textNode = editor.firstChild
+          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+            newRange.setStart(textNode, Math.min(cursorOffset, textNode.textContent?.length || 0))
+            newRange.setEnd(textNode, Math.min(cursorOffset, textNode.textContent?.length || 0))
+            selection?.removeAllRanges()
+            selection?.addRange(newRange)
+          }
+        } catch (e) {
+          // カーソル位置の復元に失敗した場合は無視
+        }
+      }
+    }
+  }, [richTextContent])
 
   // エントリ削除
   const deleteEntry = async (entryId: string) => {
@@ -406,11 +659,10 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
     }
   }
 
-  // リッチテキストエディタの色変更
+  // テキスト色の変更
   const applyTextColor = (color: string) => {
-    const editor = document.getElementById('rich-text-editor') as HTMLDivElement
+    const editor = document.getElementById('main-rich-text-editor') as HTMLDivElement
     if (editor) {
-      // 現在の選択範囲を取得
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0)
@@ -425,11 +677,22 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
           range.deleteContents()
           range.insertNode(span)
           
-          // 選択を解除
+          // 選択を解除してカーソルをspanの後に移動
           selection.removeAllRanges()
+          const newRange = document.createRange()
+          newRange.setStartAfter(span)
+          newRange.setEndAfter(span)
+          selection.addRange(newRange)
+          
+          // エディタの内容を更新
+          setRichTextContentState(editor.innerHTML)
+          
+          // 色モードを解除
+          setActiveColorMode(null)
+          setTextColor('#000000')
         } else {
-          // 選択されていない場合はカーソル位置から入力する色を設定
-          setTextColor(color)
+          // 選択されていない場合は何もしない
+          return
         }
       }
     }
@@ -437,7 +700,7 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
 
   // マーカー色の適用
   const applyMarkerColor = (color: string) => {
-    const editor = document.getElementById('rich-text-editor') as HTMLDivElement
+    const editor = document.getElementById('main-rich-text-editor') as HTMLDivElement
     if (editor) {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
@@ -445,42 +708,97 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
         const selectedText = range.toString()
         
         if (selectedText) {
-          // 選択されたテキストをマーカー付きspanで囲む
-          const span = document.createElement('span')
-          span.style.backgroundColor = color
-          span.textContent = selectedText
+          // シンプルな方法：選択範囲内にspanタグがあるかチェック
+          const container = range.commonAncestorContainer
+          const isAlreadyMarked = container.nodeType === Node.ELEMENT_NODE && 
+            (container as HTMLElement).tagName === 'SPAN' &&
+            (container as HTMLElement).style.backgroundColor &&
+            (container as HTMLElement).style.backgroundColor !== 'transparent'
           
-          range.deleteContents()
-          range.insertNode(span)
+          if (isAlreadyMarked) {
+            // 既にマーカーが適用されている場合は解除
+            const textNode = document.createTextNode(selectedText)
+            range.deleteContents()
+            range.insertNode(textNode)
+            
+            // 選択を解除してカーソルをテキストノードの後に移動
+            selection.removeAllRanges()
+            const newRange = document.createRange()
+            newRange.setStartAfter(textNode)
+            newRange.setEndAfter(textNode)
+            selection.addRange(newRange)
+          } else {
+            // マーカーを適用
+            const span = document.createElement('span')
+            span.style.backgroundColor = color
+            span.style.color = '#000000'
+            span.textContent = selectedText
+            
+            range.deleteContents()
+            range.insertNode(span)
+            
+            // 選択を解除してカーソルをspanの後に移動
+            selection.removeAllRanges()
+            const newRange = document.createRange()
+            newRange.setStartAfter(span)
+            newRange.setEndAfter(span)
+            selection.addRange(newRange)
+          }
           
-          // 選択を解除
-          selection.removeAllRanges()
+          // エディタの内容を更新
+          setRichTextContentState(editor.innerHTML)
+          
+          // マーカーモードを解除
+          setActiveColorMode(null)
+          setMarkerColor(null)
+        } else {
+          // 選択されていない場合は何もしない
+          return
         }
       }
     }
   }
 
-  // リッチテキストの内容を取得
-  const getRichTextContent = () => {
-    const editor = document.getElementById('rich-text-editor') as HTMLDivElement
+  // 色の解除
+  const removeColor = () => {
+    const editor = document.getElementById('main-rich-text-editor') as HTMLDivElement
     if (editor) {
-      // プレースホルダーテキストを除外
-      const content = editor.innerHTML
-      if (content === 'テキストを入力してください...' || content === '<div>テキストを入力してください...</div>') {
-        return ''
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const selectedText = range.toString()
+        
+        if (selectedText) {
+          // フォーカスをエディタに設定
+          editor.focus()
+          
+          // 選択範囲を削除してプレーンテキストを挿入
+          const textNode = document.createTextNode(selectedText)
+          range.deleteContents()
+          range.insertNode(textNode)
+          
+          // 選択を解除してカーソルをテキストノードの後に移動
+          selection.removeAllRanges()
+          const newRange = document.createRange()
+          newRange.setStartAfter(textNode)
+          newRange.setEndAfter(textNode)
+          selection.addRange(newRange)
+          
+          // エディタの内容を更新
+          setRichTextContentState(editor.innerHTML)
+          
+          // 色モードを解除
+          setActiveColorMode(null)
+          setTextColor('#000000')
+          setMarkerColor(null)
+        } else {
+          // 選択されていない場合は何もしない
+          return
+        }
       }
-      return content
     }
-    return ''
   }
 
-  // リッチテキストの内容を設定
-  const setRichTextContent = (content: string) => {
-    const editor = document.getElementById('rich-text-editor') as HTMLDivElement
-    if (editor) {
-      editor.innerHTML = content
-    }
-  }
 
   // テキストをレンダリング用に変換
   const renderText = (text: string) => {
@@ -491,6 +809,39 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
     return rendered
   }
 
+  // 手書きモーダル保存処理
+  const handleHandwritingSave = (content: string, type: 'handwriting' | 'text' | 'mixed', staffName?: string) => {
+    if (editingHandwritingEntry) {
+      // 編集モード
+      const updatedEntries = entries.map(entry => 
+        entry.id === editingHandwritingEntry 
+          ? { ...entry, content, type, staffName: staffName || entry.staffName, metadata: type === 'handwriting' ? { brushSize, color: selectedColor } : { color: textColor, markerColor: markerColor } }
+          : entry
+      )
+      setEntries(updatedEntries)
+      localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(updatedEntries))
+      setEditingHandwritingEntry(null)
+    } else {
+      // 新規作成モード
+      const newEntry: SubKarteEntry = {
+        id: Date.now().toString(),
+        type: type,
+        content: content,
+        metadata: type === 'handwriting' ? { brushSize, color: selectedColor } : { color: textColor, markerColor: markerColor },
+        createdAt: new Date().toISOString(),
+        staffName: staffName || (selectedStaff.length > 0 ? getSelectedStaffNames() : '現在のスタッフ')
+      }
+      
+      console.log('手書きエントリ保存:', { newEntry, selectedStaff, getSelectedStaffNames: getSelectedStaffNames() })
+      
+      const newEntries = [...entries, newEntry]
+      setEntries(newEntries)
+      localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(newEntries))
+    }
+    
+    setShowHandwritingModal(false)
+  }
+
   // エントリ保存
   const saveEntry = async () => {
     try {
@@ -499,9 +850,9 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
 
       switch (activeInputType) {
         case 'text':
-          content = getRichTextContent()
+          content = richTextContent.replace(/\n/g, '<br>')
           console.log('Rich text content:', content) // デバッグ用
-          if (!content || content.trim() === '' || content === '<div><br></div>') {
+          if (!content || content.trim() === '' || content === '<br>') {
             alert('テキストを入力してください')
             return
           }
@@ -597,7 +948,7 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
                 {/* その日のエントリ */}
                 <div className="space-y-3">
                   {dateEntries.map((entry) => (
-                    <Card key={entry.id} className="border-l-4 border-l-blue-500 relative">
+                    <Card key={entry.id} className="relative">
                       <CardContent className="p-4">
                         {/* 右上のアクションボタン */}
                         <div className="absolute top-2 right-2 flex items-center space-x-1">
@@ -611,9 +962,19 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
                             </button>
                           )}
                           <button
-                            onClick={() => startEditEntry(entry)}
+                            onClick={() => {
+                              console.log('編集アイコンをクリック:', entry.id, entry.type, entry.content);
+                              if (entry.type === 'handwriting' || entry.type === 'mixed') {
+                                // 手書きまたは混合コンテンツの場合は手書きモーダルを開く
+                                setEditingHandwritingEntry(entry.id)
+                                setShowHandwritingModal(true)
+                              } else {
+                                // テキストエントリの場合はテキスト編集モーダルを開く
+                                startEditEntry(entry)
+                              }
+                            }}
                             className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700"
-                            title="編集"
+                            title={entry.type === 'handwriting' || entry.type === 'mixed' ? '手書き編集' : 'テキスト編集'}
                           >
                             <Edit className="w-3 h-3" />
                           </button>
@@ -656,9 +1017,27 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
                             <>
                               <div 
                                 className="text-sm whitespace-pre-wrap"
+                                style={{
+                                  color: entry.metadata?.color || '#000000',
+                                  backgroundColor: entry.metadata?.markerColor || 'transparent'
+                                }}
                                 dangerouslySetInnerHTML={{ 
                                   __html: entry.type === 'handwriting' 
-                                    ? `<img src="${entry.content}" alt="手書きデータ" className="max-w-full h-auto" />`
+                                    ? `<img src="${entry.content}" alt="手書きデータ" className="w-full h-auto" style="object-fit: cover; object-position: left top; max-height: 60px; width: 100%;" />`
+                                    : entry.type === 'mixed'
+                                    ? (() => {
+                                        try {
+                                          const mixedData = JSON.parse(entry.content);
+                                          return `
+                                            <div class="space-y-2">
+                                              ${mixedData.text ? `<div class="text-sm">${mixedData.text}</div>` : ''}
+                                              ${mixedData.handwriting ? `<img src="${mixedData.handwriting}" alt="手書きデータ" className="w-full h-auto" style="object-fit: cover; object-position: left top; max-height: 60px; width: 100%;" />` : ''}
+                                            </div>
+                                          `;
+                                        } catch {
+                                          return entry.content;
+                                        }
+                                      })()
                                     : entry.content
                                 }}
                               />
@@ -694,90 +1073,85 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
             {/* 文字色ボタン */}
             <button
               className={`w-5 h-5 rounded-full border-2 ${
-                textColor === '#000000' && !markerColor ? 'border-gray-400' : 'border-gray-200'
+                activeColorMode === 'text' && textColor === '#000000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
               }`}
               style={{ backgroundColor: '#000000' }}
               onClick={() => {
                 setActiveInputType('text')
                 applyTextColor('#000000')
-                setMarkerColor(null)
               }}
               title="黒文字"
             />
             <button
               className={`w-5 h-5 rounded-full border-2 ${
-                textColor === '#ff0000' && !markerColor ? 'border-gray-400' : 'border-gray-200'
+                activeColorMode === 'text' && textColor === '#ff0000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
               }`}
               style={{ backgroundColor: '#ff0000' }}
               onClick={() => {
                 setActiveInputType('text')
                 applyTextColor('#ff0000')
-                setMarkerColor(null)
               }}
               title="赤文字"
             />
             <button
               className={`w-5 h-5 rounded-full border-2 ${
-                textColor === '#0000ff' && !markerColor ? 'border-gray-400' : 'border-gray-200'
+                activeColorMode === 'text' && textColor === '#0000ff' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
               }`}
               style={{ backgroundColor: '#0000ff' }}
               onClick={() => {
                 setActiveInputType('text')
                 applyTextColor('#0000ff')
-                setMarkerColor(null)
               }}
               title="青文字"
             />
             <button
               className={`w-5 h-5 rounded-full border-2 ${
-                textColor === '#ffff00' && !markerColor ? 'border-gray-400' : 'border-gray-200'
+                activeColorMode === 'text' && textColor === '#008000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
               }`}
-              style={{ backgroundColor: '#ffff00' }}
+              style={{ backgroundColor: '#008000' }}
               onClick={() => {
                 setActiveInputType('text')
-                applyTextColor('#ffff00')
-                setMarkerColor(null)
+                applyTextColor('#008000')
               }}
-              title="黄色文字"
+              title="緑文字"
             />
             
             {/* マーカーボタン */}
             <button
               className={`p-1 rounded ${
-                markerColor === '#ffff00' ? 'bg-gray-100 text-gray-700' : 'text-gray-500 hover:bg-gray-100'
+                activeColorMode === 'marker' ? 'bg-gray-100 text-gray-700 ring-2 ring-blue-500' : 'text-gray-500 hover:bg-gray-100'
               }`}
               onClick={() => {
                 setActiveInputType('text')
                 applyMarkerColor('#ffff00')
-                setTextColor('#000000')
               }}
               title="黄色マーカー"
             >
               <Highlighter className="w-3 h-3" style={{ color: '#000000' }} />
             </button>
             <button
-              className={`p-1 rounded ${
-                activeInputType === 'handwriting' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveInputType('handwriting')}
-              title="手書き"
+              className="p-1 rounded text-gray-500 hover:bg-gray-100"
+              onClick={() => setShowDefaultTextModal(true)}
+              title="デフォルトテキスト"
             >
-              <Pen className="w-3 h-3" />
+              <FileText className="w-3 h-3" />
             </button>
-            <button
-              className={`p-1 rounded ${
-                activeInputType === 'audio' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveInputType('audio')}
-              title="音声"
-            >
-              <Mic className="w-3 h-3" />
-            </button>
+            <input
+              type="file"
+              id="file-upload"
+              className="hidden"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.txt"
+              onChange={handleFileUpload}
+            />
             <button
               className={`p-1 rounded ${
                 activeInputType === 'file' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
               }`}
-              onClick={() => setActiveInputType('file')}
+              onClick={() => {
+                const fileInput = document.getElementById('file-upload') as HTMLInputElement
+                fileInput.click()
+              }}
               title="ファイル"
             >
               <Upload className="w-3 h-3" />
@@ -788,14 +1162,27 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
           {activeInputType === 'text' && (
             <div className="flex-1 flex flex-col">
               <div
-                id="rich-text-editor"
+                id="main-rich-text-editor"
                 contentEditable
                 className="flex-1 resize-none min-h-[200px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 style={{ 
-                  color: textColor,
-                  backgroundColor: markerColor || 'transparent'
+                  color: '#000000',
+                  backgroundColor: 'transparent',
+                  whiteSpace: 'pre-wrap'
                 }}
                 onInput={(e) => {
+                  const target = e.target as HTMLDivElement
+                  setRichTextContentState(target.innerHTML)
+                }}
+                onKeyDown={(e) => {
+                  // エンターキーは自然な改行動作を許可
+                  if (e.key === 'Enter') {
+                    // デフォルトの動作を使用（<div>要素として改行）
+                  }
+                  // DeleteキーとBackspaceキーもデフォルトの動作を使用
+                }}
+                onKeyUp={(e) => {
+                  // キーアップ時に内容を更新（カーソル位置を保持）
                   const target = e.target as HTMLDivElement
                   setRichTextContentState(target.innerHTML)
                 }}
@@ -812,9 +1199,7 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
                   }
                 }}
                 suppressContentEditableWarning={true}
-              >
-                テキストを入力してください...
-              </div>
+              />
             </div>
           )}
 
@@ -870,28 +1255,23 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
             <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
               <div className="text-center">
                 <div className="text-2xl font-bold mb-4">
-                  {formatTime(recordingTime)}
+                  音声録音・文字起こし・要約
                 </div>
-                {!isRecording ? (
-                  <Button
-                    onClick={startRecording}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    <Mic className="w-4 h-4 mr-2" />
-                    録音開始
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={stopRecording}
-                    className="bg-gray-600 hover:bg-gray-700 text-white"
-                  >
-                    <Square className="w-4 h-4 mr-2" />
-                    録音停止
-                  </Button>
-                )}
-                <p className="text-sm text-gray-500 mt-2">
-                  最大30分まで録音可能
+                <Button
+                  onClick={() => setShowAudioRecordingModal(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-4 text-lg"
+                >
+                  <Mic className="w-5 h-5 mr-2" />
+                  録音開始
+                </Button>
+                <p className="text-sm text-gray-500 mt-4">
+                  音声を録音して自動で文字起こし・要約を行います
                 </p>
+                <div className="mt-4 text-xs text-gray-400">
+                  • 自動文字起こし対応<br/>
+                  • 3つの要約テンプレート<br/>
+                  • サブカルテへの直接貼り付け
+                </div>
               </div>
             </div>
           )}
@@ -941,20 +1321,29 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
             </div>
           )}
 
+
           {/* 録音・スタッフ・送信ボタン */}
           <div className="mt-2 flex space-x-2">
             <Button
-              onClick={() => setShowRecordingModal(true)}
+              onClick={() => setShowAudioRecordingModal(true)}
               variant="outline"
-              className="flex-1"
+              className="flex-2"
             >
-              <FileSignature className="w-4 h-4 mr-2" />
+              <FileSignature className="w-5 h-5 mr-2" />
               録音
+            </Button>
+            <Button
+              onClick={() => setShowHandwritingModal(true)}
+              variant="outline"
+              className="flex-none px-2"
+              title="手書き"
+            >
+              <Pen className="w-3 h-3" />
             </Button>
             <Button
               onClick={() => setShowStaffModal(true)}
               variant="outline"
-              className={`flex-1 ${selectedStaff.length > 0 ? 'bg-blue-50 border-blue-300' : ''}`}
+              className={`flex-none px-3 ${selectedStaff.length > 0 ? 'bg-blue-50 border-blue-300' : ''}`}
               title={selectedStaff.length > 0 ? `選択中: ${getSelectedStaffNames()}` : 'スタッフ選択'}
             >
               <User className="w-4 h-4" />
@@ -963,6 +1352,7 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
               onClick={saveEntry}
               className="flex-1"
               disabled={
+                selectedStaff.length === 0 ||
                 (activeInputType === 'text' && (!richTextContent || richTextContent.trim() === '' || richTextContent === 'テキストを入力してください...' || richTextContent === '<div>テキストを入力してください...</div>')) ||
                 (activeInputType === 'file' && uploadedFiles.length === 0) ||
                 (activeInputType === 'audio' && recordingTime === 0)
@@ -975,12 +1365,77 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
         </div>
       </div>
 
-      {/* 録音・契約モーダル */}
-      <RecordingContractModal
-        isOpen={showRecordingModal}
-        onClose={() => setShowRecordingModal(false)}
+      {/* 古いRecordingContractModalは削除 */}
+
+      {/* 音声録音モーダル */}
+      <AudioRecordingModal
+        isOpen={showAudioRecordingModal}
+        onClose={() => setShowAudioRecordingModal(false)}
         patientId={patientId}
       />
+
+      {/* 手書きモーダル */}
+      <HandwritingModal
+        isOpen={showHandwritingModal}
+        onClose={() => {
+          setShowHandwritingModal(false)
+          setEditingHandwritingEntry(null)
+        }}
+        onSave={handleHandwritingSave}
+        initialContent={editingHandwritingEntry ? entries.find(e => e.id === editingHandwritingEntry)?.content : ''}
+        initialType={editingHandwritingEntry ? (entries.find(e => e.id === editingHandwritingEntry)?.type === 'mixed' ? 'mixed' : 'handwriting') : 'handwriting'}
+        editingEntryId={editingHandwritingEntry}
+      />
+
+      {/* デフォルトテキスト選択モーダル */}
+      {showDefaultTextModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-h-96 overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">デフォルトテキスト選択</h3>
+              <button
+                onClick={() => setShowDefaultTextModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              {defaultTexts.length > 0 ? (
+                defaultTexts.map((text) => (
+                  <button
+                    key={text.id}
+                    onClick={() => {
+                      setRichTextContentState(prev => prev + text.content)
+                      setShowDefaultTextModal(false)
+                    }}
+                    className="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50"
+                  >
+                    <div className="font-medium text-sm">{text.title}</div>
+                    <div className="text-xs text-gray-500 mt-1">{text.content.substring(0, 50)}...</div>
+                  </button>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">デフォルトテキストがありません</p>
+                  <p className="text-xs mt-1">設定ページでデフォルトテキストを作成してください</p>
+                  <p className="text-xs mt-1 text-gray-400">デバッグ: defaultTexts.length = {defaultTexts.length}</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowDefaultTextModal(false)}
+              >
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* スタッフ選択モーダル */}
       {showStaffModal && (
@@ -1033,6 +1488,137 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
                 onClick={() => setShowStaffModal(false)}
               >
                 確定
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編集モーダル */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-2/3 max-w-4xl max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">エントリ編集</h3>
+              <button
+                onClick={cancelEditEntry}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* 色選択ボタン */}
+            <div className="flex space-x-1 mb-4">
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#000000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#000000' }}
+                onClick={() => {
+                  applyEditTextColor('#000000')
+                }}
+                title="黒文字"
+              />
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#ff0000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#ff0000' }}
+                onClick={() => {
+                  applyEditTextColor('#ff0000')
+                }}
+                title="赤文字"
+              />
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#0000ff' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#0000ff' }}
+                onClick={() => {
+                  applyEditTextColor('#0000ff')
+                }}
+                title="青文字"
+              />
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#008000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#008000' }}
+                onClick={() => {
+                  applyEditTextColor('#008000')
+                }}
+                title="緑文字"
+              />
+              
+              {/* マーカーボタン */}
+              <button
+                className={`p-1 rounded ${
+                  editActiveColorMode === 'marker' ? 'bg-gray-100 text-gray-700 ring-2 ring-blue-500' : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                onClick={() => {
+                  applyEditMarkerColor('#ffff00')
+                }}
+                title="黄色マーカー"
+              >
+                <Highlighter className="w-3 h-3" style={{ color: '#000000' }} />
+              </button>
+            </div>
+
+            {/* リッチテキストエディタ */}
+            <div
+              id="edit-rich-text-editor"
+              contentEditable
+              className="w-full min-h-[200px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              style={{ 
+                color: '#000000',
+                backgroundColor: 'transparent',
+                whiteSpace: 'pre-wrap'
+              }}
+              onInput={(e) => {
+                const target = e.target as HTMLDivElement
+                setEditRichTextContent(target.innerHTML)
+              }}
+              onKeyUp={(e) => {
+                // キーアップ時に内容を更新（カーソル位置を保持）
+                const target = e.target as HTMLDivElement
+                setEditRichTextContent(target.innerHTML)
+              }}
+              onKeyDown={(e) => {
+                // エンターキーは自然な改行動作を許可
+                if (e.key === 'Enter') {
+                  // デフォルトの動作を使用（<div>要素として改行）
+                }
+                // DeleteキーとBackspaceキーもデフォルトの動作を使用
+              }}
+              onFocus={(e) => {
+                const target = e.target as HTMLDivElement
+                if (target.innerHTML === 'テキストを入力してください...' || target.innerHTML === '<div>テキストを入力してください...</div>') {
+                  target.innerHTML = ''
+                }
+              }}
+              onBlur={(e) => {
+                const target = e.target as HTMLDivElement
+                if (target.innerHTML === '' || target.innerHTML === '<div><br></div>') {
+                  target.innerHTML = 'テキストを入力してください...'
+                }
+              }}
+              suppressContentEditableWarning={true}
+            />
+
+            {/* ボタン */}
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={cancelEditEntry}
+              >
+                キャンセル
+              </Button>
+              <Button
+                onClick={() => saveEditEntry(editingEntry!)}
+                disabled={!editRichTextContent || editRichTextContent.trim() === '' || editRichTextContent === 'テキストを入力してください...' || editRichTextContent === '<div>テキストを入力してください...</div>'}
+              >
+                保存
               </Button>
             </div>
           </div>

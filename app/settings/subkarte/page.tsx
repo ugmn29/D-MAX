@@ -1,459 +1,276 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { MainLayout } from '@/components/layout/main-layout'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Save, Plus, Trash2, Edit } from 'lucide-react'
-import { getClinicSettings, setClinicSetting } from '@/lib/api/clinic'
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
 
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-
-interface Template {
-  id: string
-  name: string
-  content: string
-  category: string
-  sort_order: number
+interface DefaultText {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface Category {
-  id: string
-  name: string
-  sort_order: number
-}
+export default function SubkarteSettingsPage() {
+  const [defaultTexts, setDefaultTexts] = useState<DefaultText[]>([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingText, setEditingText] = useState<DefaultText | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    content: ''
+  });
 
-export default function SubKarteSettingsPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState('templates')
-  const [templates, setTemplates] = useState<Template[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
-  const [showAddTemplate, setShowAddTemplate] = useState(false)
-  const [showAddCategory, setShowAddCategory] = useState(false)
-  
-  const [newTemplate, setNewTemplate] = useState({
-    name: '',
-    content: '',
-    category: '',
-    sort_order: 0
-  })
-  
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    sort_order: 0
-  })
-
-  // データ読み込み
+  // ローカルストレージからデフォルトテキストを読み込み
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        const settings = await getClinicSettings(DEMO_CLINIC_ID)
-        
-        setTemplates(settings.subkarte_templates || [])
-        setCategories(settings.subkarte_categories || [])
-      } catch (error) {
-        console.error('データ読み込みエラー:', error)
-      } finally {
-        setLoading(false)
-      }
+    const savedTexts = localStorage.getItem('default_texts');
+    if (savedTexts) {
+      setDefaultTexts(JSON.parse(savedTexts));
     }
-    
-    loadData()
-  }, [])
+  }, []);
 
-  // テンプレート追加
-  const handleAddTemplate = async () => {
-    try {
-      setSaving(true)
-      const newTemplateData = {
-        ...newTemplate,
-        id: Date.now().toString()
-      }
-      
-      const updatedTemplates = [...templates, newTemplateData]
-      setTemplates(updatedTemplates)
-      await setClinicSetting(DEMO_CLINIC_ID, 'subkarte_templates', updatedTemplates)
-      
-      setNewTemplate({
-        name: '',
-        content: '',
-        category: '',
-        sort_order: 0
-      })
-      setShowAddTemplate(false)
-    } catch (error) {
-      console.error('テンプレート追加エラー:', error)
-      alert('テンプレートの追加に失敗しました')
-    } finally {
-      setSaving(false)
+  // デフォルトテキストを保存
+  const saveDefaultTexts = (texts: DefaultText[]) => {
+    setDefaultTexts(texts);
+    localStorage.setItem('default_texts', JSON.stringify(texts));
+  };
+
+  // 新規追加
+  const handleAdd = () => {
+    if (!formData.title.trim() || !formData.content.trim()) {
+      alert('タイトルと内容を入力してください');
+      return;
     }
-  }
 
-  // カテゴリ追加
-  const handleAddCategory = async () => {
-    try {
-      setSaving(true)
-      const newCategoryData = {
-        ...newCategory,
-        id: Date.now().toString()
-      }
-      
-      const updatedCategories = [...categories, newCategoryData]
-      setCategories(updatedCategories)
-      await setClinicSetting(DEMO_CLINIC_ID, 'subkarte_categories', updatedCategories)
-      
-      setNewCategory({
-        name: '',
-        sort_order: 0
-      })
-      setShowAddCategory(false)
-    } catch (error) {
-      console.error('カテゴリ追加エラー:', error)
-      alert('カテゴリの追加に失敗しました')
-    } finally {
-      setSaving(false)
+    const newText: DefaultText = {
+      id: Date.now().toString(),
+      title: formData.title,
+      content: formData.content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const updatedTexts = [...defaultTexts, newText];
+    saveDefaultTexts(updatedTexts);
+    setFormData({ title: '', content: '' });
+    setShowAddModal(false);
+  };
+
+  // 編集開始
+  const handleEdit = (text: DefaultText) => {
+    setEditingText(text);
+    setFormData({ title: text.title, content: text.content });
+    setShowEditModal(true);
+  };
+
+  // 編集保存
+  const handleEditSave = () => {
+    if (!formData.title.trim() || !formData.content.trim()) {
+      alert('タイトルと内容を入力してください');
+      return;
     }
-  }
 
-  // テンプレート削除
-  const handleDeleteTemplate = async (templateId: string) => {
-    if (!confirm('このテンプレートを削除しますか？')) return
-    
-    try {
-      setSaving(true)
-      const updatedTemplates = templates.filter(t => t.id !== templateId)
-      setTemplates(updatedTemplates)
-      await setClinicSetting(DEMO_CLINIC_ID, 'subkarte_templates', updatedTemplates)
-    } catch (error) {
-      console.error('テンプレート削除エラー:', error)
-      alert('テンプレートの削除に失敗しました')
-    } finally {
-      setSaving(false)
+    const updatedTexts = defaultTexts.map(text =>
+      text.id === editingText?.id
+        ? { ...text, title: formData.title, content: formData.content, updatedAt: new Date().toISOString() }
+        : text
+    );
+
+    saveDefaultTexts(updatedTexts);
+    setFormData({ title: '', content: '' });
+    setEditingText(null);
+    setShowEditModal(false);
+  };
+
+  // 削除
+  const handleDelete = (id: string) => {
+    if (confirm('このデフォルトテキストを削除しますか？')) {
+      const updatedTexts = defaultTexts.filter(text => text.id !== id);
+      saveDefaultTexts(updatedTexts);
     }
-  }
+  };
 
-  // カテゴリ削除
-  const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('このカテゴリを削除しますか？')) return
-    
-    try {
-      setSaving(true)
-      const updatedCategories = categories.filter(c => c.id !== categoryId)
-      setCategories(updatedCategories)
-      await setClinicSetting(DEMO_CLINIC_ID, 'subkarte_categories', updatedCategories)
-    } catch (error) {
-      console.error('カテゴリ削除エラー:', error)
-      alert('カテゴリの削除に失敗しました')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
-        </div>
-      </MainLayout>
-    )
-  }
+  // フォームリセット
+  const resetForm = () => {
+    setFormData({ title: '', content: '' });
+    setEditingText(null);
+    setShowAddModal(false);
+    setShowEditModal(false);
+  };
 
   return (
-    <MainLayout>
-      <div className="flex h-screen">
-        {/* 左サイドバー */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-          {/* ヘッダー */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.back()}
-                className="mr-2"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <h1 className="text-xl font-bold text-gray-900">サブカルテ</h1>
-            </div>
-          </div>
-
-          {/* メニュー項目 */}
-          <div className="flex-1 overflow-y-auto">
-            <nav className="p-4 space-y-2">
-              <div className="bg-blue-50 text-blue-700 border border-blue-200 p-3 rounded-lg">
-                <div className="font-medium">サブカルテ</div>
-                <div className="text-sm text-blue-600">定型文登録とカテゴリ管理</div>
-              </div>
-            </nav>
-          </div>
-        </div>
-
-        {/* メインコンテンツエリア */}
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="p-6">
-            {/* ヘッダー */}
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">サブカルテ設定</h2>
-                <p className="text-gray-600">定型文登録とカテゴリを管理します</p>
-              </div>
-            </div>
-
-            {/* タブ */}
-            <div className="flex space-x-1 mb-6">
-              <button
-                onClick={() => setActiveTab('templates')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'templates'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                定型文登録
-              </button>
-              <button
-                onClick={() => setActiveTab('categories')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'categories'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                カテゴリ管理
-              </button>
-            </div>
-
-            {/* 定型文登録タブ */}
-            {activeTab === 'templates' && (
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">定型文一覧</h3>
-                  <Button onClick={() => setShowAddTemplate(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    定型文追加
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {templates.map(template => (
-                    <Card key={template.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="font-medium">{template.name}</div>
-                            <div className="text-sm text-gray-500 mt-1">
-                              カテゴリ: {template.category} | 並び順: {template.sort_order}
-                            </div>
-                            <div className="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded">
-                              {template.content}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingTemplate(template)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteTemplate(template.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                {/* 定型文追加フォーム */}
-                {showAddTemplate && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>新しい定型文を追加</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="template_name">定型文名</Label>
-                          <Input
-                            id="template_name"
-                            value={newTemplate.name}
-                            onChange={(e) => setNewTemplate(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="例: 初診時の挨拶"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="template_category">カテゴリ</Label>
-                          <select
-                            id="template_category"
-                            value={newTemplate.category}
-                            onChange={(e) => setNewTemplate(prev => ({ ...prev, category: e.target.value }))}
-                            className="w-full p-2 border border-gray-300 rounded-md"
-                          >
-                            <option value="">カテゴリを選択</option>
-                            {categories.map(category => (
-                              <option key={category.id} value={category.name}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="template_content">定型文内容</Label>
-                        <textarea
-                          id="template_content"
-                          value={newTemplate.content}
-                          onChange={(e) => setNewTemplate(prev => ({ ...prev, content: e.target.value }))}
-                          placeholder="例: 本日はお忙しい中、ご来院いただきありがとうございます。"
-                          className="w-full p-2 border border-gray-300 rounded-md h-24"
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="template_sort">並び順</Label>
-                        <Input
-                          id="template_sort"
-                          type="number"
-                          value={newTemplate.sort_order}
-                          onChange={(e) => setNewTemplate(prev => ({ ...prev, sort_order: parseInt(e.target.value) }))}
-                          className="max-w-xs"
-                        />
-                      </div>
-                      
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowAddTemplate(false)}
-                        >
-                          キャンセル
-                        </Button>
-                        <Button
-                          onClick={handleAddTemplate}
-                          disabled={saving || !newTemplate.name || !newTemplate.content}
-                        >
-                          {saving ? '追加中...' : '追加'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
-
-            {/* カテゴリ管理タブ */}
-            {activeTab === 'categories' && (
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">カテゴリ一覧</h3>
-                  <Button onClick={() => setShowAddCategory(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    カテゴリ追加
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {categories.map(category => (
-                    <Card key={category.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">{category.name}</div>
-                            <div className="text-sm text-gray-500">
-                              並び順: {category.sort_order}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingCategory(category)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteCategory(category.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                {/* カテゴリ追加フォーム */}
-                {showAddCategory && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>新しいカテゴリを追加</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="category_name">カテゴリ名</Label>
-                          <Input
-                            id="category_name"
-                            value={newCategory.name}
-                            onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="例: 初診時"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="category_sort">並び順</Label>
-                          <Input
-                            id="category_sort"
-                            type="number"
-                            value={newCategory.sort_order}
-                            onChange={(e) => setNewCategory(prev => ({ ...prev, sort_order: parseInt(e.target.value) }))}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowAddCategory(false)}
-                        >
-                          キャンセル
-                        </Button>
-                        <Button
-                          onClick={handleAddCategory}
-                          disabled={saving || !newCategory.name}
-                        >
-                          {saving ? '追加中...' : '追加'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">サブカルテ設定</h1>
+        <p className="text-gray-600 mt-2">デフォルトテキストの管理</p>
       </div>
-    </MainLayout>
-  )
+
+      {/* デフォルトテキスト一覧 */}
+      <div className="space-y-4">
+        {defaultTexts.map((text) => (
+          <Card key={text.id}>
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-lg">{text.title}</CardTitle>
+                  <p className="text-sm text-gray-500 mt-1">
+                    作成日: {new Date(text.createdAt).toLocaleDateString('ja-JP')}
+                    {text.updatedAt !== text.createdAt && (
+                      <span className="ml-2">
+                        更新日: {new Date(text.updatedAt).toLocaleDateString('ja-JP')}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(text)}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(text.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap">
+                {text.content}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {defaultTexts.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            デフォルトテキストがありません
+          </div>
+        )}
+      </div>
+
+      {/* 新規追加ボタン */}
+      <div className="mt-6">
+        <Button onClick={() => setShowAddModal(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          新規追加
+        </Button>
+      </div>
+
+      {/* 新規追加モーダル */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">デフォルトテキスト追加</h3>
+              <button
+                onClick={resetForm}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  タイトル
+                </label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="デフォルトテキストのタイトル"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  内容
+                </label>
+                <Textarea
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  placeholder="デフォルトテキストの内容"
+                  rows={6}
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button variant="outline" onClick={resetForm}>
+                キャンセル
+              </Button>
+              <Button onClick={handleAdd}>
+                <Save className="w-4 h-4 mr-2" />
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編集モーダル */}
+      {showEditModal && editingText && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">デフォルトテキスト編集</h3>
+              <button
+                onClick={resetForm}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  タイトル
+                </label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="デフォルトテキストのタイトル"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  内容
+                </label>
+                <Textarea
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  placeholder="デフォルトテキストの内容"
+                  rows={6}
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button variant="outline" onClick={resetForm}>
+                キャンセル
+              </Button>
+              <Button onClick={handleEditSave}>
+                <Save className="w-4 h-4 mr-2" />
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

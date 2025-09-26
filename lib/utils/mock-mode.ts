@@ -274,7 +274,7 @@ const DEFAULT_TREATMENT_MENUS = [
 const DEFAULT_STAFF = [
   {
     id: 'staff-1',
-    clinic_id: 'clinic-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
     name: '田中太郎',
     name_kana: 'タナカタロウ',
     position_id: 'position-1',
@@ -285,11 +285,22 @@ const DEFAULT_STAFF = [
   },
   {
     id: 'staff-2',
-    clinic_id: 'clinic-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
     name: '佐藤花子',
     name_kana: 'サトウハナコ',
     position_id: 'position-2',
     role: 'hygienist',
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'staff-3',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '山田次郎',
+    name_kana: 'ヤマダジロウ',
+    position_id: 'position-3',
+    role: 'staff',
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -300,7 +311,7 @@ const DEFAULT_STAFF = [
 const DEFAULT_STAFF_POSITIONS = [
   {
     id: 'position-1',
-    clinic_id: 'clinic-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
     name: '歯科医師',
     sort_order: 1,
     created_at: new Date().toISOString(),
@@ -308,9 +319,17 @@ const DEFAULT_STAFF_POSITIONS = [
   },
   {
     id: 'position-2',
-    clinic_id: 'clinic-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
     name: '歯科衛生士',
     sort_order: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'position-3',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '受付',
+    sort_order: 3,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
