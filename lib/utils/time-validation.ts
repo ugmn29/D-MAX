@@ -24,6 +24,7 @@ export interface BreakTime {
 
 /**
  * 指定された時間が休憩時間かどうかを判定
+ * 休憩時間の開始時刻と終了時刻は休憩時間としてカウントしない
  */
 export function isBreakTime(
   time: string,
@@ -37,7 +38,8 @@ export function isBreakTime(
   const breakStartMinutes = timeToMinutes(breakTimes.start)
   const breakEndMinutes = timeToMinutes(breakTimes.end)
 
-  return timeMinutes > breakStartMinutes && timeMinutes <= breakEndMinutes
+  // 休憩時間の開始時刻と終了時刻は休憩時間としてカウントしない
+  return timeMinutes > breakStartMinutes && timeMinutes < breakEndMinutes
 }
 
 /**

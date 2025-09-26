@@ -8,6 +8,20 @@ import { MOCK_MODE } from '@/lib/utils/mock-mode'
  * 全患者を取得
  */
 export async function getPatients(clinicId: string): Promise<Patient[]> {
+  // MOCK_MODEの場合はlocalStorageから取得
+  if (MOCK_MODE) {
+    try {
+      const { getMockPatients } = await import('@/lib/utils/mock-mode')
+      const mockPatients = getMockPatients()
+      console.log('MOCK_MODE: 患者データを取得:', mockPatients)
+      return mockPatients
+    } catch (mockError) {
+      console.error('MOCK_MODE患者データ取得エラー:', mockError)
+      return []
+    }
+  }
+
+  // 本番モードではデータベースから取得
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('patients')

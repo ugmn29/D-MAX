@@ -14,10 +14,10 @@ CREATE TABLE IF NOT EXISTS patient_note_types (
 ALTER TABLE patient_note_types DISABLE ROW LEVEL SECURITY;
 
 -- デモデータの挿入
-INSERT INTO patient_note_types (clinic_id, name, description, sort_order, is_active)
+INSERT INTO patient_note_types (clinic_id, name, sort_order, is_active)
 VALUES 
-    ('11111111-1111-1111-1111-111111111111', 'アレルギー', '患者のアレルギー情報', 1, true),
-    ('11111111-1111-1111-1111-111111111111', '既往歴', '過去の病気や治療歴', 2, true),
-    ('11111111-1111-1111-1111-111111111111', '服用薬', '現在服用中の薬', 3, true),
-    ('11111111-1111-1111-1111-111111111111', '注意事項', 'その他の注意事項', 4, true)
+    ('11111111-1111-1111-1111-111111111111', 'アレルギー', 1, true),
+    ('11111111-1111-1111-1111-111111111111', '既往歴', 2, true),
+    ('11111111-1111-1111-1111-111111111111', '服用薬', 3, true),
+    ('11111111-1111-1111-1111-111111111111', '注意事項', 4, true)
 ON CONFLICT DO NOTHING;

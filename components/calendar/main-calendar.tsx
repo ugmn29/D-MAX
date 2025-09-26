@@ -7,6 +7,7 @@ import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
 import { Appointment, BusinessHours, BreakTimes, StaffShift } from '@/types/database'
 import { AppointmentEditModal } from '@/components/forms/appointment-edit-modal'
+import { CancelInfoModal } from '@/components/ui/cancel-info-modal'
 import { formatDateForDB } from '@/lib/utils/date'
 import { initializeMockData } from '@/lib/utils/mock-mode'
 import { timeToMinutes, minutesToTime } from '@/lib/utils/time-validation'
@@ -18,6 +19,8 @@ interface MainCalendarProps {
   timeSlotMinutes: number // 必須パラメータに変更
   displayItems?: string[] // 表示項目の設定
   cellHeight?: number // セルの高さ設定
+  onCopyStateChange?: (copiedAppointment: any, isPasteMode: boolean) => void
+  onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
 }
 
 interface TimeSlot {
@@ -43,7 +46,7 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
-export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40 }: MainCalendarProps) {
+export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, onCopyStateChange, onAppointmentCancel }: MainCalendarProps) {
   const [workingStaff, setWorkingStaff] = useState<WorkingStaff[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
@@ -55,9 +58,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [selectionStart, setSelectionStart] = useState<string | null>(null)
   const [selectionEnd, setSelectionEnd] = useState<string | null>(null)
 
-  // デバッグログ
-  console.log('MainCalendar: timeSlotMinutes:', timeSlotMinutes)
-  console.log('MainCalendar: timeSlotMinutesの型:', typeof timeSlotMinutes)
   const [holidays, setHolidays] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [staffLoading, setStaffLoading] = useState(false)
@@ -78,6 +78,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [dropTargetTime, setDropTargetTime] = useState<string | null>(null)
   const [isDropTargetValid, setIsDropTargetValid] = useState<boolean>(true)
   const [hasMoved, setHasMoved] = useState(false)
+
+  // コピータブ機能関連
+  const [copiedAppointment, setCopiedAppointment] = useState<Appointment | null>(null)
+  const [isPasteMode, setIsPasteMode] = useState(false)
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
+  
+  // ホバー状態管理
+  const [hoveredTimeSlot, setHoveredTimeSlot] = useState<string | null>(null)
+  const [hoveredStaffIndex, setHoveredStaffIndex] = useState<number | null>(null)
+
+  // キャンセル情報モーダル
+  const [showCancelInfoModal, setShowCancelInfoModal] = useState(false)
+  const [selectedCancelledAppointment, setSelectedCancelledAppointment] = useState<Appointment | null>(null)
 
   // ドラッグ量表示関連
   const [dragDelta, setDragDelta] = useState<{ x: number; y: number; timeSlots: number } | null>(null)
@@ -116,6 +129,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     e.preventDefault()
     e.stopPropagation()
     
+    // キャンセルされた予約はドラッグできない
+    if (appointment.status === 'キャンセル') {
+      console.log('キャンセルされた予約はドラッグできません')
+      return
+    }
+    
     // マウスがセル内のどの位置を掴んだかを記録
     const rect = e.currentTarget.getBoundingClientRect()
     const offsetX = e.clientX - rect.left
@@ -151,19 +170,18 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         setHasMoved(true)
       }
       
-      // ドロップ先の時間スロットを計算
-      const dropTime = calculateDropTimeSlot(e.clientX, e.clientY)
-      setDropTargetTime(dropTime)
+      // ドロップ先の時間スロットとスタッフインデックスを計算
+      const dropTarget = calculateDropTarget(e.clientX, e.clientY)
+      setDropTargetTime(dropTarget.timeSlot)
       
       // 重複チェック
-      if (dropTime) {
-        const startMinutes = timeToMinutes(dropTime)
+      if (dropTarget.timeSlot) {
+        const startMinutes = timeToMinutes(dropTarget.timeSlot)
         const duration = timeToMinutes(draggedAppointment.end_time) - timeToMinutes(draggedAppointment.start_time)
         const endMinutes = startMinutes + duration
         const newEndTime = minutesToTime(endMinutes)
         
-        
-        const hasConflict = checkAppointmentConflict(draggedAppointment, dropTime, newEndTime)
+        const hasConflict = checkAppointmentConflict(draggedAppointment, dropTarget.timeSlot, newEndTime)
         setIsDropTargetValid(!hasConflict)
       } else {
         setIsDropTargetValid(true)
@@ -173,12 +191,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
   const handleAppointmentMouseUp = async (e: React.MouseEvent) => {
     if (isDragging && draggedAppointment && dragStartPosition) {
-      // ドロップ先の時間スロットを計算
-      const dropTimeSlot = calculateDropTimeSlot(e.clientX, e.clientY)
+      // ドロップ先の時間スロットとスタッフインデックスを計算
+      const dropTarget = calculateDropTarget(e.clientX, e.clientY)
       
-      if (dropTimeSlot) {
-        // 予約を移動
-        await moveAppointment(draggedAppointment, dropTimeSlot)
+      if (dropTarget.timeSlot) {
+        // 予約を移動（スタッフ間移動も含む）
+        await moveAppointment(draggedAppointment, dropTarget.timeSlot, dropTarget.staffIndex)
       }
     }
     
@@ -194,35 +212,47 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     setHasMoved(false)
   }
 
-  // ドロップ先の時間スロットを計算（1枠ごとに制限）
-  const calculateDropTimeSlot = (clientX: number, clientY: number): string | null => {
-    if (!gridRef.current) return null
+  // ドロップ先の時間スロットとスタッフインデックスを計算（1枠ごとに制限、スクロール位置考慮）
+  const calculateDropTarget = (clientX: number, clientY: number): { timeSlot: string | null; staffIndex: number | null } => {
+    if (!gridRef.current) return { timeSlot: null, staffIndex: null }
     
     const rect = gridRef.current.getBoundingClientRect()
-    const relativeY = clientY - rect.top
+    
+    // スクロール位置を考慮した相対位置を計算
+    const relativeY = clientY - rect.top + gridRef.current.scrollTop
     const relativeX = clientX - rect.left
     
     // 時間スロットの高さを計算（timeSlotsの生成ロジックと一致させる）
     const slotHeight = cellHeight
     const slotIndex = Math.floor(relativeY / slotHeight)
     
-    console.log('calculateDropTimeSlot デバッグ:', {
+    // スタッフ列の幅を計算
+    const columnWidth = rect.width / workingStaff.length
+    const staffIndex = Math.floor(relativeX / columnWidth)
+    
+    console.log('calculateDropTarget デバッグ（スクロール位置考慮）:', {
+      clientX,
       clientY,
       rectTop: rect.top,
+      rectLeft: rect.left,
+      scrollTop: gridRef.current.scrollTop,
       relativeY,
+      relativeX,
       slotHeight,
       slotIndex,
+      columnWidth,
+      staffIndex,
       timeSlotsLength: timeSlots.length,
+      workingStaffLength: workingStaff.length,
       calculatedTime: slotIndex >= 0 && slotIndex < timeSlots.length ? timeSlots[slotIndex]?.time : 'out of range',
-      timeSlots: timeSlots.slice(0, 5).map(s => s.time) // 最初の5つの時間を表示
+      calculatedStaff: staffIndex >= 0 && staffIndex < workingStaff.length ? workingStaff[staffIndex]?.staff.name : 'out of range'
     })
     
     // 1枠ごとの制限：有効な時間スロットの範囲内でのみ移動を許可
-    if (slotIndex >= 0 && slotIndex < timeSlots.length) {
-      return timeSlots[slotIndex].time
-    }
+    const timeSlot = (slotIndex >= 0 && slotIndex < timeSlots.length) ? timeSlots[slotIndex].time : null
+    const validStaffIndex = (staffIndex >= 0 && staffIndex < workingStaff.length) ? staffIndex : null
     
-    return null
+    return { timeSlot, staffIndex: validStaffIndex }
   }
 
   // 休憩時間との重複チェック
@@ -230,15 +260,40 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const newStartMinutes = timeToMinutes(newStartTime)
     const newEndMinutes = timeToMinutes(newEndTime)
     
-    // 休憩時間の範囲をチェック
-    const isInBreakTime = isBreakTime(newStartTime) || isBreakTime(newEndTime)
+    // 休憩時間の範囲をチェック（開始時刻ぴったりは除外）
+    const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+    const dayMapping: Record<string, string> = {
+      'monday': 'monday',
+      'tuesday': 'tuesday', 
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    }
+    
+    const dayId = dayMapping[dayOfWeek] as keyof BreakTimes
+    const dayBreaks = breakTimes[dayId]
+    
+    if (!dayBreaks?.start || !dayBreaks?.end) return false
+    
+    const breakStartMinutes = timeToMinutes(dayBreaks.start)
+    const breakEndMinutes = timeToMinutes(dayBreaks.end)
+    
+    // 予約の開始時刻が休憩時間の開始時刻ぴったり（例：12:00）の場合は重複しない
+    // 予約の終了時刻が休憩時間の開始時刻ぴったり（例：12:00）の場合は重複しない
+    const isStartInBreak = newStartMinutes > breakStartMinutes && newStartMinutes < breakEndMinutes
+    const isEndInBreak = newEndMinutes > breakStartMinutes && newEndMinutes < breakEndMinutes
+    
+    const isInBreakTime = isStartInBreak || isEndInBreak
     
     if (isInBreakTime) {
       console.log('休憩時間との重複検出:', {
         startTime: newStartTime,
         endTime: newEndTime,
-        isStartInBreak: isBreakTime(newStartTime),
-        isEndInBreak: isBreakTime(newEndTime)
+        breakTime: `${dayBreaks.start} - ${dayBreaks.end}`,
+        isStartInBreak,
+        isEndInBreak
       })
     }
     
@@ -250,9 +305,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const newStartMinutes = timeToMinutes(newStartTime)
     const newEndMinutes = timeToMinutes(newEndTime)
     
-    // 同じ予約以外で重複をチェック
+    // 同じ予約以外で重複をチェック（キャンセルされた予約は除外）
     const hasConflict = appointments.some(existingAppointment => {
       if (existingAppointment.id === appointment.id) return false // 自分自身は除外
+      if (existingAppointment.status === 'キャンセル') return false // キャンセルされた予約は除外
       
       const existingStartMinutes = timeToMinutes(existingAppointment.start_time)
       const existingEndMinutes = timeToMinutes(existingAppointment.end_time)
@@ -265,7 +321,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           movingAppointment: { id: appointment.id, time: `${newStartTime}-${newEndTime}` },
           conflictingAppointment: { 
             id: existingAppointment.id, 
-            time: `${existingAppointment.start_time}-${existingAppointment.end_time}` 
+            time: `${existingAppointment.start_time}-${existingAppointment.end_time}`,
+            status: existingAppointment.status
           }
         })
       }
@@ -276,8 +333,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     return hasConflict
   }
 
-  // 予約を移動（1枠ごとに制限）
-  const moveAppointment = async (appointment: Appointment, newStartTime: string) => {
+  // 予約を移動（1枠ごとに制限、スタッフ間移動対応）
+  const moveAppointment = async (appointment: Appointment, newStartTime: string, newStaffIndex: number | null = null) => {
     try {
       // 1枠ごとの制限：有効な時間スロットかチェック
       const isValidTimeSlot = timeSlots.some(slot => slot.time === newStartTime)
@@ -313,12 +370,27 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         }
       }
       
-      // 予約を更新
-      await updateAppointment(appointment.id, {
+      // 更新データを準備
+      const updateData: any = {
         start_time: newStartTime,
         end_time: newEndTime,
         appointment_date: formatDateForDB(selectedDate)
-      })
+      }
+      
+      // スタッフ間移動の場合、担当者を変更
+      if (newStaffIndex !== null && workingStaff[newStaffIndex]) {
+        const newStaff = workingStaff[newStaffIndex].staff
+        updateData.staff1_id = newStaff.id
+        
+        console.log('スタッフ間移動:', {
+          from: appointment.staff1_id,
+          to: newStaff.id,
+          staffName: newStaff.name
+        })
+      }
+      
+      // 予約を更新
+      await updateAppointment(appointment.id, updateData)
       
       // 予約一覧を再読み込み
       const dateString = formatDateForDB(selectedDate)
@@ -330,7 +402,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         from: appointment.start_time, 
         to: newStartTime,
         endTime: newEndTime,
-        duration
+        duration,
+        staffChanged: newStaffIndex !== null,
+        newStaff: newStaffIndex !== null ? workingStaff[newStaffIndex]?.staff.name : '変更なし'
       })
     } catch (error) {
       console.error('予約移動エラー:', error)
@@ -342,6 +416,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const handleResizeMouseDown = (e: React.MouseEvent, appointment: Appointment) => {
     e.stopPropagation()
     e.preventDefault()
+    
+    // キャンセルされた予約はリサイズできない
+    if (appointment.status === 'キャンセル') {
+      console.log('キャンセルされた予約はリサイズできません')
+      return
+    }
     
     setIsResizing(true)
     setResizingAppointment(appointment)
@@ -477,6 +557,92 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     setResizePreviewHeight(null)
     setResizePreviewEndTime(null)
     setHasMoved(false)
+  }
+
+  // コピー機能
+  const handleCopyAppointment = (appointment: Appointment) => {
+    setCopiedAppointment(appointment)
+    setIsPasteMode(true)
+    onCopyStateChange?.(appointment, true)
+    console.log('予約をコピーしました:', appointment)
+  }
+
+  // マウス位置を追跡
+  const handlePasteMouseMove = (e: React.MouseEvent) => {
+    if (isPasteMode) {
+      setMousePosition({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  // セルホバー処理
+  const handleCellMouseEnter = (timeSlot: string, staffIndex?: number) => {
+    setHoveredTimeSlot(timeSlot)
+    setHoveredStaffIndex(staffIndex ?? null)
+  }
+
+  const handleCellMouseLeave = () => {
+    setHoveredTimeSlot(null)
+    setHoveredStaffIndex(null)
+  }
+
+  // 貼り付け機能
+  const handlePasteAppointment = async (targetTimeSlot: string, targetStaffIndex: number) => {
+    if (!copiedAppointment) return
+
+    try {
+      // 新しい予約データを作成
+      const newAppointmentData = {
+        patient_id: copiedAppointment.patient_id,
+        staff1_id: workingStaff[targetStaffIndex]?.staff.id,
+        staff2_id: copiedAppointment.staff2_id,
+        staff3_id: copiedAppointment.staff3_id,
+        menu1_id: copiedAppointment.menu1_id,
+        menu2_id: copiedAppointment.menu2_id,
+        menu3_id: copiedAppointment.menu3_id,
+        start_time: targetTimeSlot,
+        end_time: (() => {
+          const startMinutes = timeToMinutes(targetTimeSlot)
+          const duration = timeToMinutes(copiedAppointment.end_time) - timeToMinutes(copiedAppointment.start_time)
+          const endMinutes = startMinutes + duration
+          return minutesToTime(endMinutes)
+        })(),
+        status: copiedAppointment.status,
+        notes: (copiedAppointment as any).notes || '',
+        appointment_date: formatDateForDB(selectedDate)
+      }
+
+      // 重複チェック
+      if (checkAppointmentConflict(copiedAppointment, newAppointmentData.start_time, newAppointmentData.end_time)) {
+        alert(`選択された時間帯（${newAppointmentData.start_time} - ${newAppointmentData.end_time}）には既に他の予約があります`)
+        return
+      }
+
+      // 休憩時間との重複チェック
+      if (checkBreakTimeConflict(newAppointmentData.start_time, newAppointmentData.end_time)) {
+        const confirmMessage = `選択された時間帯（${newAppointmentData.start_time} - ${newAppointmentData.end_time}）は休憩時間と重複しています。\nそれでも予約を確定しますか？`
+        if (!confirm(confirmMessage)) {
+          return
+        }
+      }
+
+      // 予約を作成
+      await createAppointment(clinicId, newAppointmentData)
+      
+      // 予約一覧を再読み込み
+      const dateString = formatDateForDB(selectedDate)
+      const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+      setAppointments(updatedAppointments)
+      
+      // 貼り付けモードを終了
+      setIsPasteMode(false)
+      setCopiedAppointment(null)
+      onCopyStateChange?.(null, false)
+      
+      console.log('予約を貼り付けました:', newAppointmentData)
+    } catch (error) {
+      console.error('予約貼り付けエラー:', error)
+      alert('予約の貼り付けに失敗しました')
+    }
   }
 
 
@@ -761,6 +927,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     // timeSlotMinutesが有効な数値でない場合はデフォルト値15を使用
     const validTimeSlotMinutes = (typeof timeSlotMinutes === 'number' && timeSlotMinutes > 0) ? timeSlotMinutes : 15
     
+        // すべての予約を処理（キャンセルされた予約も表示）
         appointments.forEach((appointment, index) => {
           const startTime = appointment.start_time
           const endTime = appointment.end_time
@@ -793,15 +960,39 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         console.log('スタッフが見つからないため、最初のスタッフを使用:', staffIndex)
       }
       
-      const top = (startMinutes - 9 * 60) / validTimeSlotMinutes * 40 // 40px per slot
-      const height = (endMinutes - startMinutes) / validTimeSlotMinutes * 40
+      // 診療時間の開始時間を取得
+      const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+      const dayMapping: Record<string, string> = {
+        'monday': 'monday',
+        'tuesday': 'tuesday', 
+        'wednesday': 'wednesday',
+        'thursday': 'thursday',
+        'friday': 'friday',
+        'saturday': 'saturday',
+        'sunday': 'sunday'
+      }
+      const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
+      const dayHours = businessHours[dayId]
+      
+      // 診療時間の開始時間を取得（デフォルトは9時）
+      let businessStartHour = 9
+      if (dayHours?.isOpen && dayHours?.timeSlots && dayHours.timeSlots.length > 0) {
+        const firstSlot = dayHours.timeSlots[0]
+        businessStartHour = parseInt(firstSlot.start.split(':')[0])
+      }
+      
+      const top = (startMinutes - businessStartHour * 60) / validTimeSlotMinutes * cellHeight
+      const height = (endMinutes - startMinutes) / validTimeSlotMinutes * cellHeight
       
       console.log(`予約${index}のブロック計算:`, {
         startMinutes,
         endMinutes,
         staffIndex,
+        businessStartHour,
         top,
-        height
+        height,
+        validTimeSlotMinutes,
+        cellHeight
       })
       
       blocks.push({
@@ -849,7 +1040,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
     
     const dayId = dayMapping[dayOfWeek]
-    console.log('休診日判定:', { dayOfWeek, dayId, holidays })
     
     return dayId ? holidays.includes(dayId) : false
   }
@@ -1019,6 +1209,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           )}
         </div>
 
+
         {/* タイムライングリッド */}
         <div 
           ref={gridRef}
@@ -1027,6 +1218,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           onMouseMove={(e) => {
             handleAppointmentMouseMove(e)
             handleResizeMouseMove(e)
+            handlePasteMouseMove(e)
           }}
           onMouseUp={(e) => {
             handleAppointmentMouseUp(e)
@@ -1039,6 +1231,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             const isHourBoundary = slot.minute === 0
             const isDropTarget = isDragging && dropTargetTime === slot.time
             const isDropTargetInvalid = isDropTarget && !isDropTargetValid
+            const isHovered = hoveredTimeSlot === slot.time
             
             return (
               <div
@@ -1052,15 +1245,21 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                         ? isBreak 
                           ? 'bg-blue-300 border-blue-500 border-2' // 休憩時間での複数選択時はより濃い青
                           : 'bg-blue-200 border-blue-400' // 通常時間での複数選択時
-                        : isOutside 
-                          ? 'bg-gray-100' 
-                          : isBreak 
-                            ? 'bg-gray-400 cursor-pointer' 
-                            : 'bg-white'
+                        : isHovered
+                          ? 'bg-blue-50 border-blue-200 border' // ホバー時の薄い青
+                          : isOutside 
+                            ? 'bg-gray-100' 
+                            : isBreak 
+                              ? 'bg-gray-200 cursor-pointer' 
+                              : 'bg-white'
                 }`}
                 style={{
-                  borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB'
+                  borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB',
+                  borderBottom: isBreak ? 'none' : undefined,
+                  zIndex: isBreak ? 1 : 'auto'
                 }}
+                onMouseEnter={() => handleCellMouseEnter(slot.time)}
+                onMouseLeave={handleCellMouseLeave}
                 onMouseDown={(e) => {
                   // 休憩時間や時間外でもマウスダウンを許可（選択範囲の開始）
                   handleMouseDown(slot.time, e)
@@ -1074,6 +1273,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   handleMouseUp()
                 }}
                 onClick={(e) => {
+                  // 貼り付けモードの場合は貼り付け処理
+                  if (isPasteMode && copiedAppointment) {
+                    e.stopPropagation()
+                    // 最初のスタッフに貼り付け
+                    handlePasteAppointment(slot.time, 0)
+                    return
+                  }
+                  
                   // 休憩時間や時間外でもクリックを許可（警告モーダルで対応）
                   // 単一クリックの場合は従来通り
                   if (!isSelecting) {
@@ -1086,19 +1293,43 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               >
                 {workingStaff.map((_, staffIndex) => {
                   const isLastColumn = staffIndex === workingStaff.length - 1
+                  const isDropTargetStaff = isDragging && dropTargetTime === slot.time && (() => {
+                    if (!dragCurrentPosition) return false
+                    const dropTarget = calculateDropTarget(dragCurrentPosition.x, dragCurrentPosition.y)
+                    return dropTarget.staffIndex === staffIndex
+                  })()
+                  const isDropTargetStaffInvalid = isDropTargetStaff && !isDropTargetValid
+                  
                   return (
                     <div
                       key={staffIndex}
                       className={`flex-1 border-r border-gray-200 ${
                         isBreak ? 'bg-gray-200' : ''
+                      } ${
+                        isDropTargetStaffInvalid
+                          ? 'bg-red-200 border-red-400 border-2' // 重複するドロップ先のハイライト（赤）
+                          : isDropTargetStaff
+                            ? 'bg-green-200 border-green-400 border-2' // 有効なドロップ先のハイライト（緑）
+                            : hoveredTimeSlot === slot.time && hoveredStaffIndex === staffIndex
+                              ? 'bg-blue-50 border-blue-200' // ホバー時の薄い青（キャンセルされた予約でも適用）
+                              : ''
                       }`}
                       style={{ 
                         minWidth: getColumnMinWidth(),
                         maxWidth: getColumnWidth()
                       }}
+                      onMouseEnter={() => handleCellMouseEnter(slot.time, staffIndex)}
+                      onMouseLeave={handleCellMouseLeave}
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
+                        
+                        // 貼り付けモードの場合は貼り付け処理
+                        if (isPasteMode && copiedAppointment) {
+                          handlePasteAppointment(slot.time, staffIndex)
+                          return
+                        }
+                        
                         // 休憩時間や時間外でもクリックを許可（警告モーダルで対応）
                         // スタッフ列をクリックした場合
                         console.log('スタッフ列クリック:', slot.time, 'スタッフインデックス:', staffIndex, '休憩時間:', isBreak, '時間外:', isOutside)
@@ -1117,23 +1348,15 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
           {/* 予約ブロック */}
           {appointmentBlocks.map((block, index) => {
-            const menuColor = (block.appointment as any).menu1?.color || '#3B82F6'
+            const isCancelled = block.appointment.status === 'キャンセル'
+            const menuColor = isCancelled ? '#FEF2F2' : ((block.appointment as any).menu1?.color || '#3B82F6')
             const patient = (block.appointment as any).patient
             
-            // デバッグログを追加
-            console.log(`予約ブロック${index}の患者情報:`, {
-              appointmentId: block.appointment.id,
-              patient: patient,
-              hasPatient: !!patient,
-              patientName: patient ? `${patient.last_name} ${patient.first_name}` : 'なし',
-              patientDetails: patient ? {
-                id: patient.id,
-                last_name: patient.last_name,
-                first_name: patient.first_name,
-                phone: patient.phone,
-                patient_number: patient.patient_number
-              } : null
-            })
+            // 休憩時間内でキャンセルされた予約は表示しない
+            if (isCancelled && isBreakTime(block.appointment.start_time)) {
+              return null
+            }
+            
             
             const patientAge = patient?.birth_date ? 
               new Date().getFullYear() - new Date(patient.birth_date).getFullYear() : null
@@ -1141,10 +1364,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             return (
               <div
                 key={index}
-                className={`absolute rounded-md text-xs cursor-pointer hover:shadow-md transition-shadow overflow-hidden ${
+                className={`absolute rounded-md text-xs transition-shadow overflow-hidden ${
                   isDragging && draggedAppointment?.id === block.appointment.id 
                     ? 'opacity-0' 
-                    : ''
+                    : isCancelled 
+                    ? 'cursor-default' 
+                    : 'cursor-pointer hover:shadow-md'
                 }`}
                 style={{
                   top: `${isDragging && draggedAppointment?.id === block.appointment.id 
@@ -1152,20 +1377,41 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                         // ドラッグ中の場合は、マウス位置に基づいて新しい位置を計算
                         if (!dragCurrentPosition || !dragStartPosition) return block.top
                         
-                        // マウスの移動量を計算
+                        // マウスの移動量を計算（スクロール位置を考慮）
                         const deltaY = dragCurrentPosition.y - dragStartPosition.y
                         const newTop = block.top + deltaY
                         return newTop
                       })()
                     : block.top}px`,
                   height: `${isResizing && resizingAppointment?.id === block.appointment.id && resizePreviewHeight ? resizePreviewHeight : block.height}px`,
-                  left: `${(block.staffIndex / workingStaff.length) * 100}%`,
+                  left: `${isDragging && draggedAppointment?.id === block.appointment.id 
+                    ? (() => {
+                        // ドラッグ中の場合は、マウス位置に基づいて新しい位置を計算
+                        if (!dragCurrentPosition || !dragStartPosition) return (block.staffIndex / workingStaff.length) * 100
+                        
+                        // マウスの移動量を計算
+                        const deltaX = dragCurrentPosition.x - dragStartPosition.x
+                        const originalLeft = (block.staffIndex / workingStaff.length) * 100
+                        const newLeft = originalLeft + (deltaX / window.innerWidth) * 100
+                        return Math.max(0, Math.min(100 - (100 / workingStaff.length), newLeft))
+                      })()
+                    : (block.staffIndex / workingStaff.length) * 100}%`,
                   width: getColumnWidth(),
                   minWidth: getColumnMinWidth(),
-                  backgroundColor: menuColor,
-                  color: 'black',
+                  backgroundColor: (() => {
+                    // ホバー時は青いハイライトを優先
+                    if (hoveredTimeSlot === block.appointment.start_time && hoveredStaffIndex === block.staffIndex) {
+                      return '#DBEAFE' // bg-blue-50 の色
+                    }
+                    return menuColor
+                  })(),
+                  color: isCancelled ? '#DC2626' : 'black',
                   padding: '2px 8px 8px 8px', // 上を2px、左右8px、下8px
-                  zIndex: isDragging && draggedAppointment?.id === block.appointment.id ? 1000 : 'auto'
+                  zIndex: isDragging && draggedAppointment?.id === block.appointment.id ? 1000 : isCancelled ? 5 : 10,
+                  opacity: isDragging && draggedAppointment?.id === block.appointment.id ? 0.8 : isCancelled ? 0.8 : 1,
+                  transform: isDragging && draggedAppointment?.id === block.appointment.id ? 'scale(1.02)' : 'scale(1)',
+                  boxShadow: isDragging && draggedAppointment?.id === block.appointment.id ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
+                  transition: isDragging && draggedAppointment?.id === block.appointment.id ? 'none' : 'all 0.2s ease'
                 }}
                 onMouseDown={(e) => handleAppointmentMouseDown(e, block.appointment)}
                 onClick={(e) => {
@@ -1175,7 +1421,18 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     return
                   }
                   
-                  // 予約編集モーダルを開く
+                  // キャンセルされた予約の場合は新しい予約を作成
+                  if (isCancelled) {
+                    e.stopPropagation()
+                    console.log('キャンセルされた予約セルクリック - 新しい予約を作成:', block.appointment)
+                    setSelectedTimeSlot(block.appointment.start_time)
+                    setSelectedStaffIndex(block.staffIndex)
+                    setEditingAppointment(null) // 新規予約として扱う
+                    setShowAppointmentModal(true)
+                    return
+                  }
+                  
+                  // 通常の予約編集モーダルを開く
                   e.stopPropagation()
                   console.log('予約セルクリック:', block.appointment)
                   console.log('選択された時間スロット:', block.appointment.start_time)
@@ -1187,78 +1444,159 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   console.log('モーダル表示フラグ設定完了')
                 }}
               >
-                {/* 1段目: 診療時間、診察券番号 - 上ギリギリに配置 */}
-                <div className="font-medium text-xs leading-tight" style={{ marginTop: '0px', marginBottom: '2px' }}>
-                  {isResizing && resizingAppointment?.id === block.appointment.id && resizePreviewEndTime ? (
-                    <>
-                      {block.appointment.start_time} - {resizePreviewEndTime}
-                      {patient?.patient_number && ` / ${patient.patient_number}`}
-                    </>
-                  ) : (
-                    <>
-                      {block.appointment.start_time} - {block.appointment.end_time}
-                      {patient?.patient_number && ` / ${patient.patient_number}`}
-                    </>
-                  )}
-                </div>
+                {/* キャンセルされていない予約のみテキストを表示 */}
+                {!isCancelled && (
+                  <>
+                    {/* 1段目: 診療時間、診察券番号 - 上ギリギリに配置 */}
+                    <div className="text-xs leading-tight" style={{ marginTop: '0px', marginBottom: '2px' }}>
+                      {isResizing && resizingAppointment?.id === block.appointment.id && resizePreviewEndTime ? (
+                        <>
+                          {block.appointment.start_time} - {resizePreviewEndTime}
+                          {patient?.patient_number && patient?.is_registered && ` / ${patient.patient_number}`}
+                        </>
+                      ) : (
+                        <>
+                          {block.appointment.start_time} - {block.appointment.end_time}
+                          {patient?.patient_number && patient?.is_registered && ` / ${patient.patient_number}`}
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* 2段目: 患者名、年齢、診療メニュー、担当者 - 横並びで表示 */}
+                    <div className="text-sm leading-tight" style={{ lineHeight: '1.2', marginTop: '4px' }}>
+                      {/* 患者名 */}
+                      <span className="font-medium">
+                        {patient ? 
+                          `${patient.last_name} ${patient.first_name}` : 
+                          '患者情報なし'
+                        }
+                      </span>
+                      
+                      {/* 年齢 - 常に表示 */}
+                      {patientAge && (
+                        <span> / {patientAge}歳</span>
+                      )}
+                      
+                      {/* 診療メニュー - 常に表示 */}
+                      <span> / {(block.appointment as any).menu1?.name || 
+                             (block.appointment as any).menu2?.name || 
+                             (block.appointment as any).menu3?.name || 
+                             '診療メニュー'}</span>
+                      
+                      {/* 担当者 - 常に表示 */}
+                      <span> / {(block.appointment as any).staff1?.name || 
+                             (block.appointment as any).staff2?.name || 
+                             (block.appointment as any).staff3?.name || 
+                             '担当者未設定'}</span>
+                    </div>
+                  </>
+                )}
                 
-                {/* 2段目: 患者名、年齢、診療メニュー、担当者 - 横並びで表示 */}
-                <div className="text-sm leading-tight" style={{ lineHeight: '1.2', marginTop: '4px' }}>
-                  {/* 患者名 */}
-                  <span className="font-medium">
-                    {patient ? 
-                      `${patient.last_name} ${patient.first_name}` : 
-                      '患者情報なし'
-                    }
-                  </span>
-                  
-                  {/* 年齢 - 常に表示 */}
-                  {patientAge && (
-                    <span> / {patientAge}歳</span>
-                  )}
-                  
-                  {/* 診療メニュー - 常に表示 */}
-                  <span> / {(block.appointment as any).menu1?.name || 
-                         (block.appointment as any).menu2?.name || 
-                         (block.appointment as any).menu3?.name || 
-                         '診療メニュー'}</span>
-                  
-                  {/* 担当者 - 常に表示 */}
-                  <span> / {(block.appointment as any).staff1?.name || 
-                         (block.appointment as any).staff2?.name || 
-                         (block.appointment as any).staff3?.name || 
-                         '担当者未設定'}</span>
-                </div>
-                
-                {/* ステータスアイコン（右上） - セルの高さが十分な場合のみ表示 */}
+                {/* ステータスアイコンとコピーボタン（右上） - セルの高さが十分な場合のみ表示 */}
                 {block.height >= 60 && (
-                  <div className="absolute top-1 right-1">
+                  <div className="absolute top-1 right-1 flex space-x-1">
                     {block.appointment.status === '終了' && (
                       <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
                         <span className="text-xs">歯</span>
                       </div>
                     )}
+                    {/* キャンセル情報アイコン */}
+                    {isCancelled && (
+                      <button
+                        className="w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedCancelledAppointment(block.appointment)
+                          setShowCancelInfoModal(true)
+                        }}
+                        title="キャンセル情報を表示"
+                      >
+                        <span className="text-xs">❌</span>
+                      </button>
+                    )}
+                    {/* コピーボタン */}
+                    {!isCancelled && (
+                      <button
+                        className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleCopyAppointment(block.appointment)
+                        }}
+                        title="予約をコピー"
+                      >
+                        <span className="text-xs">📋</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
-                {/* リサイズハンドル（下側の境界） */}
-                <div
-                  className="absolute bottom-0 left-0 right-0 cursor-ns-resize opacity-0 hover:opacity-100 transition-opacity"
-                  onMouseDown={(e) => handleResizeMouseDown(e, block.appointment)}
-                  style={{
-                    backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                    height: '4px'
-                  }}
-                />
+                {/* リサイズハンドル（下側の境界） - キャンセルされていない予約のみ */}
+                {!isCancelled && (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 cursor-ns-resize opacity-0 hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => handleResizeMouseDown(e, block.appointment)}
+                    style={{
+                      backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                      height: '4px'
+                    }}
+                  />
+                )}
               </div>
             )
           })}
         </div>
       </div>
 
+      {/* マウスカーソル近くのコピー状態表示 */}
+      {isPasteMode && copiedAppointment && mousePosition && (
+        <div
+          className="fixed z-50 bg-blue-500 text-white px-3 py-2 rounded-lg shadow-lg pointer-events-none"
+          style={{
+            left: mousePosition.x + 10,
+            top: mousePosition.y - 10,
+            transform: 'translateY(-100%)'
+          }}
+        >
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium">📋 コピー中</span>
+            <span className="text-xs">
+              {(copiedAppointment as any).patient?.last_name} {(copiedAppointment as any).patient?.first_name}
+            </span>
+          </div>
+          <div className="text-xs mt-1 opacity-80">
+            日付をクリックして移動、セルをクリックして登録
+          </div>
+        </div>
+      )}
+
+      {/* 貼り付けモード時の登録ボタン */}
+      {isPasteMode && copiedAppointment && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <button
+            onClick={() => {
+              // 貼り付けモードを終了
+              setIsPasteMode(false)
+              setCopiedAppointment(null)
+              onCopyStateChange?.(null, false)
+            }}
+            className="bg-gray-500 text-white px-4 py-2 rounded-lg mr-2 hover:bg-gray-600 transition-colors"
+          >
+            キャンセル
+          </button>
+        </div>
+      )}
+
+      {/* キャンセル情報モーダル */}
+      <CancelInfoModal
+        isOpen={showCancelInfoModal}
+        onClose={() => {
+          setShowCancelInfoModal(false)
+          setSelectedCancelledAppointment(null)
+        }}
+        appointment={selectedCancelledAppointment}
+      />
 
       {/* 予約編集モーダル */}
-      {console.log('モーダル表示状態:', showAppointmentModal)}
       <AppointmentEditModal
         isOpen={showAppointmentModal}
         onClose={() => {
@@ -1299,6 +1637,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             console.error('予約即座更新エラー:', error)
           }
         }}
+        onCopyAppointment={handleCopyAppointment}
         onSave={async (appointmentData) => {
           try {
             console.log('予約保存:', appointmentData)
@@ -1337,6 +1676,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           } catch (error) {
             console.error('予約保存エラー:', error)
             alert('予約の保存に失敗しました')
+          }
+        }}
+        onAppointmentCancel={async () => {
+          try {
+            // キャンセル成功後に予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+            console.log('キャンセル後の予約一覧を再読み込みしました')
+          } catch (error) {
+            console.error('キャンセル後の予約一覧再読み込みエラー:', error)
           }
         }}
       />

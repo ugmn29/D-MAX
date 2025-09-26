@@ -41,12 +41,7 @@ const DISPLAY_ITEMS = [
   { id: 'staff_3', name: '担当者3', description: '副担当者2を表示' }
 ]
 
-const CANCEL_TYPES = [
-  { id: 'no_show', name: '無断キャンセル', description: '連絡なしでのキャンセル' },
-  { id: 'advance_notice', name: '事前連絡', description: '事前に連絡があったキャンセル' },
-  { id: 'same_day', name: '当日キャンセル', description: '当日のキャンセル' },
-  { id: 'clinic_reason', name: '医院都合', description: '医院側の都合によるキャンセル' }
-]
+// キャンセル理由は動的に取得するため、固定配列を削除
 
 export default function CalendarSettingsPage() {
   const router = useRouter()
@@ -62,18 +57,10 @@ export default function CalendarSettingsPage() {
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState(40)
   
-  // キャンセル管理
-  const [cancelTypes, setCancelTypes] = useState<string[]>([])
-  const [penaltySettings, setPenaltySettings] = useState({
-    noShowThreshold: 3,
-    webReservationLimit: true,
-    penaltyPeriod: 30
-  })
 
   // timeSlotMinutesの変更を監視して即座にメインページに通知
   useEffect(() => {
     if (!isInitialLoad && timeSlotMinutes !== undefined) {
-      console.log('設定ページ: timeSlotMinutes変更検知、即座にメインページに通知:', timeSlotMinutes)
 
       // 数値として確実に送信
       const numericTimeSlotMinutes = Number(timeSlotMinutes)
@@ -84,23 +71,63 @@ export default function CalendarSettingsPage() {
         timeSlotMinutes: numericTimeSlotMinutes
       }
       window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
-      console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
+      // console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
 
       // カスタムイベントを発火（即座に反映）
       const customEvent = new CustomEvent('clinicSettingsUpdated', {
         detail: { timeSlotMinutes: numericTimeSlotMinutes }
       })
       window.dispatchEvent(customEvent)
-      console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
+      // console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
 
       // postMessageも発火（追加の通知方法）
       window.postMessage({
         type: 'clinicSettingsUpdated',
         data: { timeSlotMinutes: numericTimeSlotMinutes }
       }, window.location.origin)
-      console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
+      // console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
     }
   }, [timeSlotMinutes, isInitialLoad])
+
+  // 手動保存関数
+  const handleManualSave = useCallback(async (settings: any) => {
+    try {
+      setSaving(true)
+      
+      // updateClinicSettingsを使用して一括保存
+      const result = await updateClinicSettings(DEMO_CLINIC_ID, {
+        timeSlotMinutes: settings.timeSlotMinutes,
+        unitCount: settings.unitCount,
+        units: settings.units,
+        displayItems: settings.displayItems,
+        cellHeight: settings.cellHeight,
+        cancelTypes: settings.cancelTypes,
+        penaltySettings: settings.penaltySettings
+      })
+      alert('設定を保存しました')
+      
+      // 保存後にデータを再読み込み
+      const updatedSettings = await getClinicSettings(DEMO_CLINIC_ID)
+      
+      // 設定を再適用
+      setTimeSlotMinutes(Number(updatedSettings.time_slot_minutes || 15))
+      setUnitCount(updatedSettings.unit_count || 3)
+      setUnits(updatedSettings.units || ['チェア1', 'チェア2', 'チェア3'])
+      setDisplayItems(updatedSettings.display_items || [])
+      setCellHeight(updatedSettings.cell_height || 40)
+      setCancelTypes(updatedSettings.cancel_types || [])
+      setPenaltySettings(updatedSettings.penalty_settings || {
+        noShowThreshold: 3,
+        webReservationLimit: true,
+        penaltyPeriod: 30
+      })
+    } catch (error) {
+      console.error('手動保存エラー:', error)
+      alert('保存に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }, [])
 
   // 自動保存関数
   const autoSave = useCallback(async (settings: any) => {
@@ -109,49 +136,46 @@ export default function CalendarSettingsPage() {
     try {
       console.log('設定ページ: 自動保存開始', settings)
       console.log('設定ページ: timeSlotMinutes保存値:', settings.timeSlotMinutes)
+      console.log('設定ページ: cancelTypes保存値:', settings.cancelTypes)
       setSaving(true)
       
-      // clinic_settingsテーブルに保存
-      console.log('設定ページ: clinic_settingsテーブルに保存中...')
-      console.log('設定ページ: 保存するtimeSlotMinutes値:', settings.timeSlotMinutes)
-      console.log('設定ページ: 保存するtimeSlotMinutesの型:', typeof settings.timeSlotMinutes)
-
-      // 数値として保存することを確認
-      const numericTimeSlotMinutes = Number(settings.timeSlotMinutes)
-      console.log('設定ページ: 数値変換後の値:', numericTimeSlotMinutes)
-
-      await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', numericTimeSlotMinutes)
-      console.log('設定ページ: time_slot_minutes保存完了')
-
-      await setClinicSetting(DEMO_CLINIC_ID, 'unit_count', settings.unitCount)
-      await setClinicSetting(DEMO_CLINIC_ID, 'units', settings.units)
-      await setClinicSetting(DEMO_CLINIC_ID, 'display_items', settings.displayItems)
-      await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', settings.cellHeight)
-      await setClinicSetting(DEMO_CLINIC_ID, 'cancel_types', settings.cancelTypes)
-      await setClinicSetting(DEMO_CLINIC_ID, 'penalty_settings', settings.penaltySettings)
-      console.log('設定ページ: 自動保存完了')
+      // updateClinicSettingsを使用して一括保存
+      console.log('設定ページ: updateClinicSettingsで一括保存中...')
+      console.log('設定ページ: 保存するcancelTypes:', settings.cancelTypes)
+      const result = await updateClinicSettings(DEMO_CLINIC_ID, {
+        timeSlotMinutes: settings.timeSlotMinutes,
+        unitCount: settings.unitCount,
+        units: settings.units,
+        displayItems: settings.displayItems,
+        cellHeight: settings.cellHeight,
+        cancelTypes: settings.cancelTypes,
+        penaltySettings: settings.penaltySettings
+      })
+      
+      // console.log('設定ページ: 自動保存完了', result)
 
       // メインページに設定変更を通知
+      const numericTimeSlotMinutes = Number(settings.timeSlotMinutes)
       const updateData = {
         timestamp: Date.now(),
         timeSlotMinutes: numericTimeSlotMinutes
       }
       window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
-      console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
+      // console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
 
       // カスタムイベントを発火
       const customEvent = new CustomEvent('clinicSettingsUpdated', {
         detail: { timeSlotMinutes: numericTimeSlotMinutes }
       })
       window.dispatchEvent(customEvent)
-      console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
+      // console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
 
       // postMessageも発火（追加の通知方法）
       window.postMessage({
         type: 'clinicSettingsUpdated',
         data: { timeSlotMinutes: numericTimeSlotMinutes }
       }, window.location.origin)
-      console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
+      // console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
     } catch (error) {
       console.error('自動保存エラー:', error)
     } finally {
@@ -164,34 +188,28 @@ export default function CalendarSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        console.log('設定ページ: データ読み込み開始')
+        // console.log('設定ページ: データ読み込み開始')
         const settings = await getClinicSettings(DEMO_CLINIC_ID)
         console.log('設定ページ: 取得した設定:', settings)
         console.log('設定ページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
         
         const timeSlotValue = settings.time_slot_minutes || 15
-        console.log('設定ページ: time_slot_minutes設定:', timeSlotValue)
-        console.log('設定ページ: time_slot_minutesの型:', typeof timeSlotValue)
-        console.log('設定ページ: time_slot_minutesの値（詳細）:', JSON.stringify(timeSlotValue))
+        // console.log('設定ページ: time_slot_minutes設定:', timeSlotValue)
+        // console.log('設定ページ: time_slot_minutesの型:', typeof timeSlotValue)
+        // console.log('設定ページ: time_slot_minutesの値（詳細）:', JSON.stringify(timeSlotValue))
         
         // 数値に変換してから設定
         const numericTimeSlotValue = Number(timeSlotValue)
-        console.log('設定ページ: 数値変換後:', numericTimeSlotValue)
+        // console.log('設定ページ: 数値変換後:', numericTimeSlotValue)
         setTimeSlotMinutes(numericTimeSlotValue)
         setUnitCount(settings.unit_count || 3)
         setUnits(settings.units || ['チェア1', 'チェア2', 'チェア3'])
         setDisplayItems(settings.display_items || [])
         setCellHeight(settings.cell_height || 40)
-        setCancelTypes(settings.cancel_types || [])
-        setPenaltySettings(settings.penalty_settings || {
-          noShowThreshold: 3,
-          webReservationLimit: true,
-          penaltyPeriod: 30
-        })
         
         // 初期読み込み完了
         setIsInitialLoad(false)
-        console.log('設定ページ: 初期読み込み完了')
+        // console.log('設定ページ: 初期読み込み完了')
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
@@ -205,6 +223,9 @@ export default function CalendarSettingsPage() {
   // 設定値変更時の自動保存
   useEffect(() => {
     console.log('設定ページ: 自動保存useEffect実行 - isInitialLoad:', isInitialLoad, 'timeSlotMinutes:', timeSlotMinutes)
+    console.log('設定ページ: 現在のcancelTypes:', cancelTypes)
+    console.log('設定ページ: cancelTypesの長さ:', cancelTypes.length)
+    console.log('設定ページ: useEffectが実行されました - cancelTypesが変更されました')
     
     if (isInitialLoad) {
       console.log('設定ページ: 初期読み込み中のため自動保存をスキップ')
@@ -212,6 +233,8 @@ export default function CalendarSettingsPage() {
     }
     
     console.log('設定ページ: timeSlotMinutes変更検知:', timeSlotMinutes)
+    console.log('設定ページ: cancelTypes変更検知:', cancelTypes)
+    console.log('設定ページ: cancelTypes変更検知 - 配列の内容:', JSON.stringify(cancelTypes))
     
     const settings = {
       timeSlotMinutes,
@@ -224,6 +247,8 @@ export default function CalendarSettingsPage() {
     }
     
     console.log('設定ページ: 保存する設定:', settings)
+    console.log('設定ページ: 保存するcancelTypes:', settings.cancelTypes)
+    console.log('設定ページ: 保存するcancelTypesの長さ:', settings.cancelTypes.length)
     
     // デバウンス処理（500ms後に保存）
     const timeoutId = setTimeout(() => {
@@ -232,7 +257,7 @@ export default function CalendarSettingsPage() {
     }, 500)
     
     return () => clearTimeout(timeoutId)
-  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings, autoSave, isInitialLoad])
+  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings, isInitialLoad])
 
 
   // 表示項目の変更
@@ -243,6 +268,7 @@ export default function CalendarSettingsPage() {
       setDisplayItems(prev => prev.filter(id => id !== itemId))
     }
   }
+
 
   // ユニット数の変更
   const handleUnitCountChange = (count: number) => {
@@ -324,7 +350,7 @@ export default function CalendarSettingsPage() {
                 )}
                 <Button
                   onClick={() => {
-                    console.log('設定ページ: 手動保存ボタンクリック')
+                    // console.log('設定ページ: 手動保存ボタンクリック')
                     const settings = {
                       timeSlotMinutes,
                       unitCount,
@@ -334,7 +360,7 @@ export default function CalendarSettingsPage() {
                       cancelTypes,
                       penaltySettings
                     }
-                    autoSave(settings)
+                    handleManualSave(settings)
                   }}
                   size="sm"
                   disabled={saving}
@@ -355,16 +381,6 @@ export default function CalendarSettingsPage() {
                 }`}
               >
                 基本設定
-              </button>
-              <button
-                onClick={() => setActiveTab('cancel')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'cancel'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                キャンセル管理
               </button>
             </div>
 
@@ -482,101 +498,6 @@ export default function CalendarSettingsPage() {
               </div>
             )}
 
-            {/* キャンセル管理タブ */}
-            {activeTab === 'cancel' && (
-              <div className="space-y-6">
-                {/* キャンセル種類 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>キャンセル種類</CardTitle>
-                    <p className="text-sm text-gray-600">使用するキャンセル種類を選択してください</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {CANCEL_TYPES.map(type => (
-                        <div key={type.id} className="flex items-start space-x-3">
-                          <Checkbox
-                            id={type.id}
-                            checked={cancelTypes.includes(type.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setCancelTypes(prev => [...prev, type.id])
-                              } else {
-                                setCancelTypes(prev => prev.filter(id => id !== type.id))
-                              }
-                            }}
-                          />
-                          <div className="flex-1">
-                            <Label htmlFor={type.id} className="font-medium">
-                              {type.name}
-                            </Label>
-                            <p className="text-sm text-gray-500">{type.description}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* ペナルティ設定 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>ペナルティ設定</CardTitle>
-                    <p className="text-sm text-gray-600">無断キャンセルに対するペナルティを設定します</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="no_show_threshold">無断キャンセル回数閾値</Label>
-                      <Input
-                        id="no_show_threshold"
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={penaltySettings.noShowThreshold}
-                        onChange={(e) => setPenaltySettings(prev => ({
-                          ...prev,
-                          noShowThreshold: parseInt(e.target.value) || 3
-                        }))}
-                        className="max-w-xs"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        この回数を超えるとWeb予約が制限されます
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="web_reservation_limit"
-                        checked={penaltySettings.webReservationLimit}
-                        onCheckedChange={(checked) => setPenaltySettings(prev => ({
-                          ...prev,
-                          webReservationLimit: checked as boolean
-                        }))}
-                      />
-                      <Label htmlFor="web_reservation_limit">
-                        Web予約制限を有効にする
-                      </Label>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="penalty_period">ペナルティ期間（日）</Label>
-                      <Input
-                        id="penalty_period"
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={penaltySettings.penaltyPeriod}
-                        onChange={(e) => setPenaltySettings(prev => ({
-                          ...prev,
-                          penaltyPeriod: parseInt(e.target.value) || 30
-                        }))}
-                        className="max-w-xs"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
           </div>
         </div>
       </div>

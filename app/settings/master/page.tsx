@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
 import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, deletePatientNoteType } from '@/lib/api/patient-note-types'
+import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -40,6 +41,14 @@ interface StaffPosition {
 }
 
 interface PatientNoteType {
+  id: string
+  name: string
+  description?: string
+  sort_order: number
+  is_active: boolean
+}
+
+interface CancelReason {
   id: string
   name: string
   description?: string
@@ -93,6 +102,16 @@ export default function MasterSettingsPage() {
     is_active: true
   })
 
+  // キャンセル理由の状態
+  const [cancelReasons, setCancelReasons] = useState<CancelReason[]>([])
+  const [showAddCancelReason, setShowAddCancelReason] = useState(false)
+  const [newCancelReason, setNewCancelReason] = useState({
+    name: '',
+    description: '',
+    sort_order: 0,
+    is_active: true
+  })
+
   // アイコンマスターの状態
   const [iconMaster, setIconMaster] = useState(ICON_MASTER_DATA)
   const [editingIconId, setEditingIconId] = useState<string | null>(null)
@@ -102,12 +121,14 @@ export default function MasterSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        const [positionsData, noteTypesData] = await Promise.all([
+        const [positionsData, noteTypesData, cancelReasonsData] = await Promise.all([
           getStaffPositions(DEMO_CLINIC_ID),
-          getPatientNoteTypes(DEMO_CLINIC_ID)
+          getPatientNoteTypes(DEMO_CLINIC_ID),
+          getCancelReasons(DEMO_CLINIC_ID)
         ])
         setStaffPositions(positionsData)
         setPatientNoteTypes(noteTypesData)
+        setCancelReasons(cancelReasonsData)
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
@@ -217,6 +238,67 @@ export default function MasterSettingsPage() {
     ))
   }
 
+  // キャンセル理由追加
+  const handleAddCancelReason = async () => {
+    try {
+      setSaving(true)
+      await createCancelReason(DEMO_CLINIC_ID, newCancelReason)
+
+      // データを再読み込み
+      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      setCancelReasons(data)
+
+      setNewCancelReason({
+        name: '',
+        description: '',
+        sort_order: 0,
+        is_active: true
+      })
+      setShowAddCancelReason(false)
+    } catch (error) {
+      console.error('キャンセル理由追加エラー:', error)
+      alert('キャンセル理由の追加に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // キャンセル理由更新
+  const handleUpdateCancelReason = async (reasonId: string, updates: Partial<CancelReason>) => {
+    try {
+      setSaving(true)
+      await updateCancelReason(reasonId, updates)
+
+      // データを再読み込み
+      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      setCancelReasons(data)
+    } catch (error) {
+      console.error('キャンセル理由更新エラー:', error)
+      alert('キャンセル理由の更新に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // キャンセル理由削除
+  const handleDeleteCancelReason = async (reasonId: string) => {
+    if (!confirm('このキャンセル理由を削除しますか？')) return
+    
+    try {
+      setSaving(true)
+      await deleteCancelReason(reasonId)
+
+      // データを再読み込み
+      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      setCancelReasons(data)
+    } catch (error) {
+      console.error('キャンセル理由削除エラー:', error)
+      alert('キャンセル理由の削除に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -259,6 +341,16 @@ export default function MasterSettingsPage() {
             }`}
           >
             ファイル
+          </button>
+          <button
+            onClick={() => setSelectedTab('cancel')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              selectedTab === 'cancel'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            キャンセル
           </button>
         </nav>
       </div>
@@ -605,6 +697,144 @@ export default function MasterSettingsPage() {
                   <Button
                     onClick={handleAddNoteType}
                     disabled={saving || !newNoteType.name.trim()}
+                  >
+                    {saving ? '追加中...' : '追加'}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </div>
+      )}
+
+      {/* キャンセルタブのコンテンツ */}
+      {selectedTab === 'cancel' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">キャンセル理由</h3>
+              <p className="text-sm text-gray-500">予約キャンセル時の理由を管理します</p>
+            </div>
+            <Button onClick={() => setShowAddCancelReason(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              新規追加
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {cancelReasons.map(reason => (
+              <div key={reason.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">{reason.name}</div>
+                  {reason.description && (
+                    <div className="text-sm text-gray-500">{reason.description}</div>
+                  )}
+                  <div className="text-sm text-gray-500">
+                    並び順: {reason.sort_order} | ステータス: {reason.is_active ? '有効' : '無効'}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={reason.is_active}
+                    onChange={(e) => {
+                      handleUpdateCancelReason(reason.id, { is_active: e.target.checked })
+                    }}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      const newName = prompt('新しいキャンセル理由名を入力してください:', reason.name)
+                      if (newName && newName.trim()) {
+                        handleUpdateCancelReason(reason.id, { name: newName.trim() })
+                      }
+                    }}
+                    className="p-1 text-gray-400 hover:text-blue-600"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCancelReason(reason.id)}
+                    className="p-1 text-gray-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            
+            {cancelReasons.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">キャンセル理由が登録されていません</p>
+                <Button 
+                  onClick={() => setShowAddCancelReason(true)}
+                  className="mt-2"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  最初のキャンセル理由を追加
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* キャンセル理由追加モーダル */}
+          {showAddCancelReason && (
+            <Modal
+              isOpen={showAddCancelReason}
+              onClose={() => setShowAddCancelReason(false)}
+              title="新しいキャンセル理由を追加"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="cancel_reason_name">キャンセル理由名</Label>
+                  <Input
+                    id="cancel_reason_name"
+                    value={newCancelReason.name}
+                    onChange={(e) => setNewCancelReason(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="例: 無断キャンセル"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="cancel_reason_description">説明</Label>
+                  <Input
+                    id="cancel_reason_description"
+                    value={newCancelReason.description}
+                    onChange={(e) => setNewCancelReason(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="例: 連絡なしでのキャンセル"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="cancel_reason_sort_order">並び順</Label>
+                  <Input
+                    id="cancel_reason_sort_order"
+                    type="number"
+                    value={newCancelReason.sort_order}
+                    onChange={(e) => setNewCancelReason(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                    placeholder="0"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="cancel_reason_active"
+                    checked={newCancelReason.is_active}
+                    onCheckedChange={(checked) => setNewCancelReason(prev => ({ ...prev, is_active: checked as boolean }))}
+                  />
+                  <Label htmlFor="cancel_reason_active">有効</Label>
+                </div>
+                
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddCancelReason(false)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={handleAddCancelReason}
+                    disabled={saving || !newCancelReason.name.trim()}
                   >
                     {saving ? '追加中...' : '追加'}
                   </Button>

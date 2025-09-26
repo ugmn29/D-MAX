@@ -7,6 +7,58 @@ import { MOCK_MODE, MOCK_CLINIC_SETTINGS } from '@/lib/utils/mock-mode'
  * クリニック情報を取得
  */
 export async function getClinic(clinicId: string): Promise<Clinic | null> {
+  // モックモードの場合はモックデータを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: クリニック情報を返します')
+    
+    // localStorageから保存された設定を読み込む
+    let savedSettings = {}
+    try {
+      const savedData = localStorage.getItem('mock_clinic_settings')
+      if (savedData) {
+        savedSettings = JSON.parse(savedData)
+        console.log('モックモード: 保存された設定を読み込みました', savedSettings)
+        console.log('モックモード: 保存された設定のcancel_types:', savedSettings.cancel_types)
+      }
+    } catch (error) {
+      console.error('モックモード: localStorage読み込みエラー:', error)
+    }
+    
+    return {
+      id: clinicId,
+      name: 'デモクリニック',
+      name_kana: 'デモクリニック',
+      phone: '03-1234-5678',
+      email: 'demo@clinic.com',
+      website_url: 'https://demo-clinic.com',
+      postal_code: '100-0001',
+      prefecture: '東京都',
+      city: '千代田区',
+      address_line: '千代田1-1-1',
+      business_hours: savedSettings.business_hours || {
+        monday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+        tuesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+        wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+        thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+        friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+        saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '17:00' }] },
+        sunday: { isOpen: false, timeSlots: [] }
+      },
+      break_times: savedSettings.break_times || {
+        monday: [{ start: '12:00', end: '13:00' }],
+        tuesday: [{ start: '12:00', end: '13:00' }],
+        wednesday: [{ start: '12:00', end: '13:00' }],
+        thursday: [{ start: '12:00', end: '13:00' }],
+        friday: [{ start: '12:00', end: '13:00' }],
+        saturday: [{ start: '12:00', end: '13:00' }],
+        sunday: []
+      },
+      time_slot_minutes: savedSettings.time_slot_minutes || 15,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  }
+
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('clinics')
@@ -34,7 +86,25 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
   // モックモードの場合はモックデータを返す
   if (MOCK_MODE) {
     console.log('モックモード: クリニック設定データを返します')
-    return MOCK_CLINIC_SETTINGS
+    
+    // localStorageから保存された設定を読み込む
+    let savedSettings = {}
+    try {
+      const savedData = localStorage.getItem('mock_clinic_settings')
+      if (savedData) {
+        savedSettings = JSON.parse(savedData)
+        console.log('モックモード: 保存された設定を読み込みました', savedSettings)
+        console.log('モックモード: 保存された設定のcancel_types:', savedSettings.cancel_types)
+      }
+    } catch (error) {
+      console.error('モックモード: localStorage読み込みエラー:', error)
+    }
+    
+    // デフォルト設定と保存された設定をマージ
+    const mergedSettings = { ...MOCK_CLINIC_SETTINGS, ...savedSettings }
+    console.log('モックモード: マージされた設定:', mergedSettings)
+    console.log('モックモード: cancel_typesの値:', mergedSettings.cancel_types)
+    return mergedSettings
   }
   
   try {
@@ -124,9 +194,22 @@ export async function setClinicSetting(
 ): Promise<void> {
   console.log('setClinicSetting呼び出し:', { clinicId, key, value })
   
-  // モックモードの場合は保存処理をスキップ（ログのみ出力）
+  // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
-    console.log('モックモード: 設定保存をシミュレートします', { clinicId, key, value })
+    console.log('モックモード: クリニック設定を保存します', { key, value })
+    console.log('モックモード: 保存するキー:', key, '保存する値:', value)
+    
+    try {
+      const existingData = JSON.parse(localStorage.getItem('mock_clinic_settings') || '{}')
+      console.log('モックモード: 既存の設定:', existingData)
+      const updatedData = { ...existingData, [key]: value }
+      console.log('モックモード: 更新後の設定:', updatedData)
+      localStorage.setItem('mock_clinic_settings', JSON.stringify(updatedData))
+      console.log('モックモード: 設定を保存しました', updatedData)
+    } catch (error) {
+      console.error('モックモード: localStorage保存エラー:', error)
+    }
+    
     return
   }
   
@@ -368,7 +451,84 @@ export async function updateClinicSettings(clinicId: string, settings: {
   businessHours?: any
   breakTimes?: any
   clinicInfo?: any
+  unitCount?: number
+  units?: string[]
+  displayItems?: string[]
+  cellHeight?: number
+  cancelTypes?: string[]
+  penaltySettings?: any
 }) {
+  // モックモードの場合はlocalStorageに保存
+  if (MOCK_MODE) {
+    
+    // localStorageに保存
+    const updateData: any = {}
+    
+    if (settings.timeSlotMinutes !== undefined) {
+      updateData.time_slot_minutes = settings.timeSlotMinutes
+    }
+    
+    if (settings.businessHours !== undefined) {
+      updateData.business_hours = settings.businessHours
+    }
+    
+    if (settings.breakTimes !== undefined) {
+      updateData.break_times = settings.breakTimes
+    }
+    
+    if (settings.clinicInfo !== undefined) {
+      Object.assign(updateData, settings.clinicInfo)
+    }
+    
+    // 追加の設定項目を処理
+    if (settings.unitCount !== undefined) {
+      updateData.unit_count = settings.unitCount
+    }
+    
+    if (settings.units !== undefined) {
+      updateData.units = settings.units
+    }
+    
+    if (settings.displayItems !== undefined) {
+      updateData.display_items = settings.displayItems
+    }
+    
+    if (settings.cellHeight !== undefined) {
+      updateData.cell_height = settings.cellHeight
+    }
+    
+    if (settings.cancelTypes !== undefined) {
+      updateData.cancel_types = settings.cancelTypes
+      console.log('モックモード: cancel_typesをupdateDataに設定:', settings.cancelTypes)
+    } else {
+      console.log('モックモード: cancelTypesがundefinedです')
+    }
+    
+    if (settings.penaltySettings !== undefined) {
+      updateData.penalty_settings = settings.penaltySettings
+    }
+    
+    // localStorageに保存
+    let updatedData: any = {}
+    try {
+      const existingData = JSON.parse(localStorage.getItem('mock_clinic_settings') || '{}')
+      console.log('モックモード: 既存データ:', existingData)
+      console.log('モックモード: 更新データ:', updateData)
+      console.log('モックモード: 更新データの詳細:', JSON.stringify(updateData, null, 2))
+      console.log('モックモード: 更新データのcancel_types:', updateData.cancel_types)
+      updatedData = { ...existingData, ...updateData }
+      console.log('モックモード: マージ後のデータ:', updatedData)
+      console.log('モックモード: マージ後のcancel_types:', updatedData.cancel_types)
+      localStorage.setItem('mock_clinic_settings', JSON.stringify(updatedData))
+      console.log('モックモード: localStorageに保存完了')
+    } catch (error) {
+      console.error('モックモード: localStorage保存エラー:', error)
+      updatedData = updateData // エラー時はupdateDataを返す
+    }
+    
+    return updatedData
+  }
+
   try {
     const updateData: any = {}
 

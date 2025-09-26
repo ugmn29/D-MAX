@@ -18,6 +18,10 @@ export default function HomePage() {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState<number>(40)
+  
+  // コピータブ機能関連
+  const [copiedAppointment, setCopiedAppointment] = useState<any>(null)
+  const [isPasteMode, setIsPasteMode] = useState(false)
 
   // timeSlotMinutesの変更をログ出力
   useEffect(() => {
@@ -166,6 +170,16 @@ export default function HomePage() {
     console.log('患者選択:', patient)
   }
 
+  // 日付クリック時の貼り付け処理
+  const handlePasteToDate = (date: Date) => {
+    if (copiedAppointment) {
+      console.log('日付に移動:', date, copiedAppointment)
+      // 日付を変更するだけ（予約は作成しない）
+      setSelectedDate(date)
+      // 貼り付けモードは継続
+    }
+  }
+
   // 日付フォーマット
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('ja-JP', {
@@ -188,6 +202,10 @@ export default function HomePage() {
           timeSlotMinutes={timeSlotMinutes ?? 15}
           displayItems={displayItems}
           cellHeight={cellHeight}
+          onCopyStateChange={(copied, pasteMode) => {
+            setCopiedAppointment(copied)
+            setIsPasteMode(pasteMode)
+          }}
         />
       </div>
 
@@ -197,6 +215,8 @@ export default function HomePage() {
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         onPatientSelect={handlePatientSelect}
+        isPasteMode={isPasteMode}
+        onPasteToDate={handlePasteToDate}
       />
     </div>
   )

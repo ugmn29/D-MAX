@@ -42,13 +42,18 @@ import {
   Car,
   DollarSign,
   FileText,
-  HelpCircle
+  HelpCircle,
+  ExternalLink,
+  Copy
 } from 'lucide-react'
 import { updateClinicSettings, setClinicSetting, getClinicSettings } from '@/lib/api/clinic'
 import { getStaff, createStaff, updateStaff, deleteStaff } from '@/lib/api/staff'
 import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
 import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, deletePatientNoteType } from '@/lib/api/patient-note-types'
+import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
 import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
+import { getQuestionnaires, createQuestionnaire, updateQuestionnaire, deleteQuestionnaire, Questionnaire, QuestionnaireQuestion } from '@/lib/api/questionnaires'
+import { QuestionnaireEditModal } from '@/components/forms/questionnaire-edit-modal'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -111,12 +116,6 @@ const DISPLAY_ITEMS = [
   { id: 'staff_3', name: '担当者3', description: '副担当者2を表示' }
 ]
 
-const CANCEL_TYPES = [
-  { id: 'no_show', name: '無断キャンセル', description: '連絡なしでのキャンセル' },
-  { id: 'advance_notice', name: '事前連絡', description: '事前に連絡があったキャンセル' },
-  { id: 'same_day', name: '当日キャンセル', description: '当日のキャンセル' },
-  { id: 'clinic_reason', name: '医院都合', description: '医院側の都合によるキャンセル' }
-]
 
 const settingCategories = [
   {
@@ -199,6 +198,16 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // 問診票の状態
+  const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([])
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<Questionnaire | null>(null)
+  const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false)
+  const [newQuestionnaire, setNewQuestionnaire] = useState({
+    name: '',
+    description: '',
+    is_active: true
+  })
+
   // クリニック設定の状態
   const [clinicInfo, setClinicInfo] = useState({
     name: '',
@@ -231,12 +240,6 @@ export default function SettingsPage() {
   const [units, setUnits] = useState(['チェア1', 'チェア2', 'チェア3'])
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState(40)
-  const [cancelTypes, setCancelTypes] = useState<string[]>([])
-  const [penaltySettings, setPenaltySettings] = useState({
-    noShowThreshold: 3,
-    webReservationLimit: true,
-    penaltyPeriod: 30
-  })
   const [activeTab, setActiveTab] = useState('basic')
 
   // 診療メニューの状態
@@ -272,10 +275,14 @@ export default function SettingsPage() {
   // マスタ設定の状態
   const [staffPositions, setStaffPositions] = useState<any[]>([])
   const [patientNoteTypes, setPatientNoteTypes] = useState<any[]>([])
+  const [cancelReasons, setCancelReasons] = useState<any[]>([])
   const [iconMaster, setIconMaster] = useState(ICON_MASTER_DATA)
   const [editingIconId, setEditingIconId] = useState<string | null>(null)
   const [showAddPosition, setShowAddPosition] = useState(false)
   const [showAddNoteType, setShowAddNoteType] = useState(false)
+  const [showAddCancelReason, setShowAddCancelReason] = useState(false)
+  const [showEditCancelReason, setShowEditCancelReason] = useState(false)
+  const [editingCancelReason, setEditingCancelReason] = useState<any>(null)
   const [newPosition, setNewPosition] = useState({
     name: '',
     sort_order: 0,
@@ -285,6 +292,10 @@ export default function SettingsPage() {
     name: '',
     description: '',
     sort_order: 0,
+    is_active: true
+  })
+  const [newCancelReason, setNewCancelReason] = useState({
+    name: '',
     is_active: true
   })
 
@@ -312,6 +323,21 @@ export default function SettingsPage() {
     }
   }
 
+
+  // 問診票データの読み込み
+  useEffect(() => {
+    const loadQuestionnaires = async () => {
+      if (selectedCategory === 'questionnaire') {
+        try {
+          const data = await getQuestionnaires(DEMO_CLINIC_ID)
+          setQuestionnaires(data)
+        } catch (error) {
+          console.error('問診票データの読み込みエラー:', error)
+        }
+      }
+    }
+    loadQuestionnaires()
+  }, [selectedCategory])
 
   // 初期データの設定
   useEffect(() => {
@@ -440,12 +466,14 @@ export default function SettingsPage() {
     // マスタデータの読み込み
     const loadMasterData = async () => {
       try {
-        const [positionsData, noteTypesData] = await Promise.all([
+        const [positionsData, noteTypesData, cancelReasonsData] = await Promise.all([
           getStaffPositions(DEMO_CLINIC_ID),
-          getPatientNoteTypes(DEMO_CLINIC_ID)
+          getPatientNoteTypes(DEMO_CLINIC_ID),
+          getCancelReasons(DEMO_CLINIC_ID)
         ])
         setStaffPositions(positionsData)
         setPatientNoteTypes(noteTypesData)
+        setCancelReasons(cancelReasonsData)
       } catch (error) {
         console.error('マスタデータ読み込みエラー:', error)
       }
@@ -680,8 +708,6 @@ export default function SettingsPage() {
         settings.units = units
         settings.displayItems = displayItems
         settings.cellHeight = cellHeight
-        settings.cancelTypes = cancelTypes
-        settings.penaltySettings = penaltySettings
       }
 
       console.log('保存データ:', settings)
@@ -704,6 +730,8 @@ export default function SettingsPage() {
         // その他の設定は従来通り
         const result = await updateClinicSettings(DEMO_CLINIC_ID, settings)
         console.log('保存結果:', result)
+        console.log('保存結果の詳細:', JSON.stringify(result, null, 2))
+        console.log('保存結果のcancel_types:', result.cancel_types)
       }
 
       alert('設定を保存しました。カレンダーページをリロードすると反映されます。')
@@ -939,16 +967,6 @@ export default function SettingsPage() {
         >
           基本設定
         </button>
-        <button
-          onClick={() => setActiveTab('cancel')}
-          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === 'cancel'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          キャンセル管理
-        </button>
       </div>
 
       {/* 基本設定タブ */}
@@ -1060,104 +1078,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* キャンセル管理タブ */}
-      {activeTab === 'cancel' && (
-        <div className="space-y-8">
-          {/* キャンセル種類 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">キャンセル種類</h3>
-                <p className="text-sm text-gray-600 mt-1">使用するキャンセル種類を選択してください</p>
-              </div>
-              <div className="space-y-4">
-                {CANCEL_TYPES.map(type => (
-                  <div key={type.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50">
-                    <Checkbox
-                      id={type.id}
-                      checked={cancelTypes.includes(type.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setCancelTypes(prev => [...prev, type.id])
-                        } else {
-                          setCancelTypes(prev => prev.filter(id => id !== type.id))
-                        }
-                      }}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor={type.id} className="text-sm font-medium text-gray-900 cursor-pointer">
-                        {type.name}
-                      </Label>
-                      <p className="text-sm text-gray-500 mt-1">{type.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ペナルティ設定 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">ペナルティ設定</h3>
-                <p className="text-sm text-gray-600 mt-1">無断キャンセルに対するペナルティを設定します</p>
-              </div>
-              <div className="space-y-6">
-                <div>
-                  <Label htmlFor="no_show_threshold" className="text-sm font-medium text-gray-700">無断キャンセル回数閾値</Label>
-                  <Input
-                    id="no_show_threshold"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={penaltySettings.noShowThreshold}
-                    onChange={(e) => setPenaltySettings(prev => ({
-                      ...prev,
-                      noShowThreshold: parseInt(e.target.value) || 3
-                    }))}
-                    className="max-w-xs mt-1"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    この回数を超えるとWeb予約が制限されます
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50">
-                  <Checkbox
-                    id="web_reservation_limit"
-                    checked={penaltySettings.webReservationLimit}
-                    onCheckedChange={(checked) => setPenaltySettings(prev => ({
-                      ...prev,
-                      webReservationLimit: checked as boolean
-                    }))}
-                  />
-                  <Label htmlFor="web_reservation_limit" className="text-sm font-medium text-gray-900 cursor-pointer">
-                    Web予約制限を有効にする
-                  </Label>
-                </div>
-                
-                <div>
-                  <Label htmlFor="penalty_period" className="text-sm font-medium text-gray-700">ペナルティ期間（日）</Label>
-                  <Input
-                    id="penalty_period"
-                    type="number"
-                    min="1"
-                    max="365"
-                    value={penaltySettings.penaltyPeriod}
-                    onChange={(e) => setPenaltySettings(prev => ({
-                      ...prev,
-                      penaltyPeriod: parseInt(e.target.value) || 30
-                    }))}
-                    className="max-w-xs mt-1"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 
@@ -1259,6 +1179,100 @@ export default function SettingsPage() {
     ))
   }
 
+  // キャンセル理由追加
+  const handleAddCancelReason = async () => {
+    try {
+      setSaving(true)
+      await createCancelReason(DEMO_CLINIC_ID, newCancelReason)
+
+      // データを再読み込み
+      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      setCancelReasons(data)
+
+      setNewCancelReason({
+        name: '',
+        is_active: true
+      })
+      setShowAddCancelReason(false)
+    } catch (error) {
+      console.error('キャンセル理由追加エラー:', error)
+      alert('キャンセル理由の追加に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUpdateCancelReason = async (reasonId: string, updates: any) => {
+    try {
+      setSaving(true)
+      await updateCancelReason(DEMO_CLINIC_ID, reasonId, updates)
+
+      // データを再読み込み
+      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      setCancelReasons(data)
+    } catch (error) {
+      console.error('キャンセル理由更新エラー:', error)
+      alert('キャンセル理由の更新に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteCancelReason = async (reasonId: string) => {
+    if (!confirm('このキャンセル理由を削除しますか？')) return
+    
+    try {
+      setSaving(true)
+      await deleteCancelReason(DEMO_CLINIC_ID, reasonId)
+
+      // データを再読み込み
+      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      setCancelReasons(data)
+    } catch (error) {
+      console.error('キャンセル理由削除エラー:', error)
+      alert('キャンセル理由の削除に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditCancelReason = (reason: any) => {
+    console.log('編集開始:', reason)
+    setEditingCancelReason(reason)
+    setShowEditCancelReason(true)
+  }
+
+  const handleSaveEditCancelReason = async () => {
+    if (!editingCancelReason) {
+      console.error('編集するキャンセル理由がありません')
+      return
+    }
+    
+    console.log('編集保存開始:', editingCancelReason)
+    
+    try {
+      setSaving(true)
+      await updateCancelReason(DEMO_CLINIC_ID, editingCancelReason.id, {
+        name: editingCancelReason.name,
+        is_active: editingCancelReason.is_active
+      })
+
+      console.log('更新完了、データを再読み込み中...')
+      // データを再読み込み
+      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      setCancelReasons(data)
+      
+      console.log('編集モーダルを閉じます')
+      setShowEditCancelReason(false)
+      setEditingCancelReason(null)
+    } catch (error) {
+      console.error('キャンセル理由更新エラー:', error)
+      alert('キャンセル理由の更新に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // スタッフ追加
   const handleAddStaff = async () => {
     try {
@@ -1332,6 +1346,16 @@ export default function SettingsPage() {
             }`}
           >
             ファイル
+          </button>
+          <button
+            onClick={() => setSelectedMasterTab('cancel')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              selectedMasterTab === 'cancel'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            キャンセル
           </button>
         </nav>
       </div>
@@ -1671,6 +1695,169 @@ export default function SettingsPage() {
                     disabled={saving || !newNoteType.name.trim()}
                   >
                     {saving ? '追加中...' : '追加'}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </div>
+      )}
+
+      {/* キャンセルタブのコンテンツ */}
+      {selectedMasterTab === 'cancel' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">キャンセル理由</h3>
+              <p className="text-sm text-gray-500">予約キャンセル時の理由を管理します</p>
+            </div>
+            <Button onClick={() => setShowAddCancelReason(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              新規追加
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {cancelReasons.map(reason => (
+              <div key={reason.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">{reason.name}</div>
+                  <div className="text-sm text-gray-500">
+                    ステータス: {reason.is_active ? '有効' : '無効'}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={reason.is_active}
+                    onChange={(e) => {
+                      handleUpdateCancelReason(reason.id, { is_active: e.target.checked })
+                    }}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => handleEditCancelReason(reason)}
+                    className="p-1 text-gray-400 hover:text-blue-600"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteCancelReason(reason.id)}
+                    className="p-1 text-gray-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            
+            {cancelReasons.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">キャンセル理由が登録されていません</p>
+                <Button 
+                  onClick={() => setShowAddCancelReason(true)}
+                  className="mt-2"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  最初のキャンセル理由を追加
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* キャンセル理由追加モーダル */}
+          {showAddCancelReason && (
+            <Modal
+              isOpen={showAddCancelReason}
+              onClose={() => setShowAddCancelReason(false)}
+              title="新しいキャンセル理由を追加"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="cancel_reason_name">キャンセル理由名</Label>
+                  <Input
+                    id="cancel_reason_name"
+                    value={newCancelReason.name}
+                    onChange={(e) => setNewCancelReason(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="例: 無断キャンセル"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="cancel_reason_active"
+                    checked={newCancelReason.is_active}
+                    onCheckedChange={(checked) => setNewCancelReason(prev => ({ ...prev, is_active: checked as boolean }))}
+                  />
+                  <Label htmlFor="cancel_reason_active">有効</Label>
+                </div>
+                
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddCancelReason(false)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={handleAddCancelReason}
+                    disabled={saving || !newCancelReason.name.trim()}
+                  >
+                    {saving ? '追加中...' : '追加'}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+
+          {/* キャンセル理由編集モーダル */}
+          {showEditCancelReason && editingCancelReason && (
+            <Modal
+              isOpen={showEditCancelReason}
+              onClose={() => {
+                setShowEditCancelReason(false)
+                setEditingCancelReason(null)
+              }}
+              title="キャンセル理由を編集"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="edit_cancel_reason_name">キャンセル理由名</Label>
+                  <Input
+                    id="edit_cancel_reason_name"
+                    value={editingCancelReason.name}
+                    onChange={(e) => {
+                      console.log('名前変更:', e.target.value)
+                      setEditingCancelReason(prev => prev ? { ...prev, name: e.target.value } : null)
+                    }}
+                    placeholder="例: 無断キャンセル"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit_cancel_reason_active"
+                    checked={editingCancelReason.is_active}
+                    onCheckedChange={(checked) => setEditingCancelReason(prev => prev ? { ...prev, is_active: checked as boolean } : null)}
+                  />
+                  <Label htmlFor="edit_cancel_reason_active">有効</Label>
+                </div>
+                
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowEditCancelReason(false)
+                      setEditingCancelReason(null)
+                    }}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={handleSaveEditCancelReason}
+                    disabled={saving || !editingCancelReason.name.trim()}
+                  >
+                    {saving ? '保存中...' : '保存'}
                   </Button>
                 </div>
               </div>
@@ -2263,6 +2450,165 @@ export default function SettingsPage() {
   )
   }
 
+  // 患者用URLの生成（問診票専用）
+  const getPatientUrl = () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+    return `${baseUrl}/questionnaire`
+  }
+
+  // URLをクリップボードにコピー
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('URLをクリップボードにコピーしました')
+    } catch (error) {
+      console.error('コピーに失敗しました:', error)
+      // フォールバック: テキストエリアを使用
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      alert('URLをクリップボードにコピーしました')
+    }
+  }
+
+  // 問診票設定のレンダリング
+  const renderQuestionnaireSettings = () => {
+    return (
+      <div className="p-6">
+        {/* 患者用URL */}
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center flex-1 mr-4">
+              <ExternalLink className="w-4 h-4 text-blue-600 mr-2" />
+              <span className="text-sm font-medium text-blue-800 mr-3">患者用URL:</span>
+              <span className="text-xs text-blue-700 font-mono break-all">
+                {getPatientUrl()}
+              </span>
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copyToClipboard(getPatientUrl())}
+                className="text-blue-600 border-blue-300 hover:bg-blue-100"
+              >
+                <Copy className="w-3 h-3 mr-1" />
+                コピー
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(getPatientUrl(), '_blank')}
+                className="text-blue-600 border-blue-300 hover:bg-blue-100"
+              >
+                <ExternalLink className="w-3 h-3 mr-1" />
+                開く
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* 問診票一覧 */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">問診票一覧</h3>
+              <Button
+                onClick={() => setShowQuestionnaireModal(true)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                新しい問診票を作成
+              </Button>
+            </div>
+
+            {questionnaires.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>問診票が登録されていません</p>
+                <p className="text-sm">「新しい問診票を作成」ボタンから問診票を追加してください</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {questionnaires.map((questionnaire) => (
+                  <div
+                    key={questionnaire.id}
+                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center mb-2">
+                          <h4 className="text-lg font-medium text-gray-900 mr-3">
+                            {questionnaire.name}
+                          </h4>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            questionnaire.is_active 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {questionnaire.is_active ? '有効' : '無効'}
+                          </span>
+                        </div>
+                        {questionnaire.description && (
+                          <p className="text-gray-600 text-sm mb-3">{questionnaire.description}</p>
+                        )}
+                        <div className="flex items-center text-sm text-gray-500">
+                          <span>質問数: {questionnaire.questions.length}件</span>
+                          <span className="mx-2">•</span>
+                          <span>作成日: {new Date(questionnaire.created_at).toLocaleDateString('ja-JP')}</span>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedQuestionnaire(questionnaire)
+                            setShowQuestionnaireModal(true)
+                          }}
+                        >
+                          <Edit className="w-4 h-4 mr-1" />
+                          編集
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('この問診票を削除しますか？')) {
+                              handleDeleteQuestionnaire(questionnaire.id)
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          削除
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 問診票の削除処理
+  const handleDeleteQuestionnaire = async (questionnaireId: string) => {
+    try {
+      await deleteQuestionnaire(questionnaireId)
+      setQuestionnaires(prev => prev.filter(q => q.id !== questionnaireId))
+    } catch (error) {
+      console.error('問診票削除エラー:', error)
+      alert('問診票の削除に失敗しました')
+    }
+  }
+
   // 右側コンテンツのレンダリング
   const renderRightContent = () => {
     if (!selectedCategory) {
@@ -2302,11 +2648,7 @@ export default function SettingsPage() {
         {selectedCategory === 'clinic' && renderClinicSettings()}
         {selectedCategory === 'calendar' && renderCalendarSettings()}
         {selectedCategory === 'treatment' && renderTreatmentSettings()}
-        {selectedCategory === 'questionnaire' && (
-          <div className="text-center py-8 text-gray-500">
-            問診表設定のコンテンツがここに表示されます
-          </div>
-        )}
+        {selectedCategory === 'questionnaire' && renderQuestionnaireSettings()}
         {selectedCategory === 'staff' && (
           <div className="space-y-6">
 
@@ -2622,7 +2964,7 @@ export default function SettingsPage() {
                     onClick={() => handleCategoryClick(category.id)}
                     className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors rounded-lg ${
                       isActive 
-                        ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
+                        ? 'bg-blue-50 text-blue-600' 
                         : 'hover:bg-gray-50 text-gray-700'
                     }`}
                   >
@@ -2643,6 +2985,28 @@ export default function SettingsPage() {
           {renderRightContent()}
         </div>
       </div>
+
+      {/* 問診票編集モーダル */}
+      {selectedQuestionnaire && (
+        <QuestionnaireEditModal
+          isOpen={showQuestionnaireModal && !!selectedQuestionnaire}
+          onClose={() => {
+            setShowQuestionnaireModal(false)
+            setSelectedQuestionnaire(null)
+          }}
+          questionnaireId={selectedQuestionnaire.id}
+          clinicId={DEMO_CLINIC_ID}
+          onSave={(updatedQuestionnaire) => {
+            console.log('問診票を保存しました:', updatedQuestionnaire)
+            // リストを更新
+            setQuestionnaires(prev => 
+              prev.map(q => q.id === updatedQuestionnaire.id ? updatedQuestionnaire : q)
+            )
+            setShowQuestionnaireModal(false)
+            setSelectedQuestionnaire(null)
+          }}
+        />
+      )}
     </div>
   )
 }

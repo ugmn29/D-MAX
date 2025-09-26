@@ -462,3 +462,72 @@ export async function updateAppointment(
 
   return data
 }
+
+/**
+ * 予約をキャンセル
+ */
+export async function cancelAppointment(
+  appointmentId: string,
+  cancelReasonId: string,
+  cancelledBy: string
+): Promise<Appointment> {
+  // モックモードの場合はlocalStorageに保存
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約をキャンセルします', { appointmentId, cancelReasonId, cancelledBy })
+    const { updateMockAppointment, getMockCancelReasons } = await import('@/lib/utils/mock-mode')
+    
+    const cancelReason = getMockCancelReasons().find(r => r.id === cancelReasonId)
+    
+    const updatedAppointment = {
+      status: 'キャンセル' as any,
+      cancel_reason_id: cancelReasonId,
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: cancelledBy,
+      updated_at: new Date().toISOString()
+    }
+    
+    updateMockAppointment(appointmentId, updatedAppointment)
+    
+    // 更新されたデータを再取得
+    const { getMockAppointments } = await import('@/lib/utils/mock-mode')
+    const appointments = getMockAppointments()
+    const appointment = appointments.find(apt => apt.id === appointmentId)
+    
+    if (!appointment) {
+      throw new Error('予約が見つかりません')
+    }
+    
+    return appointment
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('appointments')
+    .update({
+      status: 'キャンセル',
+      cancel_reason_id: cancelReasonId,
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: cancelledBy,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', appointmentId)
+    .select(`
+      *,
+      patient:patients(*),
+      menu1:treatment_menus!menu1_id(*),
+      menu2:treatment_menus!menu2_id(*),
+      menu3:treatment_menus!menu3_id(*),
+      staff1:staff!staff1_id(*),
+      staff2:staff!staff2_id(*),
+      staff3:staff!staff3_id(*),
+      cancel_reason:cancel_reasons(*)
+    `)
+    .single()
+
+  if (error) {
+    console.error('予約キャンセルエラー:', error)
+    throw error
+  }
+
+  return data
+}

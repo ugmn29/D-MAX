@@ -21,16 +21,24 @@ import {
   Phone,
   Trash2,
   Copy,
-  X
+  X,
+  FileText,
+  CreditCard,
+  CheckCircle
 } from 'lucide-react'
 import { getPatients, createPatient } from '@/lib/api/patients'
 import { getTreatmentMenus } from '@/lib/api/treatment'
+import Link from 'next/link'
 import { getStaff } from '@/lib/api/staff'
 import { getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
 import { getAppointments, updateAppointment } from '@/lib/api/appointments'
+import { logAppointmentChange, logAppointmentCreation } from '@/lib/api/appointment-logs'
+import { getUnlinkedQuestionnaireResponses, linkQuestionnaireResponseToPatient, unlinkQuestionnaireResponse, QuestionnaireResponse, debugQuestionnaireResponses } from '@/lib/api/questionnaires'
+import { MOCK_MODE } from '@/lib/utils/mock-mode'
 import { Patient, TreatmentMenu, Staff } from '@/types/database'
 import { TimeWarningModal } from '@/components/ui/time-warning-modal'
 import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
+import { CancelReasonModal } from '@/components/ui/cancel-reason-modal'
 
 interface WorkingStaff {
   staff: {
@@ -55,6 +63,8 @@ interface AppointmentEditModalProps {
   editingAppointment?: any
   onSave: (appointmentData: any) => void
   onUpdate?: (appointmentData: any) => void
+  onCopyAppointment?: (appointment: any) => void
+  onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
 }
 
 interface PatientSearchResult extends Patient {
@@ -73,7 +83,9 @@ export function AppointmentEditModal({
   workingStaff = [],
   editingAppointment,
   onSave,
-  onUpdate
+  onUpdate,
+  onCopyAppointment,
+  onAppointmentCancel
 }: AppointmentEditModalProps) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -111,7 +123,6 @@ export function AppointmentEditModal({
 
   // 初期予約時間の計算
   const getInitialAppointmentData = useCallback(() => {
-    console.log('getInitialAppointmentData called with:', { selectedTimeSlots, timeSlotMinutes, selectedTime })
     
     // 複数選択された時間範囲がある場合は、その範囲を設定
     if (selectedTimeSlots.length > 0) {
@@ -149,7 +160,6 @@ export function AppointmentEditModal({
       const defaultEndTimeMinutes = timeToMinutes(selectedTime) + timeSlotMinutes
       const defaultEndTime = minutesToTime(defaultEndTimeMinutes)
       
-      console.log('Calculated for single-select:', { selectedTime, defaultEndTime, timeSlotMinutes })
       
       return {
         start_time: selectedTime,
@@ -174,6 +184,237 @@ export function AppointmentEditModal({
   const [timeValidation, setTimeValidation] = useState<TimeValidationResult | null>(null)
   const [pendingAppointmentData, setPendingAppointmentData] = useState<any>(null)
 
+  // キャンセルモーダル関連の状態
+  const [showCancelModal, setShowCancelModal] = useState(false)
+
+  // 本登録モーダル関連の状態
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false)
+  const [registrationStep, setRegistrationStep] = useState<'select' | 'questionnaire' | 'insurance'>('select')
+  const [unlinkedQuestionnaires, setUnlinkedQuestionnaires] = useState<QuestionnaireResponse[]>([])
+  const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState<string | null>(null)
+  const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false)
+
+  // 未連携問診票を取得
+  const fetchUnlinkedQuestionnaires = async () => {
+    if (!clinicId) return
+    
+    console.log('未連携問診票取得開始:', { clinicId })
+    
+    // デバッグ：現在の配列状態を確認
+    console.log('デバッグ: 取得前の配列状態')
+    debugQuestionnaireResponses()
+    
+    setLoadingQuestionnaires(true)
+    try {
+      const responses = await getUnlinkedQuestionnaireResponses(clinicId)
+      console.log('未連携問診票取得結果:', { 
+        count: responses.length, 
+        responses: responses.map(r => ({
+          id: r.id,
+          name: r.response_data.patient_name || r.response_data['q1-1'],
+          phone: r.response_data.patient_phone || r.response_data['q1-10']
+        }))
+      })
+      setUnlinkedQuestionnaires(responses)
+    } catch (error) {
+      console.error('未連携問診票の取得エラー:', error)
+    } finally {
+      setLoadingQuestionnaires(false)
+    }
+  }
+
+  // 問診票を患者に紐付け
+  const linkQuestionnaireToPatient = async () => {
+    if (!selectedQuestionnaireId || !selectedPatient) return
+    
+    try {
+      // 選択された問診票のデータを取得
+      const selectedQuestionnaire = unlinkedQuestionnaires.find(q => q.id === selectedQuestionnaireId)
+      if (!selectedQuestionnaire) {
+        alert('問診票データが見つかりません')
+        return
+      }
+
+      const responseData = selectedQuestionnaire.response_data
+      
+      // 問診票から患者情報を抽出
+      const patientName = responseData.patient_name || responseData['q1-1'] || ''
+      const patientNameKana = responseData.patient_name_kana || responseData['q1-2'] || ''
+      const gender = responseData['q1-3'] || ''
+      const birthDate = responseData['q1-4'] || ''
+      const phone = responseData.patient_phone || responseData['q1-10'] || ''
+      const email = responseData.patient_email || responseData['q1-11'] || ''
+      
+      // 名前を姓と名に分割
+      const nameParts = patientName.split(' ')
+      const lastName = nameParts[0] || ''
+      const firstName = nameParts.slice(1).join(' ') || ''
+      
+      // フリガナを姓と名に分割
+      const kanaParts = patientNameKana.split(' ')
+      const lastNameKana = kanaParts[0] || ''
+      const firstNameKana = kanaParts.slice(1).join(' ') || ''
+      
+      // 性別を変換
+      let genderValue: 'male' | 'female' | 'other' = 'other'
+      if (gender === '男' || gender === 'male') {
+        genderValue = 'male'
+      } else if (gender === '女' || gender === 'female') {
+        genderValue = 'female'
+      }
+      
+      // 患者情報を更新
+      const updatedPatient = {
+        ...selectedPatient,
+        last_name: lastName,
+        first_name: firstName,
+        last_name_kana: lastNameKana,
+        first_name_kana: firstNameKana,
+        gender: genderValue,
+        birth_date: birthDate,
+        phone: phone,
+        email: email,
+        is_registered: true // 本登録済みに更新
+      }
+      
+      // 患者情報を更新
+      try {
+        if (MOCK_MODE) {
+          // 本登録時にIDを割り振る
+          const { generatePatientNumber } = await import('@/lib/api/patients')
+          const patientNumber = await generatePatientNumber(clinicId)
+          
+          // モックモードではlocalStorageに保存
+          const { updateMockPatient } = await import('@/lib/utils/mock-mode')
+          updateMockPatient(selectedPatient.id, {
+            last_name: lastName,
+            first_name: firstName,
+            last_name_kana: lastNameKana,
+            first_name_kana: firstNameKana,
+            gender: genderValue,
+            birth_date: birthDate,
+            phone: phone,
+            email: email,
+            patient_number: patientNumber,
+            is_registered: true
+          })
+          console.log('モックモード: 患者情報をlocalStorageに保存（ID割り振り）', updatedPatient)
+          setSelectedPatient(updatedPatient)
+        } else {
+          // 本登録時にIDを割り振る
+          const { generatePatientNumber } = await import('@/lib/api/patients')
+          const patientNumber = await generatePatientNumber(clinicId)
+          
+          // 本番モードではデータベースに保存
+          const { updatePatient } = await import('@/lib/api/patients')
+          await updatePatient(clinicId, selectedPatient.id, {
+            last_name: lastName,
+            first_name: firstName,
+            last_name_kana: lastNameKana,
+            first_name_kana: firstNameKana,
+            gender: genderValue,
+            birth_date: birthDate,
+            phone: phone,
+            email: email,
+            patient_number: patientNumber,
+            is_registered: true
+          })
+          
+          // 状態も更新
+          setSelectedPatient(updatedPatient)
+        }
+      } catch (error) {
+        console.error('患者情報の更新エラー:', error)
+        alert('患者情報の更新に失敗しました')
+        return
+      }
+      
+      await linkQuestionnaireResponseToPatient(
+        selectedQuestionnaireId,
+        selectedPatient.id,
+        editingAppointment?.id
+      )
+      
+      // 患者情報を再取得して表示を更新
+      try {
+        const { getPatients } = await import('@/lib/api/patients')
+        const updatedPatients = await getPatients(clinicId)
+        const updatedPatient = updatedPatients.find(p => p.id === selectedPatient.id)
+        if (updatedPatient) {
+          setSelectedPatient(updatedPatient)
+          console.log('患者情報を再取得して表示を更新:', updatedPatient)
+          
+          // 強制的にコンポーネントを再レンダリング
+          setTimeout(() => {
+            console.log('患者情報の表示更新完了:', updatedPatient)
+            // 状態を強制的に更新
+            setSelectedPatient({ ...updatedPatient })
+          }, 100)
+        }
+      } catch (error) {
+        console.error('患者情報の再取得エラー:', error)
+      }
+      
+      alert('問診票を患者に紐付けました。患者情報が自動更新されました。')
+      setShowRegistrationModal(false)
+      
+      // モーダルは閉じずに患者情報の表示を更新
+      console.log('問診票連携完了: モーダルを開いたまま患者情報を更新')
+    } catch (error) {
+      console.error('問診票紐付けエラー:', error)
+      alert('問診票の紐付けに失敗しました')
+    }
+  }
+
+  // 問診票の連携を解除する関数
+  const unlinkQuestionnaireFromPatient = async () => {
+    if (!selectedPatient) {
+      alert('患者が選択されていません')
+      return
+    }
+
+    try {
+      console.log('問診票連携解除開始:', { selectedPatient: selectedPatient.id })
+      
+      // 連携されている問診票のIDを取得（実際の実装では患者に紐づいている問診票を特定する必要があります）
+      // ここでは簡易的に最後に連携された問診票を解除
+      const linkedQuestionnaireId = selectedPatient.linked_questionnaire_id
+      if (!linkedQuestionnaireId) {
+        alert('連携されている問診票が見つかりません')
+        return
+      }
+
+      // 問診票の連携を解除
+      await unlinkQuestionnaireResponse(linkedQuestionnaireId)
+      
+      // 患者情報を元に戻す（仮登録状態に戻す）
+      const revertedPatient = {
+        ...selectedPatient,
+        is_registered: false,
+        linked_questionnaire_id: null
+      }
+      
+      // 患者情報を更新
+      if (MOCK_MODE) {
+        const { updateMockPatient } = await import('@/lib/utils/mock-mode')
+        updateMockPatient(selectedPatient.id, {
+          is_registered: false,
+          linked_questionnaire_id: null
+        })
+        setSelectedPatient(revertedPatient)
+      }
+      
+      alert('問診票の連携を解除しました。患者情報が仮登録状態に戻りました。')
+      
+      // 未連携問診票を再取得
+      await fetchUnlinkedQuestionnaires()
+      
+    } catch (error) {
+      console.error('問診票連携解除エラー:', error)
+      alert('問診票の連携解除に失敗しました')
+    }
+  }
+
   // モーダルが開かれた時に予約データを再初期化
   useEffect(() => {
     if (isOpen) {
@@ -194,9 +435,39 @@ export function AppointmentEditModal({
           notes: editingAppointment.notes || ''
         })
         
-        // 既存の患者を設定
+        // 既存の患者を設定（最新の状態で再取得）
         if (editingAppointment.patient) {
-          setSelectedPatient(editingAppointment.patient)
+          // 患者情報を最新の状態で再取得（エラーハンドリング強化）
+          const refreshPatientInfo = async () => {
+            try {
+              console.log('患者情報の再取得開始:', editingAppointment.patient.id)
+              const { getPatients } = await import('@/lib/api/patients')
+              const updatedPatients = await getPatients(clinicId)
+              console.log('取得した患者データ:', updatedPatients)
+              
+              const updatedPatient = updatedPatients.find(p => p.id === editingAppointment.patient.id)
+              if (updatedPatient) {
+                setSelectedPatient(updatedPatient)
+                console.log('患者情報を最新の状態で再取得:', updatedPatient)
+                
+                // 強制的に状態を更新（連携状態を確実に反映）
+                setTimeout(() => {
+                  setSelectedPatient({ ...updatedPatient })
+                  console.log('患者情報の状態を強制更新:', updatedPatient)
+                }, 100)
+              } else {
+                console.log('患者が見つからないため、元の患者情報を使用')
+                // 見つからない場合は元の患者情報を使用
+                setSelectedPatient(editingAppointment.patient)
+              }
+            } catch (error) {
+              console.error('患者情報の再取得エラー:', error)
+              console.log('エラーのため、元の患者情報を使用:', editingAppointment.patient)
+              // エラーの場合は元の患者情報を使用
+              setSelectedPatient(editingAppointment.patient)
+            }
+          }
+          refreshPatientInfo()
         }
         
         // 既存のメニューを設定
@@ -504,9 +775,13 @@ export function AppointmentEditModal({
             return
           }
           
-          // 新規患者を作成
+          // 新規患者を作成（IDを連番で1から振る）
+          const { generatePatientNumber } = await import('@/lib/api/patients')
+          const patientNumber = await generatePatientNumber(clinicId)
+          
           patientToUse = await createPatient(clinicId, {
             ...newPatientData,
+            patient_number: patientNumber,
             is_registered: false // 仮登録
           })
           
@@ -548,11 +823,48 @@ export function AppointmentEditModal({
       // 検証OKの場合は保存
       if (editingAppointment) {
         // 既存の予約を更新
+        const oldData = {
+          start_time: editingAppointment.start_time,
+          end_time: editingAppointment.end_time,
+          staff1_id: editingAppointment.staff1_id,
+          menu1_id: editingAppointment.menu1_id,
+          status: editingAppointment.status,
+          memo: editingAppointment.memo
+        }
+        
         await updateAppointment(editingAppointment.id, appointment)
         console.log('既存予約を更新:', editingAppointment.id, appointment)
+        
+        // 予約変更ログを記録
+        try {
+          await logAppointmentChange(
+            editingAppointment.id,
+            editingAppointment.patient_id,
+            oldData,
+            appointment,
+            'system', // 実際の実装では現在のスタッフIDを取得
+            '予約情報を更新しました'
+          )
+        } catch (error) {
+          console.error('予約変更ログの記録に失敗:', error)
+          // ログ記録の失敗は予約操作を止めない
+        }
       } else {
         // 新規予約を作成
-        onSave(appointment)
+        const newAppointmentId = await onSave(appointment)
+        
+        // 新規予約作成ログを記録
+        try {
+          await logAppointmentCreation(
+            newAppointmentId,
+            patientToUse.id,
+            appointment,
+            'system' // 実際の実装では現在のスタッフIDを取得
+          )
+        } catch (error) {
+          console.error('予約作成ログの記録に失敗:', error)
+          // ログ記録の失敗は予約操作を止めない
+        }
       }
       onClose()
     } catch (error) {
@@ -599,11 +911,46 @@ export function AppointmentEditModal({
       if (pendingAppointmentData) {
         if (editingAppointment) {
           // 既存の予約を更新
+          const oldData = {
+            start_time: editingAppointment.start_time,
+            end_time: editingAppointment.end_time,
+            staff1_id: editingAppointment.staff1_id,
+            menu1_id: editingAppointment.menu1_id,
+            status: editingAppointment.status,
+            memo: editingAppointment.memo
+          }
+          
           await updateAppointment(editingAppointment.id, pendingAppointmentData)
           console.log('既存予約を更新（警告後）:', editingAppointment.id, pendingAppointmentData)
+          
+          // 予約変更ログを記録
+          try {
+            await logAppointmentChange(
+              editingAppointment.id,
+              editingAppointment.patient_id,
+              oldData,
+              pendingAppointmentData,
+              'system',
+              '予約情報を更新しました（警告後）'
+            )
+          } catch (error) {
+            console.error('予約変更ログの記録に失敗:', error)
+          }
         } else {
           // 新規予約を作成
-          onSave(pendingAppointmentData)
+          const newAppointmentId = await onSave(pendingAppointmentData)
+          
+          // 新規予約作成ログを記録
+          try {
+            await logAppointmentCreation(
+              newAppointmentId,
+              selectedPatient?.id || '',
+              pendingAppointmentData,
+              'system'
+            )
+          } catch (error) {
+            console.error('予約作成ログの記録に失敗:', error)
+          }
         }
         onClose()
         setPendingAppointmentData(null)
@@ -667,11 +1014,11 @@ export function AppointmentEditModal({
       />
       
       {/* モーダルコンテンツ */}
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 max-h-[95vh] overflow-y-auto">
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 h-[700px] overflow-hidden">
         {/* コンテンツ */}
-        <div className="p-6">
+        <div className="p-6 h-full flex flex-col">
           {/* 閉じるボタン */}
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end mb-4 flex-shrink-0">
             <button
               onClick={handleClose}
               className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -679,11 +1026,11 @@ export function AppointmentEditModal({
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="flex h-[600px]">
+          <div className="flex flex-1 min-h-0">
             {/* 左カラム: 患者情報と予約履歴 */}
-            <div className="w-1/2 pr-6 border-r border-gray-200 flex flex-col">
+            <div className="w-1/2 pr-6 border-r border-gray-200 flex flex-col min-h-0">
               {/* 患者情報 */}
-              <div className="mb-6">
+              <div className="mb-6 flex-shrink-0">
                 
                   {/* 患者検索 */}
                 <div className="mb-4">
@@ -733,32 +1080,64 @@ export function AppointmentEditModal({
                   {/* 選択された患者情報 */}
                   {selectedPatient ? (
                     <div className="p-4 border border-gray-100 rounded-md bg-blue-50">
-                      {/* 患者名（入力フィールド形式） */}
+                      {/* 患者名（クリック可能） */}
                       <div className="flex items-center justify-between mb-3">
-                        <Input
-                          value={`${selectedPatient.last_name} ${selectedPatient.first_name}`}
-                          readOnly
-                          className="text-lg font-medium text-gray-900 bg-white border-gray-300"
-                        />
-                        <Button variant="ghost" size="sm" className="p-1 ml-2">
-                          <Edit className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center space-x-3 flex-1">
+                          <Link href={`/patients/${selectedPatient.id}`} className="flex-1">
+                            <div className="w-full p-3 text-lg font-medium text-gray-900 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-blue-300 cursor-pointer transition-colors">
+                              {`${selectedPatient.last_name} ${selectedPatient.first_name}${(selectedPatient.last_name_kana || selectedPatient.first_name_kana) ? ` (${selectedPatient.last_name_kana} ${selectedPatient.first_name_kana})` : ''}`}
+                            </div>
+                          </Link>
+                          {!selectedPatient.is_registered && (
+                            <Button 
+                              onClick={() => setShowRegistrationModal(true)}
+                              className="bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-200 h-10 px-3"
+                            >
+                              本登録
+                            </Button>
+                          )}
+                        </div>
+                        {selectedPatient.is_registered && (
+                          <div className="flex space-x-2">
+                            <Button 
+                              onClick={unlinkQuestionnaireFromPatient}
+                              variant="ghost" 
+                              size="sm" 
+                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50"
+                              title="問診票の連携を解除"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="p-1">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                       
                       {/* 患者詳細情報 */}
                       <div className="text-sm text-gray-600 mb-2 flex flex-wrap gap-1">
-                        <div className="bg-gray-100 px-2 py-1 rounded">
-                          ID: {selectedPatient.patient_number}
-                        </div>
+                        {/* 本登録済みの患者のみIDを表示 */}
+                        {selectedPatient.is_registered && selectedPatient.patient_number && (
+                          <div className="bg-gray-100 px-2 py-1 rounded">
+                            ID: {selectedPatient.patient_number}
+                          </div>
+                        )}
                         <div className="bg-gray-100 px-2 py-1 rounded">
                           年齢: {selectedPatient.birth_date ? `${new Date().getFullYear() - new Date(selectedPatient.birth_date).getFullYear()}歳` : '--歳'}
                         </div>
                         <div className="bg-gray-100 px-2 py-1 rounded">
-                          生年月日: {selectedPatient.birth_date || '--'}
+                          生年月日: {selectedPatient.birth_date ? selectedPatient.birth_date.replace(/-/g, '/') : '--'}
                         </div>
                         <div className="bg-gray-100 px-2 py-1 rounded">
                           性別: {selectedPatient.gender === 'male' ? '男性' : selectedPatient.gender === 'female' ? '女性' : '--'}
                         </div>
+                        {/* 仮登録の場合はステータスを表示 */}
+                        {!selectedPatient.is_registered && (
+                          <div className="bg-yellow-100 px-2 py-1 rounded text-yellow-800">
+                            仮登録
+                          </div>
+                        )}
                       </div>
                       
                       {/* 電話番号 */}
@@ -766,6 +1145,7 @@ export function AppointmentEditModal({
                         <Phone className="w-4 h-4 mr-1" />
                         <span>電話: {selectedPatient.phone}</span>
                       </div>
+                      
                     </div>
                   ) : null}
 
@@ -803,10 +1183,10 @@ export function AppointmentEditModal({
               </div>
 
               {/* 予約履歴 - 患者情報のすぐ下に配置 */}
-              <div className="mt-1 flex-1 flex flex-col bg-gray-50 border border-gray-100 rounded-md p-4">
-                <h3 className="text-base font-medium mb-4">予約履歴</h3>
-                <div className="border border-gray-200 rounded-md flex-1 flex flex-col bg-white">
-                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+              <div className="mt-1 flex-1 flex flex-col bg-gray-50 border border-gray-100 rounded-md p-4 min-h-0">
+                <h3 className="text-base font-medium mb-4 flex-shrink-0">予約履歴</h3>
+                <div className="border border-gray-200 rounded-md flex-1 flex flex-col bg-white min-h-0">
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex-shrink-0">
                     <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-600">
                       <div>予約日時</div>
                       <div>担当</div>
@@ -815,9 +1195,8 @@ export function AppointmentEditModal({
                     </div>
                   </div>
                   <div 
-                    className="divide-y divide-gray-200 flex-1 overflow-y-auto"
+                    className="divide-y divide-gray-200 flex-1 overflow-y-auto min-h-0"
                     style={{
-                      maxHeight: '400px',
                       scrollbarWidth: 'thin',
                       scrollbarColor: '#d1d5db #f3f4f6'
                     }}
@@ -898,8 +1277,8 @@ export function AppointmentEditModal({
             </div>
 
             {/* 右カラム: 予約設定 */}
-            <div className="w-1/2 pl-6">
-              <div className="space-y-6">
+            <div className="w-1/2 pl-6 flex flex-col min-h-0">
+              <div className="space-y-6 flex-1 overflow-y-auto">
                 {/* 予約日時 */}
                 <div>
                   <div className="text-2xl font-bold text-gray-800 mb-4">
@@ -1067,7 +1446,16 @@ export function AppointmentEditModal({
 
                 {/* アクションボタン */}
                 <div className="flex justify-end space-x-2 pt-4">
-                  <Button variant="outline">
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      if (editingAppointment && onCopyAppointment) {
+                        onCopyAppointment(editingAppointment)
+                        onClose()
+                      }
+                    }}
+                    disabled={!editingAppointment}
+                  >
                     <Copy className="w-4 h-4 mr-1" />
                     コピー
                   </Button>
@@ -1081,7 +1469,12 @@ export function AppointmentEditModal({
                 
                 {/* 予約キャンセルボタン */}
                 <div className="flex justify-end pt-2">
-                  <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50">
+                  <Button 
+                    variant="outline" 
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => setShowCancelModal(true)}
+                    disabled={!editingAppointment}
+                  >
                     予約キャンセル
                   </Button>
                 </div>
@@ -1218,6 +1611,211 @@ export function AppointmentEditModal({
         startTime={appointmentData.start_time}
         endTime={appointmentData.end_time}
       />
+    )}
+
+    {/* キャンセル理由選択モーダル */}
+    {editingAppointment && (
+      <CancelReasonModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        appointmentId={editingAppointment.id}
+        patientName={selectedPatient ? `${selectedPatient.last_name} ${selectedPatient.first_name}` : '患者情報なし'}
+        appointmentTime={`${appointmentData.start_time} - ${appointmentData.end_time}`}
+        onCancelSuccess={() => {
+          setShowCancelModal(false)
+          onClose()
+          // キャンセル成功後にカレンダーを再読み込み
+          onAppointmentCancel?.()
+        }}
+      />
+    )}
+
+    {/* 本登録モーダル */}
+    {showRegistrationModal && selectedPatient && (
+      <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            {/* ヘッダー */}
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">本登録</h2>
+              <Button variant="ghost" size="sm" onClick={() => setShowRegistrationModal(false)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* 患者情報 */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">患者情報</h3>
+              <p className="text-lg font-medium">
+                {selectedPatient.last_name} {selectedPatient.first_name}
+              </p>
+              <p className="text-sm text-gray-600">
+                {selectedPatient.phone}
+              </p>
+            </div>
+
+            {/* 連携選択 */}
+            {registrationStep === 'select' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">連携する情報を選択してください</h3>
+                
+                <Button
+                  onClick={() => {
+                    console.log('問診票選択ボタンクリック')
+                    setRegistrationStep('questionnaire')
+                    fetchUnlinkedQuestionnaires()
+                  }}
+                  className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center space-x-3"
+                >
+                  <FileText className="w-6 h-6" />
+                  <div className="text-left">
+                    <div className="font-medium">問診票を連携</div>
+                    <div className="text-sm opacity-90">患者の問診票を選択して連携</div>
+                  </div>
+                </Button>
+
+                <Button
+                  onClick={() => setRegistrationStep('insurance')}
+                  className="w-full h-16 bg-green-600 hover:bg-green-700 text-white flex items-center justify-center space-x-3"
+                >
+                  <CreditCard className="w-6 h-6" />
+                  <div className="text-left">
+                    <div className="font-medium">保険証を連携</div>
+                    <div className="text-sm opacity-90">保険証をスキャンして情報を取得</div>
+                  </div>
+                </Button>
+              </div>
+            )}
+
+            {/* 問診票選択 */}
+            {registrationStep === 'questionnaire' && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRegistrationStep('select')}
+                  >
+                    ← 戻る
+                  </Button>
+                  <h3 className="text-lg font-medium text-gray-900">問診票を選択</h3>
+                </div>
+                
+                {loadingQuestionnaires ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-500">問診票を読み込み中...</p>
+                  </div>
+                ) : unlinkedQuestionnaires.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>未連携の問診票がありません</p>
+                    <p className="text-sm">患者が問診票を提出していません</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {unlinkedQuestionnaires.map((response) => {
+                      const responseData = response.response_data
+                      const name = responseData.patient_name || responseData['q1-1'] || '名前不明'
+                      const phone = responseData.patient_phone || responseData['q1-10'] || ''
+                      const completedDate = response.completed_at ? 
+                        new Date(response.completed_at).toLocaleDateString('ja-JP') : '不明'
+                      
+                      return (
+                        <div
+                          key={response.id}
+                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                            selectedQuestionnaireId === response.id
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => setSelectedQuestionnaireId(response.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <FileText className="w-4 h-4 text-blue-600" />
+                                <span className="font-medium text-gray-900">
+                                  {name || '名前不明'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-1">
+                                電話: {phone || '未記入'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                回答日: {completedDate}
+                              </p>
+                            </div>
+                            <div className="ml-4">
+                              {selectedQuestionnaireId === response.id && (
+                                <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                                  <CheckCircle className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 保険証スキャン */}
+            {registrationStep === 'insurance' && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRegistrationStep('select')}
+                  >
+                    ← 戻る
+                  </Button>
+                  <h3 className="text-lg font-medium text-gray-900">保険証をスキャン</h3>
+                </div>
+                
+                <div className="text-center py-8 text-gray-500">
+                  <CreditCard className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>保険証スキャン機能は開発中です</p>
+                  <p className="text-sm">保険証リーダーとの連携を準備中</p>
+                </div>
+              </div>
+            )}
+
+            {/* フッター */}
+            <div className="mt-6 flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowRegistrationModal(false)}
+              >
+                キャンセル
+              </Button>
+              {registrationStep === 'questionnaire' && selectedQuestionnaireId && (
+                <Button
+                  onClick={linkQuestionnaireToPatient}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  問診票を紐付け
+                </Button>
+              )}
+              {registrationStep === 'insurance' && (
+                <Button
+                  onClick={() => {
+                    // TODO: 保険証OCR処理
+                    alert('保険証機能は開発中です')
+                    setShowRegistrationModal(false)
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  保険証を読み取り
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     )}
   </>
   )

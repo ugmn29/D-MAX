@@ -15,6 +15,8 @@ interface SidebarCalendarProps {
   selectedDate: Date
   onDateChange: (date: Date) => void
   onPatientSelect?: (patient: Patient) => void
+  isPasteMode?: boolean
+  onPasteToDate?: (date: Date) => void
 }
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -27,7 +29,9 @@ export function SidebarCalendar({
   clinicId, 
   selectedDate, 
   onDateChange, 
-  onPatientSelect 
+  onPatientSelect,
+  isPasteMode = false,
+  onPasteToDate
 }: SidebarCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [searchQuery, setSearchQuery] = useState('')
@@ -178,6 +182,15 @@ export function SidebarCalendar({
     })
   }
 
+  // 日付クリック処理
+  const handleDateClick = (date: Date) => {
+    if (isPasteMode && onPasteToDate) {
+      onPasteToDate(date)
+    } else {
+      onDateChange(date)
+    }
+  }
+
   return (
     <div className="w-72 bg-white border-l border-gray-200 flex flex-col h-screen">
       {/* 日付ナビゲーション */}
@@ -288,7 +301,7 @@ export function SidebarCalendar({
             return (
               <button
                 key={index}
-                onClick={() => handleDateSelect(date)}
+                onClick={() => handleDateClick(date)}
                 className={`
                   h-8 w-8 text-xs rounded-md transition-colors
                   ${isCurrent ? 'text-gray-900' : 'text-gray-400'}
@@ -296,7 +309,9 @@ export function SidebarCalendar({
                     ? 'bg-blue-600 text-white' 
                     : isTodayDate 
                       ? 'bg-blue-100 text-blue-600' 
-                      : 'hover:bg-gray-100'
+                      : isPasteMode && isCurrent
+                        ? 'hover:bg-yellow-100 hover:border-yellow-300 border-2 border-transparent'
+                        : 'hover:bg-gray-100'
                   }
                   ${!isSelectedDate && !isTodayDate && isCurrent && dayOfWeek === 0 ? 'text-red-500' : ''}
                   ${!isSelectedDate && !isTodayDate && isCurrent && dayOfWeek === 6 ? 'text-blue-500' : ''}

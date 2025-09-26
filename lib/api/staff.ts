@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
-import { MOCK_MODE, getMockStaff, addMockStaff, removeMockStaff, updateMockStaff, getMockStaffPositions } from '@/lib/utils/mock-mode'
+import { MOCK_MODE, getMockStaff, addMockStaff, removeMockStaff, updateMockStaff, getMockStaffPositions, initializeMockData } from '@/lib/utils/mock-mode'
 
 export interface Staff {
   id: string
@@ -59,8 +59,15 @@ export async function getStaff(clinicId: string): Promise<Staff[]> {
   // モックモードの場合はモックデータを返す
   if (MOCK_MODE) {
     console.log('モックモード: スタッフデータを返します')
+    
+    // モックデータを初期化
+    initializeMockData()
+    
     const staffData = getMockStaff().filter(item => item.clinic_id === clinicId)
     const positions = getMockStaffPositions()
+    
+    console.log('取得したスタッフデータ:', staffData)
+    console.log('取得した役職データ:', positions)
     
     // スタッフデータに役職情報を追加
     return staffData.map(staff => ({

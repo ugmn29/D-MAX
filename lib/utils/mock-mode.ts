@@ -1,5 +1,11 @@
 // モックモードの設定
-export const MOCK_MODE = process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_MOCK_MODE === 'true'
+// 環境変数 USE_DATABASE=true でデータベース使用を強制
+// デフォルトは開発環境ではモック、本番環境ではデータベース
+// 一時的にデータベースを使用する場合は false に設定
+export const MOCK_MODE = true // process.env.USE_DATABASE === 'true' ? false : process.env.NODE_ENV === 'development'
+
+// 問診票のみデータベースを使用するフラグ
+export const USE_DATABASE_FOR_QUESTIONNAIRES = process.env.USE_DATABASE_QUESTIONNAIRES === 'true'
 
 // モックデータ（localStorageで永続化）
 const STORAGE_KEYS = {
@@ -23,8 +29,20 @@ const loadFromStorage = (key: string): any[] => {
   }
 }
 
+// localStorageからデータを読み込む関数（デフォルト値付き）
+const getFromStorage = (key: string, defaultValue: any[] = []): any[] => {
+  if (typeof window === 'undefined') return defaultValue
+  try {
+    const data = localStorage.getItem(key)
+    return data ? JSON.parse(data) : defaultValue
+  } catch (error) {
+    console.error(`Failed to load ${key} from localStorage:`, error)
+    return defaultValue
+  }
+}
+
 // localStorageにデータを保存する関数
-const saveToStorage = (key: string, data: any[]) => {
+export const saveToStorage = (key: string, data: any[]) => {
   if (typeof window === 'undefined') return
   try {
     localStorage.setItem(key, JSON.stringify(data))
@@ -200,7 +218,13 @@ export const removeMockAppointment = (id: string) => {
 export const MOCK_CLINIC_SETTINGS = {
   time_slot_minutes: 15,
   display_items: [],
-  cell_height: 40
+  cell_height: 40,
+  cancel_types: ['no_show', 'advance_notice', 'same_day', 'clinic_reason'],
+  penalty_settings: {
+    noShowThreshold: 3,
+    webReservationLimit: true,
+    penaltyPeriod: 30
+  }
 }
 
 // デフォルトの診療メニューデータ
@@ -250,12 +274,43 @@ const DEFAULT_TREATMENT_MENUS = [
 const DEFAULT_STAFF = [
   {
     id: 'staff-1',
-    clinic_id: '11111111-1111-1111-1111-111111111111',
-    name: '福永',
-    name_kana: 'フクナガ',
+    clinic_id: 'clinic-1',
+    name: '田中太郎',
+    name_kana: 'タナカタロウ',
     position_id: 'position-1',
     role: 'doctor',
     is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'staff-2',
+    clinic_id: 'clinic-1',
+    name: '佐藤花子',
+    name_kana: 'サトウハナコ',
+    position_id: 'position-2',
+    role: 'hygienist',
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+]
+
+// デフォルトのスタッフ役職データ
+const DEFAULT_STAFF_POSITIONS = [
+  {
+    id: 'position-1',
+    clinic_id: 'clinic-1',
+    name: '歯科医師',
+    sort_order: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'position-2',
+    clinic_id: 'clinic-1',
+    name: '歯科衛生士',
+    sort_order: 2,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
@@ -280,27 +335,93 @@ const DEFAULT_STAFF_SHIFTS = [
   }
 ]
 
+// キャンセル理由のデフォルトデータ
+const DEFAULT_CANCEL_REASONS = [
+  {
+    id: 'cancel-reason-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '無断キャンセル',
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'cancel-reason-2',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '事前キャンセル',
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'cancel-reason-3',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '当日キャンセル',
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'cancel-reason-4',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '医院都合',
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+]
+
+// キャンセル理由を取得
+export const getMockCancelReasons = () => {
+  console.log('getMockCancelReasons: 呼び出し')
+  const reasons = getFromStorage('mock_cancel_reasons', DEFAULT_CANCEL_REASONS)
+  console.log('getMockCancelReasons: 取得した理由:', reasons)
+  console.log('getMockCancelReasons: 理由の数:', reasons.length)
+  return reasons
+}
+
 // 初期化時にデフォルトデータを設定
 export const initializeMockData = () => {
   if (typeof window === 'undefined') return
+  
+  console.log('モックデータを初期化中...')
   
   // 診療メニューが空の場合はデフォルトデータを設定
   const existingMenus = getMockTreatmentMenus()
   if (existingMenus.length === 0) {
     saveToStorage(STORAGE_KEYS.TREATMENT_MENUS, DEFAULT_TREATMENT_MENUS)
+    console.log('診療メニューデータを初期化しました')
+  }
+  
+  // スタッフ役職が空の場合はデフォルトデータを設定
+  const existingPositions = getMockStaffPositions()
+  if (existingPositions.length === 0) {
+    saveToStorage(STORAGE_KEYS.STAFF_POSITIONS, DEFAULT_STAFF_POSITIONS)
+    console.log('スタッフ役職データを初期化しました')
   }
   
   // スタッフが空の場合はデフォルトデータを設定
   const existingStaff = getMockStaff()
   if (existingStaff.length === 0) {
-    saveToStorage('mock_staff', DEFAULT_STAFF)
+    saveToStorage(STORAGE_KEYS.STAFF, DEFAULT_STAFF)
+    console.log('スタッフデータを初期化しました')
   }
   
   // スタッフシフトが空の場合はデフォルトデータを設定
   const existingShifts = getMockStaffShifts()
   if (existingShifts.length === 0) {
     saveToStorage(STORAGE_KEYS.STAFF_SHIFTS, DEFAULT_STAFF_SHIFTS)
+    console.log('スタッフシフトデータを初期化しました')
   }
+  
+  // キャンセル理由が空の場合はデフォルトデータを設定
+  const existingCancelReasons = getMockCancelReasons()
+  if (existingCancelReasons.length === 0) {
+    saveToStorage('mock_cancel_reasons', DEFAULT_CANCEL_REASONS)
+    console.log('キャンセル理由データを初期化しました')
+  }
+  
+  console.log('モックデータの初期化が完了しました')
 }
 
 // 後方互換性のための定数（空配列）
