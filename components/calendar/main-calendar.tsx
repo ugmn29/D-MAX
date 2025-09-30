@@ -1481,24 +1481,34 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 {/* キャンセルされていない予約のみテキストを表示 */}
                 {!isCancelled && (
                   <>
-                    {/* ステータス進行ボタン（右上） */}
+                    {/* ステータス表示・進行ボタン（右上） */}
                     {(() => {
                       const currentStatus = block.appointment.status
                       const nextStatus = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]?.nextStatus
                       console.log('予約ステータス:', currentStatus, '次のステータス:', nextStatus, '予約ID:', block.appointment.id)
                       
-                      // 次のステータスがある場合のみボタンを表示
-                      if (nextStatus && currentStatus !== 'キャンセル') {
+                      // キャンセルされていない予約のみステータスボタンを表示
+                      if (currentStatus && currentStatus !== 'キャンセル') {
+                        const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]
+                        const buttonColor = statusConfig?.color.split(' ')[0] || 'bg-gray-500'
+                        const textColor = statusConfig?.color.split(' ')[1] || 'text-gray-800'
+                        
                         return (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleStatusProgression(block.appointment)
+                              if (nextStatus) {
+                                handleStatusProgression(block.appointment)
+                              }
                             }}
-                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
-                            title={`${nextStatus}に進む (現在: ${currentStatus})`}
+                            className={`absolute top-1 right-1 px-2 py-1 rounded-full text-xs font-bold flex items-center justify-center transition-colors z-10 ${
+                              nextStatus 
+                                ? `${buttonColor} ${textColor} hover:opacity-80 cursor-pointer` 
+                                : `${buttonColor} ${textColor} cursor-default`
+                            }`}
+                            title={nextStatus ? `${nextStatus}に進む (現在: ${currentStatus})` : `現在: ${currentStatus} (最終ステータス)`}
                           >
-                            {nextStatus.charAt(0)}
+                            {currentStatus}
                           </button>
                         )
                       }
