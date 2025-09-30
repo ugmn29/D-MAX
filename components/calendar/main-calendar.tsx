@@ -11,6 +11,7 @@ import { CancelInfoModal } from '@/components/ui/cancel-info-modal'
 import { formatDateForDB } from '@/lib/utils/date'
 import { initializeMockData } from '@/lib/utils/mock-mode'
 import { timeToMinutes, minutesToTime } from '@/lib/utils/time-validation'
+import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 
 interface MainCalendarProps {
   clinicId: string
@@ -1447,47 +1448,128 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 {/* キャンセルされていない予約のみテキストを表示 */}
                 {!isCancelled && (
                   <>
-                    {/* 1段目: 診療時間、診察券番号 - 上ギリギリに配置 */}
+                    {/* 1段目: 診療時間、診察券番号 */}
                     <div className="text-xs leading-tight" style={{ marginTop: '0px', marginBottom: '2px' }}>
-                      {isResizing && resizingAppointment?.id === block.appointment.id && resizePreviewEndTime ? (
+                      {displayItems.includes('reservation_time') && (
                         <>
-                          {block.appointment.start_time} - {resizePreviewEndTime}
-                          {patient?.patient_number && patient?.is_registered && ` / ${patient.patient_number}`}
+                          {isResizing && resizingAppointment?.id === block.appointment.id && resizePreviewEndTime ? (
+                            <>{block.appointment.start_time} - {resizePreviewEndTime}</>
+                          ) : (
+                            <>{block.appointment.start_time} - {block.appointment.end_time}</>
+                          )}
                         </>
-                      ) : (
-                        <>
-                          {block.appointment.start_time} - {block.appointment.end_time}
-                          {patient?.patient_number && patient?.is_registered && ` / ${patient.patient_number}`}
-                        </>
+                      )}
+                      {displayItems.includes('medical_card_number') && patient?.patient_number && patient?.is_registered && (
+                        <span>{displayItems.includes('reservation_time') ? ' / ' : ''}{patient.patient_number}</span>
                       )}
                     </div>
                     
-                    {/* 2段目: 患者名、年齢、診療メニュー、担当者 - 横並びで表示 */}
-                    <div className="text-sm leading-tight" style={{ lineHeight: '1.2', marginTop: '4px' }}>
+                    {/* 2段目: 患者名、フリガナ、年齢、アイコン、診療メニュー、担当者 */}
+                    <div className="text-sm leading-tight flex items-center flex-wrap gap-1" style={{ lineHeight: '1.2', marginTop: '4px' }}>
                       {/* 患者名 */}
-                      <span className="font-medium">
-                        {patient ? 
-                          `${patient.last_name} ${patient.first_name}` : 
-                          '患者情報なし'
-                        }
-                      </span>
-                      
-                      {/* 年齢 - 常に表示 */}
-                      {patientAge && (
-                        <span> / {patientAge}歳</span>
+                      {displayItems.includes('name') && (
+                        <span className="font-medium">
+                          {patient ? 
+                            `${patient.last_name} ${patient.first_name}` : 
+                            '患者情報なし'
+                          }
+                        </span>
                       )}
                       
-                      {/* 診療メニュー - 常に表示 */}
-                      <span> / {(block.appointment as any).menu1?.name || 
-                             (block.appointment as any).menu2?.name || 
-                             (block.appointment as any).menu3?.name || 
-                             '診療メニュー'}</span>
+                      {/* フリガナ */}
+                      {displayItems.includes('furigana') && patient && (
+                        <span className="text-xs">
+                          {(displayItems.includes('name') || displayItems.some(item => item.match(/^(name|medical_card_number|reservation_time)$/))) ? ' / ' : ''}
+                          ({patient.last_name_kana} {patient.first_name_kana})
+                        </span>
+                      )}
                       
-                      {/* 担当者 - 常に表示 */}
-                      <span> / {(block.appointment as any).staff1?.name || 
-                             (block.appointment as any).staff2?.name || 
-                             (block.appointment as any).staff3?.name || 
-                             '担当者未設定'}</span>
+                      {/* 年齢 */}
+                      {displayItems.includes('age') && patientAge && (
+                        <span>
+                          {displayItems.some(item => item.match(/^(name|furigana|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                          {patientAge}歳
+                        </span>
+                      )}
+                      
+                      {/* 患者アイコン */}
+                      {displayItems.includes('patient_icon') && patient && (() => {
+                        const patientIconsData = localStorage.getItem(`patient_icons_${patient.id}`)
+                        if (!patientIconsData) return null
+                        
+                        try {
+                          const iconIds: string[] = JSON.parse(patientIconsData)
+                          if (iconIds.length === 0) return null
+                          
+                          return (
+                            <span className="flex items-center gap-0.5">
+                              {displayItems.some(item => item.match(/^(name|furigana|age|medical_card_number|reservation_time)$/)) && ' / '}
+                              {iconIds.slice(0, 3).map(iconId => {
+                                const iconData = PATIENT_ICONS.find(i => i.id === iconId)
+                                if (!iconData) return null
+                                const IconComponent = iconData.icon
+                                return (
+                                  <IconComponent 
+                                    key={iconId} 
+                                    className="w-3.5 h-3.5 text-gray-700" 
+                                    title={iconData.title}
+                                  />
+                                )
+                              })}
+                            </span>
+                          )
+                        } catch (e) {
+                          return null
+                        }
+                      })()}
+                      
+                      {/* 診療メニュー1 */}
+                      {displayItems.includes('treatment_content_1') && (block.appointment as any).menu1 && (
+                        <span>
+                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                          {(block.appointment as any).menu1.name}
+                        </span>
+                      )}
+                      
+                      {/* 診療メニュー2 */}
+                      {displayItems.includes('treatment_content_2') && (block.appointment as any).menu2 && (
+                        <span>
+                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_1|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                          {(block.appointment as any).menu2.name}
+                        </span>
+                      )}
+                      
+                      {/* 診療メニュー3 */}
+                      {displayItems.includes('treatment_content_3') && (block.appointment as any).menu3 && (
+                        <span>
+                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[12]|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                          {(block.appointment as any).menu3.name}
+                        </span>
+                      )}
+                      
+                      {/* 担当者1 */}
+                      {displayItems.includes('staff_1') && (block.appointment as any).staff1 && (
+                        <span>
+                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[123]|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                          {(block.appointment as any).staff1.name}
+                        </span>
+                      )}
+                      
+                      {/* 担当者2 */}
+                      {displayItems.includes('staff_2') && (block.appointment as any).staff2 && (
+                        <span>
+                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[123]|staff_1|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                          {(block.appointment as any).staff2.name}
+                        </span>
+                      )}
+                      
+                      {/* 担当者3 */}
+                      {displayItems.includes('staff_3') && (block.appointment as any).staff3 && (
+                        <span>
+                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[123]|staff_[12]|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                          {(block.appointment as any).staff3.name}
+                        </span>
+                      )}
                     </div>
                   </>
                 )}
