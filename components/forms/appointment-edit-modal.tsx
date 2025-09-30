@@ -1167,10 +1167,9 @@ export function AppointmentEditModal({
                                   return (
                                     <div
                                       key={iconId}
-                                      className="bg-yellow-100 border border-yellow-500 rounded px-2 py-1 flex items-center gap-1"
                                       title={iconData.title}
                                     >
-                                      <IconComponent className="w-4 h-4 text-yellow-900" />
+                                      <IconComponent className="w-5 h-5 text-gray-700" />
                                     </div>
                                   )
                                 })}
