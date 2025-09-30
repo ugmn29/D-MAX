@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Clock, User, Heart, Zap, Smile } from 'lucide-react'
-import { getAppointmentsByDate, createAppointment, updateAppointment } from '@/lib/api/appointments'
+import { getAppointmentsByDate, createAppointment, updateAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
 import { Appointment, BusinessHours, BreakTimes, StaffShift } from '@/types/database'
@@ -95,6 +95,39 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
   // ドラッグ量表示関連
   const [dragDelta, setDragDelta] = useState<{ x: number; y: number; timeSlots: number } | null>(null)
+
+  // ステータス進行の設定
+  const STATUS_PROGRESSION = {
+    '未来院': '遅刻',
+    '遅刻': '来院済み', 
+    '来院済み': '診療中',
+    '診療中': '会計',
+    '会計': '終了',
+    '終了': null
+  }
+
+  // ステータス進行のハンドラー
+  const handleStatusProgression = async (appointment: Appointment) => {
+    const currentStatus = appointment.status
+    const nextStatus = STATUS_PROGRESSION[currentStatus as keyof typeof STATUS_PROGRESSION]
+    
+    if (!nextStatus) {
+      console.log('最終ステータスです')
+      return
+    }
+
+    try {
+      await updateAppointmentStatus(clinicId, appointment.id, nextStatus)
+      // 予約データを再読み込み
+      const dateString = formatDateForDB(selectedDate)
+      const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+      setAppointments(updatedAppointments)
+      console.log(`ステータスを ${currentStatus} から ${nextStatus} に変更しました`)
+    } catch (error) {
+      console.error('ステータス変更エラー:', error)
+      alert('ステータスの変更に失敗しました')
+    }
+  }
 
 
   // リサイズ関連の状態
@@ -1448,6 +1481,20 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 {/* キャンセルされていない予約のみテキストを表示 */}
                 {!isCancelled && (
                   <>
+                    {/* ステータス進行ボタン（右上） */}
+                    {STATUS_PROGRESSION[block.appointment.status as keyof typeof STATUS_PROGRESSION] && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleStatusProgression(block.appointment)
+                        }}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
+                        title={`${STATUS_PROGRESSION[block.appointment.status as keyof typeof STATUS_PROGRESSION]}に進む`}
+                      >
+                        {STATUS_PROGRESSION[block.appointment.status as keyof typeof STATUS_PROGRESSION]?.charAt(0)}
+                      </button>
+                    )}
+                    
                     {/* 1段目: 診療時間、診察券番号 */}
                     <div className="text-xs leading-tight" style={{ marginTop: '0px', marginBottom: '2px' }}>
                       {displayItems.includes('reservation_time') && (
