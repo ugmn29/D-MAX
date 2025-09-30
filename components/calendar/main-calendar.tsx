@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Clock, User, Heart, Zap, Smile } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react'
 import { getAppointmentsByDate, createAppointment, updateAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
@@ -1646,11 +1646,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 {/* ステータスアイコンとコピーボタン（右上） - セルの高さが十分な場合のみ表示 */}
                 {block.height >= 60 && (
                   <div className="absolute top-1 right-1 flex space-x-1">
-                    {block.appointment.status === '終了' && (
-                      <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
-                        <span className="text-xs">歯</span>
-                      </div>
-                    )}
                     {/* キャンセル情報アイコン */}
                     {isCancelled && (
                       <button
