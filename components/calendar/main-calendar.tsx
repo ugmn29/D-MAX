@@ -1649,19 +1649,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                         <span className="text-xs">❌</span>
                       </button>
                     )}
-                    {/* コピーボタン */}
-                    {!isCancelled && (
-                      <button
-                        className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleCopyAppointment(block.appointment)
-                        }}
-                        title="予約をコピー"
-                      >
-                        <span className="text-xs">📋</span>
-                      </button>
-                    )}
                   </div>
                 )}
 
