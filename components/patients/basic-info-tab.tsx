@@ -27,6 +27,7 @@ import { calculateAge } from '@/lib/utils/date'
 import { Patient } from '@/types/database'
 import { getLinkedQuestionnaireResponse } from '@/lib/api/questionnaires'
 import { getStaff, Staff } from '@/lib/api/staff'
+import { PATIENT_ICONS, PatientIcon } from '@/lib/constants/patient-icons'
 
 interface BasicInfoTabProps {
   patientId: string
@@ -69,6 +70,9 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     primary_doctor: '',
     assigned_dh: ''
   })
+
+  // 選択されたアイコン
+  const [selectedIconIds, setSelectedIconIds] = useState<string[]>([])
 
   // 保険証情報
   const [insuranceInfo, setInsuranceInfo] = useState<InsuranceInfo[]>([])
@@ -464,12 +468,76 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
             <div>
               <Label htmlFor="special_notes">特記事項</Label>
+              
+              {/* 選択されたアイコンを表示 */}
+              {selectedIconIds.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3 p-3 bg-gray-50 rounded-lg">
+                  {selectedIconIds.map(iconId => {
+                    const iconData = PATIENT_ICONS.find(i => i.id === iconId)
+                    if (!iconData) return null
+                    const IconComponent = iconData.icon
+                    return (
+                      <Badge
+                        key={iconId}
+                        variant="outline"
+                        className="flex items-center gap-1 px-2 py-1"
+                      >
+                        <IconComponent className="w-4 h-4" />
+                        <span className="text-xs">{iconData.title}</span>
+                        {isEditing && (
+                          <button
+                            onClick={() => setSelectedIconIds(prev => prev.filter(id => id !== iconId))}
+                            className="ml-1 hover:text-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </Badge>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* 編集モード時: アイコン選択UI */}
+              {isEditing && (
+                <div className="mb-3">
+                  <Label className="text-sm text-gray-600 mb-2 block">アイコンを選択</Label>
+                  <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg max-h-48 overflow-y-auto">
+                    {PATIENT_ICONS.filter(icon => icon.enabled).map(iconData => {
+                      const IconComponent = iconData.icon
+                      const isSelected = selectedIconIds.includes(iconData.id)
+                      return (
+                        <button
+                          key={iconData.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedIconIds(prev => prev.filter(id => id !== iconData.id))
+                            } else {
+                              setSelectedIconIds(prev => [...prev, iconData.id])
+                            }
+                          }}
+                          className={`flex items-center gap-1 px-3 py-2 rounded-md border transition-colors ${
+                            isSelected
+                              ? 'bg-blue-100 border-blue-500 text-blue-700'
+                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          <IconComponent className="w-4 h-4" />
+                          <span className="text-xs">{iconData.title}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               <Textarea
                 id="special_notes"
                 value={editData.special_notes}
                 onChange={(e) => setEditData({ ...editData, special_notes: e.target.value })}
                 disabled={!isEditing}
-                placeholder="特記事項を入力してください"
+                placeholder="その他の特記事項を入力してください"
                 className="min-h-[100px]"
               />
             </div>

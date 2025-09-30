@@ -29,6 +29,7 @@ import {
 import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
 import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, deletePatientNoteType } from '@/lib/api/patient-note-types'
 import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
+import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -55,28 +56,6 @@ interface CancelReason {
   sort_order: number
   is_active: boolean
 }
-
-// アイコンマスターデータ
-const ICON_MASTER_DATA = [
-  { id: 'child', icon: User, title: 'お子さん', enabled: true },
-  { id: 'no_contact', icon: AlertCircle, title: '連絡いらない・しない', enabled: true },
-  { id: 'long_talk', icon: MessageSquare, title: 'お話長め', enabled: true },
-  { id: 'pregnant', icon: Heart, title: '妊娠・授乳中', enabled: true },
-  { id: 'implant', icon: Zap, title: 'インプラント', enabled: true },
-  { id: 'no_receipt', icon: Receipt, title: '領収書不要', enabled: true },
-  { id: 'handicap', icon: Accessibility, title: 'ハンディキャップ有り', enabled: true },
-  { id: 'anxious', icon: Frown, title: '心配・恐怖心あり', enabled: true },
-  { id: 'review_requested', icon: Star, title: 'ロコミお願い済', enabled: true },
-  { id: 'parking', icon: Car, title: '駐車券利用する', enabled: true },
-  { id: 'taxi', icon: Car, title: 'タクシーを呼ばれる方', enabled: true },
-  { id: 'accompanied', icon: User, title: '付き添い者あり', enabled: true },
-  { id: 'caution', icon: AlertCircle, title: '要注意!', enabled: true },
-  { id: 'money_caution', icon: DollarSign, title: 'お金関係注意!', enabled: true },
-  { id: 'cancellation_policy', icon: FileText, title: 'キャンセルポリシーお渡し済み', enabled: true },
-  { id: 'assistance_required', icon: HelpCircle, title: '要介助必要', enabled: true },
-  { id: 'referrer', icon: User, title: '紹介者', enabled: true },
-  { id: 'time_specified', icon: Calendar, title: '時間指定あり', enabled: true }
-]
 
 export default function MasterSettingsPage() {
   const [selectedTab, setSelectedTab] = useState('icons')
@@ -113,7 +92,7 @@ export default function MasterSettingsPage() {
   })
 
   // アイコンマスターの状態
-  const [iconMaster, setIconMaster] = useState(ICON_MASTER_DATA)
+  const [iconMaster, setIconMaster] = useState(PATIENT_ICONS)
   const [editingIconId, setEditingIconId] = useState<string | null>(null)
 
   // データ読み込み
