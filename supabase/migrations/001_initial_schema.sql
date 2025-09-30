@@ -77,6 +77,12 @@ CREATE TABLE treatment_menus (
     color VARCHAR(7), -- カラーコード
     sort_order INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT true,
+    -- Web予約設定
+    web_booking_enabled BOOLEAN DEFAULT false, -- Web予約で公開するか
+    web_booking_staff_ids UUID[], -- 担当可能スタッフID
+    web_booking_duration INTEGER, -- Web予約時の時間（分）、NULLの場合はstandard_durationを使用
+    web_booking_new_patient BOOLEAN DEFAULT true, -- 初診可能
+    web_booking_returning BOOLEAN DEFAULT true, -- 再診可能
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

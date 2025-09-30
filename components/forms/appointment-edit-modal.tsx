@@ -40,6 +40,8 @@ import { TimeWarningModal } from '@/components/ui/time-warning-modal'
 import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
 import { CancelReasonModal } from '@/components/ui/cancel-reason-modal'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
+import { SubKarteTab } from '@/components/patients/subkarte-tab'
+import { PatientEditModal } from '@/components/forms/patient-edit-modal'
 
 interface WorkingStaff {
   staff: {
@@ -91,6 +93,19 @@ export function AppointmentEditModal({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [patientAppointments, setPatientAppointments] = useState<any[]>([])
+  
+  // タブ管理
+  const [activeTab, setActiveTab] = useState<'appointment' | 'subkarte'>('appointment')
+  
+  // モーダルが開かれたときにタブをリセット
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab('appointment')
+    }
+  }, [isOpen])
+  
+  // 患者編集モーダル
+  const [showPatientEditModal, setShowPatientEditModal] = useState(false)
   
   // 患者検索
   const [searchQuery, setSearchQuery] = useState('')
@@ -1109,7 +1124,13 @@ export function AppointmentEditModal({
                             >
                               <X className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="p-1">
+                            <Button 
+                              onClick={() => setShowPatientEditModal(true)}
+                              variant="ghost" 
+                              size="sm" 
+                              className="p-1"
+                              title="患者情報を編集"
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
                           </div>
@@ -1311,14 +1332,43 @@ export function AppointmentEditModal({
               </div>
             </div>
 
-            {/* 右カラム: 予約設定 */}
+            {/* 右カラム: タブ付き予約設定 */}
             <div className="w-1/2 pl-6 flex flex-col min-h-0">
-              <div className="space-y-6 flex-1 overflow-y-auto">
-                {/* 予約日時 */}
-                <div>
-                  <div className="text-2xl font-bold text-gray-800 mb-4">
-                    {format(parseDBDate(selectedDate), 'yyyy/MM/dd(eee)', { locale: ja })}
-                  </div>
+              {/* タブヘッダー */}
+              <div className="flex border-b border-gray-200 mb-4">
+                <button
+                  onClick={() => setActiveTab('appointment')}
+                  className={`px-4 py-2 font-medium text-sm transition-colors ${
+                    activeTab === 'appointment'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  予約日時
+                </button>
+                <button
+                  onClick={() => setActiveTab('subkarte')}
+                  disabled={!selectedPatient}
+                  className={`px-4 py-2 font-medium text-sm transition-colors ${
+                    activeTab === 'subkarte'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : selectedPatient
+                      ? 'text-gray-500 hover:text-gray-700'
+                      : 'text-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  サブカルテ
+                </button>
+              </div>
+
+              {/* タブコンテンツ */}
+              {activeTab === 'appointment' ? (
+                <div className="space-y-6 flex-1 overflow-y-auto">
+                  {/* 予約日時 */}
+                  <div>
+                    <div className="text-2xl font-bold text-gray-800 mb-4">
+                      {format(parseDBDate(selectedDate), 'yyyy/MM/dd(eee)', { locale: ja })}
+                    </div>
                   <div className="flex items-center space-x-2">
                     <Select value={appointmentData.start_time?.split(':')[0] || ''} onValueChange={(value) => handleHourChange('start_time', value)}>
                       <SelectTrigger className="w-16">
@@ -1502,18 +1552,30 @@ export function AppointmentEditModal({
                   </Button>
                 </div>
                 
-                {/* 予約キャンセルボタン */}
-                <div className="flex justify-end pt-2">
-                  <Button 
-                    variant="outline" 
-                    className="text-red-600 border-red-300 hover:bg-red-50"
-                    onClick={() => setShowCancelModal(true)}
-                    disabled={!editingAppointment}
-                  >
-                    予約キャンセル
-                  </Button>
+                  {/* 予約キャンセルボタン */}
+                  <div className="flex justify-end pt-2">
+                    <Button 
+                      variant="outline" 
+                      className="text-red-600 border-red-300 hover:bg-red-50"
+                      onClick={() => setShowCancelModal(true)}
+                      disabled={!editingAppointment}
+                    >
+                      予約キャンセル
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* サブカルテタブ */
+                <div className="flex-1 overflow-hidden">
+                  {selectedPatient ? (
+                    <SubKarteTab patientId={selectedPatient.id} layout="horizontal" />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      患者を選択してください
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1852,6 +1914,24 @@ export function AppointmentEditModal({
         </div>
       </div>
     )}
+
+    {/* 患者基本情報編集モーダル */}
+    <PatientEditModal
+      isOpen={showPatientEditModal}
+      onClose={() => setShowPatientEditModal(false)}
+      patient={selectedPatient}
+      onSave={(patientData) => {
+        console.log('患者情報を更新:', patientData)
+        // TODO: 患者情報の更新API呼び出し
+        // 選択中の患者情報を更新
+        if (selectedPatient) {
+          setSelectedPatient({
+            ...selectedPatient,
+            ...patientData
+          })
+        }
+      }}
+    />
   </>
   )
 }

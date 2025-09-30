@@ -45,9 +45,10 @@ interface SubKarteEntry {
 
 interface SubKarteTabProps {
   patientId: string
+  layout?: 'vertical' | 'horizontal' // vertical: 右側に記入欄（デフォルト）, horizontal: 下に記入欄
 }
 
-export function SubKarteTab({ patientId }: SubKarteTabProps) {
+export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps) {
   const [entries, setEntries] = useState<SubKarteEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [activeInputType, setActiveInputType] = useState<'text' | 'handwriting' | 'audio' | 'file'>('text')
@@ -930,11 +931,8 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
     )
   }
 
-  return (
-    <div className="h-[calc(100vh-250px)] flex">
-      {/* 左側：アクティビティ（タイムライン） - 3/4 */}
-      <div className="flex-1 pr-4 flex flex-col">
-        <div className="flex-1 overflow-y-auto">
+  // タイムラインのコンテンツを共通化
+  const renderTimeline = () => (
           <div className="space-y-6">
             {groupEntriesByDate(entries).map(([date, dateEntries]) => (
               <div key={date} className="space-y-4">
@@ -1061,15 +1059,16 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
               </div>
             ))}
           </div>
-        </div>
-      </div>
+  )
 
-      {/* 右側：記入エリア - 1/4 */}
-      <div className="w-1/4 border-l border-gray-200 pl-4 flex flex-col">
-        <div className="h-full flex flex-col">
-          
-          {/* 入力タイプ選択 */}
-          <div className="flex space-x-1 mb-4">
+  // 記入エリアのコンテンツを共通化
+  const renderInputArea = (isCompact: boolean = false) => (
+      <div className="border-t border-gray-200 pt-3 pb-3 bg-gray-50">
+        <div className="flex items-start space-x-4">
+          {/* 左側：入力エリア */}
+          <div className="flex-1 flex flex-col space-y-2">
+            {/* 入力タイプ選択 */}
+            <div className="flex space-x-1">
             {/* 文字色ボタン */}
             <button
               className={`w-5 h-5 rounded-full border-2 ${
@@ -1158,13 +1157,12 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
             </button>
           </div>
 
-          {/* テキスト入力 */}
-          {activeInputType === 'text' && (
-            <div className="flex-1 flex flex-col">
+            {/* テキスト入力 */}
+            {activeInputType === 'text' && (
               <div
                 id="main-rich-text-editor"
                 contentEditable
-                className="flex-1 resize-none min-h-[200px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full resize-none h-20 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm overflow-y-auto bg-white"
                 style={{ 
                   color: '#000000',
                   backgroundColor: 'transparent',
@@ -1200,12 +1198,73 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
                 }}
                 suppressContentEditableWarning={true}
               />
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* 手書き入力 */}
-          {activeInputType === 'handwriting' && (
-            <div className="flex-1 flex flex-col">
+          {/* 右側：ボタンエリア */}
+          <div className="flex flex-col space-y-2">
+            {/* 録音・スタッフ・送信ボタン */}
+            <div className="flex space-x-2">
+              <Button
+                onClick={() => setShowAudioRecordingModal(true)}
+                variant="outline"
+                size="sm"
+                title="録音"
+              >
+                <FileSignature className="w-4 h-4" />
+              </Button>
+              <Button
+                onClick={() => setShowHandwritingModal(true)}
+                variant="outline"
+                size="sm"
+                title="手書き"
+              >
+                <Pen className="w-4 h-4" />
+              </Button>
+              <Button
+                onClick={() => setShowStaffModal(true)}
+                variant="outline"
+                size="sm"
+                className={selectedStaff.length > 0 ? 'bg-blue-50 border-blue-300' : ''}
+                title={selectedStaff.length > 0 ? `選択中: ${getSelectedStaffNames()}` : 'スタッフ選択'}
+              >
+                <User className="w-4 h-4" />
+              </Button>
+              <Button
+                onClick={saveEntry}
+                size="sm"
+                disabled={
+                  selectedStaff.length === 0 ||
+                  (activeInputType === 'text' && (!richTextContent || richTextContent.trim() === '' || richTextContent === 'テキストを入力してください...' || richTextContent === '<div>テキストを入力してください...</div>')) ||
+                  (activeInputType === 'file' && uploadedFiles.length === 0) ||
+                  (activeInputType === 'audio' && recordingTime === 0)
+                }
+              >
+                <Save className="w-4 h-4 mr-1" />
+                送信
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+  )
+
+  // レイアウトに応じた表示
+  if (layout === 'horizontal') {
+    // 横配置（下に記入エリア）- 予約編集モーダル用
+    return (
+      <div className="h-full flex flex-col">
+        {/* 上側：アクティビティ（タイムライン） - 拡大表示 */}
+        <div className="flex-1 overflow-y-auto mb-4">
+          {renderTimeline()}
+        </div>
+        
+        {/* 下側：記入エリア - コンパクト */}
+        {renderInputArea(true)}
+        
+        {/* 手書き入力（非表示） */}
+          {false && activeInputType === 'handwriting' && (
+            <div className="hidden flex-1 flex flex-col">
               {/* 手書きツール */}
               <div className="flex items-center space-x-2 mb-2">
                 <div className="flex space-x-1">
@@ -1250,9 +1309,9 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
             </div>
           )}
 
-          {/* 音声入力 */}
-          {activeInputType === 'audio' && (
-            <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
+          {/* 音声入力（非表示） */}
+          {false && activeInputType === 'audio' && (
+            <div className="hidden flex-1 flex flex-col items-center justify-center min-h-[300px]">
               <div className="text-center">
                 <div className="text-2xl font-bold mb-4">
                   音声録音・文字起こし・要約
@@ -1276,9 +1335,9 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
             </div>
           )}
 
-          {/* ファイルアップロード */}
-          {activeInputType === 'file' && (
-            <div className="flex-1 flex flex-col min-h-[300px]">
+          {/* ファイルアップロード（非表示） */}
+          {false && activeInputType === 'file' && (
+            <div className="hidden flex-1 flex flex-col min-h-[300px]">
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
                 <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                 <p className="text-sm text-gray-600 mb-2">
@@ -1320,50 +1379,6 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
               )}
             </div>
           )}
-
-
-          {/* 録音・スタッフ・送信ボタン */}
-          <div className="mt-2 flex space-x-2">
-            <Button
-              onClick={() => setShowAudioRecordingModal(true)}
-              variant="outline"
-              className="flex-2"
-            >
-              <FileSignature className="w-5 h-5 mr-2" />
-              録音
-            </Button>
-            <Button
-              onClick={() => setShowHandwritingModal(true)}
-              variant="outline"
-              className="flex-none px-2"
-              title="手書き"
-            >
-              <Pen className="w-3 h-3" />
-            </Button>
-            <Button
-              onClick={() => setShowStaffModal(true)}
-              variant="outline"
-              className={`flex-none px-3 ${selectedStaff.length > 0 ? 'bg-blue-50 border-blue-300' : ''}`}
-              title={selectedStaff.length > 0 ? `選択中: ${getSelectedStaffNames()}` : 'スタッフ選択'}
-            >
-              <User className="w-4 h-4" />
-            </Button>
-            <Button
-              onClick={saveEntry}
-              className="flex-1"
-              disabled={
-                selectedStaff.length === 0 ||
-                (activeInputType === 'text' && (!richTextContent || richTextContent.trim() === '' || richTextContent === 'テキストを入力してください...' || richTextContent === '<div>テキストを入力してください...</div>')) ||
-                (activeInputType === 'file' && uploadedFiles.length === 0) ||
-                (activeInputType === 'audio' && recordingTime === 0)
-              }
-            >
-              <Save className="w-4 h-4 mr-2" />
-              送信
-            </Button>
-          </div>
-        </div>
-      </div>
 
       {/* 古いRecordingContractModalは削除 */}
 
@@ -1607,6 +1622,434 @@ export function SubKarteTab({ patientId }: SubKarteTabProps) {
             />
 
             {/* ボタン */}
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={cancelEditEntry}
+              >
+                キャンセル
+              </Button>
+              <Button
+                onClick={() => saveEditEntry(editingEntry!)}
+                disabled={!editRichTextContent || editRichTextContent.trim() === '' || editRichTextContent === 'テキストを入力してください...' || editRichTextContent === '<div>テキストを入力してください...</div>'}
+              >
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+  }
+
+  // 縦配置（右側に記入エリア）- 患者詳細ページ用（デフォルト）
+  return (
+    <div className="h-[calc(100vh-250px)] flex">
+      {/* 左側：アクティビティ（タイムライン） - 3/4 */}
+      <div className="flex-1 pr-4 flex flex-col">
+        <div className="flex-1 overflow-y-auto">
+          {renderTimeline()}
+        </div>
+      </div>
+
+      {/* 右側：記入エリア - 1/4 */}
+      <div className="w-1/4 border-l border-gray-200 pl-4 flex flex-col">
+        <div className="h-full flex flex-col">
+          
+          {/* 入力タイプ選択 */}
+          <div className="flex space-x-1 mb-4">
+            {/* 文字色ボタン */}
+            <button
+              className={`w-5 h-5 rounded-full border-2 ${
+                activeColorMode === 'text' && textColor === '#000000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+              }`}
+              style={{ backgroundColor: '#000000' }}
+              onClick={() => {
+                setActiveInputType('text')
+                applyTextColor('#000000')
+              }}
+              title="黒文字"
+            />
+            <button
+              className={`w-5 h-5 rounded-full border-2 ${
+                activeColorMode === 'text' && textColor === '#ff0000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+              }`}
+              style={{ backgroundColor: '#ff0000' }}
+              onClick={() => {
+                setActiveInputType('text')
+                applyTextColor('#ff0000')
+              }}
+              title="赤文字"
+            />
+            <button
+              className={`w-5 h-5 rounded-full border-2 ${
+                activeColorMode === 'text' && textColor === '#0000ff' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+              }`}
+              style={{ backgroundColor: '#0000ff' }}
+              onClick={() => {
+                setActiveInputType('text')
+                applyTextColor('#0000ff')
+              }}
+              title="青文字"
+            />
+            <button
+              className={`w-5 h-5 rounded-full border-2 ${
+                activeColorMode === 'text' && textColor === '#008000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+              }`}
+              style={{ backgroundColor: '#008000' }}
+              onClick={() => {
+                setActiveInputType('text')
+                applyTextColor('#008000')
+              }}
+              title="緑文字"
+            />
+            
+            {/* マーカーボタン */}
+            <button
+              className={`p-1 rounded ${
+                activeColorMode === 'marker' ? 'bg-gray-100 text-gray-700 ring-2 ring-blue-500' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              onClick={() => {
+                setActiveInputType('text')
+                applyMarkerColor('#ffff00')
+              }}
+              title="黄色マーカー"
+            >
+              <Highlighter className="w-3 h-3" style={{ color: '#000000' }} />
+            </button>
+            <button
+              className="p-1 rounded text-gray-500 hover:bg-gray-100"
+              onClick={() => setShowDefaultTextModal(true)}
+              title="デフォルトテキスト"
+            >
+              <FileText className="w-3 h-3" />
+            </button>
+            <input
+              type="file"
+              id="file-upload-vertical"
+              className="hidden"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.txt"
+              onChange={handleFileUpload}
+            />
+            <button
+              className={`p-1 rounded ${
+                activeInputType === 'file' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              onClick={() => {
+                const fileInput = document.getElementById('file-upload-vertical') as HTMLInputElement
+                fileInput.click()
+              }}
+              title="ファイル"
+            >
+              <Upload className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* テキスト入力 */}
+          {activeInputType === 'text' && (
+            <div className="flex-1 flex flex-col">
+              <div
+                id="main-rich-text-editor"
+                contentEditable
+                className="flex-1 resize-none min-h-[200px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                style={{ 
+                  color: '#000000',
+                  backgroundColor: 'transparent',
+                  whiteSpace: 'pre-wrap'
+                }}
+                onInput={(e) => {
+                  const target = e.target as HTMLDivElement
+                  setRichTextContentState(target.innerHTML)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    // デフォルトの動作を使用
+                  }
+                }}
+                onKeyUp={(e) => {
+                  const target = e.target as HTMLDivElement
+                  setRichTextContentState(target.innerHTML)
+                }}
+                onFocus={(e) => {
+                  const target = e.target as HTMLDivElement
+                  if (target.innerHTML === 'テキストを入力してください...' || target.innerHTML === '<div>テキストを入力してください...</div>') {
+                    target.innerHTML = ''
+                  }
+                }}
+                onBlur={(e) => {
+                  const target = e.target as HTMLDivElement
+                  if (target.innerHTML === '' || target.innerHTML === '<div><br></div>') {
+                    target.innerHTML = 'テキストを入力してください...'
+                  }
+                }}
+                suppressContentEditableWarning={true}
+              />
+            </div>
+          )}
+
+          {/* 録音・スタッフ・送信ボタン */}
+          <div className="mt-2 flex space-x-2">
+            <Button
+              onClick={() => setShowAudioRecordingModal(true)}
+              variant="outline"
+              className="flex-2"
+            >
+              <FileSignature className="w-5 h-5 mr-2" />
+              録音
+            </Button>
+            <Button
+              onClick={() => setShowHandwritingModal(true)}
+              variant="outline"
+              className="flex-none px-2"
+              title="手書き"
+            >
+              <Pen className="w-3 h-3" />
+            </Button>
+            <Button
+              onClick={() => setShowStaffModal(true)}
+              variant="outline"
+              className={`flex-none px-3 ${selectedStaff.length > 0 ? 'bg-blue-50 border-blue-300' : ''}`}
+              title={selectedStaff.length > 0 ? `選択中: ${getSelectedStaffNames()}` : 'スタッフ選択'}
+            >
+              <User className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={saveEntry}
+              className="flex-1"
+              disabled={
+                selectedStaff.length === 0 ||
+                (activeInputType === 'text' && (!richTextContent || richTextContent.trim() === '' || richTextContent === 'テキストを入力してください...' || richTextContent === '<div>テキストを入力してください...</div>')) ||
+                (activeInputType === 'file' && uploadedFiles.length === 0) ||
+                (activeInputType === 'audio' && recordingTime === 0)
+              }
+            >
+              <Save className="w-4 h-4 mr-2" />
+              送信
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* モーダル群 */}
+      <AudioRecordingModal
+        isOpen={showAudioRecordingModal}
+        onClose={() => setShowAudioRecordingModal(false)}
+        patientId={patientId}
+      />
+
+      <HandwritingModal
+        isOpen={showHandwritingModal}
+        onClose={() => {
+          setShowHandwritingModal(false)
+          setEditingHandwritingEntry(null)
+        }}
+        onSave={handleHandwritingSave}
+        initialContent={editingHandwritingEntry ? entries.find(e => e.id === editingHandwritingEntry)?.content : ''}
+        initialType={editingHandwritingEntry ? (entries.find(e => e.id === editingHandwritingEntry)?.type === 'mixed' ? 'mixed' : 'handwriting') : 'handwriting'}
+        editingEntryId={editingHandwritingEntry}
+      />
+
+      {showDefaultTextModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-h-96 overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">デフォルトテキスト選択</h3>
+              <button
+                onClick={() => setShowDefaultTextModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              {defaultTexts.length > 0 ? (
+                defaultTexts.map((text) => (
+                  <button
+                    key={text.id}
+                    onClick={() => {
+                      setRichTextContentState(prev => prev + text.content)
+                      setShowDefaultTextModal(false)
+                    }}
+                    className="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50"
+                  >
+                    <div className="font-medium text-sm">{text.title}</div>
+                    <div className="text-xs text-gray-500 mt-1">{text.content.substring(0, 50)}...</div>
+                  </button>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">デフォルトテキストがありません</p>
+                  <p className="text-xs mt-1">設定ページでデフォルトテキストを作成してください</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowDefaultTextModal(false)}
+              >
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStaffModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-h-96 overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">スタッフ選択</h3>
+              <button
+                onClick={() => setShowStaffModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4 mb-4">
+              {getStaffByPosition().map(({ positionName, staff }) => (
+                <div key={positionName} className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700 border-b border-gray-200 pb-1">
+                    {positionName}
+                  </h4>
+                  <div className="space-y-1 ml-2">
+                    {staff.map(staffMember => (
+                      <label key={staffMember.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedStaff.includes(staffMember.id)}
+                          onChange={() => handleStaffSelect(staffMember.id)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm">{staffMember.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedStaff([])
+                  setShowStaffModal(false)
+                }}
+              >
+                クリア
+              </Button>
+              <Button
+                onClick={() => setShowStaffModal(false)}
+              >
+                確定
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-2/3 max-w-4xl max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">エントリ編集</h3>
+              <button
+                onClick={cancelEditEntry}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex space-x-1 mb-4">
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#000000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#000000' }}
+                onClick={() => applyEditTextColor('#000000')}
+                title="黒文字"
+              />
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#ff0000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#ff0000' }}
+                onClick={() => applyEditTextColor('#ff0000')}
+                title="赤文字"
+              />
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#0000ff' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#0000ff' }}
+                onClick={() => applyEditTextColor('#0000ff')}
+                title="青文字"
+              />
+              <button
+                className={`w-5 h-5 rounded-full border-2 ${
+                  editActiveColorMode === 'text' && editTextColor === '#008000' ? 'border-gray-400 ring-2 ring-blue-500' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: '#008000' }}
+                onClick={() => applyEditTextColor('#008000')}
+                title="緑文字"
+              />
+              
+              <button
+                className={`p-1 rounded ${
+                  editActiveColorMode === 'marker' ? 'bg-gray-100 text-gray-700 ring-2 ring-blue-500' : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                onClick={() => applyEditMarkerColor('#ffff00')}
+                title="黄色マーカー"
+              >
+                <Highlighter className="w-3 h-3" style={{ color: '#000000' }} />
+              </button>
+            </div>
+
+            <div
+              id="edit-rich-text-editor"
+              contentEditable
+              className="w-full min-h-[200px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              style={{ 
+                color: '#000000',
+                backgroundColor: 'transparent',
+                whiteSpace: 'pre-wrap'
+              }}
+              onInput={(e) => {
+                const target = e.target as HTMLDivElement
+                setEditRichTextContent(target.innerHTML)
+              }}
+              onKeyUp={(e) => {
+                const target = e.target as HTMLDivElement
+                setEditRichTextContent(target.innerHTML)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  // デフォルトの動作を使用
+                }
+              }}
+              onFocus={(e) => {
+                const target = e.target as HTMLDivElement
+                if (target.innerHTML === 'テキストを入力してください...' || target.innerHTML === '<div>テキストを入力してください...</div>') {
+                  target.innerHTML = ''
+                }
+              }}
+              onBlur={(e) => {
+                const target = e.target as HTMLDivElement
+                if (target.innerHTML === '' || target.innerHTML === '<div><br></div>') {
+                  target.innerHTML = 'テキストを入力してください...'
+                }
+              }}
+              suppressContentEditableWarning={true}
+            />
+
             <div className="flex justify-end space-x-2 mt-4">
               <Button
                 variant="outline"

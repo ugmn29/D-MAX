@@ -56,6 +56,10 @@ export default function CalendarSettingsPage() {
   const [units, setUnits] = useState(['チェア1', 'チェア2', 'チェア3'])
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState(40)
+
+  // キャンセル設定（未使用だが保存処理で参照されているため定義）
+  const cancelTypes: any[] = []
+  const penaltySettings: any = {}
   
 
   // timeSlotMinutesの変更を監視して即座にメインページに通知
@@ -167,35 +171,41 @@ export default function CalendarSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        // console.log('設定ページ: データ読み込み開始')
+        console.log('設定ページ: データ読み込み開始')
         const settings = await getClinicSettings(DEMO_CLINIC_ID)
         console.log('設定ページ: 取得した設定:', settings)
         console.log('設定ページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
-        
+        console.log('設定ページ: display_items:', settings.display_items)
+        console.log('設定ページ: display_itemsの型:', typeof settings.display_items)
+        console.log('設定ページ: display_itemsはArray?:', Array.isArray(settings.display_items))
+
         const timeSlotValue = settings.time_slot_minutes || 15
-        // console.log('設定ページ: time_slot_minutes設定:', timeSlotValue)
-        // console.log('設定ページ: time_slot_minutesの型:', typeof timeSlotValue)
-        // console.log('設定ページ: time_slot_minutesの値（詳細）:', JSON.stringify(timeSlotValue))
-        
+        console.log('設定ページ: time_slot_minutes設定:', timeSlotValue)
+
         // 数値に変換してから設定
         const numericTimeSlotValue = Number(timeSlotValue)
-        // console.log('設定ページ: 数値変換後:', numericTimeSlotValue)
+        console.log('設定ページ: 数値変換後:', numericTimeSlotValue)
         setTimeSlotMinutes(numericTimeSlotValue)
         setUnitCount(settings.unit_count || 3)
         setUnits(settings.units || ['チェア1', 'チェア2', 'チェア3'])
-        setDisplayItems(settings.display_items || [])
+
+        // displayItemsを設定
+        const loadedDisplayItems = settings.display_items || []
+        console.log('設定ページ: 読み込んだdisplayItems:', loadedDisplayItems)
+        setDisplayItems(loadedDisplayItems)
+
         setCellHeight(settings.cell_height || 40)
-        
+
         // 初期読み込み完了
         setIsInitialLoad(false)
-        // console.log('設定ページ: 初期読み込み完了')
+        console.log('設定ページ: 初期読み込み完了 - displayItems:', loadedDisplayItems)
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
         setLoading(false)
       }
     }
-    
+
     loadData()
   }, [])
 

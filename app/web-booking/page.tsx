@@ -11,7 +11,10 @@ import { formatDateForDB } from '@/lib/utils/date'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
-import { Calendar, Clock, User, CheckCircle } from 'lucide-react'
+import { getWeeklySlots } from '@/lib/api/web-booking'
+import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { format, addDays, startOfWeek, addWeeks } from 'date-fns'
+import { ja } from 'date-fns/locale'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -53,7 +56,8 @@ export default function WebBookingPage() {
   const [workingStaff, setWorkingStaff] = useState<any[]>([])
   const [availableSlots, setAvailableSlots] = useState<any[]>([])
   const [showQuestionnaire, setShowQuestionnaire] = useState(false)
-  
+  const [weekStartDate, setWeekStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 })) // 月曜始まり
+
   // 予約データ
   const [bookingData, setBookingData] = useState({
     isNewPatient: true,
@@ -115,66 +119,38 @@ export default function WebBookingPage() {
     loadData()
   }, [])
 
-  // 空き枠を取得
-  const loadAvailableSlots = async (date: string) => {
+  // 週間空き枠を取得
+  const loadWeeklySlots = async () => {
+    if (!bookingData.selectedMenu) return
+
     try {
-      const staffData = await getStaff(DEMO_CLINIC_ID)
-      setWorkingStaff(staffData)
-      
-      // 診療時間と休憩時間を取得
-      const [businessHours, breakTimes] = await Promise.all([
-        getBusinessHours(DEMO_CLINIC_ID),
-        getBreakTimes(DEMO_CLINIC_ID)
-      ])
-      
-      const selectedDate = new Date(date)
-      const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
-      const dayHours = businessHours[dayOfWeek]
-      const dayBreaks = breakTimes[dayOfWeek]
-      
-      // 空き枠データを生成
-      const slots = []
-      const startHour = 9
-      const endHour = 18
-      
-      for (let hour = startHour; hour < endHour; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-          const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-          
-          // 診療時間外かどうかをチェック
-          const isOutsideBusinessHours = !dayHours?.isOpen || !dayHours?.timeSlots || 
-            !dayHours.timeSlots.some((slot: any) => {
-              const timeMinutes = hour * 60 + minute
-              const startMinutes = parseInt(slot.start.split(':')[0]) * 60 + parseInt(slot.start.split(':')[1])
-              const endMinutes = parseInt(slot.end.split(':')[0]) * 60 + parseInt(slot.end.split(':')[1])
-              return timeMinutes >= startMinutes && timeMinutes < endMinutes
-            })
-          
-          // 休憩時間かどうかをチェック
-          const isBreakTime = dayBreaks?.start && dayBreaks?.end && (() => {
-            const timeMinutes = hour * 60 + minute
-            const breakStartMinutes = parseInt(dayBreaks.start.split(':')[0]) * 60 + parseInt(dayBreaks.start.split(':')[1])
-            const breakEndMinutes = parseInt(dayBreaks.end.split(':')[0]) * 60 + parseInt(dayBreaks.end.split(':')[1])
-            return timeMinutes >= breakStartMinutes && timeMinutes < breakEndMinutes
-          })()
-          
-          // 診療時間外または休憩時間の場合は予約不可
-          const available = !isOutsideBusinessHours && !isBreakTime && Math.random() > 0.3
-          
-          slots.push({
-            time,
-            available,
-            isBreakTime,
-            isOutsideBusinessHours,
-            staff: staffData.map(s => s.name)
-          })
-        }
-      }
-      
+      const slots = await getWeeklySlots(
+        DEMO_CLINIC_ID,
+        bookingData.selectedMenu,
+        bookingData.isNewPatient,
+        weekStartDate
+      )
       setAvailableSlots(slots)
     } catch (error) {
       console.error('空き枠取得エラー:', error)
+      alert('空き枠の取得に失敗しました')
     }
+  }
+
+  // 診療メニューや週が変更されたら空き枠を再取得
+  useEffect(() => {
+    if (bookingData.selectedMenu && currentStep === 3) {
+      loadWeeklySlots()
+    }
+  }, [bookingData.selectedMenu, bookingData.isNewPatient, weekStartDate, currentStep])
+
+  // 週の移動
+  const goToPreviousWeek = () => {
+    setWeekStartDate(prev => addWeeks(prev, -1))
+  }
+
+  const goToNextWeek = () => {
+    setWeekStartDate(prev => addWeeks(prev, 1))
   }
 
   // ステップ進行
@@ -190,10 +166,9 @@ export default function WebBookingPage() {
     }
   }
 
-  // 日付選択時の処理
-  const handleDateSelect = (date: string) => {
-    setBookingData(prev => ({ ...prev, selectedDate: date }))
-    loadAvailableSlots(date)
+  // 日付と時間選択時の処理
+  const handleSlotSelect = (date: string, time: string) => {
+    setBookingData(prev => ({ ...prev, selectedDate: date, selectedTime: time }))
   }
 
   // 予約確定
@@ -370,65 +345,108 @@ export default function WebBookingPage() {
             <Card>
               <CardHeader>
                 <CardTitle>日時選択</CardTitle>
+                <p className="text-sm text-gray-600">
+                  ⭕️をクリックして予約日時を選択してください
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label>希望日</Label>
-                  <Input
-                    type="date"
-                    value={bookingData.selectedDate}
-                    onChange={(e) => handleDateSelect(e.target.value)}
-                    min={formatDateForDB(new Date())}
-                    max={formatDateForDB(new Date(Date.now() + webSettings.reservationPeriod * 24 * 60 * 60 * 1000))}
-                  />
+                {/* 週ナビゲーション */}
+                <div className="flex items-center justify-between">
+                  <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    前の週
+                  </Button>
+                  <div className="text-sm font-medium">
+                    {format(weekStartDate, 'yyyy年MM月dd日', { locale: ja })} - {format(addDays(weekStartDate, 6), 'MM月dd日', { locale: ja })}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={goToNextWeek}>
+                    次の週
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
                 </div>
-                
-                {bookingData.selectedDate && (
-                  <div>
-                    <Label>希望時間</Label>
-                    <div className="grid grid-cols-4 gap-2 mt-2">
-                      {availableSlots.map((slot, index) => (
-                        <button
-                          key={index}
-                          onClick={() => {
-                            if (slot.available && !slot.isBreakTime && !slot.isOutsideBusinessHours) {
-                              setBookingData(prev => ({ ...prev, selectedTime: slot.time }))
-                            }
-                          }}
-                          disabled={!slot.available || slot.isBreakTime || slot.isOutsideBusinessHours}
-                          className={`p-2 text-sm rounded ${
-                            slot.isBreakTime
-                              ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                              : slot.isOutsideBusinessHours
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                : slot.available
-                                  ? bookingData.selectedTime === slot.time
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-green-100 text-green-800 hover:bg-green-200'
-                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {slot.time}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center space-x-4 mt-2 text-xs text-gray-600">
-                      <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 bg-green-100 rounded"></div>
-                        <span>空きあり</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 bg-gray-100 rounded"></div>
-                        <span>予約済み</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 bg-gray-400 rounded"></div>
-                        <span>休憩時間</span>
-                      </div>
+
+                {/* 1週間分のカレンダー */}
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="border p-2 bg-gray-50 text-sm font-medium w-20">時間</th>
+                        {[0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
+                          const date = addDays(weekStartDate, dayOffset)
+                          const dateString = format(date, 'yyyy-MM-dd')
+                          const dayName = format(date, 'E', { locale: ja })
+                          return (
+                            <th key={dayOffset} className="border p-2 bg-gray-50 text-sm font-medium">
+                              <div>{dayName}</div>
+                              <div className="text-xs text-gray-600">{format(date, 'MM/dd')}</div>
+                            </th>
+                          )
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* 時間ごとの行を生成 */}
+                      {Array.from(new Set(availableSlots.map(s => s.time)))
+                        .sort()
+                        .map(time => (
+                          <tr key={time}>
+                            <td className="border p-2 text-sm text-gray-600 text-center">{time}</td>
+                            {[0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
+                              const date = addDays(weekStartDate, dayOffset)
+                              const dateString = format(date, 'yyyy-MM-dd')
+                              const slot = availableSlots.find(
+                                s => s.date === dateString && s.time === time
+                              )
+                              const isSelected = bookingData.selectedDate === dateString && bookingData.selectedTime === time
+
+                              return (
+                                <td key={dayOffset} className="border p-1">
+                                  <button
+                                    onClick={() => {
+                                      if (slot?.available) {
+                                        handleSlotSelect(dateString, time)
+                                      }
+                                    }}
+                                    disabled={!slot?.available}
+                                    className={`w-full h-10 flex items-center justify-center text-lg font-bold rounded transition-colors ${
+                                      isSelected
+                                        ? 'bg-blue-600 text-white'
+                                        : slot?.available
+                                          ? 'bg-green-50 text-green-600 hover:bg-green-100 cursor-pointer'
+                                          : 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    {slot?.available ? '⭕️' : '❌'}
+                                  </button>
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 凡例 */}
+                <div className="flex items-center space-x-4 text-xs text-gray-600">
+                  <div className="flex items-center space-x-1">
+                    <span className="text-lg">⭕️</span>
+                    <span>予約可能</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-lg">❌</span>
+                    <span>予約不可</span>
+                  </div>
+                </div>
+
+                {bookingData.selectedDate && bookingData.selectedTime && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="text-sm font-medium text-blue-900">
+                      選択中: {format(new Date(bookingData.selectedDate), 'yyyy年MM月dd日(E)', { locale: ja })} {bookingData.selectedTime}
                     </div>
                   </div>
                 )}
-                
+
                 <div className="flex justify-between">
                   <Button variant="outline" onClick={prevStep}>
                     戻る
