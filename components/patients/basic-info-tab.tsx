@@ -469,68 +469,37 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             <div>
               <Label htmlFor="special_notes">特記事項</Label>
               
-              {/* 選択されたアイコンを表示 */}
-              {selectedIconIds.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3 p-3 bg-gray-50 rounded-lg">
-                  {selectedIconIds.map(iconId => {
-                    const iconData = PATIENT_ICONS.find(i => i.id === iconId)
-                    if (!iconData) return null
+              {/* アイコン選択UI（常に表示・編集可能） */}
+              <div className="mb-3">
+                <Label className="text-sm text-gray-600 mb-2 block">該当するアイコンを選択</Label>
+                <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg max-h-48 overflow-y-auto">
+                  {PATIENT_ICONS.filter(icon => icon.enabled).map(iconData => {
                     const IconComponent = iconData.icon
+                    const isSelected = selectedIconIds.includes(iconData.id)
                     return (
-                      <Badge
-                        key={iconId}
-                        variant="outline"
-                        className="flex items-center gap-1 px-2 py-1"
+                      <button
+                        key={iconData.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedIconIds(prev => prev.filter(id => id !== iconData.id))
+                          } else {
+                            setSelectedIconIds(prev => [...prev, iconData.id])
+                          }
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${
+                          isSelected
+                            ? 'bg-yellow-100 border-yellow-500 text-yellow-900'
+                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                        }`}
                       >
                         <IconComponent className="w-4 h-4" />
-                        <span className="text-xs">{iconData.title}</span>
-                        {isEditing && (
-                          <button
-                            onClick={() => setSelectedIconIds(prev => prev.filter(id => id !== iconId))}
-                            className="ml-1 hover:text-red-600"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </Badge>
+                        <span className="text-sm">{iconData.title}</span>
+                      </button>
                     )
                   })}
                 </div>
-              )}
-
-              {/* 編集モード時: アイコン選択UI */}
-              {isEditing && (
-                <div className="mb-3">
-                  <Label className="text-sm text-gray-600 mb-2 block">アイコンを選択</Label>
-                  <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg max-h-48 overflow-y-auto">
-                    {PATIENT_ICONS.filter(icon => icon.enabled).map(iconData => {
-                      const IconComponent = iconData.icon
-                      const isSelected = selectedIconIds.includes(iconData.id)
-                      return (
-                        <button
-                          key={iconData.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedIconIds(prev => prev.filter(id => id !== iconData.id))
-                            } else {
-                              setSelectedIconIds(prev => [...prev, iconData.id])
-                            }
-                          }}
-                          className={`flex items-center gap-1 px-3 py-2 rounded-md border transition-colors ${
-                            isSelected
-                              ? 'bg-blue-100 border-blue-500 text-blue-700'
-                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
-                          }`}
-                        >
-                          <IconComponent className="w-4 h-4" />
-                          <span className="text-xs">{iconData.title}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+              </div>
 
               <Textarea
                 id="special_notes"
