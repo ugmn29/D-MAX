@@ -1482,18 +1482,40 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 {!isCancelled && (
                   <>
                     {/* ステータス進行ボタン（右上） */}
-                    {STATUS_PROGRESSION[block.appointment.status as keyof typeof STATUS_PROGRESSION] && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleStatusProgression(block.appointment)
-                        }}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
-                        title={`${STATUS_PROGRESSION[block.appointment.status as keyof typeof STATUS_PROGRESSION]}に進む`}
-                      >
-                        {STATUS_PROGRESSION[block.appointment.status as keyof typeof STATUS_PROGRESSION]?.charAt(0)}
-                      </button>
-                    )}
+                    {(() => {
+                      const currentStatus = block.appointment.status
+                      const nextStatus = STATUS_PROGRESSION[currentStatus as keyof typeof STATUS_PROGRESSION]
+                      console.log('予約ステータス:', currentStatus, '次のステータス:', nextStatus, '予約ID:', block.appointment.id)
+                      
+                      // デバッグ用：すべての予約にボタンを表示（一時的）
+                      if (currentStatus && currentStatus !== 'キャンセル') {
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleStatusProgression(block.appointment)
+                            }}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
+                            title={`${nextStatus || '次のステータス'}に進む`}
+                          >
+                            {nextStatus ? nextStatus.charAt(0) : '?'}
+                          </button>
+                        )
+                      }
+                      
+                      return nextStatus && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleStatusProgression(block.appointment)
+                          }}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
+                          title={`${nextStatus}に進む`}
+                        >
+                          {nextStatus.charAt(0)}
+                        </button>
+                      )
+                    })()}
                     
                     {/* 1段目: 診療時間、診察券番号 */}
                     <div className="text-xs leading-tight" style={{ marginTop: '0px', marginBottom: '2px' }}>
