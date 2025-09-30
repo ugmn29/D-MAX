@@ -96,20 +96,20 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // ドラッグ量表示関連
   const [dragDelta, setDragDelta] = useState<{ x: number; y: number; timeSlots: number } | null>(null)
 
-  // ステータス進行の設定
-  const STATUS_PROGRESSION = {
-    '未来院': '遅刻',
-    '遅刻': '来院済み', 
-    '来院済み': '診療中',
-    '診療中': '会計',
-    '会計': '終了',
-    '終了': null
+  // ステータス進行の設定（患者ステータス管理ページと同じ）
+  const STATUS_CONFIG = {
+    '未来院': { color: 'bg-gray-100 text-gray-800 border-gray-300', nextStatus: '遅刻' },
+    '遅刻': { color: 'bg-orange-100 text-orange-800 border-orange-300', nextStatus: '来院済み' },
+    '来院済み': { color: 'bg-blue-100 text-blue-800 border-blue-300', nextStatus: '診療中' },
+    '診療中': { color: 'bg-purple-100 text-purple-800 border-purple-300', nextStatus: '会計' },
+    '会計': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', nextStatus: '終了' },
+    '終了': { color: 'bg-green-100 text-green-800 border-green-300', nextStatus: null }
   }
 
   // ステータス進行のハンドラー
   const handleStatusProgression = async (appointment: Appointment) => {
     const currentStatus = appointment.status
-    const nextStatus = STATUS_PROGRESSION[currentStatus as keyof typeof STATUS_PROGRESSION]
+    const nextStatus = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]?.nextStatus
     
     if (!nextStatus) {
       console.log('最終ステータスです')
@@ -1484,12 +1484,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     {/* ステータス進行ボタン（右上） */}
                     {(() => {
                       const currentStatus = block.appointment.status
-                      const nextStatus = STATUS_PROGRESSION[currentStatus as keyof typeof STATUS_PROGRESSION]
-                      console.log('予約ステータス:', currentStatus, '次のステータス:', nextStatus, '予約ID:', block.appointment.id, 'STATUS_PROGRESSION:', STATUS_PROGRESSION)
+                      const nextStatus = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]?.nextStatus
+                      console.log('予約ステータス:', currentStatus, '次のステータス:', nextStatus, '予約ID:', block.appointment.id)
                       
-                      // デバッグ用：すべての予約にボタンを表示（一時的）
-                      if (currentStatus && currentStatus !== 'キャンセル') {
-                        const buttonText = nextStatus ? nextStatus.charAt(0) : currentStatus.charAt(0)
+                      // 次のステータスがある場合のみボタンを表示
+                      if (nextStatus && currentStatus !== 'キャンセル') {
                         return (
                           <button
                             onClick={(e) => {
@@ -1497,25 +1496,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                               handleStatusProgression(block.appointment)
                             }}
                             className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
-                            title={`${nextStatus || '次のステータス'}に進む (現在: ${currentStatus})`}
+                            title={`${nextStatus}に進む (現在: ${currentStatus})`}
                           >
-                            {buttonText}
+                            {nextStatus.charAt(0)}
                           </button>
                         )
                       }
                       
-                      return nextStatus && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleStatusProgression(block.appointment)
-                          }}
-                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
-                          title={`${nextStatus}に進む`}
-                        >
-                          {nextStatus.charAt(0)}
-                        </button>
-                      )
+                      return null
                     })()}
                     
                     {/* 1段目: 診療時間、診察券番号 */}
