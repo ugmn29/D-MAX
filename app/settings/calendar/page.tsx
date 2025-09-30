@@ -90,104 +90,77 @@ export default function CalendarSettingsPage() {
   }, [timeSlotMinutes, isInitialLoad])
 
   // 手動保存関数
-  const handleManualSave = useCallback(async (settings: any) => {
+  const handleManualSave = useCallback(async () => {
     try {
       setSaving(true)
       
       // updateClinicSettingsを使用して一括保存
       const result = await updateClinicSettings(DEMO_CLINIC_ID, {
-        timeSlotMinutes: settings.timeSlotMinutes,
-        unitCount: settings.unitCount,
-        units: settings.units,
-        displayItems: settings.displayItems,
-        cellHeight: settings.cellHeight,
-        cancelTypes: settings.cancelTypes,
-        penaltySettings: settings.penaltySettings
+        timeSlotMinutes,
+        unitCount,
+        units,
+        displayItems,
+        cellHeight,
+        cancelTypes,
+        penaltySettings
       })
       alert('設定を保存しました')
-      
-      // 保存後にデータを再読み込み
-      const updatedSettings = await getClinicSettings(DEMO_CLINIC_ID)
-      
-      // 設定を再適用
-      setTimeSlotMinutes(Number(updatedSettings.time_slot_minutes || 15))
-      setUnitCount(updatedSettings.unit_count || 3)
-      setUnits(updatedSettings.units || ['チェア1', 'チェア2', 'チェア3'])
-      setDisplayItems(updatedSettings.display_items || [])
-      setCellHeight(updatedSettings.cell_height || 40)
-      setCancelTypes(updatedSettings.cancel_types || [])
-      setPenaltySettings(updatedSettings.penalty_settings || {
-        noShowThreshold: 3,
-        webReservationLimit: true,
-        penaltyPeriod: 30
-      })
     } catch (error) {
       console.error('手動保存エラー:', error)
       alert('保存に失敗しました')
     } finally {
       setSaving(false)
     }
-  }, [])
+  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings])
 
   // 自動保存関数
-  const autoSave = useCallback(async (settings: any) => {
+  const autoSave = useCallback(async () => {
     if (isInitialLoad) return // 初期読み込み時は保存しない
     
     try {
-      console.log('設定ページ: 自動保存開始', settings)
-      console.log('設定ページ: timeSlotMinutes保存値:', settings.timeSlotMinutes)
-      console.log('設定ページ: cancelTypes保存値:', settings.cancelTypes)
+      console.log('設定ページ: 自動保存開始')
+      console.log('設定ページ: displayItems保存値:', displayItems)
       setSaving(true)
       
       // updateClinicSettingsを使用して一括保存
       console.log('設定ページ: updateClinicSettingsで一括保存中...')
-      console.log('設定ページ: 保存するcancelTypes:', settings.cancelTypes)
       const result = await updateClinicSettings(DEMO_CLINIC_ID, {
-        timeSlotMinutes: settings.timeSlotMinutes,
-        unitCount: settings.unitCount,
-        units: settings.units,
-        displayItems: settings.displayItems,
-        cellHeight: settings.cellHeight,
-        cancelTypes: settings.cancelTypes,
-        penaltySettings: settings.penaltySettings
+        timeSlotMinutes,
+        unitCount,
+        units,
+        displayItems,
+        cellHeight,
+        cancelTypes,
+        penaltySettings
       })
       
       console.log('設定ページ: 自動保存完了', result)
 
-      // 保存後に設定を再読み込み
-      const updatedSettings = await getClinicSettings(DEMO_CLINIC_ID)
-      console.log('設定ページ: 再読み込みした設定:', updatedSettings)
-      setDisplayItems(updatedSettings.display_items || [])
-      setCellHeight(updatedSettings.cell_height || 40)
-
       // メインページに設定変更を通知
-      const numericTimeSlotMinutes = Number(settings.timeSlotMinutes)
+      const numericTimeSlotMinutes = Number(timeSlotMinutes)
       const updateData = {
         timestamp: Date.now(),
         timeSlotMinutes: numericTimeSlotMinutes
       }
       window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
-      // console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
 
       // カスタムイベントを発火
       const customEvent = new CustomEvent('clinicSettingsUpdated', {
         detail: { timeSlotMinutes: numericTimeSlotMinutes }
       })
       window.dispatchEvent(customEvent)
-      // console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
 
       // postMessageも発火（追加の通知方法）
       window.postMessage({
         type: 'clinicSettingsUpdated',
         data: { timeSlotMinutes: numericTimeSlotMinutes }
       }, window.location.origin)
-      // console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
     } catch (error) {
       console.error('自動保存エラー:', error)
     } finally {
       setSaving(false)
     }
-  }, [isInitialLoad])
+  }, [isInitialLoad, timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings])
 
   // データ読み込み
   useEffect(() => {
@@ -228,42 +201,22 @@ export default function CalendarSettingsPage() {
 
   // 設定値変更時の自動保存
   useEffect(() => {
-    console.log('設定ページ: 自動保存useEffect実行 - isInitialLoad:', isInitialLoad, 'timeSlotMinutes:', timeSlotMinutes)
-    console.log('設定ページ: 現在のcancelTypes:', cancelTypes)
-    console.log('設定ページ: cancelTypesの長さ:', cancelTypes.length)
-    console.log('設定ページ: useEffectが実行されました - cancelTypesが変更されました')
+    console.log('設定ページ: 自動保存useEffect実行 - isInitialLoad:', isInitialLoad)
+    console.log('設定ページ: displayItems:', displayItems)
     
     if (isInitialLoad) {
       console.log('設定ページ: 初期読み込み中のため自動保存をスキップ')
       return // 初期読み込み時は保存しない
     }
     
-    console.log('設定ページ: timeSlotMinutes変更検知:', timeSlotMinutes)
-    console.log('設定ページ: cancelTypes変更検知:', cancelTypes)
-    console.log('設定ページ: cancelTypes変更検知 - 配列の内容:', JSON.stringify(cancelTypes))
-    
-    const settings = {
-      timeSlotMinutes,
-      unitCount,
-      units,
-      displayItems,
-      cellHeight,
-      cancelTypes,
-      penaltySettings
-    }
-    
-    console.log('設定ページ: 保存する設定:', settings)
-    console.log('設定ページ: 保存するcancelTypes:', settings.cancelTypes)
-    console.log('設定ページ: 保存するcancelTypesの長さ:', settings.cancelTypes.length)
-    
     // デバウンス処理（500ms後に保存）
     const timeoutId = setTimeout(() => {
       console.log('設定ページ: デバウンス処理完了、自動保存実行')
-      autoSave(settings)
+      autoSave()
     }, 500)
     
     return () => clearTimeout(timeoutId)
-  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings, isInitialLoad])
+  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings, isInitialLoad, autoSave])
 
 
   // 表示項目の変更
@@ -355,19 +308,7 @@ export default function CalendarSettingsPage() {
                   </div>
                 )}
                 <Button
-                  onClick={() => {
-                    // console.log('設定ページ: 手動保存ボタンクリック')
-                    const settings = {
-                      timeSlotMinutes,
-                      unitCount,
-                      units,
-                      displayItems,
-                      cellHeight,
-                      cancelTypes,
-                      penaltySettings
-                    }
-                    handleManualSave(settings)
-                  }}
+                  onClick={handleManualSave}
                   size="sm"
                   disabled={saving}
                 >
