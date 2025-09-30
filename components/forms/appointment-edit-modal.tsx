@@ -39,6 +39,7 @@ import { Patient, TreatmentMenu, Staff } from '@/types/database'
 import { TimeWarningModal } from '@/components/ui/time-warning-modal'
 import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
 import { CancelReasonModal } from '@/components/ui/cancel-reason-modal'
+import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 
 interface WorkingStaff {
   staff: {
@@ -1140,10 +1141,45 @@ export function AppointmentEditModal({
                         )}
                       </div>
                       
-                      {/* 電話番号 */}
-                      <div className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded flex items-center w-fit">
-                        <Phone className="w-4 h-4 mr-1" />
-                        <span>電話: {selectedPatient.phone}</span>
+                      {/* 電話番号とアイコン */}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded flex items-center w-fit">
+                          <Phone className="w-4 h-4 mr-1" />
+                          <span>電話: {selectedPatient.phone}</span>
+                        </div>
+                        
+                        {/* 患者の特記事項アイコン */}
+                        {(() => {
+                          // ローカルストレージから患者のアイコンIDを取得
+                          const patientIconsData = localStorage.getItem(`patient_icons_${selectedPatient.id}`)
+                          if (!patientIconsData) return null
+                          
+                          try {
+                            const iconIds: string[] = JSON.parse(patientIconsData)
+                            if (iconIds.length === 0) return null
+                            
+                            return (
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {iconIds.map(iconId => {
+                                  const iconData = PATIENT_ICONS.find(i => i.id === iconId)
+                                  if (!iconData) return null
+                                  const IconComponent = iconData.icon
+                                  return (
+                                    <div
+                                      key={iconId}
+                                      className="bg-yellow-100 border border-yellow-500 rounded px-2 py-1 flex items-center gap-1"
+                                      title={iconData.title}
+                                    >
+                                      <IconComponent className="w-4 h-4 text-yellow-900" />
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )
+                          } catch (e) {
+                            return null
+                          }
+                        })()}
                       </div>
                       
                     </div>

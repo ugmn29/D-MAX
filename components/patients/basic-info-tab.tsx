@@ -74,6 +74,28 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   // 選択されたアイコン
   const [selectedIconIds, setSelectedIconIds] = useState<string[]>([])
 
+  // 患者IDが変わったらローカルストレージからアイコンを読み込む
+  useEffect(() => {
+    if (patientId) {
+      const savedIcons = localStorage.getItem(`patient_icons_${patientId}`)
+      if (savedIcons) {
+        try {
+          const iconIds = JSON.parse(savedIcons)
+          setSelectedIconIds(iconIds)
+        } catch (e) {
+          console.error('アイコンデータの読み込みエラー:', e)
+        }
+      }
+    }
+  }, [patientId])
+
+  // アイコンが変更されたらローカルストレージに保存
+  useEffect(() => {
+    if (patientId && selectedIconIds.length >= 0) {
+      localStorage.setItem(`patient_icons_${patientId}`, JSON.stringify(selectedIconIds))
+    }
+  }, [patientId, selectedIconIds])
+
   // 保険証情報
   const [insuranceInfo, setInsuranceInfo] = useState<InsuranceInfo[]>([])
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
