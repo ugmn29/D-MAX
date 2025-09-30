@@ -6,15 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-  Users,
-  Clock,
-  CheckCircle,
-  Activity,
-  CreditCard,
-  CheckCircle2,
   Calendar,
-  ArrowLeft,
-  User
+  ArrowLeft
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -26,12 +19,12 @@ const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 // ステータス定義
 const STATUS_CONFIG = {
-  '未来院': { icon: Clock, color: 'bg-gray-100 text-gray-800 border-gray-300', iconColor: 'text-gray-600' },
-  '遅刻': { icon: Clock, color: 'bg-orange-100 text-orange-800 border-orange-300', iconColor: 'text-orange-600' },
-  '来院済み': { icon: CheckCircle, color: 'bg-blue-100 text-blue-800 border-blue-300', iconColor: 'text-blue-600' },
-  '診療中': { icon: Activity, color: 'bg-purple-100 text-purple-800 border-purple-300', iconColor: 'text-purple-600' },
-  '会計': { icon: CreditCard, color: 'bg-yellow-100 text-yellow-800 border-yellow-300', iconColor: 'text-yellow-600' },
-  '終了': { icon: CheckCircle2, color: 'bg-green-100 text-green-800 border-green-300', iconColor: 'text-green-600' }
+  '未来院': { color: 'bg-gray-100 text-gray-800 border-gray-300', nextStatus: '遅刻' },
+  '遅刻': { color: 'bg-orange-100 text-orange-800 border-orange-300', nextStatus: '来院済み' },
+  '来院済み': { color: 'bg-blue-100 text-blue-800 border-blue-300', nextStatus: '診療中' },
+  '診療中': { color: 'bg-purple-100 text-purple-800 border-purple-300', nextStatus: '会計' },
+  '会計': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', nextStatus: '終了' },
+  '終了': { color: 'bg-green-100 text-green-800 border-green-300', nextStatus: null }
 }
 
 const STATUS_ORDER = ['未来院', '遅刻', '来院済み', '診療中', '会計', '終了']
@@ -129,7 +122,7 @@ export default function PatientStatusPage() {
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <Button
@@ -183,12 +176,11 @@ export default function PatientStatusPage() {
       </div>
 
       {/* メインコンテンツ */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* ステータスカードと患者リストを縦に配置 */}
-        <div className="grid grid-cols-6 gap-4">
+        <div className="grid grid-cols-6 gap-6">
           {STATUS_ORDER.map(status => {
             const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
-            const Icon = config.icon
             const count = getStatusCount(status)
             const patients = getPatientsByStatus(status)
 
@@ -201,7 +193,21 @@ export default function PatientStatusPage() {
                       <CardTitle className="text-sm font-medium text-gray-600">
                         {status}
                       </CardTitle>
-                      <Icon className={`w-5 h-5 ${config.iconColor}`} />
+                      {config.nextStatus && (
+                        <button
+                          onClick={() => {
+                            // このステータスの患者を次のステータスに一括変更
+                            const currentPatients = getPatientsByStatus(status)
+                            currentPatients.forEach(apt => {
+                              handleStatusChange(apt.id, config.nextStatus!)
+                            })
+                          }}
+                          className="w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors"
+                          title={`${config.nextStatus}に進む`}
+                        >
+                          {config.nextStatus.charAt(0)}
+                        </button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -210,9 +216,9 @@ export default function PatientStatusPage() {
                 </Card>
 
                 {/* 患者リスト */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {patients.length === 0 ? (
-                    <div className="text-center py-4 text-sm text-gray-400">
+                    <div className="text-center py-6 text-sm text-gray-400">
                       該当なし
                     </div>
                   ) : (
@@ -223,10 +229,10 @@ export default function PatientStatusPage() {
                       return (
                         <Card
                           key={apt.id}
-                          className="p-3 hover:shadow-md transition-shadow cursor-pointer"
+                          className="p-4 hover:shadow-md transition-shadow cursor-pointer"
                           onClick={() => router.push(`/patients/${patient?.id}`)}
                         >
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <div className="font-medium text-sm text-blue-600 hover:text-blue-800">
                               {patient?.last_name} {patient?.first_name}
                             </div>
@@ -244,7 +250,7 @@ export default function PatientStatusPage() {
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <SelectTrigger className="w-full h-7 text-xs">
+                              <SelectTrigger className="w-full h-8 text-xs">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
