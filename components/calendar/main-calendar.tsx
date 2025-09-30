@@ -1485,10 +1485,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     {(() => {
                       const currentStatus = block.appointment.status
                       const nextStatus = STATUS_PROGRESSION[currentStatus as keyof typeof STATUS_PROGRESSION]
-                      console.log('予約ステータス:', currentStatus, '次のステータス:', nextStatus, '予約ID:', block.appointment.id)
+                      console.log('予約ステータス:', currentStatus, '次のステータス:', nextStatus, '予約ID:', block.appointment.id, 'STATUS_PROGRESSION:', STATUS_PROGRESSION)
                       
                       // デバッグ用：すべての予約にボタンを表示（一時的）
                       if (currentStatus && currentStatus !== 'キャンセル') {
+                        const buttonText = nextStatus ? nextStatus.charAt(0) : currentStatus.charAt(0)
                         return (
                           <button
                             onClick={(e) => {
@@ -1496,9 +1497,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                               handleStatusProgression(block.appointment)
                             }}
                             className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10"
-                            title={`${nextStatus || '次のステータス'}に進む`}
+                            title={`${nextStatus || '次のステータス'}に進む (現在: ${currentStatus})`}
                           >
-                            {nextStatus ? nextStatus.charAt(0) : '?'}
+                            {buttonText}
                           </button>
                         )
                       }
