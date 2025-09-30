@@ -152,7 +152,13 @@ export default function CalendarSettingsPage() {
         penaltySettings: settings.penaltySettings
       })
       
-      // console.log('設定ページ: 自動保存完了', result)
+      console.log('設定ページ: 自動保存完了', result)
+
+      // 保存後に設定を再読み込み
+      const updatedSettings = await getClinicSettings(DEMO_CLINIC_ID)
+      console.log('設定ページ: 再読み込みした設定:', updatedSettings)
+      setDisplayItems(updatedSettings.display_items || [])
+      setCellHeight(updatedSettings.cell_height || 40)
 
       // メインページに設定変更を通知
       const numericTimeSlotMinutes = Number(settings.timeSlotMinutes)
