@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 export interface AppointmentLog {
   id: string
@@ -39,6 +40,12 @@ export interface CreateAppointmentLogParams {
  * 患者の予約操作ログを取得
  */
 export async function getAppointmentLogs(patientId: string): Promise<AppointmentLog[]> {
+  // モックモードの場合は空の配列を返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約操作ログは記録されません')
+    return []
+  }
+
   try {
     // まず患者の予約を取得
     const { data: appointments, error: appointmentsError } = await supabase
@@ -90,6 +97,16 @@ export async function getAppointmentLogs(patientId: string): Promise<Appointment
  * 予約操作ログを作成
  */
 export async function createAppointmentLog(params: CreateAppointmentLogParams): Promise<AppointmentLog> {
+  // モックモードの場合はログを作成せず、ダミーデータを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 予約操作ログを作成します（localStorageには保存しません）', params)
+    return {
+      id: `mock-log-${Date.now()}`,
+      ...params,
+      created_at: new Date().toISOString()
+    } as AppointmentLog
+  }
+
   try {
     const { data, error } = await supabase
       .from('appointment_logs')

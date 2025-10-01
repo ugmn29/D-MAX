@@ -76,13 +76,41 @@ export async function getAppointments(
       
       // 患者情報を追加
       if (!(appointment as any).patient && appointment.patient_id) {
-        const patient = patients.find(p => p.id === appointment.patient_id)
+        let patient = patients.find(p => p.id === appointment.patient_id)
         console.log('患者情報検索:', {
           appointmentId: appointment.id,
           patientId: appointment.patient_id,
           foundPatient: patient,
           allPatients: patients.map(p => ({ id: p.id, name: `${p.last_name} ${p.first_name}` }))
         })
+
+        // Web予約の仮患者でlocalStorageに見つからない場合、notesから復元
+        // ただし、これは初回のみで、本登録後はlocalStorageに存在するはず
+        if (!patient && appointment.patient_id?.startsWith('web-booking-temp-') && appointment.notes) {
+          console.log('警告: Web予約の患者がlocalStorageに見つかりません。notesから復元を試みます。')
+          const notes = appointment.notes
+          const nameMatch = notes.match(/氏名:\s*(.+)/)
+          const phoneMatch = notes.match(/電話:\s*(.+)/)
+
+          // notesから復元する場合は、最小限の情報のみ
+          // 本登録済みの場合は、必ずlocalStorageに存在するはずなので、この分岐には入らない
+          patient = {
+            id: appointment.patient_id,
+            clinic_id: clinicId,
+            last_name: nameMatch ? nameMatch[1].trim() : 'Web予約',
+            first_name: '',
+            last_name_kana: '',
+            first_name_kana: '',
+            phone: phoneMatch ? phoneMatch[1].trim() : '',
+            patient_number: '',
+            birth_date: null,
+            is_registered: false, // notesからの復元は仮登録のみ
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          console.log('Web予約の仮患者情報をnotesから復元（仮登録）:', patient)
+        }
+
         if (patient) {
           (updatedAppointment as any).patient = patient
           needsUpdate = true
@@ -220,9 +248,39 @@ export async function createAppointment(
     console.log('モックモード: 予約を作成します', { clinicId, appointmentData })
     const { addMockAppointment, getMockPatients, getMockTreatmentMenus } = await import('@/lib/utils/mock-mode')
     
-    // 患者情報を取得
+    // 患者情報を取得（Web予約の仮患者の場合は仮患者情報を作成）
     const patients = getMockPatients()
-    const patient = patients.find(p => p.id === appointmentData.patient_id)
+    let patient = patients.find(p => p.id === appointmentData.patient_id)
+
+    // Web予約の仮患者の場合
+    if (!patient && appointmentData.patient_id?.startsWith('web-booking-temp-')) {
+      // notesから患者情報を抽出
+      const notes = appointmentData.notes || ''
+      const nameMatch = notes.match(/氏名:\s*(.+)/)
+      const phoneMatch = notes.match(/電話:\s*(.+)/)
+
+      patient = {
+        id: appointmentData.patient_id,
+        clinic_id: clinicId,
+        last_name: nameMatch ? nameMatch[1].trim() : 'Web予約',
+        first_name: '',
+        last_name_kana: '',
+        first_name_kana: '',
+        phone: phoneMatch ? phoneMatch[1].trim() : '',
+        patient_number: '',
+        birth_date: null,
+        is_registered: false, // 仮登録状態
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      console.log('モックモード: Web予約の仮患者情報を作成:', patient)
+
+      // 仮患者情報をlocalStorageに保存
+      const { addMockPatient } = await import('@/lib/utils/mock-mode')
+      addMockPatient(patient)
+      console.log('モックモード: 仮患者情報をlocalStorageに保存しました')
+    }
+
     console.log('モックモード: 患者情報:', patient)
     
     // メニュー情報を取得
@@ -255,7 +313,8 @@ export async function createAppointment(
         first_name_kana: patient.first_name_kana,
         phone: patient.phone,
         patient_number: patient.patient_number,
-        birth_date: patient.birth_date
+        birth_date: patient.birth_date,
+        is_registered: patient.is_registered
       } : null,
       menu1: menu1,
       menu2: menu2,
@@ -397,8 +456,31 @@ export async function updateAppointment(
     const patients = getMockPatients()
     const menus = getMockTreatmentMenus()
     const staff = getMockStaff()
-    
-    const patient = appointmentData.patient_id ? patients.find(p => p.id === appointmentData.patient_id) : null
+
+    let patient = appointmentData.patient_id ? patients.find(p => p.id === appointmentData.patient_id) : null
+
+    // Web予約の仮患者でまだlocalStorageに保存されていない場合
+    if (!patient && appointmentData.patient_id?.startsWith('web-booking-temp-') && appointmentData.notes) {
+      const notes = appointmentData.notes
+      const nameMatch = notes.match(/氏名:\s*(.+)/)
+      const phoneMatch = notes.match(/電話:\s*(.+)/)
+
+      patient = {
+        id: appointmentData.patient_id,
+        clinic_id: '',
+        last_name: nameMatch ? nameMatch[1].trim() : 'Web予約',
+        first_name: '',
+        last_name_kana: '',
+        first_name_kana: '',
+        phone: phoneMatch ? phoneMatch[1].trim() : '',
+        patient_number: '',
+        birth_date: null,
+        is_registered: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      console.log('モックモード: 更新時にWeb予約の仮患者情報を復元:', patient)
+    }
     const menu1 = appointmentData.menu1_id ? menus.find(m => m.id === appointmentData.menu1_id) : null
     const menu2 = appointmentData.menu2_id ? menus.find(m => m.id === appointmentData.menu2_id) : null
     const menu3 = appointmentData.menu3_id ? menus.find(m => m.id === appointmentData.menu3_id) : null
@@ -418,7 +500,8 @@ export async function updateAppointment(
         first_name_kana: patient.first_name_kana,
         phone: patient.phone,
         patient_number: patient.patient_number,
-        birth_date: patient.birth_date
+        birth_date: patient.birth_date,
+        is_registered: patient.is_registered
       } : null,
       menu1: menu1,
       menu2: menu2,

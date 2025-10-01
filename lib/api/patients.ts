@@ -45,34 +45,58 @@ export async function searchPatients(
   searchQuery: string
 ): Promise<Patient[]> {
   const client = getSupabaseClient()
-  const query = client
+  
+  // 検索クエリがない場合は全件取得
+  if (!searchQuery.trim()) {
+    const { data, error } = await client
+      .from('patients')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .order('patient_number', { ascending: true })
+    
+    if (error) {
+      console.error('患者検索エラー:', error)
+      throw new Error('患者の検索に失敗しました')
+    }
+    
+    return data || []
+  }
+
+  // 全患者を取得してクライアント側でフィルタリング
+  const { data, error } = await client
     .from('patients')
     .select('*')
     .eq('clinic_id', clinicId)
-
-  // 検索クエリがあれば条件を追加
-  if (searchQuery.trim()) {
-    const searchTerm = searchQuery.toLowerCase()
-
-    // 複数フィールドでOR検索
-    query.or(`
-      last_name.ilike.%${searchTerm}%,
-      first_name.ilike.%${searchTerm}%,
-      last_name_kana.ilike.%${searchTerm}%,
-      first_name_kana.ilike.%${searchTerm}%,
-      phone.ilike.%${searchTerm}%,
-      patient_number.eq.${isNaN(Number(searchTerm)) ? -1 : Number(searchTerm)}
-    `)
-  }
-
-  const { data, error } = await query.order('patient_number', { ascending: true })
+    .order('patient_number', { ascending: true })
 
   if (error) {
     console.error('患者検索エラー:', error)
     throw new Error('患者の検索に失敗しました')
   }
 
-  return data || []
+  if (!data) return []
+
+  // クライアント側で検索フィルタリング
+  const searchTerm = searchQuery.trim().toLowerCase()
+  const searchNumber = Number(searchTerm)
+
+  return data.filter(patient => {
+    // 姓名で検索
+    if (patient.last_name?.toLowerCase().includes(searchTerm)) return true
+    if (patient.first_name?.toLowerCase().includes(searchTerm)) return true
+    
+    // カナで検索
+    if (patient.last_name_kana?.toLowerCase().includes(searchTerm)) return true
+    if (patient.first_name_kana?.toLowerCase().includes(searchTerm)) return true
+    
+    // 電話番号で検索
+    if (patient.phone?.includes(searchTerm)) return true
+    
+    // 診察券番号で検索
+    if (!isNaN(searchNumber) && patient.patient_number === searchNumber) return true
+    
+    return false
+  })
 }
 
 /**
@@ -106,6 +130,17 @@ export async function getPatientById(
  * 新しい患者番号を生成
  */
 export async function generatePatientNumber(clinicId: string): Promise<number> {
+  // モックモードの場合
+  if (MOCK_MODE) {
+    const { getMockPatients } = await import('@/lib/utils/mock-mode')
+    const patients = getMockPatients()
+    const maxNumber = patients.length > 0
+      ? Math.max(...patients.map(p => p.patient_number || 0))
+      : 0
+    return maxNumber + 1
+  }
+
+  // 通常モードの場合
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('patients')
@@ -146,6 +181,7 @@ export async function createPatient(
       clinic_id: clinicId,
       patient_number: patientNumber,
       ...patientData,
+      is_registered: true, // 診察券番号が振られた患者は本登録
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -187,6 +223,34 @@ export async function updatePatient(
   patientId: string,
   patientData: PatientUpdate
 ): Promise<Patient> {
+  // モックモードの場合
+  if (MOCK_MODE) {
+    const { getMockPatients, updateMockPatient } = await import('@/lib/utils/mock-mode')
+
+    // 更新前のデータを取得
+    const patients = getMockPatients()
+    const existingPatient = patients.find(p => p.id === patientId)
+
+    if (!existingPatient) {
+      console.error('患者が見つかりません:', patientId)
+      throw new Error('患者情報の更新に失敗しました')
+    }
+
+    // 更新データをマージ
+    const updatedPatient = {
+      ...existingPatient,
+      ...patientData,
+      updated_at: new Date().toISOString()
+    }
+
+    // localStorageに保存
+    updateMockPatient(patientId, updatedPatient)
+
+    console.log('モックモード: 患者情報を更新しました', updatedPatient)
+    return updatedPatient
+  }
+
+  // 通常モードの場合
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('patients')

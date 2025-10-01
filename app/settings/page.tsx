@@ -3713,16 +3713,29 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="web_page_url">予約ページURL</Label>
-                  <Input
-                    id="web_page_url"
-                    value={webSettings.webPageUrl}
-                    onChange={(e) =>
-                      setWebSettings(prev => ({ ...prev, webPageUrl: e.target.value }))
-                    }
-                    placeholder="例: https://example.com/reservation"
-                  />
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      id="web_page_url"
+                      value={typeof window !== 'undefined' ? `${window.location.origin}/web-booking` : '/web-booking'}
+                      readOnly
+                      className="flex-1 bg-gray-50"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const url = typeof window !== 'undefined' ? `${window.location.origin}/web-booking` : '/web-booking'
+                        navigator.clipboard.writeText(url)
+                        alert('URLをコピーしました')
+                      }}
+                      className="shrink-0"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      コピー
+                    </Button>
+                  </div>
                   <p className="text-sm text-gray-500 mt-1">
-                    患者がアクセスする予約ページのURLを設定してください
+                    患者がアクセスする予約ページのURLです。このURLを患者に共有してください。
                   </p>
                 </div>
               </CardContent>
@@ -3882,11 +3895,11 @@ export default function SettingsPage() {
                         <div key={menu.id} className="border rounded-lg p-4">
                           <div className="flex items-start justify-between">
                             <div className="flex-1 space-y-3">
-                              {/* メニュー名とカラー */}
+                          {/* メニュー名とカラー */}
                               <div className="space-y-1">
-                                <div className="flex items-center space-x-3">
-                                  <div
-                                    className="w-6 h-6 rounded"
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className="w-6 h-6 rounded"
                                     style={{ backgroundColor: menu.treatment_menu_color || '#bfbfbf' }}
                                   />
                                   <h4 className="font-medium text-lg">{menu.display_name || menu.treatment_menu_name}</h4>
@@ -4082,7 +4095,7 @@ export default function SettingsPage() {
                   {newWebMenu.treatment_menu_level2_id && (() => {
                     const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_level2_id)
                     return childMenus.length > 0 ? (
-                      <div>
+                              <div>
                         <Label htmlFor="web_treatment_menu_level3">サブメニュー（オプション）</Label>
                         <Select
                           value={newWebMenu.treatment_menu_level3_id || undefined}
@@ -4105,24 +4118,24 @@ export default function SettingsPage() {
                                     style={{ backgroundColor: menu.color || '#bfbfbf' }}
                                   />
                                   <span>{menu.name}</span>
-                                </div>
+                                    </div>
                               </SelectItem>
-                            ))}
+                                  ))}
                           </SelectContent>
                         </Select>
-                      </div>
+                                </div>
                     ) : null
                   })()}
-                </div>
+                              </div>
 
                 {/* Web予約時の表示名 */}
                 {newWebMenu.treatment_menu_id && (
-                  <div>
+                              <div>
                     <Label htmlFor="web_display_name">Web予約時の表示名</Label>
-                    <Input
+                                <Input
                       id="web_display_name"
                       value={newWebMenu.display_name}
-                      onChange={(e) =>
+                                  onChange={(e) =>
                         setNewWebMenu(prev => ({ ...prev, display_name: e.target.value }))
                       }
                       placeholder={(() => {
@@ -4135,8 +4148,8 @@ export default function SettingsPage() {
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       空欄の場合は、選択した診療メニュー名が使用されます
-                    </p>
-                  </div>
+                                </p>
+                              </div>
                 )}
 
                 {/* 全体の診療時間表示 */}
@@ -4184,7 +4197,7 @@ export default function SettingsPage() {
 
                           {/* 時間設定 */}
                           <div className="grid grid-cols-3 gap-3 mb-3">
-                            <div>
+                              <div>
                               <Label className="text-xs">開始時間</Label>
                               <Input
                                 type="number"
@@ -4348,35 +4361,35 @@ export default function SettingsPage() {
                 {/* 受付可能な患者 */}
                 <div>
                   <Label className="mb-2 block">受付可能な患者</Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
                         id="web_menu_allow_new"
                         checked={newWebMenu.allow_new_patient}
-                        onCheckedChange={(checked) =>
+                                      onCheckedChange={(checked) =>
                           setNewWebMenu(prev => ({
                             ...prev,
                             allow_new_patient: checked as boolean
                           }))
-                        }
-                      />
+                                      }
+                                    />
                       <Label htmlFor="web_menu_allow_new">初診</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
                         id="web_menu_allow_returning"
                         checked={newWebMenu.allow_returning}
-                        onCheckedChange={(checked) =>
+                                      onCheckedChange={(checked) =>
                           setNewWebMenu(prev => ({
                             ...prev,
                             allow_returning: checked as boolean
                           }))
-                        }
-                      />
+                                      }
+                                    />
                       <Label htmlFor="web_menu_allow_returning">再診</Label>
-                    </div>
-                  </div>
-                </div>
+                                  </div>
+                                </div>
+                              </div>
 
                 {/* フッター */}
                 <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
@@ -4552,15 +4565,15 @@ export default function SettingsPage() {
                     <p className="text-xs text-gray-500 mt-1">
                       空欄の場合は、選択した診療メニュー名が使用されます
                     </p>
-                  </div>
-                )}
+                            </div>
+                          )}
 
                 {/* 全体の診療時間表示 */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm font-medium text-blue-900">
                     全体の診療時間: {newWebMenu.duration}分
                   </p>
-                </div>
+                        </div>
 
                 {/* ステップ一覧 */}
                 <div className="space-y-4">
@@ -4730,8 +4743,8 @@ export default function SettingsPage() {
                                       )
                                     })}
                                   </div>
-                                </div>
-                              )}
+                    </div>
+                  )}
                             </div>
                           </div>
                         </div>

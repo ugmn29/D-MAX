@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,11 +52,22 @@ export default function WebBookingPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [webSettings, setWebSettings] = useState<WebBookingSettings | null>(null)
   const [questionnaireSettings, setQuestionnaireSettings] = useState<QuestionnaireSettings | null>(null)
-  const [treatmentMenus, setTreatmentMenus] = useState<any[]>([])
+  const [webBookingMenus, setWebBookingMenus] = useState<any[]>([]) // Web予約メニュー
+  const [treatmentMenus, setTreatmentMenus] = useState<any[]>([]) // 全診療メニュー（参照用）
+  const [staff, setStaff] = useState<any[]>([]) // スタッフ一覧（参照用）
   const [workingStaff, setWorkingStaff] = useState<any[]>([])
   const [availableSlots, setAvailableSlots] = useState<any[]>([])
   const [showQuestionnaire, setShowQuestionnaire] = useState(false)
   const [weekStartDate, setWeekStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 })) // 月曜始まり
+  const [timeSlotMinutes, setTimeSlotMinutes] = useState<number>(15)
+  const [businessHours, setBusinessHours] = useState<any>({})
+  const [allTimeSlots, setAllTimeSlots] = useState<string[]>([])
+
+  // セクションへの参照
+  const menuSectionRef = useRef<HTMLDivElement>(null)
+  const calendarSectionRef = useRef<HTMLDivElement>(null)
+  const patientInfoSectionRef = useRef<HTMLDivElement>(null)
+  const confirmationSectionRef = useRef<HTMLDivElement>(null)
 
   // 予約データ
   const [bookingData, setBookingData] = useState({
@@ -70,17 +81,31 @@ export default function WebBookingPage() {
     patientEmail: ''
   })
 
+  // スムーズスクロール関数
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
+    if (ref.current) {
+      const yOffset = -20 // ヘッダーからの余白
+      const y = ref.current.getBoundingClientRect().top + window.pageYOffset + yOffset
+      window.scrollTo({ top: y, behavior: 'smooth' })
+    }
+  }
+
   // データ読み込み
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
-        const [settings, menus] = await Promise.all([
+        const [settings, menus, staffData, clinic] = await Promise.all([
           getClinicSettings(DEMO_CLINIC_ID),
-          getTreatmentMenus(DEMO_CLINIC_ID)
+          getTreatmentMenus(DEMO_CLINIC_ID),
+          getStaff(DEMO_CLINIC_ID),
+          getBusinessHours(DEMO_CLINIC_ID)
         ])
-        
-        setWebSettings(settings.web_reservation || {
+
+        console.log('Web予約: 取得した設定', settings)
+        console.log('Web予約: 取得した診療時間', clinic)
+
+        const webReservation = settings.web_reservation || {
           isEnabled: false,
           reservationPeriod: 30,
           allowCurrentTime: true,
@@ -94,8 +119,14 @@ export default function WebBookingPage() {
             patientInfo: true,
             confirmation: true
           }
-        })
-        
+        }
+
+        setWebSettings(webReservation)
+
+        // Web予約メニューを取得（booking_menusがあればそれを使用、なければ全メニュー）
+        const bookingMenus = webReservation.booking_menus || []
+        setWebBookingMenus(bookingMenus)
+
         setQuestionnaireSettings(settings.questionnaire || {
           isEnabled: false,
           sendTiming: 'before_appointment',
@@ -107,15 +138,20 @@ export default function WebBookingPage() {
             custom: false
           }
         })
-        
-        setTreatmentMenus(menus.filter(menu => menu.level === 1)) // 大分類のみ
+
+        setTreatmentMenus(menus)
+        setStaff(staffData)
+
+        // 時間スロット設定と診療時間を保存
+        setTimeSlotMinutes(settings.time_slot_minutes || 15)
+        setBusinessHours(clinic || {})
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
         setLoading(false)
       }
     }
-    
+
     loadData()
   }, [])
 
@@ -139,10 +175,70 @@ export default function WebBookingPage() {
 
   // 診療メニューや週が変更されたら空き枠を再取得
   useEffect(() => {
-    if (bookingData.selectedMenu && currentStep === 3) {
+    if (bookingData.selectedMenu) {
       loadWeeklySlots()
     }
-  }, [bookingData.selectedMenu, bookingData.isNewPatient, weekStartDate, currentStep])
+  }, [bookingData.selectedMenu, bookingData.isNewPatient, weekStartDate])
+
+  // 全時間スロットを生成（診療時間設定から）
+  useEffect(() => {
+    if (!businessHours || Object.keys(businessHours).length === 0) {
+      console.log('Web予約: 診療時間設定が空です', businessHours)
+      return
+    }
+
+    console.log('Web予約: 診療時間設定:', businessHours)
+    console.log('Web予約: timeSlotMinutes:', timeSlotMinutes)
+
+    const timeSlots = new Set<string>()
+
+    // 曜日キーのマッピング（英語 → 英語小文字）
+    const dayMapping: Record<string, string> = {
+      'monday': 'monday',
+      'tuesday': 'tuesday',
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    }
+
+    // 1週間分の各曜日について時間スロットを生成
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const date = addDays(weekStartDate, dayOffset)
+      // 英語曜日名を取得（例: "Monday" → "monday"）
+      const dayOfWeekLong = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+      const dayKey = dayMapping[dayOfWeekLong] || dayOfWeekLong
+
+      const dayBusinessHours = businessHours[dayKey]
+
+      console.log(`Web予約: ${date.toLocaleDateString()} (${dayKey})`, dayBusinessHours)
+
+      if (dayBusinessHours && dayBusinessHours.isOpen && dayBusinessHours.timeSlots) {
+        dayBusinessHours.timeSlots.forEach((slot: any) => {
+          const startHour = parseInt(slot.start.split(':')[0])
+          const startMinute = parseInt(slot.start.split(':')[1])
+          const endHour = parseInt(slot.end.split(':')[0])
+          const endMinute = parseInt(slot.end.split(':')[1])
+
+          let currentMinutes = startHour * 60 + startMinute
+          const endMinutes = endHour * 60 + endMinute
+
+          while (currentMinutes < endMinutes) {
+            const hour = Math.floor(currentMinutes / 60)
+            const minute = currentMinutes % 60
+            const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+            timeSlots.add(timeString)
+            currentMinutes += timeSlotMinutes
+          }
+        })
+      }
+    }
+
+    const timeSlotsArray = Array.from(timeSlots).sort()
+    console.log('Web予約: 生成された全時間スロット:', timeSlotsArray)
+    setAllTimeSlots(timeSlotsArray)
+  }, [businessHours, weekStartDate, timeSlotMinutes])
 
   // 週の移動
   const goToPreviousWeek = () => {
@@ -169,21 +265,62 @@ export default function WebBookingPage() {
   // 日付と時間選択時の処理
   const handleSlotSelect = (date: string, time: string) => {
     setBookingData(prev => ({ ...prev, selectedDate: date, selectedTime: time }))
+    setTimeout(() => scrollToSection(patientInfoSectionRef), 300)
   }
 
   // 予約確定
   const handleConfirmBooking = async () => {
     try {
+      // 選択されたメニュー情報を取得（treatmentMenusから取得）
+      const selectedMenuData = treatmentMenus.find(m => m.id === bookingData.selectedMenu)
+      if (!selectedMenuData) {
+        console.error('メニュー情報が見つかりません', {
+          selectedMenuId: bookingData.selectedMenu,
+          webBookingMenus,
+          treatmentMenus
+        })
+        alert('メニュー情報が見つかりません。')
+        return
+      }
+
+      console.log('Web予約: 選択されたメニュー', selectedMenuData)
+
+      // 所要時間から終了時間を計算
+      const [startHour, startMinute] = bookingData.selectedTime.split(':').map(Number)
+      const startMinutes = startHour * 60 + startMinute
+      const duration = selectedMenuData.duration || 30 // デフォルト30分
+      const endMinutes = startMinutes + duration
+      const endHour = Math.floor(endMinutes / 60)
+      const endMinute = endMinutes % 60
+      const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`
+
+      // 担当スタッフを決定（選択されていない場合はメニューの担当者から取得）
+      let staffId = bookingData.selectedStaff
+      if (!staffId && selectedMenuData.steps && selectedMenuData.steps.length > 0) {
+        // 最初のステップの担当者を使用
+        const firstStep = selectedMenuData.steps[0]
+        if (firstStep.staff_assignments && firstStep.staff_assignments.length > 0) {
+          staffId = firstStep.staff_assignments[0]
+        }
+      }
+
+      // Web予約用の仮患者IDを作成（実際の実装では患者登録APIを呼ぶ）
+      const tempPatientId = `web-booking-temp-${Date.now()}`
+
       // 実際の予約作成APIを呼び出す
       const appointmentData = {
-        patient_id: 'temp-patient-id', // 実際の実装では患者IDを取得
+        patient_id: tempPatientId,
         appointment_date: bookingData.selectedDate,
         start_time: bookingData.selectedTime,
-        end_time: bookingData.selectedTime, // 実際の実装では終了時間を計算
+        end_time: endTime,
         menu1_id: bookingData.selectedMenu,
-        staff_id: bookingData.selectedStaff,
-        // その他の必要なフィールドを追加
+        staff1_id: staffId,
+        status: '未来院', // 初回ステータスを「未来院」に設定
+        notes: `Web予約\n氏名: ${bookingData.patientName}\n電話: ${bookingData.patientPhone}\nメール: ${bookingData.patientEmail}`,
+        is_new_patient: bookingData.isNewPatient
       }
+
+      console.log('Web予約: 予約作成データ', appointmentData)
       await createAppointment(DEMO_CLINIC_ID, appointmentData)
       
       // 問診表が有効で、予約前に送信する設定の場合
@@ -243,31 +380,9 @@ export default function WebBookingPage() {
           <p className="text-gray-600">簡単にオンラインで予約できます</p>
         </div>
 
-        {/* ステップインジケーター */}
-        <div className="flex justify-center mb-8">
-          <div className="flex items-center space-x-4">
-            {[1, 2, 3, 4, 5].map((step) => (
-              <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {step}
-                </div>
-                {step < 5 && (
-                  <div className={`w-16 h-1 mx-2 ${
-                    step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
-                  }`} />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto space-y-6">
           {/* ステップ1: 初診/再診選択 */}
-          {currentStep === 1 && webSettings.flow.initialSelection && (
+          {webSettings.flow.initialSelection && (
             <Card>
               <CardHeader>
                 <CardTitle>初診/再診の選択</CardTitle>
@@ -277,9 +392,13 @@ export default function WebBookingPage() {
                   <button
                     onClick={() => {
                       setBookingData(prev => ({ ...prev, isNewPatient: true }))
-                      nextStep()
+                      setTimeout(() => scrollToSection(menuSectionRef), 300)
                     }}
-                    className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 transition-colors"
+                    className={`w-full p-4 border-2 rounded-lg transition-colors ${
+                      bookingData.isNewPatient
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300'
+                    }`}
                   >
                     <div className="text-left">
                       <h3 className="font-medium">初診</h3>
@@ -289,9 +408,13 @@ export default function WebBookingPage() {
                   <button
                     onClick={() => {
                       setBookingData(prev => ({ ...prev, isNewPatient: false }))
-                      nextStep()
+                      setTimeout(() => scrollToSection(menuSectionRef), 300)
                     }}
-                    className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 transition-colors"
+                    className={`w-full p-4 border-2 rounded-lg transition-colors ${
+                      !bookingData.isNewPatient
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300'
+                    }`}
                   >
                     <div className="text-left">
                       <h3 className="font-medium">再診</h3>
@@ -304,45 +427,56 @@ export default function WebBookingPage() {
           )}
 
           {/* ステップ2: 診療メニュー選択 */}
-          {currentStep === 2 && webSettings.flow.menuSelection && (
-            <Card>
+          <Card ref={menuSectionRef}>
               <CardHeader>
                 <CardTitle>診療メニューの選択</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label>診療メニュー</Label>
-                  <Select value={bookingData.selectedMenu} onValueChange={(value) => setBookingData(prev => ({ ...prev, selectedMenu: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="診療メニューを選択してください" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {treatmentMenus.map(menu => (
-                        <SelectItem key={menu.id} value={menu.id}>
-                          <div className="flex items-center space-x-2">
-                            <div 
-                              className="w-3 h-3 rounded"
-                              style={{ backgroundColor: menu.color }}
-                            />
-                            <span>{menu.name}</span>
+                {webBookingMenus.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>現在、Web予約可能なメニューがありません。</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {webBookingMenus
+                      .filter(menu => {
+                        // 初診/再診の設定に基づいてフィルタリング
+                        if (bookingData.isNewPatient) {
+                          return menu.allow_new_patient !== false
+                        } else {
+                          return menu.allow_returning !== false
+                        }
+                      })
+                      .map(menu => (
+                        <button
+                          key={menu.id}
+                          onClick={() => {
+                            setBookingData(prev => ({ ...prev, selectedMenu: menu.treatment_menu_id }))
+                            setTimeout(() => scrollToSection(calendarSectionRef), 300)
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            bookingData.selectedMenu === menu.treatment_menu_id
+                              ? 'border-blue-500 bg-blue-50 shadow-md'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div>
+                            <h3 className="font-medium text-gray-900 mb-1">
+                              {menu.display_name || menu.treatment_menu_name}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              所要時間: {menu.duration}分
+                            </p>
                           </div>
-                        </SelectItem>
+                        </button>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end">
-                  <Button onClick={nextStep} disabled={!bookingData.selectedMenu}>
-                    次へ
-                  </Button>
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
-          )}
 
           {/* ステップ3: カレンダー表示 */}
-          {currentStep === 3 && webSettings.flow.calendarDisplay && (
-            <Card>
+          <Card ref={calendarSectionRef}>
               <CardHeader>
                 <CardTitle>日時選択</CardTitle>
                 <p className="text-sm text-gray-600">
@@ -351,46 +485,84 @@ export default function WebBookingPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* 週ナビゲーション */}
-                <div className="flex items-center justify-between">
-                  <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
-                    <ChevronLeft className="w-4 h-4 mr-1" />
-                    前の週
+                <div className="flex items-center justify-between gap-2">
+                  <Button variant="outline" size="sm" onClick={goToPreviousWeek} className="px-2 py-1 text-xs shrink-0">
+                    <ChevronLeft className="w-3 h-3 mr-1" />
+                    先週
                   </Button>
-                  <div className="text-sm font-medium">
-                    {format(weekStartDate, 'yyyy年MM月dd日', { locale: ja })} - {format(addDays(weekStartDate, 6), 'MM月dd日', { locale: ja })}
+                  <div className="text-sm font-medium text-center flex-1">
+                    {format(weekStartDate, 'MM月dd日', { locale: ja })} - {format(addDays(weekStartDate, 6), 'MM月dd日', { locale: ja })}
                   </div>
-                  <Button variant="outline" size="sm" onClick={goToNextWeek}>
-                    次の週
-                    <ChevronRight className="w-4 h-4 ml-1" />
+                  <Button variant="outline" size="sm" onClick={goToNextWeek} className="px-2 py-1 text-xs shrink-0">
+                    次週
+                    <ChevronRight className="w-3 h-3 ml-1" />
                   </Button>
                 </div>
 
+                {/* デバッグ情報 */}
+                {allTimeSlots.length === 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                    <p className="text-sm text-yellow-800">
+                      時間スロットが生成されていません。診療時間設定を確認してください。
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      診療時間設定キー: {Object.keys(businessHours).join(', ')}
+                    </p>
+                  </div>
+                )}
+
                 {/* 1週間分のカレンダー */}
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className="border p-2 bg-gray-50 text-sm font-medium w-20">時間</th>
-                        {[0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
-                          const date = addDays(weekStartDate, dayOffset)
-                          const dateString = format(date, 'yyyy-MM-dd')
-                          const dayName = format(date, 'E', { locale: ja })
-                          return (
-                            <th key={dayOffset} className="border p-2 bg-gray-50 text-sm font-medium">
-                              <div>{dayName}</div>
-                              <div className="text-xs text-gray-600">{format(date, 'MM/dd')}</div>
-                            </th>
-                          )
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* 時間ごとの行を生成 */}
-                      {Array.from(new Set(availableSlots.map(s => s.time)))
-                        .sort()
-                        .map(time => (
+                <div className="-mx-2 sm:mx-0">
+                  {/* ヘッダー（固定） */}
+                  <div className="overflow-hidden">
+                    <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: '40px' }} className="sm:w-16" />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th className="border p-1 sm:p-2 bg-gray-50 font-medium">時間</th>
+                          {[0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
+                            const date = addDays(weekStartDate, dayOffset)
+                            const dateString = format(date, 'yyyy-MM-dd')
+                            const dayName = format(date, 'E', { locale: ja })
+                            return (
+                              <th key={dayOffset} className="border p-1 bg-gray-50 font-medium">
+                                <div className="text-[10px] sm:text-xs leading-tight">{dayName}</div>
+                                <div className="text-[9px] sm:text-xs text-gray-600">{format(date, 'MM/dd')}</div>
+                              </th>
+                            )
+                          })}
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>
+
+                  {/* ボディ（スクロール可能） */}
+                  <div className="overflow-y-auto max-h-96 scrollbar-hide">
+                    <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: '40px' }} className="sm:w-16" />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                      </colgroup>
+                      <tbody>
+                        {/* 時間ごとの行を生成 */}
+                        {allTimeSlots.map(time => (
                           <tr key={time}>
-                            <td className="border p-2 text-sm text-gray-600 text-center">{time}</td>
+                            <td className="border p-0.5 sm:p-1 text-[10px] sm:text-sm text-gray-600 text-center">{time}</td>
                             {[0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
                               const date = addDays(weekStartDate, dayOffset)
                               const dateString = format(date, 'yyyy-MM-dd')
@@ -399,32 +571,36 @@ export default function WebBookingPage() {
                               )
                               const isSelected = bookingData.selectedDate === dateString && bookingData.selectedTime === time
 
+                              // スロットが存在しない、または利用不可の場合は❌
+                              const isAvailable = slot?.available === true
+
                               return (
-                                <td key={dayOffset} className="border p-1">
+                                <td key={dayOffset} className="border p-0.5 sm:p-1">
                                   <button
                                     onClick={() => {
-                                      if (slot?.available) {
+                                      if (isAvailable) {
                                         handleSlotSelect(dateString, time)
                                       }
                                     }}
-                                    disabled={!slot?.available}
-                                    className={`w-full h-10 flex items-center justify-center text-lg font-bold rounded transition-colors ${
+                                    disabled={!isAvailable}
+                                    className={`w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors ${
                                       isSelected
                                         ? 'bg-blue-600 text-white'
-                                        : slot?.available
+                                        : isAvailable
                                           ? 'bg-green-50 text-green-600 hover:bg-green-100 cursor-pointer'
                                           : 'bg-gray-50 text-gray-300 cursor-not-allowed'
                                     }`}
                                   >
-                                    {slot?.available ? '⭕️' : '❌'}
+                                    {isAvailable ? '⭕️' : '❌'}
                                   </button>
                                 </td>
                               )
                             })}
                           </tr>
                         ))}
-                    </tbody>
-                  </table>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 {/* 凡例 */}
@@ -446,22 +622,11 @@ export default function WebBookingPage() {
                     </div>
                   </div>
                 )}
-
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={prevStep}>
-                    戻る
-                  </Button>
-                  <Button onClick={nextStep} disabled={!bookingData.selectedDate || !bookingData.selectedTime}>
-                    次へ
-                  </Button>
-                </div>
               </CardContent>
             </Card>
-          )}
 
           {/* ステップ4: 患者情報入力 */}
-          {currentStep === 4 && webSettings.flow.patientInfo && (
-            <Card>
+          <Card ref={patientInfoSectionRef}>
               <CardHeader>
                 <CardTitle>患者情報入力</CardTitle>
               </CardHeader>
@@ -481,7 +646,14 @@ export default function WebBookingPage() {
                     <Input
                       id="patientPhone"
                       value={bookingData.patientPhone}
-                      onChange={(e) => setBookingData(prev => ({ ...prev, patientPhone: e.target.value }))}
+                      onChange={(e) => {
+                        const newPhone = e.target.value
+                        setBookingData(prev => ({ ...prev, patientPhone: newPhone }))
+                        // 名前と電話番号が両方入力されたら確認セクションへスクロール
+                        if (bookingData.patientName && newPhone) {
+                          setTimeout(() => scrollToSection(confirmationSectionRef), 500)
+                        }
+                      }}
                       placeholder="例: 03-1234-5678"
                     />
                   </div>
@@ -496,22 +668,11 @@ export default function WebBookingPage() {
                     placeholder="例: tanaka@example.com"
                   />
                 </div>
-                
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={prevStep}>
-                    戻る
-                  </Button>
-                  <Button onClick={nextStep} disabled={!bookingData.patientName || !bookingData.patientPhone}>
-                    次へ
-                  </Button>
-                </div>
               </CardContent>
             </Card>
-          )}
 
           {/* ステップ5: 確認・確定 */}
-          {currentStep === 5 && webSettings.flow.confirmation && (
-            <Card>
+          <Card ref={confirmationSectionRef}>
               <CardHeader>
                 <CardTitle>予約内容確認</CardTitle>
               </CardHeader>
@@ -521,6 +682,23 @@ export default function WebBookingPage() {
                     <Calendar className="w-4 h-4 text-gray-500" />
                     <span className="font-medium">予約日時:</span>
                     <span>{bookingData.selectedDate} {bookingData.selectedTime}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-gray-500" />
+                    <span className="font-medium">診療メニュー:</span>
+                    <span>
+                      {(() => {
+                        const menu = webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)
+                        return menu?.display_name || menu?.treatment_menu_name || ''
+                      })()}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-gray-500" />
+                    <span className="font-medium">診療時間:</span>
+                    <span>
+                      {webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)?.duration || ''}分
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <User className="w-4 h-4 text-gray-500" />
@@ -538,18 +716,14 @@ export default function WebBookingPage() {
                     <span>{bookingData.isNewPatient ? '初診' : '再診'}</span>
                   </div>
                 </div>
-                
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={prevStep}>
-                    戻る
-                  </Button>
-                  <Button onClick={handleConfirmBooking}>
+
+                <div className="flex justify-center">
+                  <Button onClick={handleConfirmBooking} size="lg" className="w-full max-w-xs">
                     予約確定
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          )}
         </div>
 
         {/* 問診表モーダル */}

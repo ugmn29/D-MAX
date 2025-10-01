@@ -4,11 +4,8 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
-  ArrowLeft,
-  Edit,
   User
 } from 'lucide-react'
-import Link from 'next/link'
 import { calculateAge } from '@/lib/utils/date'
 import { PatientDetailTabs } from '@/components/patients/patient-detail-tabs'
 
@@ -45,28 +42,20 @@ export default function PatientDetailPage() {
         {/* ヘッダー */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link href="/patients">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                患者一覧に戻る
-              </Button>
-            </Link>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <span className="text-lg font-medium text-gray-600">
-                  ID: {patient.patient_number}
-                </span>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {patient.last_name} {patient.first_name}
-                </h1>
-              </div>
-              {!patient.is_registered && (
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                  <User className="w-4 h-4 mr-2" />
-                  本登録
-                </Button>
-              )}
+            <div className="flex items-center space-x-3">
+              <span className="text-lg font-medium text-gray-600">
+                ID: {patient.patient_number}
+              </span>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {patient.last_name} {patient.first_name}
+              </h1>
             </div>
+            {!patient.is_registered && (
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <User className="w-4 h-4 mr-2" />
+                本登録
+              </Button>
+            )}
           </div>
         </div>
 

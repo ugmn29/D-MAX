@@ -180,7 +180,9 @@ export const updateMockPatient = (id: string, updates: any) => {
   if (index !== -1) {
     data[index] = { ...data[index], ...updates, updated_at: new Date().toISOString() }
     saveToStorage(PATIENTS_KEY, data)
+    return data[index]
   }
+  return null
 }
 export const removeMockPatient = (id: string) => {
   const data = getMockPatients()
