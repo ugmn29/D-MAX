@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Save } from 'lucide-react'
+import { Modal } from '@/components/ui/modal'
+import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
 import { getClinicSettings, setClinicSetting } from '@/lib/api/clinic'
 import { getTreatmentMenus, updateTreatmentMenu } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
@@ -43,6 +44,19 @@ export default function WebReservationSettingsPage() {
   const [treatmentMenus, setTreatmentMenus] = useState<any[]>([])
   const [staff, setStaff] = useState<any[]>([])
 
+  // Web予約メニュー
+  const [webBookingMenus, setWebBookingMenus] = useState<any[]>([])
+
+  // ダイアログ状態
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [newWebMenu, setNewWebMenu] = useState({
+    treatment_menu_id: '',
+    duration: 30,
+    staff_ids: [] as string[],
+    allow_new_patient: true,
+    allow_returning: true
+  })
+
   // データ読み込み
   useEffect(() => {
     const loadData = async () => {
@@ -54,7 +68,7 @@ export default function WebReservationSettingsPage() {
           getStaff(DEMO_CLINIC_ID)
         ])
 
-        setWebSettings(settings.web_reservation || {
+        const webReservation = settings.web_reservation || {
           isEnabled: false,
           reservationPeriod: 30,
           allowCurrentTime: true,
@@ -68,7 +82,10 @@ export default function WebReservationSettingsPage() {
             patientInfo: true,
             confirmation: true
           }
-        })
+        }
+
+        setWebSettings(webReservation)
+        setWebBookingMenus(webReservation.booking_menus || [])
 
         // レベル1の診療メニューのみ表示
         setTreatmentMenus(menus.filter(menu => menu.level === 1))
@@ -83,38 +100,66 @@ export default function WebReservationSettingsPage() {
     loadData()
   }, [])
 
-  // 診療メニューのWeb予約設定を更新
-  const handleMenuUpdate = async (menuId: string, updates: any) => {
-    try {
-      await updateTreatmentMenu(DEMO_CLINIC_ID, menuId, updates)
-      // ローカル状態を更新
-      setTreatmentMenus(prev => prev.map(menu =>
-        menu.id === menuId ? { ...menu, ...updates } : menu
-      ))
-    } catch (error) {
-      console.error('診療メニュー更新エラー:', error)
-      alert('診療メニューの更新に失敗しました')
+  // Web予約メニューを追加
+  const handleAddWebMenu = () => {
+    if (!newWebMenu.treatment_menu_id) {
+      alert('診療メニューを選択してください')
+      return
     }
+    if (newWebMenu.staff_ids.length === 0) {
+      alert('担当者を選択してください')
+      return
+    }
+
+    const menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
+    if (!menu) return
+
+    const webMenu = {
+      id: `web_${Date.now()}`,
+      treatment_menu_id: newWebMenu.treatment_menu_id,
+      treatment_menu_name: menu.name,
+      treatment_menu_color: menu.color,
+      duration: newWebMenu.duration,
+      staff_ids: newWebMenu.staff_ids,
+      allow_new_patient: newWebMenu.allow_new_patient,
+      allow_returning: newWebMenu.allow_returning
+    }
+
+    setWebBookingMenus([...webBookingMenus, webMenu])
+    setIsAddDialogOpen(false)
+    setNewWebMenu({
+      treatment_menu_id: '',
+      duration: 30,
+      staff_ids: [],
+      allow_new_patient: true,
+      allow_returning: true
+    })
+  }
+
+  // Web予約メニューを削除
+  const handleRemoveWebMenu = (id: string) => {
+    setWebBookingMenus(webBookingMenus.filter(m => m.id !== id))
   }
 
   // スタッフ選択の切り替え
-  const toggleStaffForMenu = (menuId: string, staffId: string) => {
-    const menu = treatmentMenus.find(m => m.id === menuId)
-    if (!menu) return
-
-    const currentStaffIds = menu.web_booking_staff_ids || []
-    const newStaffIds = currentStaffIds.includes(staffId)
-      ? currentStaffIds.filter((id: string) => id !== staffId)
-      : [...currentStaffIds, staffId]
-
-    handleMenuUpdate(menuId, { web_booking_staff_ids: newStaffIds })
+  const toggleStaffSelection = (staffId: string) => {
+    setNewWebMenu(prev => ({
+      ...prev,
+      staff_ids: prev.staff_ids.includes(staffId)
+        ? prev.staff_ids.filter(id => id !== staffId)
+        : [...prev.staff_ids, staffId]
+    }))
   }
 
   // 保存処理
   const handleSave = async () => {
     try {
       setSaving(true)
-      await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', webSettings)
+      const settingsToSave = {
+        ...webSettings,
+        booking_menus: webBookingMenus
+      }
+      await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', settingsToSave)
       alert('設定を保存しました')
     } catch (error) {
       console.error('保存エラー:', error)
@@ -401,119 +446,86 @@ export default function WebReservationSettingsPage() {
               </CardContent>
             </Card>
 
-            {/* 診療メニュー別設定 */}
+            {/* Web予約メニュー設定 */}
             {webSettings.isEnabled && (
               <Card className="mt-6">
                 <CardHeader>
-                  <CardTitle>診療メニュー別設定</CardTitle>
-                  <p className="text-sm text-gray-600">
-                    各診療メニューごとにWeb予約の設定を行います
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Web予約メニュー</CardTitle>
+                      <p className="text-sm text-gray-600">
+                        Web予約で公開する診療メニューを追加します
+                      </p>
+                    </div>
+                    <Button onClick={() => setIsAddDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      メニューを追加
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {treatmentMenus.length === 0 ? (
+                  {webBookingMenus.length === 0 ? (
                     <p className="text-sm text-gray-500">
-                      診療メニューが登録されていません。まず診療メニューを登録してください。
+                      Web予約メニューが登録されていません。「メニューを追加」ボタンから追加してください。
                     </p>
                   ) : (
-                    <div className="space-y-6">
-                      {treatmentMenus.map(menu => (
-                        <div key={menu.id} className="border rounded-lg p-4 space-y-4">
-                          {/* メニュー名とカラー */}
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className="w-6 h-6 rounded"
-                              style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                            />
-                            <h4 className="font-medium text-lg">{menu.name}</h4>
-                          </div>
-
-                          {/* Web予約公開ON/OFF */}
-                          <div className="flex items-center space-x-3">
-                            <Checkbox
-                              id={`menu_enabled_${menu.id}`}
-                              checked={menu.web_booking_enabled || false}
-                              onCheckedChange={(checked) =>
-                                handleMenuUpdate(menu.id, { web_booking_enabled: checked as boolean })
-                              }
-                            />
-                            <Label htmlFor={`menu_enabled_${menu.id}`} className="font-medium">
-                              Web予約で公開する
-                            </Label>
-                          </div>
-
-                          {menu.web_booking_enabled && (
-                            <div className="ml-6 space-y-4 border-l-2 border-gray-200 pl-4">
-                              {/* 担当可能スタッフ */}
-                              <div>
-                                <Label className="font-medium mb-2 block">担当可能スタッフ</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {staff.map(s => (
-                                    <div key={s.id} className="flex items-center space-x-2">
-                                      <Checkbox
-                                        id={`menu_${menu.id}_staff_${s.id}`}
-                                        checked={(menu.web_booking_staff_ids || []).includes(s.id)}
-                                        onCheckedChange={() => toggleStaffForMenu(menu.id, s.id)}
-                                      />
-                                      <Label htmlFor={`menu_${menu.id}_staff_${s.id}`}>
-                                        {s.name}
-                                      </Label>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* 予約時間 */}
-                              <div>
-                                <Label htmlFor={`menu_duration_${menu.id}`} className="font-medium">
-                                  予約時間（分）
-                                </Label>
-                                <Input
-                                  id={`menu_duration_${menu.id}`}
-                                  type="number"
-                                  min="5"
-                                  max="300"
-                                  value={menu.web_booking_duration || menu.standard_duration || 30}
-                                  onChange={(e) =>
-                                    handleMenuUpdate(menu.id, {
-                                      web_booking_duration: parseInt(e.target.value) || 30
-                                    })
-                                  }
-                                  className="max-w-xs"
+                    <div className="space-y-4">
+                      {webBookingMenus.map(menu => (
+                        <div key={menu.id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 space-y-3">
+                              {/* メニュー名とカラー */}
+                              <div className="flex items-center space-x-3">
+                                <div
+                                  className="w-6 h-6 rounded"
+                                  style={{ backgroundColor: menu.treatment_menu_color || '#bfbfbf' }}
                                 />
-                                <p className="text-sm text-gray-500 mt-1">
-                                  標準時間: {menu.standard_duration || 30}分
-                                </p>
+                                <h4 className="font-medium text-lg">{menu.treatment_menu_name}</h4>
                               </div>
 
-                              {/* 初診/再診設定 */}
-                              <div>
-                                <Label className="font-medium mb-2 block">受付可能な患者</Label>
-                                <div className="space-y-2">
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`menu_new_${menu.id}`}
-                                      checked={menu.web_booking_new_patient !== false}
-                                      onCheckedChange={(checked) =>
-                                        handleMenuUpdate(menu.id, { web_booking_new_patient: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor={`menu_new_${menu.id}`}>初診</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`menu_returning_${menu.id}`}
-                                      checked={menu.web_booking_returning !== false}
-                                      onCheckedChange={(checked) =>
-                                        handleMenuUpdate(menu.id, { web_booking_returning: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor={`menu_returning_${menu.id}`}>再診</Label>
-                                  </div>
+                              {/* 診療時間 */}
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">診療時間:</span>
+                                <span>{menu.duration}分</span>
+                              </div>
+
+                              {/* 担当者 */}
+                              <div className="flex items-start space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">担当者:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {menu.staff_ids.map((staffId: string) => {
+                                    const s = staff.find(st => st.id === staffId)
+                                    return s ? (
+                                      <span key={staffId} className="bg-gray-100 px-2 py-1 rounded">
+                                        {s.name}
+                                      </span>
+                                    ) : null
+                                  })}
                                 </div>
+                              </div>
+
+                              {/* 受付可能な患者 */}
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">受付:</span>
+                                <span>
+                                  {menu.allow_new_patient && menu.allow_returning && '初診・再診'}
+                                  {menu.allow_new_patient && !menu.allow_returning && '初診のみ'}
+                                  {!menu.allow_new_patient && menu.allow_returning && '再診のみ'}
+                                  {!menu.allow_new_patient && !menu.allow_returning && 'なし'}
+                                </span>
                               </div>
                             </div>
-                          )}
+
+                            {/* 削除ボタン */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveWebMenu(menu.id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -521,6 +533,125 @@ export default function WebReservationSettingsPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Web予約メニュー追加ダイアログ */}
+            <Modal
+              isOpen={isAddDialogOpen}
+              onClose={() => setIsAddDialogOpen(false)}
+              title="Web予約メニューを追加"
+              size="large"
+            >
+              <div className="space-y-6">
+                {/* 診療メニュー選択 */}
+                <div>
+                  <Label htmlFor="treatment_menu">診療メニュー</Label>
+                  <Select
+                    value={newWebMenu.treatment_menu_id}
+                    onValueChange={(value) =>
+                      setNewWebMenu(prev => ({ ...prev, treatment_menu_id: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="診療メニューを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {treatmentMenus.map(menu => (
+                        <SelectItem key={menu.id} value={menu.id}>
+                          <div className="flex items-center space-x-2">
+                            <div
+                              className="w-4 h-4 rounded"
+                              style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                            />
+                            <span>{menu.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 診療時間 */}
+                <div>
+                  <Label htmlFor="duration">診療時間（分）</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    min="5"
+                    max="300"
+                    value={newWebMenu.duration}
+                    onChange={(e) =>
+                      setNewWebMenu(prev => ({
+                        ...prev,
+                        duration: parseInt(e.target.value) || 30
+                      }))
+                    }
+                    className="max-w-xs"
+                  />
+                </div>
+
+                {/* 担当者選択 */}
+                <div>
+                  <Label className="mb-2 block">担当者（複数選択可）</Label>
+                  <div className="grid grid-cols-2 gap-2 border rounded-lg p-3">
+                    {staff.map(s => (
+                      <div key={s.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`new_menu_staff_${s.id}`}
+                          checked={newWebMenu.staff_ids.includes(s.id)}
+                          onCheckedChange={() => toggleStaffSelection(s.id)}
+                        />
+                        <Label htmlFor={`new_menu_staff_${s.id}`}>
+                          {s.name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 受付可能な患者 */}
+                <div>
+                  <Label className="mb-2 block">受付可能な患者</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="new_menu_allow_new"
+                        checked={newWebMenu.allow_new_patient}
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu(prev => ({
+                            ...prev,
+                            allow_new_patient: checked as boolean
+                          }))
+                        }
+                      />
+                      <Label htmlFor="new_menu_allow_new">初診</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="new_menu_allow_returning"
+                        checked={newWebMenu.allow_returning}
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu(prev => ({
+                            ...prev,
+                            allow_returning: checked as boolean
+                          }))
+                        }
+                      />
+                      <Label htmlFor="new_menu_allow_returning">再診</Label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* フッター */}
+                <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                    キャンセル
+                  </Button>
+                  <Button onClick={handleAddWebMenu}>
+                    追加
+                  </Button>
+                </div>
+              </div>
+            </Modal>
           </div>
         </div>
       </div>

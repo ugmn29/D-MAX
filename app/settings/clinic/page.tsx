@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Building2, Clock } from 'lucide-react'
 import { getClinic, getClinicSettings, setClinicSetting, updateClinicSettings } from '@/lib/api/clinic'
 
 // 仮のクリニックID
@@ -33,10 +33,18 @@ const TIME_SLOT_OPTIONS = [
   { value: 60, label: '60分' }
 ]
 
+type TabType = 'basic' | 'hours'
+
+const TABS = [
+  { id: 'basic' as const, name: '基本情報', icon: Building2 },
+  { id: 'hours' as const, name: '診療時間', icon: Clock }
+]
+
 export default function ClinicSettingsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabType>('basic')
   
   // クリニック情報
   const [clinicInfo, setClinicInfo] = useState({
@@ -263,8 +271,34 @@ export default function ClinicSettingsPage() {
               </Button>
             </div>
 
-            {/* クリニック情報 */}
-            <Card className="mb-6">
+            {/* タブナビゲーション */}
+            <div className="mb-6">
+              <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                {TABS.map((tab) => {
+                  const Icon = tab.icon
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`
+                        flex items-center space-x-2 px-4 py-2.5 rounded-md transition-all flex-1 justify-center
+                        ${activeTab === tab.id
+                          ? 'bg-dmax-primary text-white shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="font-medium">{tab.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* クリニック情報タブ */}
+            {activeTab === 'basic' && (
+              <Card className="mb-6">
               <CardHeader>
                 <CardTitle>クリニック情報</CardTitle>
               </CardHeader>
@@ -351,9 +385,11 @@ export default function ClinicSettingsPage() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
-            {/* 診療時間設定 */}
-            <Card className="mb-6">
+            {/* 診療時間設定タブ */}
+            {activeTab === 'hours' && (
+              <Card className="mb-6">
               <CardHeader>
                 <CardTitle>診療時間設定</CardTitle>
               </CardHeader>
@@ -464,6 +500,7 @@ export default function ClinicSettingsPage() {
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
         </div>
       </div>

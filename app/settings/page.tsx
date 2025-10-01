@@ -273,6 +273,42 @@ export default function SettingsPage() {
     }
   })
 
+  // Web予約メニュー
+  const [webBookingMenus, setWebBookingMenus] = useState<any[]>([])
+
+  // Web予約メニュー追加ダイアログ
+  const [isAddWebMenuDialogOpen, setIsAddWebMenuDialogOpen] = useState(false)
+  const [isEditWebMenuDialogOpen, setIsEditWebMenuDialogOpen] = useState(false)
+  const [editingWebMenu, setEditingWebMenu] = useState<any>(null)
+  
+  type StaffAssignment = {
+    staff_id: string
+    priority: number
+    is_required: boolean
+  }
+  
+  type BookingStep = {
+    id: string
+    step_order: number
+    start_time: number
+    end_time: number
+    duration: number
+    type: 'serial' | 'parallel'
+    description: string
+    staff_assignments: StaffAssignment[]
+  }
+  
+  const [newWebMenu, setNewWebMenu] = useState({
+    treatment_menu_id: '',
+    treatment_menu_level2_id: '',
+    treatment_menu_level3_id: '',
+    display_name: '',
+    duration: 30,
+    steps: [] as BookingStep[],
+    allow_new_patient: true,
+    allow_returning: true
+  })
+
   // スタッフ管理の状態
   const [showAddStaff, setShowAddStaff] = useState(false)
   const [staff, setStaff] = useState<any[]>([])
@@ -331,6 +367,7 @@ export default function SettingsPage() {
   const [selectedTab, setSelectedTab] = useState('menu1')
   const [parentMenuForChild, setParentMenuForChild] = useState<any>(null) // 子メニュー作成用の親メニュー
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set()) // 展開されたメニューのID
+  const [useParentColor, setUseParentColor] = useState(true) // 親の色を使用するかどうか
   const [newTreatmentMenu, setNewTreatmentMenu] = useState({
     name: '',
     level: 1,
@@ -342,9 +379,25 @@ export default function SettingsPage() {
 
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(categoryId)
+    // クリニックタブが選択された場合は、基本情報タブを自動選択
+    if (categoryId === 'clinic') {
+      setActiveTab('basic')
+    }
+    // カレンダータブが選択された場合は、基本設定タブを自動選択
+    else if (categoryId === 'calendar') {
+      setActiveTab('basic')
+    }
     // スタッフタブが選択された場合は、スタッフ管理タブを自動選択
-    if (categoryId === 'staff') {
+    else if (categoryId === 'staff') {
       setActiveTab('staff')
+    }
+    // シフトタブが選択された場合は、シフト表タブを自動選択
+    else if (categoryId === 'shift') {
+      setActiveTab('shiftTable')
+    }
+    // Web予約タブが選択された場合は、基本設定タブを自動選択
+    else if (categoryId === 'web') {
+      setActiveTab('basic')
     }
   }
 
@@ -518,6 +571,7 @@ export default function SettingsPage() {
         // Web予約設定を読み込み
         if (settings.web_reservation) {
           setWebSettings(settings.web_reservation)
+          setWebBookingMenus(settings.web_reservation.booking_menus || [])
         }
 
       } catch (error) {
@@ -832,10 +886,330 @@ export default function SettingsPage() {
     handleMenuUpdate(menuId, { web_booking_staff_ids: newStaffIds })
   }
 
+  // ステップを追加
+  const handleAddStep = () => {
+    const lastStep = newWebMenu.steps[newWebMenu.steps.length - 1]
+    const startTime = lastStep ? lastStep.end_time : 0
+    
+    const newStep: BookingStep = {
+      id: `step_${Date.now()}`,
+      step_order: newWebMenu.steps.length + 1,
+      start_time: startTime,
+      end_time: startTime + 30,
+      duration: 30,
+      type: 'serial',
+      description: '',
+      staff_assignments: []
+    }
+    
+    setNewWebMenu(prev => ({
+      ...prev,
+      steps: [...prev.steps, newStep],
+      duration: newStep.end_time
+    }))
+  }
+
+  // ステップを削除
+  const handleRemoveStep = (stepId: string) => {
+    const updatedSteps = newWebMenu.steps
+      .filter(s => s.id !== stepId)
+      .map((step, index) => {
+        // ステップ順序を再計算
+        let startTime = 0
+        if (index > 0) {
+          const prevStep = newWebMenu.steps[index - 1]
+          startTime = prevStep.type === 'serial' ? prevStep.end_time : prevStep.start_time
+        }
+        return {
+          ...step,
+          step_order: index + 1,
+          start_time: startTime,
+          end_time: startTime + step.duration
+        }
+      })
+    
+    const totalDuration = updatedSteps.length > 0 
+      ? Math.max(...updatedSteps.map(s => s.end_time))
+      : 30
+    
+    setNewWebMenu(prev => ({
+      ...prev,
+      steps: updatedSteps,
+      duration: totalDuration
+    }))
+  }
+
+  // ステップの時間を更新
+  const handleUpdateStepTime = (stepId: string, endTime: number) => {
+    const stepIndex = newWebMenu.steps.findIndex(s => s.id === stepId)
+    if (stepIndex === -1) return
+    
+    const updatedSteps = [...newWebMenu.steps]
+    const step = updatedSteps[stepIndex]
+    step.end_time = endTime
+    step.duration = endTime - step.start_time
+    
+    // 後続のステップの時間を再計算
+    for (let i = stepIndex + 1; i < updatedSteps.length; i++) {
+      const prevStep = updatedSteps[i - 1]
+      if (prevStep.type === 'serial') {
+        updatedSteps[i].start_time = prevStep.end_time
+        updatedSteps[i].end_time = updatedSteps[i].start_time + updatedSteps[i].duration
+      }
+    }
+    
+    const totalDuration = Math.max(...updatedSteps.map(s => s.end_time))
+    
+    setNewWebMenu(prev => ({
+      ...prev,
+      steps: updatedSteps,
+      duration: totalDuration
+    }))
+  }
+
+  // ステップのタイプを変更
+  const handleToggleStepType = (stepId: string) => {
+    const updatedSteps = newWebMenu.steps.map(step => {
+      if (step.id === stepId) {
+        return { ...step, type: step.type === 'serial' ? 'parallel' as const : 'serial' as const }
+      }
+      return step
+    })
+    
+    setNewWebMenu(prev => ({
+      ...prev,
+      steps: updatedSteps
+    }))
+  }
+
+  // 担当者を追加
+  const handleAddStaffToStep = (stepId: string, staffId: string) => {
+    const updatedSteps = newWebMenu.steps.map(step => {
+      if (step.id === stepId) {
+        const exists = step.staff_assignments.find(sa => sa.staff_id === staffId)
+        if (!exists) {
+          const newAssignment: StaffAssignment = {
+            staff_id: staffId,
+            priority: step.staff_assignments.length + 1,
+            is_required: step.type === 'parallel'
+          }
+          return {
+            ...step,
+            staff_assignments: [...step.staff_assignments, newAssignment]
+          }
+        }
+      }
+      return step
+    })
+    
+    setNewWebMenu(prev => ({
+      ...prev,
+      steps: updatedSteps
+    }))
+  }
+
+  // 担当者を削除
+  const handleRemoveStaffFromStep = (stepId: string, staffId: string) => {
+    const updatedSteps = newWebMenu.steps.map(step => {
+      if (step.id === stepId) {
+        return {
+          ...step,
+          staff_assignments: step.staff_assignments
+            .filter(sa => sa.staff_id !== staffId)
+            .map((sa, index) => ({ ...sa, priority: index + 1 }))
+        }
+      }
+      return step
+    })
+    
+    setNewWebMenu(prev => ({
+      ...prev,
+      steps: updatedSteps
+    }))
+  }
+
+  // 担当者の優先順位を変更
+  const handleMoveStaffPriority = (stepId: string, staffId: string, direction: 'up' | 'down') => {
+    const updatedSteps = newWebMenu.steps.map(step => {
+      if (step.id === stepId) {
+        const currentIndex = step.staff_assignments.findIndex(sa => sa.staff_id === staffId)
+        if (currentIndex === -1) return step
+        
+        const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+        if (newIndex < 0 || newIndex >= step.staff_assignments.length) return step
+        
+        const newAssignments = [...step.staff_assignments]
+        const temp = newAssignments[currentIndex]
+        newAssignments[currentIndex] = newAssignments[newIndex]
+        newAssignments[newIndex] = temp
+        
+        // 優先順位を再設定
+        return {
+          ...step,
+          staff_assignments: newAssignments.map((sa, index) => ({ ...sa, priority: index + 1 }))
+        }
+      }
+      return step
+    })
+    
+    setNewWebMenu(prev => ({
+      ...prev,
+      steps: updatedSteps
+    }))
+  }
+
+  // Web予約メニューを追加
+  const handleAddWebBookingMenu = () => {
+    if (!newWebMenu.treatment_menu_id) {
+      alert('診療メニューを選択してください')
+      return
+    }
+    if (newWebMenu.steps.length === 0) {
+      alert('少なくとも1つのステップを追加してください')
+      return
+    }
+
+    // 最終的に選択されたメニューを取得（レベル3 > レベル2 > レベル1の順）
+    const selectedMenuId = newWebMenu.treatment_menu_level3_id || newWebMenu.treatment_menu_level2_id || newWebMenu.treatment_menu_id
+    const menu = treatmentMenus.find(m => m.id === selectedMenuId)
+    if (!menu) return
+
+    // メニュー階層の名前を構築
+    const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
+    const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
+    const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
+    
+    const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
+    const fullMenuName = menuNameParts.join(' > ')
+
+    const webMenu = {
+      id: `web_${Date.now()}`,
+      treatment_menu_id: newWebMenu.treatment_menu_id,
+      treatment_menu_level2_id: newWebMenu.treatment_menu_level2_id,
+      treatment_menu_level3_id: newWebMenu.treatment_menu_level3_id,
+      treatment_menu_name: fullMenuName,
+      display_name: newWebMenu.display_name || fullMenuName,
+      treatment_menu_color: menu.color,
+      duration: newWebMenu.duration,
+      steps: newWebMenu.steps,
+      allow_new_patient: newWebMenu.allow_new_patient,
+      allow_returning: newWebMenu.allow_returning
+    }
+
+    setWebBookingMenus([...webBookingMenus, webMenu])
+    setIsAddWebMenuDialogOpen(false)
+    setNewWebMenu({
+      treatment_menu_id: '',
+      treatment_menu_level2_id: '',
+      treatment_menu_level3_id: '',
+      display_name: '',
+      duration: 30,
+      steps: [],
+      allow_new_patient: true,
+      allow_returning: true
+    })
+  }
+
+  // Web予約メニューを削除
+  const handleRemoveWebBookingMenu = (id: string) => {
+    setWebBookingMenus(webBookingMenus.filter(m => m.id !== id))
+  }
+
+  // Web予約メニューを編集開始
+  const handleEditWebMenu = (menu: any) => {
+    setEditingWebMenu(menu)
+    setNewWebMenu({
+      treatment_menu_id: menu.treatment_menu_id || '',
+      treatment_menu_level2_id: menu.treatment_menu_level2_id || '',
+      treatment_menu_level3_id: menu.treatment_menu_level3_id || '',
+      display_name: menu.display_name || '',
+      duration: menu.duration || 30,
+      steps: menu.steps || [],
+      allow_new_patient: menu.allow_new_patient !== undefined ? menu.allow_new_patient : true,
+      allow_returning: menu.allow_returning !== undefined ? menu.allow_returning : true
+    })
+    setIsEditWebMenuDialogOpen(true)
+  }
+
+  // Web予約メニューの編集を保存
+  const handleSaveEditWebMenu = () => {
+    if (!editingWebMenu) return
+    if (!newWebMenu.treatment_menu_id) {
+      alert('診療メニューを選択してください')
+      return
+    }
+    if (newWebMenu.steps.length === 0) {
+      alert('少なくとも1つのステップを追加してください')
+      return
+    }
+
+    // 最終的に選択されたメニューを取得
+    const selectedMenuId = newWebMenu.treatment_menu_level3_id || newWebMenu.treatment_menu_level2_id || newWebMenu.treatment_menu_id
+    const menu = treatmentMenus.find(m => m.id === selectedMenuId)
+    if (!menu) return
+
+    // メニュー階層の名前を構築
+    const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
+    const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
+    const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
+    
+    const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
+    const fullMenuName = menuNameParts.join(' > ')
+
+    const updatedMenu = {
+      ...editingWebMenu,
+      treatment_menu_id: newWebMenu.treatment_menu_id,
+      treatment_menu_level2_id: newWebMenu.treatment_menu_level2_id,
+      treatment_menu_level3_id: newWebMenu.treatment_menu_level3_id,
+      treatment_menu_name: fullMenuName,
+      display_name: newWebMenu.display_name || fullMenuName,
+      treatment_menu_color: menu.color,
+      duration: newWebMenu.duration,
+      steps: newWebMenu.steps,
+      allow_new_patient: newWebMenu.allow_new_patient,
+      allow_returning: newWebMenu.allow_returning
+    }
+
+    setWebBookingMenus(webBookingMenus.map(m => m.id === editingWebMenu.id ? updatedMenu : m))
+    setIsEditWebMenuDialogOpen(false)
+    setEditingWebMenu(null)
+    setNewWebMenu({
+      treatment_menu_id: '',
+      treatment_menu_level2_id: '',
+      treatment_menu_level3_id: '',
+      display_name: '',
+      duration: 30,
+      steps: [],
+      allow_new_patient: true,
+      allow_returning: true
+    })
+  }
+
   // Web予約設定を保存
   const handleSaveWebSettings = async () => {
     try {
-      await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', webSettings)
+      console.log('Web予約設定保存開始')
+      console.log('保存するwebSettings:', webSettings)
+      console.log('保存するwebBookingMenus:', webBookingMenus)
+      
+      const settingsToSave = {
+        ...webSettings,
+        booking_menus: webBookingMenus
+      }
+      
+      console.log('保存データ:', settingsToSave)
+      await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', settingsToSave)
+      
+      // 保存後にデータを再読み込み
+      const reloadedSettings = await getClinicSettings(DEMO_CLINIC_ID)
+      console.log('再読み込みした設定:', reloadedSettings)
+      
+      if (reloadedSettings.web_reservation) {
+        setWebSettings(reloadedSettings.web_reservation)
+        setWebBookingMenus(reloadedSettings.web_reservation.booking_menus || [])
+        console.log('Web予約メニュー再読み込み完了:', reloadedSettings.web_reservation.booking_menus)
+      }
+      
       alert('Web予約設定を保存しました')
     } catch (error) {
       console.error('Web予約設定保存エラー:', error)
@@ -900,8 +1274,33 @@ export default function SettingsPage() {
 
   // クリニック設定コンテンツ
   const renderClinicSettings = () => (
-    <div className="space-y-8">
-      {/* クリニック情報 */}
+    <div className="space-y-6">
+      {/* タブ */}
+      <div className="flex space-x-0 mb-6 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('basic')}
+          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'basic'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          基本情報
+        </button>
+        <button
+          onClick={() => setActiveTab('hours')}
+          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'hours'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          診療時間
+        </button>
+      </div>
+
+      {/* クリニック情報タブ */}
+      {activeTab === 'basic' && (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="space-y-6">
           <h3 className="text-lg font-semibold text-gray-900">クリニック情報</h3>
@@ -997,8 +1396,10 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* 診療時間設定 */}
+      {/* 診療時間設定タブ */}
+      {activeTab === 'hours' && (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="space-y-6">
           <h3 className="text-lg font-semibold text-gray-900">診療時間</h3>
@@ -1104,6 +1505,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 
@@ -1121,6 +1523,26 @@ export default function SettingsPage() {
           }`}
         >
           基本設定
+        </button>
+        <button
+          onClick={() => setActiveTab('units')}
+          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'units'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          ユニット設定
+        </button>
+        <button
+          onClick={() => setActiveTab('display')}
+          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'display'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          表示設定
         </button>
       </div>
 
@@ -1150,7 +1572,12 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
 
+      {/* ユニット設定タブ */}
+      {activeTab === 'units' && (
+        <div className="space-y-8">
           {/* ユニット設定 */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="space-y-6">
@@ -1185,7 +1612,12 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
 
+      {/* 表示設定タブ */}
+      {activeTab === 'display' && (
+        <div className="space-y-8">
           {/* 表示項目 */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="space-y-6">
@@ -2107,9 +2539,12 @@ export default function SettingsPage() {
                     variant="outline" 
                     size="sm"
                     onClick={() => {
+                      setParentMenuForChild(null)
+                      setUseParentColor(true)
                       setNewTreatmentMenu(prev => ({
                         ...prev,
-                        level: 1
+                        level: 1,
+                        color: '#3B82F6'
                       }))
                       setShowTreatmentAddForm(true)
                     }}
@@ -2139,9 +2574,12 @@ export default function SettingsPage() {
                 </p>
                     <Button
                   onClick={() => {
+                    setParentMenuForChild(null)
+                    setUseParentColor(true)
                     setNewTreatmentMenu(prev => ({
                       ...prev,
-                      level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3
+                      level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
+                      color: '#3B82F6'
                     }))
                     setShowTreatmentAddForm(true)
                   }}
@@ -2163,6 +2601,7 @@ export default function SettingsPage() {
               onClick={() => {
                 setShowTreatmentAddForm(false)
                 setParentMenuForChild(null)
+                setUseParentColor(true)
                 setNewTreatmentMenu({
                   name: '',
                   level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
@@ -2211,17 +2650,48 @@ export default function SettingsPage() {
                   
                   <div>
                     <Label htmlFor="modal_menu_color">色</Label>
+                    {parentMenuForChild && (
+                      <div className="flex items-center space-x-2 mt-2 mb-2">
+                        <Checkbox
+                          id="use_parent_color"
+                          checked={useParentColor}
+                          onCheckedChange={(checked) => {
+                            setUseParentColor(checked as boolean)
+                            if (checked && parentMenuForChild) {
+                              setNewTreatmentMenu(prev => ({ ...prev, color: parentMenuForChild.color || '#3B82F6' }))
+                            }
+                          }}
+                        />
+                        <Label htmlFor="use_parent_color" className="text-sm flex items-center space-x-2 cursor-pointer">
+                          <span>親メニューの色を使用</span>
+                          {parentMenuForChild.color && (
+                            <div
+                              className="w-5 h-5 rounded border border-gray-300"
+                              style={{ backgroundColor: parentMenuForChild.color }}
+                            />
+                          )}
+                        </Label>
+                      </div>
+                    )}
                     <div className="flex items-center space-x-2 mt-1">
                       <Input
                         id="modal_menu_color"
                         type="color"
                         value={newTreatmentMenu.color}
-                        onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))}
+                        onChange={(e) => {
+                          setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))
+                          setUseParentColor(false)
+                        }}
+                        disabled={useParentColor && parentMenuForChild}
                         className="w-12 h-8 p-1"
                       />
                       <Input
                         value={newTreatmentMenu.color}
-                        onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))}
+                        onChange={(e) => {
+                          setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))
+                          setUseParentColor(false)
+                        }}
+                        disabled={useParentColor && parentMenuForChild}
                         placeholder="#3B82F6"
                         className="flex-1"
                       />
@@ -2235,6 +2705,7 @@ export default function SettingsPage() {
                     onClick={() => {
                       setShowTreatmentAddForm(false)
                       setParentMenuForChild(null)
+                      setUseParentColor(true)
                       setNewTreatmentMenu({
                         name: '',
                         level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
@@ -2365,6 +2836,7 @@ export default function SettingsPage() {
         color: '#3B82F6',
         sort_order: 0
       })
+      setUseParentColor(true)
       setShowTreatmentAddForm(false)
       
       alert('メニューを正常に追加しました')
@@ -2416,6 +2888,7 @@ export default function SettingsPage() {
         sort_order: 0
       })
       setParentMenuForChild(null)
+      setUseParentColor(true)
       setShowTreatmentAddForm(false)
       
       alert('子メニューを正常に追加しました')
@@ -2556,12 +3029,13 @@ export default function SettingsPage() {
                   size="sm"
                   onClick={() => {
                     setParentMenuForChild(menu)
+                  setUseParentColor(true)
                     setNewTreatmentMenu({
                       name: '',
                       level: menu.level + 1,
                       parent_id: menu.id,
                       standard_duration: 30,
-                      color: '#3B82F6',
+                    color: menu.color || '#3B82F6',
                       sort_order: 0
                     })
                     setShowTreatmentAddForm(true)
@@ -2808,23 +3282,23 @@ export default function SettingsPage() {
           <div className="space-y-6">
 
             {/* タブ */}
-            <div className="flex space-x-1 mb-6">
+            <div className="flex space-x-0 mb-6 border-b border-gray-200">
               <button
                 onClick={() => setActiveTab('staff')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
                   activeTab === 'staff'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 スタッフ管理
               </button>
               <button
                 onClick={() => setActiveTab('units')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
                   activeTab === 'units'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 ユニット管理
@@ -3063,28 +3537,96 @@ export default function SettingsPage() {
         )}
         {selectedCategory === 'shift' && (
           <div className="space-y-6">
-            {/* シフト表 */}
+            {/* タブ */}
+            <div className="flex space-x-0 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('shiftTable')}
+                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                  activeTab === 'shiftTable'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                シフト表
+              </button>
+              <button
+                onClick={() => setActiveTab('patterns')}
+                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                  activeTab === 'patterns'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                パターン
+              </button>
+            </div>
+
+            {/* シフト表タブ */}
+            {activeTab === 'shiftTable' && (
+              <div>
             <ShiftTable 
               clinicId={DEMO_CLINIC_ID} 
               refreshTrigger={refreshTrigger}
             />
+              </div>
+            )}
             
-            {/* 勤務時間パターン管理 */}
+            {/* パターンタブ */}
+            {activeTab === 'patterns' && (
+              <div>
             <ShiftPatterns clinicId={DEMO_CLINIC_ID} />
+              </div>
+            )}
           </div>
         )}
         {selectedCategory === 'web' && (
           <div className="space-y-6">
-            {/* 基本設定 */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>基本設定</CardTitle>
-                  <Button onClick={handleSaveWebSettings} size="sm">
+            {/* タブ */}
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex space-x-0 border-b border-gray-200 flex-1">
+                <button
+                  onClick={() => setActiveTab('basic')}
+                  className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                    activeTab === 'basic'
+                      ? 'text-blue-600 border-blue-600'
+                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  基本設定
+                </button>
+                <button
+                  onClick={() => setActiveTab('flow')}
+                  className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                    activeTab === 'flow'
+                      ? 'text-blue-600 border-blue-600'
+                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  フロー設定
+                </button>
+                <button
+                  onClick={() => setActiveTab('menu')}
+                  className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                    activeTab === 'menu'
+                      ? 'text-blue-600 border-blue-600'
+                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  メニュー設定
+                </button>
+              </div>
+              <Button onClick={handleSaveWebSettings} size="sm" className="ml-4">
                     <Save className="w-4 h-4 mr-2" />
                     保存
                   </Button>
                 </div>
+
+            {/* 基本設定タブ */}
+            {activeTab === 'basic' && (
+              <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>基本設定</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
@@ -3185,7 +3727,12 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
+              </div>
+            )}
 
+            {/* フロー設定タブ */}
+            {activeTab === 'flow' && (
+              <div className="space-y-6">
             {/* 予約フロー設定 */}
             <Card>
               <CardHeader>
@@ -3301,132 +3848,976 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
+              </div>
+            )}
 
-            {/* 診療メニュー別設定 */}
+            {/* メニュー設定タブ */}
+            {activeTab === 'menu' && (
+              <div className="space-y-6">
+            {/* Web予約メニュー設定 */}
+            {webSettings.isEnabled ? (
             <Card>
               <CardHeader>
-                <CardTitle>診療メニュー別設定</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Web予約メニュー</CardTitle>
                 <p className="text-sm text-gray-600">
-                  各診療メニューごとにWeb予約の設定を行います
-                </p>
+                        Web予約で公開する診療メニューを追加します
+                      </p>
+                    </div>
+                    <Button onClick={() => setIsAddWebMenuDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      メニューを追加
+                    </Button>
+                  </div>
               </CardHeader>
               <CardContent>
-                {!webSettings.isEnabled && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                    <p className="text-sm text-yellow-800">
-                      ⚠️ Web予約機能が無効になっています。設定を有効にするには、上記の「Web予約機能を有効にする」をチェックしてください。
-                    </p>
-                  </div>
-                )}
-                {treatmentMenus.filter(m => m.level === 1).length === 0 ? (
+                  {webBookingMenus.length === 0 ? (
                   <p className="text-sm text-gray-500">
-                    診療メニューが登録されていません。まず「診療メニュー」タブから診療メニューを登録してください。
+                      Web予約メニューが登録されていません。「メニューを追加」ボタンから追加してください。
                   </p>
                 ) : (
-                    <div className="space-y-6">
-                      {treatmentMenus.filter(m => m.level === 1).map(menu => (
-                        <div key={menu.id} className="border rounded-lg p-4 space-y-4">
-                          {/* メニュー名とカラー */}
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className="w-6 h-6 rounded"
-                              style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                            />
-                            <h4 className="font-medium text-lg">{menu.name}</h4>
-                          </div>
+                    <div className="space-y-4">
+                      {webBookingMenus.map(menu => (
+                        <div key={menu.id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 space-y-3">
+                              {/* メニュー名とカラー */}
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-3">
+                                  <div
+                                    className="w-6 h-6 rounded"
+                                    style={{ backgroundColor: menu.treatment_menu_color || '#bfbfbf' }}
+                                  />
+                                  <h4 className="font-medium text-lg">{menu.display_name || menu.treatment_menu_name}</h4>
+                                </div>
+                                {menu.display_name && menu.display_name !== menu.treatment_menu_name && (
+                                  <p className="text-xs text-gray-500 ml-9">
+                                    元のメニュー: {menu.treatment_menu_name}
+                                  </p>
+                                )}
+                              </div>
 
-                          {/* Web予約公開ON/OFF */}
-                          <div className="flex items-center space-x-3">
-                            <Checkbox
-                              id={`menu_enabled_${menu.id}`}
-                              checked={menu.web_booking_enabled || false}
-                              onCheckedChange={(checked) =>
-                                handleMenuUpdate(menu.id, { web_booking_enabled: checked as boolean })
-                              }
-                            />
-                            <Label htmlFor={`menu_enabled_${menu.id}`} className="font-medium">
-                              Web予約で公開する
-                            </Label>
-                          </div>
+                              {/* 診療時間 */}
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">診療時間:</span>
+                                <span>{menu.duration}分</span>
+                              </div>
 
-                          {menu.web_booking_enabled && (
-                            <div className="ml-6 space-y-4 border-l-2 border-gray-200 pl-4">
-                              {/* 担当可能スタッフ */}
-                              <div>
-                                <Label className="font-medium mb-2 block">担当可能スタッフ</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {staff.map(s => (
-                                    <div key={s.id} className="flex items-center space-x-2">
-                                      <Checkbox
-                                        id={`menu_${menu.id}_staff_${s.id}`}
-                                        checked={(menu.web_booking_staff_ids || []).includes(s.id)}
-                                        onCheckedChange={() => toggleStaffForMenu(menu.id, s.id)}
-                                      />
-                                      <Label htmlFor={`menu_${menu.id}_staff_${s.id}`}>
-                                        {s.name}
-                                      </Label>
+                              {/* ステップ情報 */}
+                              {menu.steps && menu.steps.length > 0 ? (
+                                <div className="space-y-2">
+                                  <span className="font-medium text-sm text-gray-700">処置ステップ:</span>
+                                  {menu.steps.map((step: any, index: number) => (
+                                    <div key={step.id} className="bg-gray-50 p-2 rounded text-sm">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-gray-700">
+                                          ステップ{index + 1}: {step.description || '未設定'}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {step.start_time}分～{step.end_time}分 ({step.type === 'serial' ? '順番' : '同時'})
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {step.staff_assignments?.map((assignment: any) => {
+                                          const s = staff.find(st => st.id === assignment.staff_id)
+                                          return s ? (
+                                            <span key={assignment.staff_id} className="bg-white px-2 py-0.5 rounded text-xs border">
+                                              {s.name}
+                                              {step.type === 'serial' && ` (優先度: ${assignment.priority})`}
+                                            </span>
+                                          ) : null
+                                        })}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
-                              </div>
-
-                              {/* 予約時間 */}
-                              <div>
-                                <Label htmlFor={`menu_duration_${menu.id}`} className="font-medium">
-                                  予約時間（分）
-                                </Label>
-                                <Input
-                                  id={`menu_duration_${menu.id}`}
-                                  type="number"
-                                  min="5"
-                                  max="300"
-                                  value={menu.web_booking_duration || menu.standard_duration || 30}
-                                  onChange={(e) =>
-                                    handleMenuUpdate(menu.id, {
-                                      web_booking_duration: parseInt(e.target.value) || 30
-                                    })
-                                  }
-                                  className="max-w-xs"
-                                />
-                                <p className="text-sm text-gray-500 mt-1">
-                                  標準時間: {menu.standard_duration || 30}分
-                                </p>
-                              </div>
-
-                              {/* 初診/再診設定 */}
-                              <div>
-                                <Label className="font-medium mb-2 block">受付可能な患者</Label>
-                                <div className="space-y-2">
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`menu_new_${menu.id}`}
-                                      checked={menu.web_booking_new_patient !== false}
-                                      onCheckedChange={(checked) =>
-                                        handleMenuUpdate(menu.id, { web_booking_new_patient: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor={`menu_new_${menu.id}`}>初診</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`menu_returning_${menu.id}`}
-                                      checked={menu.web_booking_returning !== false}
-                                      onCheckedChange={(checked) =>
-                                        handleMenuUpdate(menu.id, { web_booking_returning: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor={`menu_returning_${menu.id}`}>再診</Label>
-                                  </div>
+                              ) : (
+                                <div className="text-sm text-gray-500">
+                                  ステップが設定されていません
                                 </div>
+                              )}
+
+                              {/* 受付可能な患者 */}
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">受付:</span>
+                                <span>
+                                  {menu.allow_new_patient && menu.allow_returning && '初診・再診'}
+                                  {menu.allow_new_patient && !menu.allow_returning && '初診のみ'}
+                                  {!menu.allow_new_patient && menu.allow_returning && '再診のみ'}
+                                  {!menu.allow_new_patient && !menu.allow_returning && 'なし'}
+                                </span>
                               </div>
                             </div>
-                          )}
+
+                            {/* 編集・削除ボタン */}
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditWebMenu(menu)}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveWebBookingMenu(menu.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </CardContent>
               </Card>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ Web予約機能が無効になっています。基本設定タブで「Web予約機能を有効にする」をチェックしてください。
+                </p>
+              </div>
+            )}
+              </div>
+            )}
+
+            {/* Web予約メニュー追加ダイアログ */}
+            <Modal
+              isOpen={isAddWebMenuDialogOpen}
+              onClose={() => {
+                setIsAddWebMenuDialogOpen(false)
+                setNewWebMenu({
+                  treatment_menu_id: '',
+                  treatment_menu_level2_id: '',
+                  treatment_menu_level3_id: '',
+                  display_name: '',
+                  duration: 30,
+                  steps: [],
+                  allow_new_patient: true,
+                  allow_returning: true
+                })
+              }}
+              title="Web予約メニューを追加"
+              size="large"
+            >
+              <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+                {/* 診療メニュー選択（階層的） */}
+                <div className="space-y-3">
+                  {/* メニュー1選択 */}
+                  <div>
+                    <Label htmlFor="web_treatment_menu_level1">診療メニュー1</Label>
+                    <Select
+                      value={newWebMenu.treatment_menu_id}
+                      onValueChange={(value) =>
+                        setNewWebMenu(prev => ({ 
+                          ...prev, 
+                          treatment_menu_id: value,
+                          treatment_menu_level2_id: '',
+                          treatment_menu_level3_id: ''
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="メニュー1を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {treatmentMenus.filter(m => m.level === 1).map(menu => (
+                          <SelectItem key={menu.id} value={menu.id}>
+                            <div className="flex items-center space-x-2">
+                              <div
+                                className="w-4 h-4 rounded"
+                              style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                            />
+                              <span>{menu.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                          </div>
+
+                  {/* メニュー2選択（メニュー1が選択されている場合のみ表示） */}
+                  {newWebMenu.treatment_menu_id && (() => {
+                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_id)
+                    return childMenus.length > 0 ? (
+                      <div>
+                        <Label htmlFor="web_treatment_menu_level2">診療メニュー2（オプション）</Label>
+                        <Select
+                          value={newWebMenu.treatment_menu_level2_id || undefined}
+                          onValueChange={(value) =>
+                            setNewWebMenu(prev => ({ 
+                              ...prev, 
+                              treatment_menu_level2_id: value,
+                              treatment_menu_level3_id: ''
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="メニュー2を選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {childMenus.map(menu => (
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
+                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                                  />
+                                  <span>{menu.name}</span>
+                          </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null
+                  })()}
+
+                  {/* メニュー3選択（メニュー2が選択されている場合のみ表示） */}
+                  {newWebMenu.treatment_menu_level2_id && (() => {
+                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_level2_id)
+                    return childMenus.length > 0 ? (
+                      <div>
+                        <Label htmlFor="web_treatment_menu_level3">サブメニュー（オプション）</Label>
+                        <Select
+                          value={newWebMenu.treatment_menu_level3_id || undefined}
+                          onValueChange={(value) =>
+                            setNewWebMenu(prev => ({ 
+                              ...prev, 
+                              treatment_menu_level3_id: value
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="サブメニューを選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {childMenus.map(menu => (
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
+                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                                  />
+                                  <span>{menu.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null
+                  })()}
+                </div>
+
+                {/* Web予約時の表示名 */}
+                {newWebMenu.treatment_menu_id && (
+                  <div>
+                    <Label htmlFor="web_display_name">Web予約時の表示名</Label>
+                    <Input
+                      id="web_display_name"
+                      value={newWebMenu.display_name}
+                      onChange={(e) =>
+                        setNewWebMenu(prev => ({ ...prev, display_name: e.target.value }))
+                      }
+                      placeholder={(() => {
+                        const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
+                        const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
+                        const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
+                        const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
+                        return menuNameParts.join(' > ') || '例: 初診検査'
+                      })()}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      空欄の場合は、選択した診療メニュー名が使用されます
+                    </p>
+                  </div>
+                )}
+
+                {/* 全体の診療時間表示 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-900">
+                    全体の診療時間: {newWebMenu.duration}分
+                  </p>
+                </div>
+
+                {/* ステップ一覧 */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">処置ステップ</Label>
+                    <Button 
+                      onClick={handleAddStep}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      ステップを追加
+                    </Button>
+                  </div>
+
+                  {newWebMenu.steps.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+                      <p className="text-sm">ステップが登録されていません</p>
+                      <p className="text-xs mt-1">「ステップを追加」ボタンから処置ステップを追加してください</p>
+                    </div>
+                  ) : (
+                    newWebMenu.steps.map((step, index) => (
+                      <div key={step.id}>
+                        {/* ステップカード */}
+                        <div className="border border-gray-300 rounded-lg p-4 bg-white">
+                          <div className="flex items-start justify-between mb-3">
+                            <h4 className="font-semibold text-gray-900">ステップ {step.step_order}</h4>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveStep(step.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+
+                          {/* 時間設定 */}
+                          <div className="grid grid-cols-3 gap-3 mb-3">
+                            <div>
+                              <Label className="text-xs">開始時間</Label>
+                              <Input
+                                type="number"
+                                value={step.start_time}
+                                disabled
+                                className="text-sm bg-gray-50"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">終了時間</Label>
+                              <Input
+                                type="number"
+                                value={step.end_time}
+                                onChange={(e) => handleUpdateStepTime(step.id, parseInt(e.target.value) || step.start_time)}
+                                className="text-sm"
+                                min={step.start_time + 5}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">所要時間</Label>
+                              <Input
+                                type="number"
+                                value={step.duration}
+                                disabled
+                                className="text-sm bg-gray-50"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 処置内容 */}
+                          <div className="mb-3">
+                            <Label className="text-xs">処置内容</Label>
+                            <Input
+                              value={step.description}
+                              onChange={(e) => {
+                                const updatedSteps = newWebMenu.steps.map(s =>
+                                  s.id === step.id ? { ...s, description: e.target.value } : s
+                                )
+                                setNewWebMenu(prev => ({ ...prev, steps: updatedSteps }))
+                              }}
+                              placeholder="例: 準備・検査"
+                              className="text-sm"
+                            />
+                          </div>
+
+                          {/* 配置タイプ */}
+                          <div className="mb-3">
+                            <Label className="text-xs mb-2 block">配置タイプ</Label>
+                            <div className="flex space-x-4">
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  checked={step.type === 'serial'}
+                                  onChange={() => handleToggleStepType(step.id)}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">順番（直列）</span>
+                              </label>
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  checked={step.type === 'parallel'}
+                                  onChange={() => handleToggleStepType(step.id)}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">同時（並列）</span>
+                              </label>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {step.type === 'serial' 
+                                ? '選択した担当者のいずれか1人が自動割り当てされます' 
+                                : '選択した全ての担当者が同時に必要です'}
+                            </p>
+                          </div>
+
+                          {/* 担当者選択 */}
+                          <div>
+                            <Label className="text-xs mb-2 block">担当者</Label>
+                            <div className="border rounded-lg p-3 bg-gray-50">
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                {staff.map(s => (
+                                  <label key={s.id} className="flex items-center space-x-2 cursor-pointer">
+                                    <Checkbox
+                                      checked={step.staff_assignments.some(sa => sa.staff_id === s.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          handleAddStaffToStep(step.id, s.id)
+                                        } else {
+                                          handleRemoveStaffFromStep(step.id, s.id)
+                                        }
+                                      }}
+                                    />
+                                    <span className="text-sm">{s.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+
+                              {/* 選択された担当者の優先順位 */}
+                              {step.staff_assignments.length > 0 && step.type === 'serial' && (
+                                <div className="border-t pt-3 mt-3">
+                                  <p className="text-xs font-medium text-gray-700 mb-2">優先順位（上から順に割り当て）</p>
+                                  <div className="space-y-1">
+                                    {step.staff_assignments.map((assignment, idx) => {
+                                      const staffMember = staff.find(s => s.id === assignment.staff_id)
+                                      return (
+                                        <div key={assignment.staff_id} className="flex items-center justify-between bg-white px-2 py-1 rounded">
+                                          <span className="text-sm">
+                                            {idx + 1}. {staffMember?.name}
+                                          </span>
+                                          <div className="flex space-x-1">
+                                            <button
+                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'up')}
+                                              disabled={idx === 0}
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                                            </button>
+                                            <button
+                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'down')}
+                                              disabled={idx === step.staff_assignments.length - 1}
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-90" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ステップ間の矢印 */}
+                        {index < newWebMenu.steps.length - 1 && (
+                          <div className="flex justify-center py-2">
+                            {step.type === 'serial' && newWebMenu.steps[index + 1].type === 'serial' && (
+                              <div className="text-gray-400">
+                                <ChevronRight className="w-5 h-5 rotate-90" />
+                                <p className="text-xs">順番</p>
+                              </div>
+                            )}
+                            {step.type === 'parallel' || newWebMenu.steps[index + 1].type === 'parallel' ? (
+                              <div className="text-gray-400">
+                                <div className="flex items-center">
+                                  <ChevronRight className="w-5 h-5 rotate-90" />
+                                  <ChevronRight className="w-5 h-5 rotate-[-90deg] -ml-2" />
+                                </div>
+                                <p className="text-xs text-center">同時</p>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* 受付可能な患者 */}
+                <div>
+                  <Label className="mb-2 block">受付可能な患者</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="web_menu_allow_new"
+                        checked={newWebMenu.allow_new_patient}
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu(prev => ({
+                            ...prev,
+                            allow_new_patient: checked as boolean
+                          }))
+                        }
+                      />
+                      <Label htmlFor="web_menu_allow_new">初診</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="web_menu_allow_returning"
+                        checked={newWebMenu.allow_returning}
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu(prev => ({
+                            ...prev,
+                            allow_returning: checked as boolean
+                          }))
+                        }
+                      />
+                      <Label htmlFor="web_menu_allow_returning">再診</Label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* フッター */}
+                <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                  <Button variant="outline" onClick={() => {
+                    setIsAddWebMenuDialogOpen(false)
+                    setNewWebMenu({
+                      treatment_menu_id: '',
+                      treatment_menu_level2_id: '',
+                      treatment_menu_level3_id: '',
+                      display_name: '',
+                      duration: 30,
+                      steps: [],
+                      allow_new_patient: true,
+                      allow_returning: true
+                    })
+                  }}>
+                    キャンセル
+                  </Button>
+                  <Button onClick={handleAddWebBookingMenu}>
+                    追加
+                  </Button>
+                </div>
+                        </div>
+            </Modal>
+
+            {/* Web予約メニュー編集ダイアログ */}
+            <Modal
+              isOpen={isEditWebMenuDialogOpen}
+              onClose={() => {
+                setIsEditWebMenuDialogOpen(false)
+                setEditingWebMenu(null)
+                setNewWebMenu({
+                  treatment_menu_id: '',
+                  treatment_menu_level2_id: '',
+                  treatment_menu_level3_id: '',
+                  duration: 30,
+                  steps: [],
+                  allow_new_patient: true,
+                  allow_returning: true
+                })
+              }}
+              title="Web予約メニューを編集"
+              size="large"
+            >
+              <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+                {/* 診療メニュー選択（階層的） */}
+                <div className="space-y-3">
+                  {/* メニュー1選択 */}
+                  <div>
+                    <Label htmlFor="edit_web_treatment_menu_level1">診療メニュー1</Label>
+                    <Select
+                      value={newWebMenu.treatment_menu_id}
+                      onValueChange={(value) =>
+                        setNewWebMenu(prev => ({ 
+                          ...prev, 
+                          treatment_menu_id: value,
+                          treatment_menu_level2_id: '',
+                          treatment_menu_level3_id: ''
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="メニュー1を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {treatmentMenus.filter(m => m.level === 1).map(menu => (
+                          <SelectItem key={menu.id} value={menu.id}>
+                            <div className="flex items-center space-x-2">
+                              <div
+                                className="w-4 h-4 rounded"
+                                style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                              />
+                              <span>{menu.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* メニュー2選択 */}
+                  {newWebMenu.treatment_menu_id && (() => {
+                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_id)
+                    return childMenus.length > 0 ? (
+                      <div>
+                        <Label htmlFor="edit_web_treatment_menu_level2">診療メニュー2（オプション）</Label>
+                        <Select
+                          value={newWebMenu.treatment_menu_level2_id || undefined}
+                          onValueChange={(value) =>
+                            setNewWebMenu(prev => ({ 
+                              ...prev, 
+                              treatment_menu_level2_id: value,
+                              treatment_menu_level3_id: ''
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="メニュー2を選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {childMenus.map(menu => (
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
+                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                                  />
+                                  <span>{menu.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null
+                  })()}
+
+                  {/* メニュー3選択 */}
+                  {newWebMenu.treatment_menu_level2_id && (() => {
+                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_level2_id)
+                    return childMenus.length > 0 ? (
+                      <div>
+                        <Label htmlFor="edit_web_treatment_menu_level3">サブメニュー（オプション）</Label>
+                        <Select
+                          value={newWebMenu.treatment_menu_level3_id || undefined}
+                          onValueChange={(value) =>
+                            setNewWebMenu(prev => ({ 
+                              ...prev, 
+                              treatment_menu_level3_id: value
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="サブメニューを選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {childMenus.map(menu => (
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
+                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                                  />
+                                  <span>{menu.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null
+                  })()}
+                </div>
+
+                {/* Web予約時の表示名 */}
+                {newWebMenu.treatment_menu_id && (
+                  <div>
+                    <Label htmlFor="edit_web_display_name">Web予約時の表示名</Label>
+                    <Input
+                      id="edit_web_display_name"
+                      value={newWebMenu.display_name}
+                      onChange={(e) =>
+                        setNewWebMenu(prev => ({ ...prev, display_name: e.target.value }))
+                      }
+                      placeholder={(() => {
+                        const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
+                        const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
+                        const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
+                        const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
+                        return menuNameParts.join(' > ') || '例: 初診検査'
+                      })()}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      空欄の場合は、選択した診療メニュー名が使用されます
+                    </p>
+                  </div>
+                )}
+
+                {/* 全体の診療時間表示 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-900">
+                    全体の診療時間: {newWebMenu.duration}分
+                  </p>
+                </div>
+
+                {/* ステップ一覧 */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">処置ステップ</Label>
+                    <Button 
+                      onClick={handleAddStep}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      ステップを追加
+                    </Button>
+                  </div>
+
+                  {newWebMenu.steps.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+                      <p className="text-sm">ステップが登録されていません</p>
+                      <p className="text-xs mt-1">「ステップを追加」ボタンから処置ステップを追加してください</p>
+                    </div>
+                  ) : (
+                    newWebMenu.steps.map((step, index) => (
+                      <div key={step.id}>
+                        {/* ステップカード */}
+                        <div className="border border-gray-300 rounded-lg p-4 bg-white">
+                          <div className="flex items-start justify-between mb-3">
+                            <h4 className="font-semibold text-gray-900">ステップ {step.step_order}</h4>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveStep(step.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+
+                          {/* 時間設定 */}
+                          <div className="grid grid-cols-3 gap-3 mb-3">
+                            <div>
+                              <Label className="text-xs">開始時間</Label>
+                              <Input
+                                type="number"
+                                value={step.start_time}
+                                disabled
+                                className="text-sm bg-gray-50"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">終了時間</Label>
+                              <Input
+                                type="number"
+                                value={step.end_time}
+                                onChange={(e) => handleUpdateStepTime(step.id, parseInt(e.target.value) || step.start_time)}
+                                className="text-sm"
+                                min={step.start_time + 5}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">所要時間</Label>
+                              <Input
+                                type="number"
+                                value={step.duration}
+                                disabled
+                                className="text-sm bg-gray-50"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 処置内容 */}
+                          <div className="mb-3">
+                            <Label className="text-xs">処置内容</Label>
+                            <Input
+                              value={step.description}
+                              onChange={(e) => {
+                                const updatedSteps = newWebMenu.steps.map(s =>
+                                  s.id === step.id ? { ...s, description: e.target.value } : s
+                                )
+                                setNewWebMenu(prev => ({ ...prev, steps: updatedSteps }))
+                              }}
+                              placeholder="例: 準備・検査"
+                              className="text-sm"
+                            />
+                          </div>
+
+                          {/* 配置タイプ */}
+                          <div className="mb-3">
+                            <Label className="text-xs mb-2 block">配置タイプ</Label>
+                            <div className="flex space-x-4">
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  checked={step.type === 'serial'}
+                                  onChange={() => handleToggleStepType(step.id)}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">順番（直列）</span>
+                              </label>
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  checked={step.type === 'parallel'}
+                                  onChange={() => handleToggleStepType(step.id)}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">同時（並列）</span>
+                              </label>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {step.type === 'serial' 
+                                ? '選択した担当者のいずれか1人が自動割り当てされます' 
+                                : '選択した全ての担当者が同時に必要です'}
+                            </p>
+                          </div>
+
+                          {/* 担当者選択 */}
+                          <div>
+                            <Label className="text-xs mb-2 block">担当者</Label>
+                            <div className="border rounded-lg p-3 bg-gray-50">
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                {staff.map(s => (
+                                  <label key={s.id} className="flex items-center space-x-2 cursor-pointer">
+                                    <Checkbox
+                                      checked={step.staff_assignments.some(sa => sa.staff_id === s.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          handleAddStaffToStep(step.id, s.id)
+                                        } else {
+                                          handleRemoveStaffFromStep(step.id, s.id)
+                                        }
+                                      }}
+                                    />
+                                    <span className="text-sm">{s.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+
+                              {/* 選択された担当者の優先順位 */}
+                              {step.staff_assignments.length > 0 && step.type === 'serial' && (
+                                <div className="border-t pt-3 mt-3">
+                                  <p className="text-xs font-medium text-gray-700 mb-2">優先順位（上から順に割り当て）</p>
+                                  <div className="space-y-1">
+                                    {step.staff_assignments.map((assignment, idx) => {
+                                      const staffMember = staff.find(s => s.id === assignment.staff_id)
+                                      return (
+                                        <div key={assignment.staff_id} className="flex items-center justify-between bg-white px-2 py-1 rounded">
+                                          <span className="text-sm">
+                                            {idx + 1}. {staffMember?.name}
+                                          </span>
+                                          <div className="flex space-x-1">
+                                            <button
+                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'up')}
+                                              disabled={idx === 0}
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                                            </button>
+                                            <button
+                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'down')}
+                                              disabled={idx === step.staff_assignments.length - 1}
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-90" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ステップ間の矢印 */}
+                        {index < newWebMenu.steps.length - 1 && (
+                          <div className="flex justify-center py-2">
+                            {step.type === 'serial' && newWebMenu.steps[index + 1].type === 'serial' && (
+                              <div className="text-gray-400">
+                                <ChevronRight className="w-5 h-5 rotate-90" />
+                                <p className="text-xs">順番</p>
+                              </div>
+                            )}
+                            {step.type === 'parallel' || newWebMenu.steps[index + 1].type === 'parallel' ? (
+                              <div className="text-gray-400">
+                                <div className="flex items-center">
+                                  <ChevronRight className="w-5 h-5 rotate-90" />
+                                  <ChevronRight className="w-5 h-5 rotate-[-90deg] -ml-2" />
+                                </div>
+                                <p className="text-xs text-center">同時</p>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* 受付可能な患者 */}
+                <div>
+                  <Label className="mb-2 block">受付可能な患者</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="edit_web_menu_allow_new"
+                        checked={newWebMenu.allow_new_patient}
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu(prev => ({
+                            ...prev,
+                            allow_new_patient: checked as boolean
+                          }))
+                        }
+                      />
+                      <Label htmlFor="edit_web_menu_allow_new">初診</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="edit_web_menu_allow_returning"
+                        checked={newWebMenu.allow_returning}
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu(prev => ({
+                            ...prev,
+                            allow_returning: checked as boolean
+                          }))
+                        }
+                      />
+                      <Label htmlFor="edit_web_menu_allow_returning">再診</Label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* フッター */}
+                <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                  <Button variant="outline" onClick={() => {
+                    setIsEditWebMenuDialogOpen(false)
+                    setEditingWebMenu(null)
+                    setNewWebMenu({
+                      treatment_menu_id: '',
+                      treatment_menu_level2_id: '',
+                      treatment_menu_level3_id: '',
+                      display_name: '',
+                      duration: 30,
+                      steps: [],
+                      allow_new_patient: true,
+                      allow_returning: true
+                    })
+                  }}>
+                    キャンセル
+                  </Button>
+                  <Button onClick={handleSaveEditWebMenu}>
+                    保存
+                  </Button>
+                </div>
+              </div>
+            </Modal>
           </div>
         )}
         {selectedCategory === 'notification' && (
