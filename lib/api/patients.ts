@@ -106,6 +106,15 @@ export async function getPatientById(
   clinicId: string,
   patientId: string
 ): Promise<Patient | null> {
+  // モックモードの場合
+  if (MOCK_MODE) {
+    const { getMockPatients } = await import('@/lib/utils/mock-mode')
+    const patients = getMockPatients()
+    const patient = patients.find((p: any) => p.id === patientId && p.clinic_id === clinicId)
+    console.log('getPatientById (MOCK_MODE):', { patientId, found: !!patient, patient })
+    return patient || null
+  }
+
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('patients')

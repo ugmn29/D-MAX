@@ -103,7 +103,7 @@ export function SidebarCalendar({
   const handleMemoSave = async () => {
     try {
       setMemoLoading(true)
-      const dateString = selectedDate.toISOString().split('T')[0]
+      const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
       await saveDailyMemo(clinicId, dateString, memo)
     } catch (error) {
       console.error('メモ保存エラー:', error)

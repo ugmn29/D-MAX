@@ -304,8 +304,28 @@ export default function WebBookingPage() {
         }
       }
 
-      // Web予約用の仮患者IDを作成（実際の実装では患者登録APIを呼ぶ）
+      // Web予約用の仮患者IDを作成
       const tempPatientId = `web-booking-temp-${Date.now()}`
+
+      // 仮患者データをlocalStorageに保存（本登録時に更新するため）
+      const { addMockPatient } = await import('@/lib/utils/mock-mode')
+      const nameParts = bookingData.patientName.split(' ')
+      const tempPatient = {
+        id: tempPatientId,
+        clinic_id: DEMO_CLINIC_ID,
+        last_name: nameParts[0] || '',
+        first_name: nameParts[1] || '',
+        last_name_kana: '',
+        first_name_kana: '',
+        phone: bookingData.patientPhone,
+        email: bookingData.patientEmail,
+        patient_number: null,
+        is_registered: false, // 仮登録状態
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      addMockPatient(tempPatient)
+      console.log('Web予約: 仮患者データを作成しました', tempPatient)
 
       // 実際の予約作成APIを呼び出す
       const appointmentData = {

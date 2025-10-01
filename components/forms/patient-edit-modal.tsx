@@ -60,38 +60,81 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
   const loadPatientData = async () => {
     if (!patient) return
 
-    // 問診票から住所情報を取得
+    // 問診票から情報を取得（住所、アレルギー、既往歴）
     let fullAddress = patient.address || ''
+    let allergiesInfo = patient.allergies || ''
+    let medicalHistoryInfo = patient.medical_history || ''
+
     try {
       const questionnaireResponse = await getLinkedQuestionnaireResponse(patient.id)
       if (questionnaireResponse) {
         const responseData = questionnaireResponse.response_data
-        
-        const postalCode = responseData.postal_code || responseData['q1-5'] || ''
-        const prefecture = responseData.prefecture || responseData['q1-6'] || ''
-        const city = responseData.city || responseData['q1-7'] || ''
-        const addressLine = responseData.address_line || responseData['q1-8'] || ''
-        
-        fullAddress = [postalCode, prefecture, city, addressLine]
-          .filter(part => part && part.trim() !== '')
-          .join(' ')
+        console.log('PatientEditModal: 問診票データ全体:', responseData)
+
+        // 住所情報を取得
+        let postalCode = ''
+        let address = ''
+
+        // 郵便番号を検索
+        for (const key in responseData) {
+          const value = responseData[key]
+          if (typeof value === 'string' && /^\d{3}-?\d{4}$/.test(value.replace('-', ''))) {
+            postalCode = value
+            break
+          }
+        }
+
+        address = responseData.patient_address || responseData.address || responseData['q1-9'] || ''
+
+        const addressParts = [postalCode, address].filter(part => part && part.trim() !== '')
+        if (addressParts.length > 0) {
+          fullAddress = addressParts.join(' ')
+        }
+
+        // アレルギー情報を取得
+        if (responseData.allergies) {
+          allergiesInfo = responseData.allergies
+        } else if (responseData['q1-19'] === 'ある' && responseData['q1-19b']) {
+          allergiesInfo = responseData['q1-19b']
+        } else if (responseData['q1-19'] === 'ない') {
+          allergiesInfo = 'なし'
+        }
+
+        // 既往歴を取得
+        if (responseData.medical_history) {
+          medicalHistoryInfo = responseData.medical_history
+        } else if (responseData['q1-23'] === 'ある' && responseData['q1-23b']) {
+          if (Array.isArray(responseData['q1-23b'])) {
+            medicalHistoryInfo = responseData['q1-23b'].join('、')
+          } else {
+            medicalHistoryInfo = responseData['q1-23b']
+          }
+        } else if (responseData['q1-23'] === 'ない') {
+          medicalHistoryInfo = 'なし'
+        }
+
+        console.log('PatientEditModal: 問診票から取得:', {
+          address: fullAddress,
+          allergies: allergiesInfo,
+          medicalHistory: medicalHistoryInfo
+        })
       }
     } catch (error) {
-      console.log('問診票の住所情報取得エラー（無視）:', error)
+      console.log('問診票の情報取得エラー（無視）:', error)
     }
 
     setEditData({
       last_name: patient.last_name,
       first_name: patient.first_name,
-      last_name_kana: patient.last_name_kana,
-      first_name_kana: patient.first_name_kana,
-      birth_date: patient.birth_date,
-      gender: patient.gender,
-      phone: patient.phone,
+      last_name_kana: patient.last_name_kana || '',
+      first_name_kana: patient.first_name_kana || '',
+      birth_date: patient.birth_date || '',
+      gender: patient.gender || '',
+      phone: patient.phone || '',
       email: patient.email || '',
       address: fullAddress,
-      allergies: patient.allergies || '',
-      medical_history: patient.medical_history || '',
+      allergies: allergiesInfo,
+      medical_history: medicalHistoryInfo,
       special_notes: '',
       primary_doctor: '',
       assigned_dh: ''

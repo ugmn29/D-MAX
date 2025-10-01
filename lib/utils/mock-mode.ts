@@ -176,12 +176,17 @@ export const addMockPatient = (item: any) => {
 }
 export const updateMockPatient = (id: string, updates: any) => {
   const data = getMockPatients()
+  console.log('updateMockPatient: 検索対象ID:', id)
+  console.log('updateMockPatient: 既存患者IDリスト:', data.map(p => p.id))
   const index = data.findIndex(item => item.id === id)
+  console.log('updateMockPatient: 見つかったindex:', index)
   if (index !== -1) {
     data[index] = { ...data[index], ...updates, updated_at: new Date().toISOString() }
     saveToStorage(PATIENTS_KEY, data)
+    console.log('updateMockPatient: 更新成功:', data[index])
     return data[index]
   }
+  console.log('updateMockPatient: 患者が見つかりませんでした')
   return null
 }
 export const removeMockPatient = (id: string) => {

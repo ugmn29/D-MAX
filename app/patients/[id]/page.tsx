@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -8,33 +8,51 @@ import {
 } from 'lucide-react'
 import { calculateAge } from '@/lib/utils/date'
 import { PatientDetailTabs } from '@/components/patients/patient-detail-tabs'
+import { getPatientById } from '@/lib/api/patients'
+import { Patient } from '@/types/database'
 
-// 仮の患者詳細データ
-const mockPatientDetail = {
-  id: '1',
-  patient_number: 1,
-  last_name: '福永',
-  first_name: '真大',
-  last_name_kana: 'フクナガ',
-  first_name_kana: 'シンダイ',
-  birth_date: '1995-02-09',
-  gender: 'male' as const,
-  phone: '08014103036',
-  email: '',
-  postal_code: '',
-  prefecture: '',
-  city: '',
-  address_line: '',
-  allergies: '',
-  medical_history: '',
-  is_registered: true,
-  created_at: '2024-01-15T10:00:00Z'
-}
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function PatientDetailPage() {
   const params = useParams()
   const patientId = params.id as string
-  const [patient] = useState(mockPatientDetail) // 後でSupabaseから取得
+  const [patient, setPatient] = useState<Patient | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadPatient = async () => {
+      try {
+        const data = await getPatientById(DEMO_CLINIC_ID, patientId)
+        console.log('患者詳細ページ: 取得した患者データ', data)
+        setPatient(data)
+      } catch (error) {
+        console.error('患者データの取得エラー:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPatient()
+  }, [patientId])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+      </div>
+    )
+  }
+
+  if (!patient) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">患者が見つかりません</h2>
+          <p className="text-gray-600">指定された患者IDの患者データが存在しません。</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -44,7 +62,7 @@ export default function PatientDetailPage() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
               <span className="text-lg font-medium text-gray-600">
-                ID: {patient.patient_number}
+                診察券番号: {patient.patient_number || '未発行'}
               </span>
               <h1 className="text-2xl font-bold text-gray-900">
                 {patient.last_name} {patient.first_name}

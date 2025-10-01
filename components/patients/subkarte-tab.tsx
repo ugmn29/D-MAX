@@ -88,7 +88,7 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
   useEffect(() => {
     const loadEntries = async () => {
       setLoading(true)
-      
+
       // ローカルストレージから保存されたエントリを読み込み
       const savedEntries = localStorage.getItem(`subkarte_entries_${patientId}`)
       if (savedEntries) {
@@ -97,17 +97,16 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
           setEntries(parsedEntries)
         } catch (error) {
           console.error('保存されたエントリの読み込みに失敗:', error)
-          // フォールバック: モックデータを使用
-          setEntries(getMockEntries())
+          setEntries([])
         }
       } else {
-        // 初回アクセス時はモックデータを使用
-        setEntries(getMockEntries())
+        // データがない場合は空配列
+        setEntries([])
       }
-      
+
       setLoading(false)
     }
-    
+
     loadEntries()
   }, [patientId])
 

@@ -250,9 +250,23 @@ export async function getDailyMemo(
   clinicId: string,
   date: string
 ): Promise<DailyMemo | null> {
-  // モックモードの場合はnullを返す
+  // モックモードの場合はlocalStorageから取得
   if (MOCK_MODE) {
-    console.log('モックモード: 日次メモデータを返します（null）', { clinicId, date })
+    console.log('モックモード: 日次メモデータを取得します', { clinicId, date })
+    try {
+      const savedMemos = localStorage.getItem('mock_daily_memos')
+      if (savedMemos) {
+        const memosData = JSON.parse(savedMemos)
+        const memoKey = `${clinicId}_${date}`
+        const memo = memosData[memoKey]
+        if (memo) {
+          console.log('モックモード: メモを取得しました', memo)
+          return memo
+        }
+      }
+    } catch (error) {
+      console.error('モックモード: localStorage読み込みエラー:', error)
+    }
     return null
   }
 
@@ -289,6 +303,28 @@ export async function saveDailyMemo(
     date,
     memo,
     created_by: createdBy
+  }
+
+  // モックモードの場合はlocalStorageに保存
+  if (MOCK_MODE) {
+    console.log('モックモード: 日次メモを保存します', { clinicId, date, memo })
+    try {
+      const savedMemos = localStorage.getItem('mock_daily_memos')
+      const memosData = savedMemos ? JSON.parse(savedMemos) : {}
+      const memoKey = `${clinicId}_${date}`
+      memosData[memoKey] = {
+        ...memoData,
+        id: memoKey,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      localStorage.setItem('mock_daily_memos', JSON.stringify(memosData))
+      console.log('モックモード: メモを保存しました', memosData[memoKey])
+      return memosData[memoKey]
+    } catch (error) {
+      console.error('モックモード: localStorage保存エラー:', error)
+      throw new Error('日次メモの保存に失敗しました')
+    }
   }
 
   const client = getSupabaseClient()

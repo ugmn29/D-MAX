@@ -115,76 +115,115 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   const loadPatientData = async () => {
     try {
       setLoading(true)
-      // TODO: 実際のAPI呼び出しに置き換え
-      const mockPatient: Patient = {
-        id: patientId,
-        clinic_id: '11111111-1111-1111-1111-111111111111',
-        patient_number: 1,
-        last_name: '福永',
-        first_name: '真大',
-        last_name_kana: 'フクナガ',
-        first_name_kana: 'シンダイ',
-        birth_date: '1995-02-09',
-        gender: 'male',
-        phone: '08014103036',
-        email: '',
-        postal_code: '',
-        prefecture: '',
-        city: '',
-        address_line: '',
-        allergies: '',
-        medical_history: '',
-        is_registered: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+      const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+
+      // 実際の患者データを取得
+      const { getPatientById } = await import('@/lib/api/patients')
+      const patientData = await getPatientById(DEMO_CLINIC_ID, patientId)
+
+      if (!patientData) {
+        console.error('患者データが見つかりません:', patientId)
+        setLoading(false)
+        return
       }
-      
-      // 問診票の住所情報を取得
+
+      console.log('BasicInfoTab: 患者データを取得しました', patientData)
+
+      // 問診票の情報を取得（住所、アレルギー、既往歴）
       try {
         const questionnaireResponse = await getLinkedQuestionnaireResponse(patientId)
         if (questionnaireResponse) {
           const responseData = questionnaireResponse.response_data
-          
-          // 問診票から住所情報を抽出
-          const postalCode = responseData.postal_code || responseData['q1-5'] || ''
-          const prefecture = responseData.prefecture || responseData['q1-6'] || ''
-          const city = responseData.city || responseData['q1-7'] || ''
-          const addressLine = responseData.address_line || responseData['q1-8'] || ''
-          
-          // 住所情報を統合
-          const fullAddress = [postalCode, prefecture, city, addressLine]
+          console.log('問診票データ全体:', responseData)
+
+          // 問診票から住所情報を抽出（複数のキーパターンに対応）
+          let postalCode = ''
+          let address = ''
+
+          // 郵便番号を検索
+          for (const key in responseData) {
+            const value = responseData[key]
+            // 郵便番号形式（XXX-XXXX または XXXXXXX）をチェック
+            if (typeof value === 'string' && /^\d{3}-?\d{4}$/.test(value.replace('-', ''))) {
+              postalCode = value
+              console.log('郵便番号を検出:', { key, value })
+              break
+            }
+          }
+
+          // 住所を検索（郵便番号の次の項目、または特定のキー）
+          address = responseData.patient_address || responseData.address || responseData['q1-9'] || ''
+
+          // 郵便番号と住所を統合
+          const fullAddress = [postalCode, address]
             .filter(part => part && part.trim() !== '')
             .join(' ')
-          
+
           // 統合された住所を患者データに反映
-          mockPatient.address = fullAddress
-          
-          console.log('問診票から住所情報を取得（統合）:', {
+          if (fullAddress) {
+            patientData.address = fullAddress
+          }
+
+          // アレルギー情報を取得
+          let allergiesInfo = ''
+          if (responseData.allergies) {
+            allergiesInfo = responseData.allergies
+          } else if (responseData['q1-19'] === 'ある' && responseData['q1-19b']) {
+            allergiesInfo = responseData['q1-19b']
+          } else if (responseData['q1-19'] === 'ない') {
+            allergiesInfo = 'なし'
+          }
+
+          if (allergiesInfo) {
+            patientData.allergies = allergiesInfo
+          }
+
+          // 既往歴（持病・通院中の病気）を取得
+          let medicalHistoryInfo = ''
+          if (responseData.medical_history) {
+            medicalHistoryInfo = responseData.medical_history
+          } else if (responseData['q1-23'] === 'ある' && responseData['q1-23b']) {
+            // q1-23bが配列の場合は結合
+            if (Array.isArray(responseData['q1-23b'])) {
+              medicalHistoryInfo = responseData['q1-23b'].join('、')
+            } else {
+              medicalHistoryInfo = responseData['q1-23b']
+            }
+          } else if (responseData['q1-23'] === 'ない') {
+            medicalHistoryInfo = 'なし'
+          }
+
+          if (medicalHistoryInfo) {
+            patientData.medical_history = medicalHistoryInfo
+          }
+
+          console.log('問診票から情報を取得:', {
             postalCode,
-            prefecture,
-            city,
-            addressLine,
-            fullAddress
+            address,
+            fullAddress,
+            allergies: allergiesInfo,
+            medicalHistory: medicalHistoryInfo,
+            keys: Object.keys(responseData)
           })
         }
       } catch (questionnaireError) {
-        console.log('問診票の住所情報取得エラー（無視）:', questionnaireError)
+        console.log('問診票の情報取得エラー（無視）:', questionnaireError)
         // 問診票の取得に失敗しても患者データの読み込みは続行
       }
-      
-      setPatient(mockPatient)
+
+      setPatient(patientData)
       setEditData({
-        last_name: mockPatient.last_name,
-        first_name: mockPatient.first_name,
-        last_name_kana: mockPatient.last_name_kana,
-        first_name_kana: mockPatient.first_name_kana,
-        birth_date: mockPatient.birth_date,
-        gender: mockPatient.gender,
-        phone: mockPatient.phone,
-        email: mockPatient.email || '',
-        address: mockPatient.address || '',
-        allergies: mockPatient.allergies || '',
-        medical_history: mockPatient.medical_history || '',
+        last_name: patientData.last_name,
+        first_name: patientData.first_name,
+        last_name_kana: patientData.last_name_kana || '',
+        first_name_kana: patientData.first_name_kana || '',
+        birth_date: patientData.birth_date || '',
+        gender: patientData.gender || '',
+        phone: patientData.phone || '',
+        email: patientData.email || '',
+        address: patientData.address || '',
+        allergies: patientData.allergies || '',
+        medical_history: patientData.medical_history || '',
         special_notes: '',
         primary_doctor: '',
         assigned_dh: ''
@@ -350,55 +389,74 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 氏名（ふりがな） */}
+            <div className="space-y-2">
+              <div>
+                <Label>氏名（漢字）</Label>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="姓"
+                      value={editData.last_name}
+                      onChange={(e) => setEditData({ ...editData, last_name: e.target.value })}
+                    />
+                    <Input
+                      placeholder="名"
+                      value={editData.first_name}
+                      onChange={(e) => setEditData({ ...editData, first_name: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-lg font-medium">
+                      {editData.last_name} {editData.first_name}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label>氏名（カタカナ）</Label>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="セイ"
+                      value={editData.last_name_kana}
+                      onChange={(e) => setEditData({ ...editData, last_name_kana: e.target.value })}
+                    />
+                    <Input
+                      placeholder="メイ"
+                      value={editData.first_name_kana}
+                      onChange={(e) => setEditData({ ...editData, first_name_kana: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600">
+                      {editData.last_name_kana} {editData.first_name_kana}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="last_name">姓</Label>
-                <Input
-                  id="last_name"
-                  value={editData.last_name}
-                  onChange={(e) => setEditData({ ...editData, last_name: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-              <div>
-                <Label htmlFor="first_name">名</Label>
-                <Input
-                  id="first_name"
-                  value={editData.first_name}
-                  onChange={(e) => setEditData({ ...editData, first_name: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-              <div>
-                <Label htmlFor="last_name_kana">姓（フリガナ）</Label>
-                <Input
-                  id="last_name_kana"
-                  value={editData.last_name_kana}
-                  onChange={(e) => setEditData({ ...editData, last_name_kana: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-              <div>
-                <Label htmlFor="first_name_kana">名（フリガナ）</Label>
-                <Input
-                  id="first_name_kana"
-                  value={editData.first_name_kana}
-                  onChange={(e) => setEditData({ ...editData, first_name_kana: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-              <div>
                 <Label htmlFor="birth_date">生年月日</Label>
-                <Input
-                  id="birth_date"
-                  type="date"
-                  value={editData.birth_date}
-                  onChange={(e) => setEditData({ ...editData, birth_date: e.target.value })}
-                  disabled={!isEditing}
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  {calculateAge(editData.birth_date)}歳
-                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="birth_date"
+                    type="date"
+                    value={editData.birth_date}
+                    onChange={(e) => setEditData({ ...editData, birth_date: e.target.value })}
+                    disabled={!isEditing}
+                    className="flex-1"
+                  />
+                  {editData.birth_date && (
+                    <span className="text-sm text-gray-600 whitespace-nowrap">
+                      {calculateAge(editData.birth_date)}歳
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <Label htmlFor="gender">性別</Label>
