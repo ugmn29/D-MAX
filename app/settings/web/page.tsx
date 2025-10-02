@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Modal } from '@/components/ui/modal'
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { ArrowLeft, Save, Plus, Trash2, Edit3 } from 'lucide-react'
 import { getClinicSettings, setClinicSetting } from '@/lib/api/clinic'
 import { getTreatmentMenus, updateTreatmentMenu } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
@@ -19,6 +20,9 @@ import { getStaff } from '@/lib/api/staff'
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function WebReservationSettingsPage() {
+  // デバッグ: ファイルが読み込まれているか確認
+  console.log('🔍 WebReservationSettingsPage component loaded at:', new Date().toISOString())
+  
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -31,6 +35,16 @@ export default function WebReservationSettingsPage() {
     openAllSlots: false,
     allowStaffSelection: true,
     webPageUrl: '',
+    showCancelPolicy: false,
+    cancelPolicyText: `◆当院のキャンセルポリシー◆
+
+数ある歯科医院の中から駒沢公園通り　西垣歯科・矯正歯科をお選びいただき誠にありがとうございます。
+当クリニックでは患者さま一人一人により良い医療を提供するため、30〜45分の長い治療時間を確保してお待ちしております。尚かつ適切な処置時間を確保するために予約制となっております。
+
+予約時間に遅れての来院は十分な時間が確保できず、予定通りの処置が行えない場合があります。
+また、予定時間に遅れが生じる事で、次に来院予定の患者さまに多大なご迷惑をおかけする恐れがありますので、予約時間前の来院にご協力をお願い致します。
+止むを得ず遅れる場合や、体調不良などでキャンセルを希望される場合は早めのご連絡をお願い致します。
+予約の際には確実に来院できる日にちと時間をご確認下さい。`,
     flow: {
       initialSelection: true,
       menuSelection: true,
@@ -47,8 +61,13 @@ export default function WebReservationSettingsPage() {
   // Web予約メニュー
   const [webBookingMenus, setWebBookingMenus] = useState<any[]>([])
 
+  // タブ状態
+  const [activeTab, setActiveTab] = useState<'basic' | 'flow' | 'menu'>('flow')
+
   // ダイアログ状態
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isCancelPolicyDialogOpen, setIsCancelPolicyDialogOpen] = useState(false)
+  const [tempCancelPolicyText, setTempCancelPolicyText] = useState('')
   const [newWebMenu, setNewWebMenu] = useState({
     treatment_menu_id: '',
     duration: 30,
@@ -75,6 +94,16 @@ export default function WebReservationSettingsPage() {
           openAllSlots: false,
           allowStaffSelection: true,
           webPageUrl: '',
+          showCancelPolicy: false,
+          cancelPolicyText: `◆当院のキャンセルポリシー◆
+
+数ある歯科医院の中から駒沢公園通り　西垣歯科・矯正歯科をお選びいただき誠にありがとうございます。
+当クリニックでは患者さま一人一人により良い医療を提供するため、30〜45分の長い治療時間を確保してお待ちしております。尚かつ適切な処置時間を確保するために予約制となっております。
+
+予約時間に遅れての来院は十分な時間が確保できず、予定通りの処置が行えない場合があります。
+また、予定時間に遅れが生じる事で、次に来院予定の患者さまに多大なご迷惑をおかけする恐れがありますので、予約時間前の来院にご協力をお願い致します。
+止むを得ず遅れる場合や、体調不良などでキャンセルを希望される場合は早めのご連絡をお願い致します。
+予約の際には確実に来院できる日にちと時間をご確認下さい。`,
           flow: {
             initialSelection: true,
             menuSelection: true,
@@ -151,6 +180,26 @@ export default function WebReservationSettingsPage() {
     }))
   }
 
+  // キャンセルポリシー編集ダイアログを開く
+  const handleOpenCancelPolicyDialog = () => {
+    setTempCancelPolicyText(webSettings.cancelPolicyText)
+    setIsCancelPolicyDialogOpen(true)
+  }
+
+  // キャンセルポリシーを保存
+  const handleSaveCancelPolicy = () => {
+    setWebSettings(prev => ({
+      ...prev,
+      cancelPolicyText: tempCancelPolicyText
+    }))
+    setIsCancelPolicyDialogOpen(false)
+  }
+
+  // キャンセルポリシー編集をキャンセル
+  const handleCancelPolicyDialogClose = () => {
+    setIsCancelPolicyDialogOpen(false)
+  }
+
   // 保存処理
   const handleSave = async () => {
     try {
@@ -181,6 +230,13 @@ export default function WebReservationSettingsPage() {
 
   return (
     <MainLayout>
+      {/* デバッグ: ページがレンダリングされているか確認 */}
+      <div className="bg-green-100 border-4 border-green-500 p-4 m-4">
+        <h1 className="text-2xl font-bold text-green-800">🟢 DEBUG: Web予約設定ページが読み込まれました！</h1>
+        <p className="text-green-700">時刻: {new Date().toLocaleString()}</p>
+        <p className="text-green-700">activeTab: {activeTab}</p>
+      </div>
+      
       <div className="flex h-screen">
         {/* 左サイドバー */}
         <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
@@ -225,12 +281,54 @@ export default function WebReservationSettingsPage() {
               </Button>
             </div>
 
-            {/* 基本設定 */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>基本設定</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            {/* タブナビゲーション */}
+            <div className="mb-6">
+              {/* デバッグ情報 */}
+              <div className="bg-red-100 border border-red-500 p-2 mb-4">
+                <p className="text-red-700 font-bold">DEBUG INFO: activeTab = {activeTab}</p>
+                <p className="text-red-700">Current Time: {new Date().toLocaleTimeString()}</p>
+              </div>
+              <nav className="flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('basic')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'basic'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  基本設定
+                </button>
+                <button
+                  onClick={() => setActiveTab('flow')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'flow'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  フロー設定
+                </button>
+                <button
+                  onClick={() => setActiveTab('menu')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'menu'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  メニュー設定
+                </button>
+              </nav>
+            </div>
+
+            {/* 基本設定タブ */}
+            {activeTab === 'basic' && (
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle>基本設定</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
                   <Checkbox
                     id="is_enabled"
@@ -304,15 +402,8 @@ export default function WebReservationSettingsPage() {
                     </div>
                   </>
                 )}
-              </CardContent>
-            </Card>
 
-            {/* Web予約ページ設定 */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Web予約ページ設定</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                {/* Web予約ページ設定 */}
                 <div>
                   <Label htmlFor="web_page_url">予約ページURL</Label>
                   <Input
@@ -329,15 +420,51 @@ export default function WebReservationSettingsPage() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
-            {/* 予約フロー設定 */}
-            <Card>
+            {/* フロー設定タブ */}
+            {activeTab === 'flow' && (
+              <Card>
               <CardHeader>
                 <CardTitle>予約フロー設定</CardTitle>
                 <p className="text-sm text-gray-600">予約フローの各ステップを設定します</p>
+                {/* デバッグ用 */}
+                <p className="text-xs text-red-500 bg-yellow-200 p-2">DEBUG: activeTab={activeTab}, showCancelPolicy={webSettings.showCancelPolicy} - {new Date().toLocaleTimeString()}</p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {/* キャンセルポリシー設定 */}
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="flow_cancel_policy"
+                      checked={webSettings.showCancelPolicy}
+                      onCheckedChange={(checked) => 
+                        setWebSettings(prev => ({
+                          ...prev,
+                          showCancelPolicy: checked as boolean
+                        }))
+                      }
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <Label htmlFor="flow_cancel_policy" className="font-medium">
+                          キャンセルポリシー表示
+                        </Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleOpenCancelPolicyDialog}
+                          className="p-1 h-auto"
+                        >
+                          <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        予約フローの最初にキャンセルポリシーを表示する
+                      </p>
+                    </div>
+                  </div>
+                  
                   <div className="flex items-start space-x-3">
                     <Checkbox
                       id="flow_initial"
@@ -445,10 +572,11 @@ export default function WebReservationSettingsPage() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
-            {/* Web予約メニュー設定 */}
-            {webSettings.isEnabled && (
-              <Card className="mt-6">
+            {/* メニュー設定タブ */}
+            {activeTab === 'menu' && webSettings.isEnabled && (
+              <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -648,6 +776,41 @@ export default function WebReservationSettingsPage() {
                   </Button>
                   <Button onClick={handleAddWebMenu}>
                     追加
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+
+            {/* キャンセルポリシー編集ダイアログ */}
+            <Modal
+              isOpen={isCancelPolicyDialogOpen}
+              onClose={handleCancelPolicyDialogClose}
+              title="キャンセルポリシー編集"
+              size="large"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="cancel_policy_text">キャンセルポリシーテキスト</Label>
+                  <Textarea
+                    id="cancel_policy_text"
+                    value={tempCancelPolicyText}
+                    onChange={(e) => setTempCancelPolicyText(e.target.value)}
+                    rows={12}
+                    className="mt-2"
+                    placeholder="キャンセルポリシーの内容を入力してください"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    患者に表示されるキャンセルポリシーの内容を編集できます
+                  </p>
+                </div>
+
+                {/* フッター */}
+                <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                  <Button variant="outline" onClick={handleCancelPolicyDialogClose}>
+                    キャンセル
+                  </Button>
+                  <Button onClick={handleSaveCancelPolicy}>
+                    保存
                   </Button>
                 </div>
               </div>

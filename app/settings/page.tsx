@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Modal } from '@/components/ui/modal'
+import { Textarea } from '@/components/ui/textarea'
 import { ShiftPatterns } from '@/components/shift/shift-patterns'
 import { ShiftTable } from '@/components/shift/shift-table'
 import {
@@ -28,11 +29,14 @@ import {
   Plus,
   Clock,
   ChevronRight,
+  ChevronLeft,
   Save,
   FolderOpen,
   X,
   Tag,
+  Edit3,
   User,
+  CheckCircle,
   AlertCircle,
   Heart,
   Zap,
@@ -109,12 +113,8 @@ const DISPLAY_ITEMS = [
   { id: 'patient_icon', name: '患者アイコン', description: '患者の特記事項アイコンを表示' },
   { id: 'patient_rank', name: '患者ランク', description: '患者のランクを表示' },
   { id: 'patient_color', name: '患者カラー', description: '患者のカラーを表示' },
-  { id: 'treatment_content_1', name: '診療内容1', description: '診療メニューの大分類を表示' },
-  { id: 'treatment_content_2', name: '診療内容2', description: '診療メニューの中分類を表示' },
-  { id: 'treatment_content_3', name: '診療内容3', description: '診療メニューの詳細を表示' },
-  { id: 'staff_1', name: '担当者1', description: '主担当者を表示' },
-  { id: 'staff_2', name: '担当者2', description: '副担当者1を表示' },
-  { id: 'staff_3', name: '担当者3', description: '副担当者2を表示' }
+  { id: 'treatment_content', name: '診療内容', description: '診療メニューの全階層を表示（大分類/中分類/詳細）' },
+  { id: 'staff', name: '担当者', description: '担当者の全階層を表示（主担当者/副担当者1/副担当者2）' }
 ]
 
 
@@ -123,70 +123,60 @@ const settingCategories = [
     id: 'clinic',
     name: 'クリニック',
     icon: Building2,
-    description: 'クリニックの基本情報と診療時間の設定',
     href: '/settings/clinic'
   },
   {
     id: 'calendar',
     name: 'カレンダー',
     icon: Calendar,
-    description: 'カレンダーの表示形式とレイアウトの設定',
     href: '/settings/calendar'
   },
   {
     id: 'treatment',
     name: '診療メニュー',
     icon: Stethoscope,
-    description: '診療メニューの3階層設定',
     href: '/settings/treatment'
   },
   {
     id: 'questionnaire',
     name: '問診表',
     icon: MessageSquare,
-    description: 'Web問診表の設定と管理',
     href: '/settings/questionnaire'
   },
   {
     id: 'staff',
     name: 'スタッフ',
     icon: Users,
-    description: 'スタッフとユニット（診療台）の管理',
     href: '/settings/staff'
   },
   {
     id: 'shift',
     name: 'シフト',
     icon: Clock,
-    description: '月間カレンダー形式のシフト管理',
     href: '/settings/shift'
   },
   {
     id: 'web',
     name: 'Web予約',
     icon: Globe,
-    description: 'Web予約システムの設定',
     href: '/settings/web'
   },
   {
     id: 'notification',
     name: '通知',
     icon: Bell,
-    description: 'メール・SMS・LINE通知の設定',
     href: '/settings/notification'
   },
   {
     id: 'master',
     name: 'マスタ',
     icon: Database,
-    description: '特記事項アイコンや基本データの管理',
     href: '/settings/master'
   },
   {
     id: 'subkarte',
     name: 'サブカルテ',
     icon: BarChart3,
-    description: '定型文登録とカテゴリ管理',
     href: '/settings/subkarte'
   }
 ]
@@ -264,6 +254,22 @@ export default function SettingsPage() {
     openAllSlots: false,
     allowStaffSelection: true,
     webPageUrl: '',
+    showCancelPolicy: false,
+    cancelPolicyText: `◆当院のキャンセルポリシー◆
+
+数ある歯科医院の中から駒沢公園通り　西垣歯科・矯正歯科をお選びいただき誠にありがとうございます。
+当クリニックでは患者さま一人一人により良い医療を提供するため、30〜45分の長い治療時間を確保してお待ちしております。尚かつ適切な処置時間を確保するために予約制となっております。
+
+予約時間に遅れての来院は十分な時間が確保できず、予定通りの処置が行えない場合があります。
+また、予定時間に遅れが生じる事で、次に来院予定の患者さまに多大なご迷惑をおかけする恐れがありますので、予約時間前の来院にご協力をお願い致します。
+止むを得ず遅れる場合や、体調不良などでキャンセルを希望される場合は早めのご連絡をお願い致します。
+予約の際には確実に来院できる日にちと時間をご確認下さい。`,
+    patientInfoFields: {
+      phoneRequired: true,
+      phoneEnabled: true,
+      emailRequired: false,
+      emailEnabled: true
+    },
     flow: {
       initialSelection: true,
       menuSelection: true,
@@ -280,6 +286,19 @@ export default function SettingsPage() {
   const [isAddWebMenuDialogOpen, setIsAddWebMenuDialogOpen] = useState(false)
   const [isEditWebMenuDialogOpen, setIsEditWebMenuDialogOpen] = useState(false)
   const [editingWebMenu, setEditingWebMenu] = useState<any>(null)
+  
+  // キャンセルポリシー編集ダイアログ
+  const [isCancelPolicyDialogOpen, setIsCancelPolicyDialogOpen] = useState(false)
+  const [tempCancelPolicyText, setTempCancelPolicyText] = useState('')
+
+  // 患者情報フィールド設定ダイアログ
+  const [isPatientInfoFieldsDialogOpen, setIsPatientInfoFieldsDialogOpen] = useState(false)
+  const [tempPatientInfoFields, setTempPatientInfoFields] = useState({
+    phoneRequired: true,
+    phoneEnabled: true,
+    emailRequired: false,
+    emailEnabled: true
+  })
   
   type StaffAssignment = {
     staff_id: string
@@ -570,7 +589,17 @@ export default function SettingsPage() {
 
         // Web予約設定を読み込み
         if (settings.web_reservation) {
-          setWebSettings(settings.web_reservation)
+          const webReservationSettings = {
+            ...settings.web_reservation,
+            // デフォルト値でpatientInfoFieldsを設定
+            patientInfoFields: {
+              phoneRequired: settings.web_reservation.patientInfoFields?.phoneRequired ?? true,
+              phoneEnabled: settings.web_reservation.patientInfoFields?.phoneEnabled ?? true,
+              emailRequired: settings.web_reservation.patientInfoFields?.emailRequired ?? false,
+              emailEnabled: settings.web_reservation.patientInfoFields?.emailEnabled ?? true
+            }
+          }
+          setWebSettings(webReservationSettings)
           setWebBookingMenus(settings.web_reservation.booking_menus || [])
         }
 
@@ -1185,6 +1214,45 @@ export default function SettingsPage() {
     })
   }
 
+  // キャンセルポリシー編集ダイアログを開く
+  const handleOpenCancelPolicyDialog = () => {
+    setTempCancelPolicyText(webSettings.cancelPolicyText)
+    setIsCancelPolicyDialogOpen(true)
+  }
+
+  // キャンセルポリシーを保存
+  const handleSaveCancelPolicy = () => {
+    setWebSettings(prev => ({
+      ...prev,
+      cancelPolicyText: tempCancelPolicyText
+    }))
+    setIsCancelPolicyDialogOpen(false)
+  }
+
+  // キャンセルポリシー編集をキャンセル
+  const handleCancelPolicyDialogClose = () => {
+    setIsCancelPolicyDialogOpen(false)
+  }
+
+  // 患者情報フィールド設定ダイアログの関数
+  const handleOpenPatientInfoFieldsDialog = () => {
+    setTempPatientInfoFields(webSettings.patientInfoFields)
+    setIsPatientInfoFieldsDialogOpen(true)
+  }
+
+  const handleSavePatientInfoFields = () => {
+    setWebSettings(prev => ({
+      ...prev,
+      patientInfoFields: tempPatientInfoFields
+    }))
+    setIsPatientInfoFieldsDialogOpen(false)
+  }
+
+  const handlePatientInfoFieldsDialogClose = () => {
+    setIsPatientInfoFieldsDialogOpen(false)
+    setTempPatientInfoFields(webSettings.patientInfoFields)
+  }
+
   // Web予約設定を保存
   const handleSaveWebSettings = async () => {
     try {
@@ -1279,7 +1347,7 @@ export default function SettingsPage() {
       <div className="flex space-x-0 mb-6 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('basic')}
-          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             activeTab === 'basic'
               ? 'text-blue-600 border-blue-600'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -1289,7 +1357,7 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab('hours')}
-          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             activeTab === 'hours'
               ? 'text-blue-600 border-blue-600'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -1303,7 +1371,6 @@ export default function SettingsPage() {
       {activeTab === 'basic' && (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="space-y-6">
-          <h3 className="text-lg font-semibold text-gray-900">クリニック情報</h3>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1402,7 +1469,6 @@ export default function SettingsPage() {
       {activeTab === 'hours' && (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="space-y-6">
-          <h3 className="text-lg font-semibold text-gray-900">診療時間</h3>
           <div className="space-y-4">
             <div className="space-y-3">
               {WEEKDAYS.map(day => {
@@ -1410,7 +1476,7 @@ export default function SettingsPage() {
                 const timeSlots = businessHours[day.id]?.timeSlots || []
                 
                 return (
-                  <div key={day.id} className={`flex items-center p-4 rounded-lg border ${
+                  <div key={day.id} className={`flex items-center p-2 rounded-lg border ${
                     isHoliday 
                       ? 'bg-gray-50 border-gray-200' 
                       : 'bg-white border-gray-200'
@@ -1516,7 +1582,7 @@ export default function SettingsPage() {
       <div className="flex space-x-0 mb-6 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('basic')}
-          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             activeTab === 'basic'
               ? 'text-blue-600 border-blue-600'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -1526,7 +1592,7 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab('units')}
-          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             activeTab === 'units'
               ? 'text-blue-600 border-blue-600'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -1536,7 +1602,7 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab('display')}
-          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             activeTab === 'display'
               ? 'text-blue-600 border-blue-600'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -1619,22 +1685,22 @@ export default function SettingsPage() {
       {activeTab === 'display' && (
         <div className="space-y-8">
           {/* 表示項目 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="space-y-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">表示項目</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {DISPLAY_ITEMS.map(item => (
-                  <div key={item.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50">
+                  <div key={item.id} className="flex items-center space-x-2 p-1.5 rounded hover:bg-gray-50">
                     <Checkbox
                       id={item.id}
                       checked={displayItems.includes(item.id)}
                       onCheckedChange={(checked) => 
                         handleDisplayItemChange(item.id, checked as boolean)
                       }
-                      className="mt-1"
+                      className="flex-shrink-0"
                     />
-                    <div className="flex-1">
-                      <Label htmlFor={item.id} className="text-sm font-medium text-gray-900 cursor-pointer">
+                    <div className="flex-1 min-w-0">
+                      <Label htmlFor={item.id} className="text-sm font-medium text-gray-900 cursor-pointer block truncate">
                         {item.name}
                       </Label>
                     </div>
@@ -1648,7 +1714,6 @@ export default function SettingsPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">セル表示設定</h3>
-              <p className="text-sm text-gray-600">カレンダーのセル（予約ブロック）の基本高さを調整します</p>
               <div className="max-w-md">
                 <Label className="text-sm font-medium text-gray-700">セルの高さ: {cellHeight}px</Label>
                 <Slider
@@ -2032,7 +2097,6 @@ export default function SettingsPage() {
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">スタッフ</h2>
-            <p className="text-gray-600">スタッフの設定を管理します</p>
           </div>
 
           <Card>
@@ -3107,38 +3171,6 @@ export default function SettingsPage() {
   const renderQuestionnaireSettings = () => {
     return (
       <div className="p-6">
-        {/* 患者用URL */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center flex-1 mr-4">
-              <ExternalLink className="w-4 h-4 text-blue-600 mr-2" />
-              <span className="text-sm font-medium text-blue-800 mr-3">患者用URL:</span>
-              <span className="text-xs text-blue-700 font-mono break-all">
-                {getPatientUrl()}
-              </span>
-            </div>
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => copyToClipboard(getPatientUrl())}
-                className="text-blue-600 border-blue-300 hover:bg-blue-100"
-              >
-                <Copy className="w-3 h-3 mr-1" />
-                コピー
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(getPatientUrl(), '_blank')}
-                className="text-blue-600 border-blue-300 hover:bg-blue-100"
-              >
-                <ExternalLink className="w-3 h-3 mr-1" />
-                開く
-              </Button>
-            </div>
-          </div>
-        </div>
 
         {/* 問診票一覧 */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -3267,10 +3299,28 @@ export default function SettingsPage() {
             <h2 className="text-2xl font-bold text-gray-900">{category.name}</h2>
             <p className="text-gray-600">{category.description}</p>
           </div>
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? '保存中...' : '保存'}
-          </Button>
+          <div className="flex items-center space-x-3">
+            {selectedCategory === 'questionnaire' && (
+              <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                <span className="text-sm font-medium text-blue-800">URL:</span>
+                <span className="text-xs text-blue-700 font-mono">
+                  {getPatientUrl()}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyToClipboard(getPatientUrl())}
+                  className="text-blue-600 border-blue-300 hover:bg-blue-100 h-6 px-2"
+                >
+                  <Copy className="w-3 h-3" />
+                </Button>
+              </div>
+            )}
+            <Button onClick={handleSave} disabled={saving} size="sm">
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? '保存中...' : '保存'}
+            </Button>
+          </div>
         </div>
 
         {/* コンテンツ */}
@@ -3285,7 +3335,7 @@ export default function SettingsPage() {
             <div className="flex space-x-0 mb-6 border-b border-gray-200">
               <button
                 onClick={() => setActiveTab('staff')}
-                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   activeTab === 'staff'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -3295,7 +3345,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={() => setActiveTab('units')}
-                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   activeTab === 'units'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -3523,7 +3573,6 @@ export default function SettingsPage() {
               <div className="space-y-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">ユニット管理</h2>
-                  <p className="text-gray-600">診療台（ユニット）の設定を管理します</p>
                 </div>
 
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -3541,7 +3590,7 @@ export default function SettingsPage() {
             <div className="flex space-x-0 mb-6 border-b border-gray-200">
               <button
                 onClick={() => setActiveTab('shiftTable')}
-                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   activeTab === 'shiftTable'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -3551,7 +3600,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={() => setActiveTab('patterns')}
-                className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   activeTab === 'patterns'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -3586,7 +3635,7 @@ export default function SettingsPage() {
               <div className="flex space-x-0 border-b border-gray-200 flex-1">
                 <button
                   onClick={() => setActiveTab('basic')}
-                  className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                     activeTab === 'basic'
                       ? 'text-blue-600 border-blue-600'
                       : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -3596,7 +3645,7 @@ export default function SettingsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('flow')}
-                  className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                     activeTab === 'flow'
                       ? 'text-blue-600 border-blue-600'
                       : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -3606,7 +3655,7 @@ export default function SettingsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('menu')}
-                  className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                     activeTab === 'menu'
                       ? 'text-blue-600 border-blue-600'
                       : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
@@ -3745,122 +3794,521 @@ export default function SettingsPage() {
 
             {/* フロー設定タブ */}
             {activeTab === 'flow' && (
-              <div className="space-y-6">
-            {/* 予約フロー設定 */}
-            <Card>
-              <CardHeader>
-                <CardTitle>予約フロー設定</CardTitle>
-                <p className="text-sm text-gray-600">予約フローの各ステップを設定します</p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <Checkbox
-                      id="flow_initial"
-                      checked={webSettings.flow.initialSelection}
-                      onCheckedChange={(checked) =>
-                        setWebSettings(prev => ({
-                          ...prev,
-                          flow: { ...prev.flow, initialSelection: checked as boolean }
-                        }))
-                      }
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor="flow_initial" className="font-medium">
-                        初診/再診選択
-                      </Label>
-                      <p className="text-sm text-gray-500">
-                        患者が初診か再診かを選択するステップ
-                      </p>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 左側: フロー設定 */}
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>予約フロー設定</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* キャンセルポリシー設定 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_cancel_policy"
+                            checked={webSettings.showCancelPolicy}
+                            onCheckedChange={(checked) => 
+                              setWebSettings(prev => ({
+                                ...prev,
+                                showCancelPolicy: checked as boolean
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <Label htmlFor="flow_cancel_policy" className="font-medium">
+                                キャンセルポリシー表示
+                              </Label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleOpenCancelPolicyDialog}
+                                className="p-1 h-auto"
+                              >
+                                <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
 
-                  <div className="flex items-start space-x-3">
-                    <Checkbox
-                      id="flow_menu"
-                      checked={webSettings.flow.menuSelection}
-                      onCheckedChange={(checked) =>
-                        setWebSettings(prev => ({
-                          ...prev,
-                          flow: { ...prev.flow, menuSelection: checked as boolean }
-                        }))
-                      }
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor="flow_menu" className="font-medium">
-                        診療メニュー選択
-                      </Label>
-                      <p className="text-sm text-gray-500">
-                        患者が診療メニューを選択するステップ
-                      </p>
-                    </div>
-                  </div>
+                        {/* 初診/再診選択 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_initial"
+                            checked={webSettings.flow.initialSelection}
+                            onCheckedChange={(checked) =>
+                              setWebSettings(prev => ({
+                                ...prev,
+                                flow: { ...prev.flow, initialSelection: checked as boolean }
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="flow_initial" className="font-medium">
+                              初診/再診選択
+                            </Label>
+                          </div>
+                        </div>
 
-                  <div className="flex items-start space-x-3">
-                    <Checkbox
-                      id="flow_calendar"
-                      checked={webSettings.flow.calendarDisplay}
-                      onCheckedChange={(checked) =>
-                        setWebSettings(prev => ({
-                          ...prev,
-                          flow: { ...prev.flow, calendarDisplay: checked as boolean }
-                        }))
-                      }
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor="flow_calendar" className="font-medium">
-                        カレンダー表示
-                      </Label>
-                      <p className="text-sm text-gray-500">
-                        1週間分の空き枠を表示するステップ
-                      </p>
-                    </div>
-                  </div>
+                        {/* 診療メニュー選択 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_menu"
+                            checked={webSettings.flow.menuSelection}
+                            onCheckedChange={(checked) =>
+                              setWebSettings(prev => ({
+                                ...prev,
+                                flow: { ...prev.flow, menuSelection: checked as boolean }
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="flow_menu" className="font-medium">
+                              診療メニュー選択
+                            </Label>
+                          </div>
+                        </div>
 
-                  <div className="flex items-start space-x-3">
-                    <Checkbox
-                      id="flow_patient"
-                      checked={webSettings.flow.patientInfo}
-                      onCheckedChange={(checked) =>
-                        setWebSettings(prev => ({
-                          ...prev,
-                          flow: { ...prev.flow, patientInfo: checked as boolean }
-                        }))
-                      }
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor="flow_patient" className="font-medium">
-                        患者情報入力
-                      </Label>
-                      <p className="text-sm text-gray-500">
-                        名前・電話番号を入力するステップ（必須）
-                      </p>
-                    </div>
-                  </div>
+                        {/* カレンダー表示 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_calendar"
+                            checked={webSettings.flow.calendarDisplay}
+                            onCheckedChange={(checked) =>
+                              setWebSettings(prev => ({
+                                ...prev,
+                                flow: { ...prev.flow, calendarDisplay: checked as boolean }
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="flow_calendar" className="font-medium">
+                              カレンダー表示
+                            </Label>
+                          </div>
+                        </div>
 
-                  <div className="flex items-start space-x-3">
-                    <Checkbox
-                      id="flow_confirmation"
-                      checked={webSettings.flow.confirmation}
-                      onCheckedChange={(checked) =>
-                        setWebSettings(prev => ({
-                          ...prev,
-                          flow: { ...prev.flow, confirmation: checked as boolean }
-                        }))
-                      }
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor="flow_confirmation" className="font-medium">
-                        確認・確定
-                      </Label>
-                      <p className="text-sm text-gray-500">
-                        予約内容を確認して確定するステップ
-                      </p>
-                    </div>
-                  </div>
+                        {/* 患者情報入力 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_patient"
+                            checked={webSettings.flow.patientInfo}
+                            onCheckedChange={(checked) =>
+                              setWebSettings(prev => ({
+                                ...prev,
+                                flow: { ...prev.flow, patientInfo: checked as boolean }
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <Label htmlFor="flow_patient" className="font-medium">
+                                患者情報入力
+                              </Label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleOpenPatientInfoFieldsDialog}
+                                className="p-1 h-auto"
+                              >
+                                <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 確認・確定 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_confirmation"
+                            checked={webSettings.flow.confirmation}
+                            onCheckedChange={(checked) =>
+                              setWebSettings(prev => ({
+                                ...prev,
+                                flow: { ...prev.flow, confirmation: checked as boolean }
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="flow_confirmation" className="font-medium">
+                              確認・確定
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
+
+                {/* 右側: プレビュー */}
+                <div className="space-y-6">
+                  <Card className="h-[600px] flex flex-col">
+                    <CardHeader className="flex-shrink-0">
+                      <CardTitle>プレビュー</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-y-auto p-0">
+                      {/* 実際のWeb予約ページと全く同じプレビュー */}
+                      <div className="min-h-screen bg-gray-50 py-8">
+                        <div className="max-w-4xl mx-auto px-4">
+                          {/* ヘッダー */}
+                          <div className="text-center mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">Web予約</h1>
+                            <p className="text-gray-600">簡単にオンラインで予約できます</p>
+                          </div>
+
+                          <div className="max-w-2xl mx-auto space-y-6">
+                            {/* キャンセルポリシー表示 */}
+                            {webSettings.showCancelPolicy && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>医院からのメッセージ</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                      <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                        {webSettings.cancelPolicyText}
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ1: 初診/再診選択 */}
+                            {webSettings.flow.initialSelection && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>初診/再診の選択</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="space-y-3">
+                                      <button
+                                        className="w-full p-4 border-2 border-blue-500 bg-blue-50 rounded-lg transition-colors"
+                                      >
+                                        <div className="text-left">
+                                          <h3 className="font-medium">初診</h3>
+                                          <p className="text-sm text-gray-600">初めてご来院される方</p>
+                                        </div>
+                                      </button>
+                                      <button
+                                        className="w-full p-4 border-2 border-gray-200 hover:border-blue-300 rounded-lg transition-colors"
+                                      >
+                                        <div className="text-left">
+                                          <h3 className="font-medium">再診</h3>
+                                          <p className="text-sm text-gray-600">過去にご来院されたことがある方</p>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ2: 診療メニュー選択 */}
+                            {webSettings.flow.menuSelection && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>診療メニューの選択</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <button className="p-4 rounded-lg border-2 border-blue-500 bg-blue-50 shadow-md transition-all text-left">
+                                        <div>
+                                          <h3 className="font-medium text-gray-900 mb-1">
+                                            一般診療
+                                          </h3>
+                                          <p className="text-sm text-gray-600">
+                                            所要時間: 30分
+                                          </p>
+                                        </div>
+                                      </button>
+                                      <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
+                                        <div>
+                                          <h3 className="font-medium text-gray-900 mb-1">
+                                            矯正相談
+                                          </h3>
+                                          <p className="text-sm text-gray-600">
+                                            所要時間: 60分
+                                          </p>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ3: カレンダー表示 */}
+                            {webSettings.flow.calendarDisplay && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>日時選択</CardTitle>
+                                    <p className="text-sm text-gray-600">
+                                      ⭕️をクリックして予約日時を選択してください
+                                    </p>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    {/* 週ナビゲーション */}
+                                    <div className="flex items-center justify-between gap-2">
+                                      <Button variant="outline" size="sm" className="px-2 py-1 text-xs shrink-0">
+                                        <ChevronLeft className="w-3 h-3 mr-1" />
+                                        先週
+                                      </Button>
+                                      <div className="text-sm font-medium text-center flex-1">
+                                        01月15日 - 01月21日
+                                      </div>
+                                      <Button variant="outline" size="sm" className="px-2 py-1 text-xs shrink-0">
+                                        次週
+                                        <ChevronRight className="w-3 h-3 ml-1" />
+                                      </Button>
+                                    </div>
+
+                                    {/* 1週間分のカレンダー */}
+                                    <div className="-mx-2 sm:mx-0">
+                                      {/* ヘッダー（固定） */}
+                                      <div className="overflow-hidden">
+                                        <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
+                                          <colgroup>
+                                            <col style={{ width: '40px' }} className="sm:w-16" />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                          </colgroup>
+                                          <thead>
+                                            <tr>
+                                              <th className="border p-1 sm:p-2 bg-gray-50 font-medium">時間</th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
+                                                <div className="text-[10px] sm:text-xs leading-tight">月</div>
+                                                <div className="text-[9px] sm:text-xs text-gray-600">01/15</div>
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
+                                                <div className="text-[10px] sm:text-xs leading-tight">火</div>
+                                                <div className="text-[9px] sm:text-xs text-gray-600">01/16</div>
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
+                                                <div className="text-[10px] sm:text-xs leading-tight">水</div>
+                                                <div className="text-[9px] sm:text-xs text-gray-600">01/17</div>
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
+                                                <div className="text-[10px] sm:text-xs leading-tight">木</div>
+                                                <div className="text-[9px] sm:text-xs text-gray-600">01/18</div>
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
+                                                <div className="text-[10px] sm:text-xs leading-tight">金</div>
+                                                <div className="text-[9px] sm:text-xs text-gray-600">01/19</div>
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
+                                                <div className="text-[10px] sm:text-xs leading-tight">土</div>
+                                                <div className="text-[9px] sm:text-xs text-gray-600">01/20</div>
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
+                                                <div className="text-[10px] sm:text-xs leading-tight">日</div>
+                                                <div className="text-[9px] sm:text-xs text-gray-600">01/21</div>
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                        </table>
+                                      </div>
+
+                                      {/* ボディ（スクロール可能） */}
+                                      <div className="overflow-y-auto max-h-96 scrollbar-hide">
+                                        <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
+                                          <colgroup>
+                                            <col style={{ width: '40px' }} className="sm:w-16" />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                          </colgroup>
+                                          <tbody>
+                                            {/* 時間ごとの行を生成 */}
+                                            {['9:00', '10:00', '11:00', '14:00', '15:00', '16:00'].map(time => (
+                                              <tr key={time}>
+                                                <td className="border p-0.5 sm:p-1 text-[10px] sm:text-sm text-gray-600 text-center">{time}</td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
+                                                  >
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
+                                                  >
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
+                                                  >
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
+                                                  >
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
+                                                  >
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
+                                                  >
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-red-100 text-red-800"
+                                                    disabled
+                                                  >
+                                                    ❌
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ4: 患者情報入力 */}
+                            {webSettings.flow.patientInfo && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>患者情報入力</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className={`grid gap-4 ${webSettings.patientInfoFields.phoneEnabled ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                                      <div>
+                                        <Label htmlFor="patientName">お名前 *</Label>
+                                        <Input
+                                          id="patientName"
+                                          placeholder="例: 田中太郎"
+                                          readOnly
+                                        />
+                                      </div>
+                                      {webSettings.patientInfoFields.phoneEnabled && (
+                                        <div>
+                                          <Label htmlFor="patientPhone">
+                                            電話番号 {webSettings.patientInfoFields.phoneRequired ? '*' : ''}
+                                          </Label>
+                                          <Input
+                                            id="patientPhone"
+                                            placeholder="例: 03-1234-5678"
+                                            readOnly
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                    {webSettings.patientInfoFields.emailEnabled && (
+                                      <div>
+                                        <Label htmlFor="patientEmail">
+                                          メールアドレス {webSettings.patientInfoFields.emailRequired ? '*' : ''}
+                                        </Label>
+                                        <Input
+                                          id="patientEmail"
+                                          type="email"
+                                          placeholder="例: tanaka@example.com"
+                                          readOnly
+                                        />
+                                      </div>
+                                    )}
+                                    <div>
+                                      <Label htmlFor="patientRequest">ご要望・ご相談など（任意）</Label>
+                                      <textarea
+                                        id="patientRequest"
+                                        placeholder="ご要望やご相談がございましたらご記入ください"
+                                        className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                                        readOnly
+                                      />
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ5: 確認・確定 */}
+                            {webSettings.flow.confirmation && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>予約内容確認</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                                      <div className="flex items-center space-x-2">
+                                        <Calendar className="w-4 h-4 text-gray-500" />
+                                        <span className="font-medium">予約日時:</span>
+                                        <span>2024-01-15 10:00</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <CheckCircle className="w-4 h-4 text-gray-500" />
+                                        <span className="font-medium">診療メニュー:</span>
+                                        <span>一般診療</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Clock className="w-4 h-4 text-gray-500" />
+                                        <span className="font-medium">診療時間:</span>
+                                        <span>30分</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <User className="w-4 h-4 text-gray-500" />
+                                        <span className="font-medium">患者名:</span>
+                                        <span>田中太郎</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Clock className="w-4 h-4 text-gray-500" />
+                                        <span className="font-medium">電話番号:</span>
+                                        <span>03-1234-5678</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <CheckCircle className="w-4 h-4 text-gray-500" />
+                                        <span className="font-medium">診療種別:</span>
+                                        <span>初診</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex justify-center">
+                                      <Button size="lg" className="w-full max-w-xs">
+                                        予約確定
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
 
@@ -3874,9 +4322,6 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>Web予約メニュー</CardTitle>
-                <p className="text-sm text-gray-600">
-                        Web予約で公開する診療メニューを追加します
-                      </p>
                     </div>
                     <Button onClick={() => setIsAddWebMenuDialogOpen(true)}>
                       <Plus className="w-4 h-4 mr-2" />
@@ -4843,7 +5288,6 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">デフォルトテキスト管理</h2>
-              <p className="text-gray-600 mb-6">サブカルテで使用するデフォルトテキストを作成・管理できます</p>
               
               <div className="space-y-4">
                 {defaultTexts.map((text) => (
@@ -5041,6 +5485,178 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* キャンセルポリシー編集ダイアログ */}
+      <Modal
+        isOpen={isCancelPolicyDialogOpen}
+        onClose={handleCancelPolicyDialogClose}
+        title="キャンセルポリシー編集"
+        size="large"
+      >
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="cancel_policy_text">キャンセルポリシーテキスト</Label>
+            <Textarea
+              id="cancel_policy_text"
+              value={tempCancelPolicyText}
+              onChange={(e) => setTempCancelPolicyText(e.target.value)}
+              rows={12}
+              className="mt-2"
+              placeholder="キャンセルポリシーの内容を入力してください"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              患者に表示されるキャンセルポリシーの内容を編集できます
+            </p>
+          </div>
+
+          {/* フッター */}
+          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+            <Button variant="outline" onClick={handleCancelPolicyDialogClose}>
+              キャンセル
+            </Button>
+            <Button onClick={handleSaveCancelPolicy}>
+              保存
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 患者情報フィールド設定モーダル */}
+      <Modal
+        isOpen={isPatientInfoFieldsDialogOpen}
+        onClose={handlePatientInfoFieldsDialogClose}
+        title="メールアドレス、電話番号を表示する"
+        size="medium"
+      >
+        <div className="space-y-6">
+          {/* 電話番号設定 */}
+          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <Checkbox
+                id="modal_phone_enabled"
+                checked={tempPatientInfoFields.phoneEnabled}
+                onCheckedChange={(checked) =>
+                  setTempPatientInfoFields(prev => ({
+                    ...prev,
+                    phoneEnabled: checked as boolean,
+                    // 電話番号を無効にする場合は必須も無効にする
+                    phoneRequired: checked ? prev.phoneRequired : false
+                  }))
+                }
+              />
+              <div>
+                <Label htmlFor="modal_phone_enabled" className="font-medium text-base">
+                  電話番号
+                </Label>
+                <p className="text-sm text-gray-500">
+                  患者情報入力で電話番号を表示
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Label htmlFor="modal_phone_required" className="text-sm font-medium text-gray-600">
+                必須
+              </Label>
+              <Checkbox
+                id="modal_phone_required"
+                checked={tempPatientInfoFields.phoneRequired}
+                disabled={!tempPatientInfoFields.phoneEnabled}
+                onCheckedChange={(checked) =>
+                  setTempPatientInfoFields(prev => ({
+                    ...prev,
+                    phoneRequired: checked as boolean
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* メールアドレス設定 */}
+          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <Checkbox
+                id="modal_email_enabled"
+                checked={tempPatientInfoFields.emailEnabled}
+                onCheckedChange={(checked) =>
+                  setTempPatientInfoFields(prev => ({
+                    ...prev,
+                    emailEnabled: checked as boolean,
+                    // メールアドレスを無効にする場合は必須も無効にする
+                    emailRequired: checked ? prev.emailRequired : false
+                  }))
+                }
+              />
+              <div>
+                <Label htmlFor="modal_email_enabled" className="font-medium text-base">
+                  メールアドレス
+                </Label>
+                <p className="text-sm text-gray-500">
+                  患者情報入力でメールアドレスを表示
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Label htmlFor="modal_email_required" className="text-sm font-medium text-gray-600">
+                必須
+              </Label>
+              <Checkbox
+                id="modal_email_required"
+                checked={tempPatientInfoFields.emailRequired}
+                disabled={!tempPatientInfoFields.emailEnabled}
+                onCheckedChange={(checked) =>
+                  setTempPatientInfoFields(prev => ({
+                    ...prev,
+                    emailRequired: checked as boolean
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* プレビュー */}
+          <div className="border-t pt-4">
+            <h4 className="font-medium mb-3">プレビュー</h4>
+            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+              <div>
+                <Label className="block text-sm font-medium text-gray-700 mb-1">お名前 *</Label>
+                <div className="w-full h-8 border border-gray-300 rounded px-3 bg-gray-50 flex items-center text-gray-500 text-sm">
+                  例: 田中太郎
+                </div>
+              </div>
+              {tempPatientInfoFields.phoneEnabled && (
+                <div>
+                  <Label className="block text-sm font-medium text-gray-700 mb-1">
+                    電話番号 {tempPatientInfoFields.phoneRequired ? '*' : ''}
+                  </Label>
+                  <div className="w-full h-8 border border-gray-300 rounded px-3 bg-gray-50 flex items-center text-gray-500 text-sm">
+                    例: 03-1234-5678
+                  </div>
+                </div>
+              )}
+              {tempPatientInfoFields.emailEnabled && (
+                <div>
+                  <Label className="block text-sm font-medium text-gray-700 mb-1">
+                    メールアドレス {tempPatientInfoFields.emailRequired ? '*' : ''}
+                  </Label>
+                  <div className="w-full h-8 border border-gray-300 rounded px-3 bg-gray-50 flex items-center text-gray-500 text-sm">
+                    例: tanaka@example.com
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* フッター */}
+          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+            <Button variant="outline" onClick={handlePatientInfoFieldsDialogClose}>
+              キャンセル
+            </Button>
+            <Button onClick={handleSavePatientInfoFields}>
+              保存
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

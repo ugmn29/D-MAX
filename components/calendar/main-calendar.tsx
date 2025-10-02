@@ -726,6 +726,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           shift_pattern: shift.shift_patterns,
           is_holiday: shift.is_holiday
         }))
+        // 同じスタッフIDの重複を除去（最初のもののみ残す）
+        .filter((shift, index, array) => 
+          array.findIndex(s => s.staff.id === shift.staff.id) === index
+        )
         .sort((a, b) => {
           // 役職順でソート（歯科医師 → 歯科衛生士 → 歯科助手）
           const positionOrder = ['歯科医師', '歯科衛生士', '歯科助手']
@@ -871,10 +875,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // 長押し終了の処理
   const handleMouseUp = () => {
     if (!isSelecting) return
-    
+
     console.log('複数選択完了:', selectedTimeSlots)
     setIsSelecting(false)
-    
+
     // 選択された時間範囲で予約編集モーダルを開く
     if (selectedTimeSlots.length > 0) {
       const startTime = selectedTimeSlots[0]
@@ -884,19 +888,44 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       const startMinutes = timeToMinutes(startTime)
       const endMinutes = startMinutes + totalDuration
       const endTimeString = minutesToTime(endMinutes)
-      
-      console.log('複数選択完了:', { 
-        startTime, 
-        endTime: endTimeString, 
+
+      console.log('複数選択完了:', {
+        startTime,
+        endTime: endTimeString,
         totalSlots,
         totalDuration,
         timeSlotMinutes,
-        selectedSlots: selectedTimeSlots 
+        selectedSlots: selectedTimeSlots
       })
+
+      // 貼り付けモードの場合は、コピーした予約の患者情報を引き継ぐ
+      if (isPasteMode && copiedAppointment) {
+        console.log('複数選択 + 貼り付けモード: 患者情報を引き継ぎます')
+        console.log('コピー元の予約データ:', copiedAppointment)
+        console.log('コピー元の患者情報:', (copiedAppointment as any).patient)
+        console.log('コピー元の患者ID:', (copiedAppointment as any).patient_id)
+
+        // コピー元のデータをベースに、日時を新しい値に変更（IDとend_timeは除外）
+        const { id, end_time, ...appointmentWithoutId } = copiedAppointment as any
+        const modifiedAppointment = {
+          ...appointmentWithoutId,
+          start_time: startTime,
+          end_time: endTimeString, // 複数選択で計算された終了時間を使用
+          // 患者情報を明示的に設定
+          patient: (copiedAppointment as any).patient,
+          patient_id: (copiedAppointment as any).patient_id
+        }
+
+        console.log('複数選択貼り付け時の予約データ:', modifiedAppointment)
+        console.log('複数選択貼り付け時の患者情報:', modifiedAppointment.patient)
+        console.log('複数選択貼り付け時の患者ID:', modifiedAppointment.patient_id)
+        setEditingAppointment(modifiedAppointment as any)
+      }
+
       setSelectedTimeSlot(startTime)
       setShowAppointmentModal(true)
     }
-    
+
     // 選択状態をリセット（モーダルが閉じられた時にリセット）
     // setSelectedTimeSlots([])
     // setSelectionStart(null)
@@ -1234,7 +1263,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               const isLastColumn = index === workingStaff.length - 1
               return (
                 <div 
-                  key={shift.staff.id} 
+                  key={`${shift.staff.id}-${index}`} 
                   className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
                   style={{ 
                     minWidth: getColumnMinWidth(),
@@ -1642,52 +1671,50 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                         }
                       })()}
                       
-                      {/* 診療メニュー1 */}
-                      {displayItems.includes('treatment_content_1') && (block.appointment as any).menu1 && (
-                        <span>
-                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
-                          {(block.appointment as any).menu1.name}
-                        </span>
+                      {/* 診療内容（統合表示） */}
+                      {displayItems.includes('treatment_content') && (
+                        (() => {
+                          const menu1 = (block.appointment as any).menu1
+                          const menu2 = (block.appointment as any).menu2
+                          const menu3 = (block.appointment as any).menu3
+                          
+                          if (!menu1 && !menu2 && !menu3) return null
+                          
+                          const menuParts = []
+                          if (menu1) menuParts.push(menu1.name)
+                          if (menu2) menuParts.push(menu2.name)
+                          if (menu3) menuParts.push(menu3.name)
+                          
+                          return (
+                            <span>
+                              {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                              {menuParts.join('/')}
+                            </span>
+                          )
+                        })()
                       )}
                       
-                      {/* 診療メニュー2 */}
-                      {displayItems.includes('treatment_content_2') && (block.appointment as any).menu2 && (
-                        <span>
-                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_1|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
-                          {(block.appointment as any).menu2.name}
-                        </span>
-                      )}
-                      
-                      {/* 診療メニュー3 */}
-                      {displayItems.includes('treatment_content_3') && (block.appointment as any).menu3 && (
-                        <span>
-                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[12]|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
-                          {(block.appointment as any).menu3.name}
-                        </span>
-                      )}
-                      
-                      {/* 担当者1 */}
-                      {displayItems.includes('staff_1') && (block.appointment as any).staff1 && (
-                        <span>
-                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[123]|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
-                          {(block.appointment as any).staff1.name}
-                        </span>
-                      )}
-                      
-                      {/* 担当者2 */}
-                      {displayItems.includes('staff_2') && (block.appointment as any).staff2 && (
-                        <span>
-                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[123]|staff_1|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
-                          {(block.appointment as any).staff2.name}
-                        </span>
-                      )}
-                      
-                      {/* 担当者3 */}
-                      {displayItems.includes('staff_3') && (block.appointment as any).staff3 && (
-                        <span>
-                          {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content_[123]|staff_[12]|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
-                          {(block.appointment as any).staff3.name}
-                        </span>
+                      {/* 担当者（統合表示） */}
+                      {displayItems.includes('staff') && (
+                        (() => {
+                          const staff1 = (block.appointment as any).staff1
+                          const staff2 = (block.appointment as any).staff2
+                          const staff3 = (block.appointment as any).staff3
+                          
+                          if (!staff1 && !staff2 && !staff3) return null
+                          
+                          const staffParts = []
+                          if (staff1) staffParts.push(staff1.name)
+                          if (staff2) staffParts.push(staff2.name)
+                          if (staff3) staffParts.push(staff3.name)
+                          
+                          return (
+                            <span>
+                              {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
+                              {staffParts.join('/')}
+                            </span>
+                          )
+                        })()
                       )}
                     </div>
                   </>
@@ -1843,9 +1870,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         onSave={async (appointmentData) => {
           try {
             console.log('予約保存:', appointmentData)
-            
+
             let savedAppointment
-            if (editingAppointment) {
+            // editingAppointment.idが存在する場合のみ更新、そうでなければ新規作成
+            if (editingAppointment?.id) {
               // 既存の予約を更新
               savedAppointment = await updateAppointment(editingAppointment.id, {
                 ...appointmentData,
@@ -1853,7 +1881,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               })
               console.log('既存予約更新完了:', savedAppointment)
             } else {
-              // 新規予約を作成
+              // 新規予約を作成（コピー貼り付けを含む）
               savedAppointment = await createAppointment(clinicId, {
                 ...appointmentData,
                 appointment_date: formatDateForDB(selectedDate) // YYYY-MM-DD形式
@@ -1864,17 +1892,27 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             // モーダルを閉じる
             setShowAppointmentModal(false)
             setEditingAppointment(null) // 編集状態をリセット
-            
+
             // 選択状態をリセット
             setSelectedTimeSlots([])
             setSelectionStart(null)
             setSelectionEnd(null)
-            
+
+            // コピー状態を解除（保存成功時のみ）
+            if (isPasteMode) {
+              console.log('予約保存成功: コピー状態を解除します')
+              setCopiedAppointment(null)
+              setIsPasteMode(false)
+              if (onCopyStateChange) {
+                onCopyStateChange(null, false)
+              }
+            }
+
             // 予約一覧を再読み込み
             const dateString = formatDateForDB(selectedDate)
             const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
             setAppointments(updatedAppointments)
-            
+
             // 予約IDを返す（ログ作成のため）
             return savedAppointment?.id
             

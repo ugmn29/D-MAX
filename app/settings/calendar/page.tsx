@@ -33,12 +33,8 @@ const DISPLAY_ITEMS = [
   { id: 'patient_icon', name: '患者アイコン', description: '患者の特記事項アイコンを表示' },
   { id: 'patient_rank', name: '患者ランク', description: '患者のランクを表示' },
   { id: 'patient_color', name: '患者カラー', description: '患者のカラーを表示' },
-  { id: 'treatment_content_1', name: '診療内容1', description: '診療メニューの大分類を表示' },
-  { id: 'treatment_content_2', name: '診療内容2', description: '診療メニューの中分類を表示' },
-  { id: 'treatment_content_3', name: '診療内容3', description: '診療メニューの詳細を表示' },
-  { id: 'staff_1', name: '担当者1', description: '主担当者を表示' },
-  { id: 'staff_2', name: '担当者2', description: '副担当者1を表示' },
-  { id: 'staff_3', name: '担当者3', description: '副担当者2を表示' }
+  { id: 'treatment_content', name: '診療内容', description: '診療メニューの全階層を表示（大分類/中分類/詳細）' },
+  { id: 'staff', name: '担当者', description: '担当者の全階層を表示（主担当者/副担当者1/副担当者2）' }
 ]
 
 // キャンセル理由は動的に取得するため、固定配列を削除

@@ -1553,6 +1553,12 @@ export function AppointmentEditModal({
                   </button>
                   <div className="text-gray-600 font-medium">
                     : {selectedMenu1?.name || selectedMenu2?.name || selectedMenu3?.name || '未選択'}
+                    {selectedMenu2 && (
+                      <span className="ml-1">/{selectedMenu2.name}</span>
+                    )}
+                    {selectedMenu3 && (
+                      <span className="ml-1">/{selectedMenu3.name}</span>
+                    )}
                   </div>
                 </div>
 

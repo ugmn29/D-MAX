@@ -26,6 +26,14 @@ interface WebBookingSettings {
   openAllSlots: boolean
   allowStaffSelection: boolean
   webPageUrl: string
+  showCancelPolicy: boolean
+  cancelPolicyText: string
+  patientInfoFields: {
+    phoneRequired: boolean
+    phoneEnabled: boolean
+    emailRequired: boolean
+    emailEnabled: boolean
+  }
   flow: {
     initialSelection: boolean
     menuSelection: boolean
@@ -114,6 +122,22 @@ export default function WebBookingPage() {
           openAllSlots: false,
           allowStaffSelection: true,
           webPageUrl: '',
+          showCancelPolicy: false,
+          cancelPolicyText: `◆当院のキャンセルポリシー◆
+
+数ある歯科医院の中から駒沢公園通り　西垣歯科・矯正歯科をお選びいただき誠にありがとうございます。
+当クリニックでは患者さま一人一人により良い医療を提供するため、30〜45分の長い治療時間を確保してお待ちしております。尚かつ適切な処置時間を確保するために予約制となっております。
+
+予約時間に遅れての来院は十分な時間が確保できず、予定通りの処置が行えない場合があります。
+また、予定時間に遅れが生じる事で、次に来院予定の患者さまに多大なご迷惑をおかけする恐れがありますので、予約時間前の来院にご協力をお願い致します。
+止むを得ず遅れる場合や、体調不良などでキャンセルを希望される場合は早めのご連絡をお願い致します。
+予約の際には確実に来院できる日にちと時間をご確認下さい。`,
+          patientInfoFields: {
+            phoneRequired: true,
+            phoneEnabled: true,
+            emailRequired: false,
+            emailEnabled: true
+          },
           flow: {
             initialSelection: true,
             menuSelection: true,
@@ -533,6 +557,22 @@ export default function WebBookingPage() {
         </div>
 
         <div className="max-w-2xl mx-auto space-y-6">
+          {/* キャンセルポリシー表示 */}
+          {webSettings.showCancelPolicy && (
+            <Card>
+              <CardHeader>
+                <CardTitle>医院からのメッセージ</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                    {webSettings.cancelPolicyText}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* ステップ1: 初診/再診選択 */}
           {webSettings.flow.initialSelection && (
             <Card>
@@ -783,7 +823,7 @@ export default function WebBookingPage() {
                 <CardTitle>患者情報入力</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${webSettings?.patientInfoFields.phoneEnabled ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
                   <div>
                     <Label htmlFor="patientName">お名前 *</Label>
                     <Input
@@ -793,33 +833,41 @@ export default function WebBookingPage() {
                       placeholder="例: 田中太郎"
                     />
                   </div>
+                  {webSettings?.patientInfoFields.phoneEnabled && (
+                    <div>
+                      <Label htmlFor="patientPhone">
+                        電話番号 {webSettings?.patientInfoFields.phoneRequired ? '*' : ''}
+                      </Label>
+                      <Input
+                        id="patientPhone"
+                        value={bookingData.patientPhone}
+                        onChange={(e) => {
+                          const newPhone = e.target.value
+                          setBookingData(prev => ({ ...prev, patientPhone: newPhone }))
+                          // 名前と電話番号が両方入力されたら確認セクションへスクロール
+                          if (bookingData.patientName && newPhone) {
+                            setTimeout(() => scrollToSection(confirmationSectionRef), 500)
+                          }
+                        }}
+                        placeholder="例: 03-1234-5678"
+                      />
+                    </div>
+                  )}
+                </div>
+                {webSettings?.patientInfoFields.emailEnabled && (
                   <div>
-                    <Label htmlFor="patientPhone">電話番号 *</Label>
+                    <Label htmlFor="patientEmail">
+                      メールアドレス {webSettings.patientInfoFields.emailRequired ? '*' : ''}
+                    </Label>
                     <Input
-                      id="patientPhone"
-                      value={bookingData.patientPhone}
-                      onChange={(e) => {
-                        const newPhone = e.target.value
-                        setBookingData(prev => ({ ...prev, patientPhone: newPhone }))
-                        // 名前と電話番号が両方入力されたら確認セクションへスクロール
-                        if (bookingData.patientName && newPhone) {
-                          setTimeout(() => scrollToSection(confirmationSectionRef), 500)
-                        }
-                      }}
-                      placeholder="例: 03-1234-5678"
+                      id="patientEmail"
+                      type="email"
+                      value={bookingData.patientEmail}
+                      onChange={(e) => setBookingData(prev => ({ ...prev, patientEmail: e.target.value }))}
+                      placeholder="例: tanaka@example.com"
                     />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="patientEmail">メールアドレス</Label>
-                  <Input
-                    id="patientEmail"
-                    type="email"
-                    value={bookingData.patientEmail}
-                    onChange={(e) => setBookingData(prev => ({ ...prev, patientEmail: e.target.value }))}
-                    placeholder="例: tanaka@example.com"
-                  />
-                </div>
+                )}
                 <div>
                   <Label htmlFor="patientRequest">ご要望・ご相談など（任意）</Label>
                   <textarea
