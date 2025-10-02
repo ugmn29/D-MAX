@@ -1180,15 +1180,6 @@ export function AppointmentEditModal({
                         {selectedPatient.is_registered && (
                           <div className="flex space-x-2">
                             <Button 
-                              onClick={unlinkQuestionnaireFromPatient}
-                              variant="ghost" 
-                              size="sm" 
-                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50"
-                              title="問診票の連携を解除"
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                            <Button 
                               onClick={() => setShowPatientEditModal(true)}
                               variant="ghost" 
                               size="sm" 

@@ -327,7 +327,24 @@ export async function createAppointment(
     console.log('モックモード: 保存する予約データ:', mockAppointment)
     const savedAppointment = addMockAppointment(mockAppointment)
     console.log('モックモード: 保存完了:', savedAppointment)
-    
+
+    // 予約作成ログを記録
+    const { logAppointmentCreation } = await import('./appointment-logs')
+    await logAppointmentCreation(
+      savedAppointment.id,
+      appointmentData.patient_id || '',
+      {
+        appointment_date: appointmentData.appointment_date,
+        start_time: appointmentData.start_time,
+        end_time: appointmentData.end_time,
+        menu1_id: appointmentData.menu1_id,
+        staff1_id: appointmentData.staff1_id,
+        status: appointmentData.status || '未来院',
+        notes: appointmentData.notes
+      },
+      'system'
+    )
+
     return savedAppointment
   }
 
@@ -450,8 +467,13 @@ export async function updateAppointment(
   // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
     console.log('モックモード: 予約を更新します', { appointmentId, appointmentData })
-    const { updateMockAppointment, getMockPatients, getMockTreatmentMenus, getMockStaff } = await import('@/lib/utils/mock-mode')
-    
+    const mockUtils = await import('@/lib/utils/mock-mode')
+    const { updateMockAppointment, getMockPatients, getMockTreatmentMenus, getMockStaff, getMockAppointments } = mockUtils
+
+    // 更新前のデータを取得（ログ記録用）
+    const allAppointmentsBefore = getMockAppointments()
+    const oldAppointment = allAppointmentsBefore.find(a => a.id === appointmentId)
+
     // 関連データを取得して埋め込む
     const patients = getMockPatients()
     const menus = getMockTreatmentMenus()
@@ -516,12 +538,41 @@ export async function updateAppointment(
     
     const updatedAppointment = updateMockAppointment(appointmentId, updatedData)
     console.log('モックモード: updateMockAppointmentの戻り値:', updatedAppointment)
-    
+
     if (!updatedAppointment) {
       console.error('モックモード: 予約の更新に失敗しました。IDが見つかりません:', appointmentId)
       throw new Error('予約の更新に失敗しました')
     }
-    
+
+    // 予約変更ログを記録
+    if (oldAppointment) {
+      const { logAppointmentChange } = await import('./appointment-logs')
+      await logAppointmentChange(
+        appointmentId,
+        updatedAppointment.patient_id || oldAppointment.patient_id || '',
+        {
+          appointment_date: oldAppointment.appointment_date,
+          start_time: oldAppointment.start_time,
+          end_time: oldAppointment.end_time,
+          staff1_id: oldAppointment.staff1_id,
+          menu1_id: oldAppointment.menu1_id,
+          status: oldAppointment.status,
+          notes: oldAppointment.notes
+        },
+        {
+          appointment_date: updatedAppointment.appointment_date,
+          start_time: updatedAppointment.start_time,
+          end_time: updatedAppointment.end_time,
+          staff1_id: updatedAppointment.staff1_id,
+          menu1_id: updatedAppointment.menu1_id,
+          status: updatedAppointment.status,
+          notes: updatedAppointment.notes
+        },
+        'system',
+        '予約情報を更新しました'
+      )
+    }
+
     console.log('モックモード: 更新完了:', updatedAppointment)
     return updatedAppointment
   }

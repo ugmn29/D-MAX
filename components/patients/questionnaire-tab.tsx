@@ -13,7 +13,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
-import { getLinkedQuestionnaireResponses, QuestionnaireResponse } from '@/lib/api/questionnaires'
+import { getLinkedQuestionnaireResponses, QuestionnaireResponse, getQuestionnaires } from '@/lib/api/questionnaires'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
@@ -26,6 +26,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedResponse, setExpandedResponse] = useState<string | null>(null)
+  const [questionnaireDefinitions, setQuestionnaireDefinitions] = useState<Map<string, any>>(new Map())
 
   useEffect(() => {
     loadQuestionnaireResponses()
@@ -35,11 +36,31 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
     try {
       setLoading(true)
       setError(null)
-      
+
       // この患者に連携済みの問診票回答を取得
       const patientResponses = await getLinkedQuestionnaireResponses(patientId)
-      
+
+      // 問診票の定義を取得（質問IDから質問文を取得するため）
+      // 仮のclinicIdを使用（実際の実装では適切なclinicIdを使用）
+      const questionnaires = await getQuestionnaires('11111111-1111-1111-1111-111111111111')
+
+      // 問診票IDをキーとして質問のマップを作成
+      const questionMap = new Map()
+      questionnaires.forEach(q => {
+        const qMap = new Map()
+        q.questions.forEach((question: any) => {
+          qMap.set(question.id, question)
+        })
+        questionMap.set(q.id, qMap)
+      })
+      setQuestionnaireDefinitions(questionMap)
+
       setQuestionnaireResponses(patientResponses)
+
+      // 最初の問診票をデフォルトで展開
+      if (patientResponses.length > 0 && !expandedResponse) {
+        setExpandedResponse(patientResponses[0].id)
+      }
     } catch (err) {
       console.error('問診票回答の読み込みエラー:', err)
       setError('問診票回答の読み込みに失敗しました')
@@ -52,32 +73,44 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
     setExpandedResponse(expandedResponse === responseId ? null : responseId)
   }
 
-  const formatResponseData = (data: any) => {
-    if (!data) return 'データなし'
-    
+  const formatResponseData = (response: QuestionnaireResponse) => {
+    if (!response.response_data) return {}
+
+    const data = response.response_data
     const formattedData: { [key: string]: any } = {}
-    
-    // 基本的な患者情報
-    if (data.patient_name) formattedData['患者名'] = data.patient_name
-    if (data.patient_name_kana) formattedData['患者名（フリガナ）'] = data.patient_name_kana
-    if (data.birth_date) formattedData['生年月日'] = data.birth_date
-    if (data.gender) formattedData['性別'] = data.gender === 'male' ? '男性' : data.gender === 'female' ? '女性' : 'その他'
-    if (data.phone) formattedData['電話番号'] = data.phone
-    if (data.email) formattedData['メールアドレス'] = data.email
-    
-    // 医療情報
-    if (data.allergies) formattedData['アレルギー'] = data.allergies
-    if (data.medical_history) formattedData['既往歴'] = data.medical_history
-    if (data.current_medications) formattedData['現在服用中の薬'] = data.current_medications
-    if (data.chief_complaint) formattedData['主訴'] = data.chief_complaint
-    
-    // 問診票固有の項目
-    if (data.questions) {
-      Object.entries(data.questions).forEach(([key, value]) => {
-        formattedData[`質問: ${key}`] = value
-      })
-    }
-    
+
+    // 問診票の定義を取得
+    const questionDefinitions = questionnaireDefinitions.get(response.questionnaire_id)
+
+    // 全ての回答をループして、質問文と回答をペアにする
+    Object.entries(data).forEach(([questionId, answer]) => {
+      // メタデータ（patient_name等）はスキップ
+      if (!questionId.startsWith('q')) return
+
+      // 質問定義を取得
+      const questionDef = questionDefinitions?.get(questionId)
+
+      if (questionDef) {
+        const questionText = questionDef.question_text
+        const sectionName = questionDef.section_name
+
+        // 回答を整形
+        let formattedAnswer = answer
+
+        // 配列の場合はカンマ区切りで表示
+        if (Array.isArray(answer)) {
+          formattedAnswer = answer.join(', ')
+        }
+
+        // セクション名付きでキーを作成
+        const key = sectionName ? `【${sectionName}】${questionText}` : questionText
+        formattedData[key] = formattedAnswer || '（未回答）'
+      } else {
+        // 定義が見つからない場合はそのまま表示
+        formattedData[questionId] = answer
+      }
+    })
+
     return formattedData
   }
 
@@ -130,7 +163,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       <div className="space-y-4">
         {questionnaireResponses.map((response) => {
           const isExpanded = expandedResponse === response.id
-          const formattedData = formatResponseData(response.response_data)
+          const formattedData = formatResponseData(response)
           
           return (
             <Card key={response.id} className="border border-gray-200">
@@ -140,7 +173,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                     <FileText className="w-5 h-5 text-blue-600" />
                     <div>
                       <CardTitle className="text-base">
-                        問診票回答 #{response.id.slice(-8)}
+                        問診票回答
                       </CardTitle>
                       <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
                         <div className="flex items-center">
@@ -181,22 +214,49 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
               
               {isExpanded && (
                 <CardContent className="pt-0">
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {Object.entries(formattedData).map(([key, value]) => (
-                        <div key={key} className="space-y-1">
-                          <label className="text-sm font-medium text-gray-600">
-                            {key}
-                          </label>
-                          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
-                            <p className="text-sm text-gray-900">
-                              {typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
-                            </p>
+                  <div className="space-y-6">
+                    {/* セクションごとにグループ化 */}
+                    {(() => {
+                      const sections = new Map<string, Array<[string, any]>>()
+
+                      // セクションごとに質問をグループ化
+                      Object.entries(formattedData).forEach(([key, value]) => {
+                        const match = key.match(/^【(.+?)】(.+)$/)
+                        if (match) {
+                          const [, sectionName, questionText] = match
+                          if (!sections.has(sectionName)) {
+                            sections.set(sectionName, [])
+                          }
+                          sections.get(sectionName)!.push([questionText, value])
+                        } else {
+                          if (!sections.has('その他')) {
+                            sections.set('その他', [])
+                          }
+                          sections.get('その他')!.push([key, value])
+                        }
+                      })
+
+                      return Array.from(sections.entries()).map(([sectionName, questions]) => (
+                        <div key={sectionName} className="border-l-4 border-blue-500 pl-4">
+                          <h4 className="text-base font-semibold text-gray-900 mb-3">
+                            {sectionName}
+                          </h4>
+                          <div className="space-y-3">
+                            {questions.map(([questionText, answer], index) => (
+                              <div key={index} className="bg-white">
+                                <dt className="text-sm font-medium text-gray-700 mb-1">
+                                  {questionText}
+                                </dt>
+                                <dd className="text-sm text-gray-900 pl-4 py-2 bg-gray-50 rounded border-l-2 border-gray-300">
+                                  {typeof answer === 'string' ? answer : JSON.stringify(answer, null, 2)}
+                                </dd>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                    
+                      ))
+                    })()}
+
                     {response.patient_id && (
                       <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
                         <div className="flex items-center">

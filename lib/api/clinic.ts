@@ -398,12 +398,12 @@ export async function getBreakTimes(clinicId: string) {
   if (MOCK_MODE) {
     console.log('モックモード: 休憩時間データを返します（デフォルト値）')
     return {
-      monday: { start: '12:00', end: '13:00' },
-      tuesday: { start: '12:00', end: '13:00' },
-      wednesday: { start: '12:00', end: '13:00' },
-      thursday: { start: '12:00', end: '13:00' },
-      friday: { start: '12:00', end: '13:00' },
-      saturday: { start: '12:00', end: '13:00' },
+      monday: { start: '13:00', end: '14:30' },
+      tuesday: { start: '13:00', end: '14:30' },
+      wednesday: { start: '13:00', end: '14:30' },
+      thursday: { start: '13:00', end: '14:30' },
+      friday: { start: '13:00', end: '14:30' },
+      saturday: { start: '13:00', end: '14:30' },
       sunday: null
     }
   }
@@ -422,12 +422,12 @@ export async function getBreakTimes(clinicId: string) {
   // clinic_settingsにない場合はclinicテーブルから取得
   const clinic = await getClinic(clinicId)
   return clinic?.break_times || {
-    monday: { start: '12:00', end: '13:00' },
-    tuesday: { start: '12:00', end: '13:00' },
-    wednesday: { start: '12:00', end: '13:00' },
-    thursday: { start: '12:00', end: '13:00' },
-    friday: { start: '12:00', end: '13:00' },
-    saturday: { start: '12:00', end: '13:00' },
+    monday: { start: '13:00', end: '14:30' },
+    tuesday: { start: '13:00', end: '14:30' },
+    wednesday: { start: '13:00', end: '14:30' },
+    thursday: { start: '13:00', end: '14:30' },
+    friday: { start: '13:00', end: '14:30' },
+    saturday: { start: '13:00', end: '14:30' },
     sunday: null
   }
 }

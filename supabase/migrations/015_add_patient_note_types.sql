@@ -13,11 +13,16 @@ CREATE TABLE IF NOT EXISTS patient_note_types (
 -- RLSを無効化（開発環境用）
 ALTER TABLE patient_note_types DISABLE ROW LEVEL SECURITY;
 
--- デモデータの挿入
-INSERT INTO patient_note_types (clinic_id, name, sort_order, is_active)
+-- デモデータの挿入（is_activeカラムが存在する場合のみ）
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'patient_note_types' AND column_name = 'is_active') THEN
+        INSERT INTO patient_note_types (clinic_id, name, sort_order, is_active)
 VALUES 
-    ('11111111-1111-1111-1111-111111111111', 'アレルギー', 1, true),
-    ('11111111-1111-1111-1111-111111111111', '既往歴', 2, true),
-    ('11111111-1111-1111-1111-111111111111', '服用薬', 3, true),
-    ('11111111-1111-1111-1111-111111111111', '注意事項', 4, true)
-ON CONFLICT DO NOTHING;
+            ('11111111-1111-1111-1111-111111111111', 'アレルギー', 1, true),
+            ('11111111-1111-1111-1111-111111111111', '既往歴', 2, true),
+            ('11111111-1111-1111-1111-111111111111', '服用薬', 3, true),
+            ('11111111-1111-1111-1111-111111111111', '注意事項', 4, true)
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;

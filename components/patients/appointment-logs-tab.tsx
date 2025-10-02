@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
-  Clock, 
-  User, 
+import {
+  Clock,
+  User,
   Calendar,
   Edit,
   X,
@@ -18,7 +18,8 @@ import {
   CalendarDays,
   Timer,
   Stethoscope,
-  MessageSquare
+  MessageSquare,
+  Trash2
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -29,19 +30,24 @@ interface AppointmentLogsTabProps {
 }
 
 export function AppointmentLogsTab({ patientId }: AppointmentLogsTabProps) {
+  console.log('AppointmentLogsTab: コンポーネントがマウントされました', { patientId })
+
   const [logs, setLogs] = useState<AppointmentLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log('AppointmentLogsTab: useEffectが実行されました', { patientId })
     loadLogs()
   }, [patientId])
 
   const loadLogs = async () => {
     try {
+      console.log('予約操作ログ取得開始:', { patientId })
       setLoading(true)
       setError(null)
       const logsData = await getAppointmentLogs(patientId)
+      console.log('予約操作ログ取得完了:', { count: logsData.length, logs: logsData })
       setLogs(logsData)
     } catch (error) {
       console.error('予約操作ログの取得エラー:', error)
@@ -83,18 +89,30 @@ export function AppointmentLogsTab({ patientId }: AppointmentLogsTabProps) {
 
   const getFieldDisplayName = (field: string) => {
     const fieldNames: Record<string, string> = {
+      'appointment_date': '予約日',
       'start_time': '開始時間',
       'end_time': '終了時間',
-      'staff1_id': '担当者',
-      'menu1_id': '治療メニュー',
+      'staff1_id': '担当者1',
+      'staff2_id': '担当者2',
+      'staff3_id': '担当者3',
+      'menu1_id': '治療メニュー1',
+      'menu2_id': '治療メニュー2',
+      'menu3_id': '治療メニュー3',
       'status': 'ステータス',
-      'memo': 'メモ'
+      'notes': 'メモ'
     }
     return fieldNames[field] || field
   }
 
   const getStatusDisplayName = (status: string) => {
     const statusNames: Record<string, string> = {
+      '未来院': '未来院',
+      '遅刻': '遅刻',
+      '来院済み': '来院済み',
+      '診療中': '診療中',
+      '会計': '会計',
+      '終了': '終了',
+      'キャンセル': 'キャンセル',
       'scheduled': '予定',
       'completed': '完了',
       'cancelled': 'キャンセル',

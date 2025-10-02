@@ -58,6 +58,7 @@ export default function WebBookingPage() {
   const [workingStaff, setWorkingStaff] = useState<any[]>([])
   const [availableSlots, setAvailableSlots] = useState<any[]>([])
   const [showQuestionnaire, setShowQuestionnaire] = useState(false)
+  const [bookingCompleted, setBookingCompleted] = useState(false) // 予約完了状態
   const [weekStartDate, setWeekStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 })) // 月曜始まり
   const [timeSlotMinutes, setTimeSlotMinutes] = useState<number>(15)
   const [businessHours, setBusinessHours] = useState<any>({})
@@ -78,7 +79,8 @@ export default function WebBookingPage() {
     selectedStaff: '',
     patientName: '',
     patientPhone: '',
-    patientEmail: ''
+    patientEmail: '',
+    patientRequest: '' // ご要望・ご相談など
   })
 
   // スムーズスクロール関数
@@ -336,18 +338,19 @@ export default function WebBookingPage() {
         menu1_id: bookingData.selectedMenu,
         staff1_id: staffId,
         status: '未来院', // 初回ステータスを「未来院」に設定
-        notes: `Web予約\n氏名: ${bookingData.patientName}\n電話: ${bookingData.patientPhone}\nメール: ${bookingData.patientEmail}`,
+        notes: `Web予約\n氏名: ${bookingData.patientName}\n電話: ${bookingData.patientPhone}\nメール: ${bookingData.patientEmail}${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`,
         is_new_patient: bookingData.isNewPatient
       }
 
       console.log('Web予約: 予約作成データ', appointmentData)
       await createAppointment(DEMO_CLINIC_ID, appointmentData)
-      
+
+      // 予約完了画面を表示
+      setBookingCompleted(true)
+
       // 問診表が有効で、予約前に送信する設定の場合
       if (questionnaireSettings?.isEnabled && questionnaireSettings.sendTiming === 'before_appointment') {
         setShowQuestionnaire(true)
-      } else {
-        alert('予約を確定しました。確認メールをお送りします。')
       }
     } catch (error) {
       console.error('予約確定エラー:', error)
@@ -387,6 +390,135 @@ export default function WebBookingPage() {
             </p>
           </CardContent>
         </Card>
+      </div>
+    )
+  }
+
+  // 予約完了画面
+  if (bookingCompleted) {
+    const selectedMenuData = treatmentMenus.find(m => m.id === bookingData.selectedMenu)
+    const selectedStaffData = staff.find(s => s.id === bookingData.selectedStaff)
+
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-2xl mx-auto px-4">
+          <Card className="border-2 border-green-500">
+            <CardHeader className="text-center bg-green-50">
+              <div className="flex justify-center mb-4">
+                <CheckCircle className="w-16 h-16 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl text-green-700">予約が完了しました</CardTitle>
+              <p className="text-gray-600 mt-2">ご予約ありがとうございます</p>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-6">
+              <div className="bg-gray-50 p-6 rounded-lg space-y-4">
+                <h3 className="font-semibold text-lg border-b pb-2">ご予約内容</h3>
+
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3">
+                    <Calendar className="w-5 h-5 text-gray-500 mt-0.5" />
+                    <div>
+                      <div className="text-sm text-gray-600">予約日時</div>
+                      <div className="font-medium">{bookingData.selectedDate} {bookingData.selectedTime}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <CheckCircle className="w-5 h-5 text-gray-500 mt-0.5" />
+                    <div>
+                      <div className="text-sm text-gray-600">診療メニュー</div>
+                      <div className="font-medium">{selectedMenuData?.name || bookingData.selectedMenu}</div>
+                    </div>
+                  </div>
+
+                  {bookingData.selectedStaff && selectedStaffData && (
+                    <div className="flex items-start space-x-3">
+                      <User className="w-5 h-5 text-gray-500 mt-0.5" />
+                      <div>
+                        <div className="text-sm text-gray-600">担当者</div>
+                        <div className="font-medium">{selectedStaffData.name}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-start space-x-3">
+                    <User className="w-5 h-5 text-gray-500 mt-0.5" />
+                    <div>
+                      <div className="text-sm text-gray-600">お名前</div>
+                      <div className="font-medium">{bookingData.patientName}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <Calendar className="w-5 h-5 text-gray-500 mt-0.5" />
+                    <div>
+                      <div className="text-sm text-gray-600">電話番号</div>
+                      <div className="font-medium">{bookingData.patientPhone}</div>
+                    </div>
+                  </div>
+
+                  {bookingData.patientEmail && (
+                    <div className="flex items-start space-x-3">
+                      <Calendar className="w-5 h-5 text-gray-500 mt-0.5" />
+                      <div>
+                        <div className="text-sm text-gray-600">メールアドレス</div>
+                        <div className="font-medium">{bookingData.patientEmail}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {bookingData.patientRequest && (
+                    <div className="flex items-start space-x-3">
+                      <Calendar className="w-5 h-5 text-gray-500 mt-0.5" />
+                      <div>
+                        <div className="text-sm text-gray-600">ご要望・ご相談</div>
+                        <div className="font-medium whitespace-pre-wrap">{bookingData.patientRequest}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {bookingData.patientEmail && (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    📧 確認メールを <strong>{bookingData.patientEmail}</strong> に送信しました。
+                  </p>
+                </div>
+              )}
+
+              {questionnaireSettings?.isEnabled && (
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <p className="text-sm text-yellow-800">
+                    📋 問診表をメールでお送りします。事前にご記入をお願いいたします。
+                  </p>
+                </div>
+              )}
+
+              <div className="text-center pt-4">
+                <Button
+                  onClick={() => {
+                    setBookingCompleted(false)
+                    setBookingData({
+                      isNewPatient: true,
+                      selectedMenu: '',
+                      selectedDate: '',
+                      selectedTime: '',
+                      selectedStaff: '',
+                      patientName: '',
+                      patientPhone: '',
+                      patientEmail: '',
+                      patientRequest: ''
+                    })
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  トップに戻る
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -686,6 +818,16 @@ export default function WebBookingPage() {
                     value={bookingData.patientEmail}
                     onChange={(e) => setBookingData(prev => ({ ...prev, patientEmail: e.target.value }))}
                     placeholder="例: tanaka@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="patientRequest">ご要望・ご相談など（任意）</Label>
+                  <textarea
+                    id="patientRequest"
+                    value={bookingData.patientRequest}
+                    onChange={(e) => setBookingData(prev => ({ ...prev, patientRequest: e.target.value }))}
+                    placeholder="ご要望やご相談がございましたらご記入ください"
+                    className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
                   />
                 </div>
               </CardContent>

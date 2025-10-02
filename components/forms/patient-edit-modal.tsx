@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { X, Save, User, Heart, Users } from 'lucide-react'
+import { X, Save, User, Heart, Users, Plus, Trash2 } from 'lucide-react'
 import { Patient } from '@/types/database'
 import { calculateAge } from '@/lib/utils/date'
 import { getLinkedQuestionnaireResponse } from '@/lib/api/questionnaires'
@@ -35,6 +35,7 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
     address: '',
     allergies: '',
     medical_history: '',
+    medications: '',
     special_notes: '',
     primary_doctor: '',
     assigned_dh: ''
@@ -48,6 +49,9 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
   const [doctors, setDoctors] = useState<Staff[]>([])
   const [dentalHygienists, setDentalHygienists] = useState<Staff[]>([])
 
+  // 家族連携
+  const [familyMembers, setFamilyMembers] = useState<any[]>([])
+
   // 患者データが変更されたら編集データを更新
   useEffect(() => {
     if (patient) {
@@ -60,10 +64,11 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
   const loadPatientData = async () => {
     if (!patient) return
 
-    // 問診票から情報を取得（住所、アレルギー、既往歴）
+    // 問診票から情報を取得（住所、アレルギー、既往歴、服用薬）
     let fullAddress = patient.address || ''
     let allergiesInfo = patient.allergies || ''
     let medicalHistoryInfo = patient.medical_history || ''
+    let medicationsInfo = patient.medications || ''
 
     try {
       const questionnaireResponse = await getLinkedQuestionnaireResponse(patient.id)
@@ -113,6 +118,20 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
           medicalHistoryInfo = 'なし'
         }
 
+        // 服用薬情報を取得
+        let medicationsInfo = ''
+        if (responseData.medications) {
+          medicationsInfo = responseData.medications
+        } else if (responseData['q1-24'] === 'ある' && responseData['q1-24b']) {
+          if (Array.isArray(responseData['q1-24b'])) {
+            medicationsInfo = responseData['q1-24b'].join('、')
+          } else {
+            medicationsInfo = responseData['q1-24b']
+          }
+        } else if (responseData['q1-24'] === 'ない') {
+          medicationsInfo = 'なし'
+        }
+
         console.log('PatientEditModal: 問診票から取得:', {
           address: fullAddress,
           allergies: allergiesInfo,
@@ -135,6 +154,7 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
       address: fullAddress,
       allergies: allergiesInfo,
       medical_history: medicalHistoryInfo,
+      medications: medicationsInfo,
       special_notes: '',
       primary_doctor: '',
       assigned_dh: ''
@@ -366,6 +386,89 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                     className="min-h-[80px]"
                   />
                 </div>
+
+                {/* 家族連携 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">家族連携</Label>
+                    <Button size="sm" variant="outline">
+                      <Plus className="w-4 h-4 mr-2" />
+                      家族を追加
+                    </Button>
+                  </div>
+                  <div className="space-y-3 max-h-[120px] overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                    {familyMembers.length === 0 ? (
+                      <p className="text-gray-500 text-center py-4 text-sm">連携された家族はいません</p>
+                    ) : (
+                      familyMembers.map((member) => (
+                        <div key={member.id} className="flex items-center justify-between p-2 border rounded bg-white">
+                          <div>
+                            <p className="font-medium text-sm">{member.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {member.relation} | 患者番号: {member.patient_number}
+                            </p>
+                          </div>
+                          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-800 h-6 w-6 p-0">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 担当者設定 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="primary_doctor">主担当医</Label>
+                    <Select
+                      value={editData.primary_doctor}
+                      onValueChange={(value) => setEditData({ ...editData, primary_doctor: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="主担当医を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {doctors.length > 0 ? (
+                          doctors.map((doctor) => (
+                            <SelectItem key={doctor.id} value={doctor.id}>
+                              {doctor.name} ({doctor.role})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-doctors" disabled>
+                            歯科医師が登録されていません
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="assigned_dh">主担当DH</Label>
+                    <Select
+                      value={editData.assigned_dh}
+                      onValueChange={(value) => setEditData({ ...editData, assigned_dh: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="主担当DHを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dentalHygienists.length > 0 ? (
+                          dentalHygienists.map((dh) => (
+                            <SelectItem key={dh.id} value={dh.id}>
+                              {dh.name} ({dh.role})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-dh" disabled>
+                            歯科衛生士が登録されていません
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -379,24 +482,35 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="allergies">アレルギー（必須確認項目）</Label>
-                  <Textarea
-                    id="allergies"
-                    value={editData.allergies}
-                    onChange={(e) => setEditData({ ...editData, allergies: e.target.value })}
-                    placeholder="アレルギー情報を入力してください"
-                    className="min-h-[100px]"
-                  />
-                </div>
-
-                <div>
                   <Label htmlFor="medical_history">既往歴</Label>
                   <Textarea
                     id="medical_history"
                     value={editData.medical_history}
                     onChange={(e) => setEditData({ ...editData, medical_history: e.target.value })}
                     placeholder="既往歴を入力してください"
-                    className="min-h-[100px]"
+                    className="h-[80px] resize-none overflow-y-auto"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="medications">服用薬</Label>
+                  <Textarea
+                    id="medications"
+                    value={editData.medications}
+                    onChange={(e) => setEditData({ ...editData, medications: e.target.value })}
+                    placeholder="現在服用中の薬を入力してください"
+                    className="h-[80px] resize-none overflow-y-auto"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="allergies">アレルギー（必須確認項目）</Label>
+                  <Textarea
+                    id="allergies"
+                    value={editData.allergies}
+                    onChange={(e) => setEditData({ ...editData, allergies: e.target.value })}
+                    placeholder="アレルギー情報を入力してください"
+                    className="h-[80px] resize-none overflow-y-auto"
                   />
                 </div>
 
@@ -446,66 +560,6 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
               </CardContent>
             </Card>
 
-            {/* 担当者設定 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-base">
-                  <Users className="w-5 h-5 mr-2" />
-                  担当者設定
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="primary_doctor">主担当医</Label>
-                  <Select
-                    value={editData.primary_doctor}
-                    onValueChange={(value) => setEditData({ ...editData, primary_doctor: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="主担当医を選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {doctors.length > 0 ? (
-                        doctors.map((doctor) => (
-                          <SelectItem key={doctor.id} value={doctor.id}>
-                            {doctor.name} ({doctor.role})
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="no-doctors" disabled>
-                          歯科医師が登録されていません
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="assigned_dh">主担当DH</Label>
-                  <Select
-                    value={editData.assigned_dh}
-                    onValueChange={(value) => setEditData({ ...editData, assigned_dh: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="主担当DHを選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dentalHygienists.length > 0 ? (
-                        dentalHygienists.map((dh) => (
-                          <SelectItem key={dh.id} value={dh.id}>
-                            {dh.name} ({dh.role})
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="no-dh" disabled>
-                          歯科衛生士が登録されていません
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* アクションボタン */}

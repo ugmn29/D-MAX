@@ -75,6 +75,7 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
       case 'access-history':
         return <div className="p-6 text-center text-gray-500">アクセス履歴機能（開発中）</div>
       case 'appointment-logs':
+        console.log('PatientDetailTabs: AppointmentLogsTabをレンダリング', { patientId })
         return <AppointmentLogsTab patientId={patientId} />
       default:
         return <div>タブコンテンツが見つかりません</div>

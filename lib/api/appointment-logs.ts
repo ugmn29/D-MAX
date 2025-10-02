@@ -36,14 +36,97 @@ export interface CreateAppointmentLogParams {
   ip_address?: string
 }
 
+// モックモード用のログストレージ
+class AppointmentLogStorage {
+  private static instance: AppointmentLogStorage
+  private storageKey = 'appointment_logs'
+
+  private constructor() {}
+
+  public static getInstance(): AppointmentLogStorage {
+    if (!AppointmentLogStorage.instance) {
+      AppointmentLogStorage.instance = new AppointmentLogStorage()
+    }
+    return AppointmentLogStorage.instance
+  }
+
+  private getFromStorage(): AppointmentLog[] {
+    if (typeof window === 'undefined') return []
+
+    try {
+      const stored = localStorage.getItem(this.storageKey)
+      return stored ? JSON.parse(stored) : []
+    } catch (error) {
+      console.error('ストレージからの読み込みエラー:', error)
+      return []
+    }
+  }
+
+  private saveToStorage(logs: AppointmentLog[]): void {
+    if (typeof window === 'undefined') return
+
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(logs))
+    } catch (error) {
+      console.error('ストレージへの保存エラー:', error)
+    }
+  }
+
+  public getByPatientId(patientId: string): AppointmentLog[] {
+    const logs = this.getFromStorage()
+    // 患者の予約IDを取得して、それに紐づくログをフィルタ
+    return logs.filter(log => {
+      // appointment.patient_idで判定（モックデータに含める必要がある）
+      return true // 暫定的に全て返す（後でフィルタリング追加）
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }
+
+  public add(log: AppointmentLog): void {
+    const logs = this.getFromStorage()
+    logs.push(log)
+    this.saveToStorage(logs)
+    console.log('予約操作ログを追加:', log)
+  }
+
+  public getByAppointmentId(appointmentId: string): AppointmentLog[] {
+    const logs = this.getFromStorage()
+    return logs.filter(log => log.appointment_id === appointmentId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }
+}
+
+const logStorage = AppointmentLogStorage.getInstance()
+
 /**
  * 患者の予約操作ログを取得
  */
 export async function getAppointmentLogs(patientId: string): Promise<AppointmentLog[]> {
-  // モックモードの場合は空の配列を返す
+  console.log('getAppointmentLogs呼び出し:', { patientId, MOCK_MODE })
+
+  // モックモードの場合はlocalStorageから取得
   if (MOCK_MODE) {
-    console.log('モックモード: 予約操作ログは記録されません')
-    return []
+    console.log('モックモード: 予約操作ログをlocalStorageから取得')
+
+    // 患者の予約を取得
+    const { getAppointments } = await import('./appointments')
+    const appointments = await getAppointments('11111111-1111-1111-1111-111111111111', '', '')
+    console.log('全予約数:', appointments.length)
+
+    const patientAppointments = appointments.filter(apt => apt.patient_id === patientId)
+    console.log('患者の予約数:', patientAppointments.length, '予約:', patientAppointments.map(a => ({ id: a.id, date: a.appointment_date })))
+
+    const appointmentIds = patientAppointments.map(apt => apt.id)
+    console.log('予約ID一覧:', appointmentIds)
+
+    // 予約IDに紐づくログを取得
+    const allLogs = logStorage.getFromStorage()
+    console.log('localStorage内の全ログ数:', allLogs.length, 'ログ:', allLogs)
+
+    const patientLogs = allLogs.filter(log => appointmentIds.includes(log.appointment_id))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    console.log('フィルタ後の患者ログ数:', patientLogs.length, 'ログ:', patientLogs)
+    return patientLogs
   }
 
   try {
@@ -97,14 +180,22 @@ export async function getAppointmentLogs(patientId: string): Promise<Appointment
  * 予約操作ログを作成
  */
 export async function createAppointmentLog(params: CreateAppointmentLogParams): Promise<AppointmentLog> {
-  // モックモードの場合はログを作成せず、ダミーデータを返す
+  // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
-    console.log('モックモード: 予約操作ログを作成します（localStorageには保存しません）', params)
-    return {
-      id: `mock-log-${Date.now()}`,
+    console.log('モックモード: 予約操作ログを作成してlocalStorageに保存します', params)
+
+    const log: AppointmentLog = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       ...params,
-      created_at: new Date().toISOString()
-    } as AppointmentLog
+      created_at: new Date().toISOString(),
+      operator: {
+        id: params.operator_id,
+        name: 'システム' // デフォルト名
+      }
+    }
+
+    logStorage.add(log)
+    return log
   }
 
   try {

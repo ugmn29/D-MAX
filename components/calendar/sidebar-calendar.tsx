@@ -89,8 +89,8 @@ export function SidebarCalendar({
     try {
       setSearchLoading(true)
       const results = await searchPatients(clinicId, query)
-      // 本登録済みの患者のみフィルタ
-      const registeredResults = results.filter(patient => patient.is_registered)
+      // 診察券番号が振られている患者のみフィルタ
+      const registeredResults = results.filter(patient => patient.patient_number > 0)
       setSearchResults(registeredResults)
     } catch (error) {
       console.error('患者検索エラー:', error)
@@ -256,7 +256,7 @@ export function SidebarCalendar({
             </button>
             
             {isMonthDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
                 {generateYearMonthOptions().map((option, index) => (
                   <button
                     key={index}
@@ -326,18 +326,18 @@ export function SidebarCalendar({
       </div>
 
       {/* 患者検索 */}
-      <div className="px-4 py-2 border-b border-gray-200">
+      <div className="px-4 py-2 border-b border-gray-200 relative z-10">
         <div className="flex items-center space-x-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 pointer-events-none" />
             <Input
-              placeholder="ID/名前で検索(本登録)"
+              placeholder="ID/名前で検索"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value)
                 handleSearch(e.target.value)
               }}
-              className="pl-8 h-8 text-sm"
+              className="pl-8 h-8 text-sm relative z-10"
             />
           </div>
           <button

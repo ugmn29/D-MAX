@@ -53,12 +53,17 @@ export async function searchPatients(
       .select('*')
       .eq('clinic_id', clinicId)
       .order('patient_number', { ascending: true })
-    
+
     if (error) {
-      console.error('患者検索エラー:', error)
-      throw new Error('患者の検索に失敗しました')
+      console.error('患者検索エラー詳細:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      throw new Error(`患者の検索に失敗しました: ${error.message}`)
     }
-    
+
     return data || []
   }
 
@@ -70,8 +75,13 @@ export async function searchPatients(
     .order('patient_number', { ascending: true })
 
   if (error) {
-    console.error('患者検索エラー:', error)
-    throw new Error('患者の検索に失敗しました')
+    console.error('患者検索エラー詳細:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    })
+    throw new Error(`患者の検索に失敗しました: ${error.message}`)
   }
 
   if (!data) return []

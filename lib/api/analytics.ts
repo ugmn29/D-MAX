@@ -292,7 +292,6 @@ async function getTreatmentSalesData(
     .from('treatment_menus')
     .select('*')
     .eq('clinic_id', clinicId)
-    .eq('is_active', true)
     .order('sort_order')
 
   if (menusError) {
@@ -369,7 +368,6 @@ async function getStaffProductivityData(
       position:staff_positions(name)
     `)
     .eq('clinic_id', clinicId)
-    .eq('is_active', true)
 
   if (staffError) {
     console.error('スタッフ情報取得エラー:', staffError)
@@ -514,12 +512,30 @@ export async function getCancelAnalysisData(
     .from('cancel_reasons')
     .select('*')
     .eq('clinic_id', clinicId)
-    .eq('is_active', true)
     .order('sort_order')
 
   if (reasonsError) {
     console.error('キャンセル理由取得エラー:', reasonsError)
-    throw reasonsError
+    // エラーが発生した場合はデフォルト値を返す
+    return {
+      total_cancelled: 0,
+      registered_cancelled: 0,
+      temporary_cancelled: 0,
+      reasons: [],
+      daily_stats: []
+    }
+  }
+
+  // キャンセル理由が存在しない場合もデフォルト値を返す
+  if (!cancelReasons || cancelReasons.length === 0) {
+    console.warn('キャンセル理由が見つかりません')
+    return {
+      total_cancelled: 0,
+      registered_cancelled: 0,
+      temporary_cancelled: 0,
+      reasons: [],
+      daily_stats: []
+    }
   }
 
   // 実際の予約データを取得
@@ -702,7 +718,6 @@ export async function getStaffCancelAnalysis(
       position:staff_positions(name)
     `)
     .eq('clinic_id', clinicId)
-    .eq('is_active', true)
 
   if (staffError) {
     console.error('スタッフ情報取得エラー:', staffError)
@@ -792,7 +807,6 @@ export async function getTreatmentCancelAnalysis(
     .from('treatment_menus')
     .select('*')
     .eq('clinic_id', clinicId)
-    .eq('is_active', true)
     .order('sort_order')
 
   if (menusError) {

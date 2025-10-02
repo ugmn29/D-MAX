@@ -56,6 +56,12 @@ export default function AnalyticsPage() {
 
     } catch (error) {
       console.error('分析データ取得エラー:', error)
+      // エラーが発生した場合はデフォルト値を設定
+      setAnalyticsData(null)
+      setCancelAnalysisData(null)
+      setTimeSlotCancelData([])
+      setStaffCancelData([])
+      setTreatmentCancelData([])
     } finally {
       setLoading(false)
     }

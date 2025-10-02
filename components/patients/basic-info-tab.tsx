@@ -389,23 +389,33 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* 氏名（ふりがな） */}
-            <div className="space-y-2">
+            <div className="space-y-4">
+              {/* 氏名（漢字） */}
               <div>
-                <Label>氏名（漢字）</Label>
+                <Label htmlFor="full_name">氏名</Label>
                 {isEditing ? (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="姓"
-                      value={editData.last_name}
-                      onChange={(e) => setEditData({ ...editData, last_name: e.target.value })}
-                    />
-                    <Input
-                      placeholder="名"
-                      value={editData.first_name}
-                      onChange={(e) => setEditData({ ...editData, first_name: e.target.value })}
-                    />
-                  </div>
+                  <Input
+                    id="full_name"
+                    placeholder="例: 福永 真大"
+                    value={`${editData.last_name} ${editData.first_name}`}
+                    onChange={(e) => {
+                      const fullName = e.target.value
+                      const parts = fullName.split(' ')
+                      if (parts.length >= 2) {
+                        setEditData({ 
+                          ...editData, 
+                          last_name: parts[0],
+                          first_name: parts.slice(1).join(' ')
+                        })
+                      } else {
+                        setEditData({ 
+                          ...editData, 
+                          last_name: fullName,
+                          first_name: ''
+                        })
+                      }
+                    }}
+                  />
                 ) : (
                   <div className="p-3 bg-gray-50 rounded-md">
                     <div className="text-lg font-medium">
@@ -414,21 +424,33 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   </div>
                 )}
               </div>
+              
+              {/* 氏名（フリガナ） */}
               <div>
-                <Label>氏名（カタカナ）</Label>
+                <Label htmlFor="full_name_kana">氏名（フリガナ）</Label>
                 {isEditing ? (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="セイ"
-                      value={editData.last_name_kana}
-                      onChange={(e) => setEditData({ ...editData, last_name_kana: e.target.value })}
-                    />
-                    <Input
-                      placeholder="メイ"
-                      value={editData.first_name_kana}
-                      onChange={(e) => setEditData({ ...editData, first_name_kana: e.target.value })}
-                    />
-                  </div>
+                  <Input
+                    id="full_name_kana"
+                    placeholder="例: フクナガ シンダイ"
+                    value={`${editData.last_name_kana} ${editData.first_name_kana}`}
+                    onChange={(e) => {
+                      const fullNameKana = e.target.value
+                      const parts = fullNameKana.split(' ')
+                      if (parts.length >= 2) {
+                        setEditData({ 
+                          ...editData, 
+                          last_name_kana: parts[0],
+                          first_name_kana: parts.slice(1).join(' ')
+                        })
+                      } else {
+                        setEditData({ 
+                          ...editData, 
+                          last_name_kana: fullNameKana,
+                          first_name_kana: ''
+                        })
+                      }
+                    }}
+                  />
                 ) : (
                   <div className="p-3 bg-gray-50 rounded-md">
                     <div className="text-sm text-gray-600">
@@ -442,73 +464,217 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="birth_date">生年月日</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="birth_date"
-                    type="date"
-                    value={editData.birth_date}
-                    onChange={(e) => setEditData({ ...editData, birth_date: e.target.value })}
-                    disabled={!isEditing}
-                    className="flex-1"
-                  />
-                  {editData.birth_date && (
-                    <span className="text-sm text-gray-600 whitespace-nowrap">
+                {isEditing ? (
+                  <div>
+                    <Input
+                      id="birth_date"
+                      type="date"
+                      value={editData.birth_date}
+                      onChange={(e) => setEditData({ ...editData, birth_date: e.target.value })}
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
                       {calculateAge(editData.birth_date)}歳
-                    </span>
-                  )}
-                </div>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600">
+                      {editData.birth_date ? editData.birth_date.replace(/-/g, '/') : '--'}
+                      {editData.birth_date && (
+                        <span className="ml-2">
+                          ({calculateAge(editData.birth_date)}歳)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <Label htmlFor="gender">性別</Label>
-                <Select
-                  value={editData.gender}
-                  onValueChange={(value) => setEditData({ ...editData, gender: value })}
-                  disabled={!isEditing}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="性別を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">男性</SelectItem>
-                    <SelectItem value="female">女性</SelectItem>
-                    <SelectItem value="other">その他</SelectItem>
-                  </SelectContent>
-                </Select>
+                {isEditing ? (
+                  <Select
+                    value={editData.gender}
+                    onValueChange={(value) => setEditData({ ...editData, gender: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="性別を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">男性</SelectItem>
+                      <SelectItem value="female">女性</SelectItem>
+                      <SelectItem value="other">その他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600">
+                      {editData.gender === 'male' ? '男性' : editData.gender === 'female' ? '女性' : '--'}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="phone">電話番号</Label>
-                <Input
-                  id="phone"
-                  value={editData.phone}
-                  onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-                  disabled={!isEditing}
-                />
+                {isEditing ? (
+                  <Input
+                    id="phone"
+                    value={editData.phone}
+                    onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                  />
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600">
+                      {editData.phone || '--'}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <Label htmlFor="email">メールアドレス</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={editData.email}
-                  onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-                  disabled={!isEditing}
-                />
+                {isEditing ? (
+                  <Input
+                    id="email"
+                    type="email"
+                    value={editData.email}
+                    onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                  />
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600">
+                      {editData.email || '--'}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div>
               <Label htmlFor="address">住所</Label>
-              <Textarea
-                id="address"
-                value={editData.address}
-                onChange={(e) => setEditData({ ...editData, address: e.target.value })}
-                disabled={!isEditing}
-                placeholder="住所を入力してください"
-                className="min-h-[80px]"
-              />
+              {isEditing ? (
+                <Textarea
+                  id="address"
+                  value={editData.address}
+                  onChange={(e) => setEditData({ ...editData, address: e.target.value })}
+                  placeholder="住所を入力してください"
+                  className="min-h-[80px]"
+                />
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-md">
+                  <div className="text-sm text-gray-600">
+                    {editData.address || '--'}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 家族連携 */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-medium">家族連携</Label>
+                <Button size="sm" variant="outline" disabled={!isEditing}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  家族を追加
+                </Button>
+              </div>
+              <div className="space-y-3 max-h-[120px] overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                {familyMembers.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4 text-sm">連携された家族はいません</p>
+                ) : (
+                  familyMembers.map((member) => (
+                    <div key={member.id} className="flex items-center justify-between p-2 border rounded bg-white">
+                      <div>
+                        <p className="font-medium text-sm">{member.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {member.relation} | 患者番号: {member.patient_number}
+                        </p>
+                      </div>
+                      {isEditing && (
+                        <Button size="sm" variant="outline" className="text-red-600 hover:text-red-800 h-6 w-6 p-0">
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 担当者設定 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="primary_doctor">主担当医</Label>
+                {isEditing ? (
+                  <Select
+                    value={editData.primary_doctor}
+                    onValueChange={(value) => setEditData({ ...editData, primary_doctor: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="主担当医を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {doctors.length > 0 ? (
+                        doctors.map((doctor) => (
+                          <SelectItem key={doctor.id} value={doctor.id}>
+                            {doctor.name} ({doctor.role})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-doctors" disabled>
+                          歯科医師が登録されていません
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600">
+                      {editData.primary_doctor ? 
+                        doctors.find(d => d.id === editData.primary_doctor)?.name || '--' 
+                        : '--'
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="assigned_dh">主担当DH</Label>
+                {isEditing ? (
+                  <Select
+                    value={editData.assigned_dh}
+                    onValueChange={(value) => setEditData({ ...editData, assigned_dh: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="主担当DHを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dentalHygienists.length > 0 ? (
+                        dentalHygienists.map((dh) => (
+                          <SelectItem key={dh.id} value={dh.id}>
+                            {dh.name} ({dh.role})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-dh" disabled>
+                          歯科衛生士が登録されていません
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600">
+                      {editData.assigned_dh ? 
+                        dentalHygienists.find(dh => dh.id === editData.assigned_dh)?.name || '--' 
+                        : '--'
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -523,27 +689,60 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="allergies">アレルギー（必須確認項目）</Label>
-              <Textarea
-                id="allergies"
-                value={editData.allergies}
-                onChange={(e) => setEditData({ ...editData, allergies: e.target.value })}
-                disabled={!isEditing}
-                placeholder="アレルギー情報を入力してください"
-                className="min-h-[100px]"
-              />
+              <Label htmlFor="medical_history">既往歴</Label>
+              {isEditing ? (
+                <Textarea
+                  id="medical_history"
+                  value={editData.medical_history}
+                  onChange={(e) => setEditData({ ...editData, medical_history: e.target.value })}
+                  placeholder="既往歴を入力してください"
+                  className="h-[80px] resize-none overflow-y-auto"
+                />
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-md">
+                  <div className="text-sm text-gray-600">
+                    {editData.medical_history || '--'}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
-              <Label htmlFor="medical_history">既往歴</Label>
-              <Textarea
-                id="medical_history"
-                value={editData.medical_history}
-                onChange={(e) => setEditData({ ...editData, medical_history: e.target.value })}
-                disabled={!isEditing}
-                placeholder="既往歴を入力してください"
-                className="min-h-[100px]"
-              />
+              <Label htmlFor="medications">服用薬</Label>
+              {isEditing ? (
+                <Textarea
+                  id="medications"
+                  value={editData.medications}
+                  onChange={(e) => setEditData({ ...editData, medications: e.target.value })}
+                  placeholder="現在服用中の薬を入力してください"
+                  className="h-[80px] resize-none overflow-y-auto"
+                />
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-md">
+                  <div className="text-sm text-gray-600">
+                    {editData.medications || '--'}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="allergies">アレルギー（必須確認項目）</Label>
+              {isEditing ? (
+                <Textarea
+                  id="allergies"
+                  value={editData.allergies}
+                  onChange={(e) => setEditData({ ...editData, allergies: e.target.value })}
+                  placeholder="アレルギー情報を入力してください"
+                  className="h-[80px] resize-none overflow-y-auto"
+                />
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-md">
+                  <div className="text-sm text-gray-600">
+                    {editData.allergies || '--'}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -581,123 +780,25 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                 </div>
               </div>
 
-              <Textarea
-                id="special_notes"
-                value={editData.special_notes}
-                onChange={(e) => setEditData({ ...editData, special_notes: e.target.value })}
-                disabled={!isEditing}
-                placeholder="その他の特記事項を入力してください"
-                className="min-h-[100px]"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 担当者設定 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Users className="w-5 h-5 mr-2" />
-              担当者設定
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="primary_doctor">主担当医</Label>
-              <Select
-                value={editData.primary_doctor}
-                onValueChange={(value) => setEditData({ ...editData, primary_doctor: value })}
-                disabled={!isEditing}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="主担当医を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {doctors.length > 0 ? (
-                    doctors.map((doctor) => (
-                      <SelectItem key={doctor.id} value={doctor.id}>
-                        {doctor.name} ({doctor.role})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-doctors" disabled>
-                      歯科医師が登録されていません (編集モードで確認)
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              {!isEditing && (
-                <p className="text-sm text-gray-500 mt-1">編集ボタンを押して選択してください</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="assigned_dh">主担当DH</Label>
-              <Select
-                value={editData.assigned_dh}
-                onValueChange={(value) => setEditData({ ...editData, assigned_dh: value })}
-                disabled={!isEditing}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="主担当DHを選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dentalHygienists.length > 0 ? (
-                    dentalHygienists.map((dh) => (
-                      <SelectItem key={dh.id} value={dh.id}>
-                        {dh.name} ({dh.role})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-dh" disabled>
-                      歯科衛生士が登録されていません (編集モードで確認)
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              {!isEditing && (
-                <p className="text-sm text-gray-500 mt-1">編集ボタンを押して選択してください</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 家族連携 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Users className="w-5 h-5 mr-2" />
-                家族連携
-              </div>
-              <Button size="sm" variant="outline">
-                <Plus className="w-4 h-4 mr-2" />
-                家族を追加
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {familyMembers.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">連携された家族はいません</p>
+              {isEditing ? (
+                <Textarea
+                  id="special_notes"
+                  value={editData.special_notes}
+                  onChange={(e) => setEditData({ ...editData, special_notes: e.target.value })}
+                  placeholder="その他の特記事項を入力してください"
+                  className="min-h-[100px]"
+                />
               ) : (
-                familyMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{member.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {member.relation} | 患者番号: {member.patient_number}
-                      </p>
-                    </div>
-                    <Button size="sm" variant="outline" className="text-red-600 hover:text-red-800">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                <div className="p-3 bg-gray-50 rounded-md">
+                  <div className="text-sm text-gray-600">
+                    {editData.special_notes || '--'}
                   </div>
-                ))
+                </div>
               )}
             </div>
           </CardContent>
         </Card>
+
       </div>
     </div>
   )
