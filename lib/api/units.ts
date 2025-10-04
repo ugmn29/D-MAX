@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
-import { MOCK_MODE, initializeMockData } from '@/lib/utils/mock-mode'
+import { MOCK_MODE, initializeMockData, getMockStaffUnitPriorities, addMockStaffUnitPriority, removeMockStaffUnitPriority, getMockUnits, addMockUnit, updateMockUnit, removeMockUnit } from '@/lib/utils/mock-mode'
 
 export interface Unit {
   id: string
@@ -57,32 +57,8 @@ export interface UpdateStaffUnitPriorityData {
 export async function getUnits(clinicId: string): Promise<Unit[]> {
   if (MOCK_MODE) {
     console.log('モックモード: ユニット一覧を取得します', { clinicId })
-    return [
-      {
-        id: '1',
-        clinic_id: clinicId,
-        name: 'ユニット1',
-        sort_order: 1,
-        is_active: true,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '2',
-        clinic_id: clinicId,
-        name: 'ユニット2',
-        sort_order: 2,
-        is_active: true,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '3',
-        clinic_id: clinicId,
-        name: 'ユニット3',
-        sort_order: 3,
-        is_active: true,
-        created_at: new Date().toISOString()
-      }
-    ]
+    const units = getMockUnits()
+    return units.filter(unit => unit.clinic_id === clinicId)
   }
 
   try {
@@ -115,9 +91,10 @@ export async function createUnit(clinicId: string, data: CreateUnitData): Promis
       name: data.name,
       sort_order: data.sort_order || 999,
       is_active: data.is_active ?? true,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
-    return newUnit
+    return addMockUnit(newUnit)
   }
 
   try {
@@ -148,14 +125,7 @@ export async function createUnit(clinicId: string, data: CreateUnitData): Promis
 export async function updateUnit(clinicId: string, unitId: string, data: UpdateUnitData): Promise<Unit> {
   if (MOCK_MODE) {
     console.log('モックモード: ユニットを更新します', { clinicId, unitId, data })
-    return {
-      id: unitId,
-      clinic_id: clinicId,
-      name: data.name || 'ユニット1',
-      sort_order: data.sort_order || 1,
-      is_active: data.is_active ?? true,
-      created_at: new Date().toISOString()
-    }
+    return updateMockUnit(unitId, data)
   }
 
   try {
@@ -187,6 +157,7 @@ export async function updateUnit(clinicId: string, unitId: string, data: UpdateU
 export async function deleteUnit(clinicId: string, unitId: string): Promise<void> {
   if (MOCK_MODE) {
     console.log('モックモード: ユニットを削除します', { clinicId, unitId })
+    removeMockUnit(unitId)
     return
   }
 
@@ -231,20 +202,8 @@ export async function deleteUnit(clinicId: string, unitId: string): Promise<void
 export async function getStaffUnitPriorities(clinicId: string, staffId?: string): Promise<StaffUnitPriority[]> {
   if (MOCK_MODE) {
     console.log('モックモード: スタッフユニット優先順位を取得します', { clinicId, staffId })
-    return [
-      {
-        id: '1',
-        clinic_id: clinicId,
-        staff_id: 'staff-1',
-        unit_id: 'unit-1',
-        priority_order: 1,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        staff: { id: 'staff-1', name: '田中太郎' },
-        unit: { id: 'unit-1', name: 'ユニット1' }
-      }
-    ]
+    const priorities = getMockStaffUnitPriorities()
+    return priorities.filter(p => p.clinic_id === clinicId)
   }
 
   try {
@@ -281,7 +240,25 @@ export async function getStaffUnitPriorities(clinicId: string, staffId?: string)
 export async function createStaffUnitPriority(clinicId: string, data: CreateStaffUnitPriorityData): Promise<StaffUnitPriority> {
   if (MOCK_MODE) {
     console.log('モックモード: スタッフユニット優先順位を作成します', { clinicId, data })
-    return {
+    
+    // モックスタッフデータから該当スタッフを取得
+    const mockStaff = [
+      { id: 'staff-1', name: '田中太郎' },
+      { id: 'staff-2', name: '佐藤花子' },
+      { id: 'staff-3', name: '山田次郎' }
+    ]
+    
+    // モックユニットデータから該当ユニットを取得
+    const mockUnits = [
+      { id: '1', name: 'ユニット1' },
+      { id: '2', name: 'ユニット2' },
+      { id: '3', name: 'ユニット3' }
+    ]
+    
+    const staff = mockStaff.find(s => s.id === data.staff_id)
+    const unit = mockUnits.find(u => u.id === data.unit_id)
+    
+    const newPriority = {
       id: `mock-priority-${Date.now()}`,
       clinic_id: clinicId,
       staff_id: data.staff_id,
@@ -289,8 +266,11 @@ export async function createStaffUnitPriority(clinicId: string, data: CreateStaf
       priority_order: data.priority_order,
       is_active: data.is_active ?? true,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      staff: staff,
+      unit: unit
     }
+    return addMockStaffUnitPriority(newPriority)
   }
 
   try {
@@ -322,19 +302,18 @@ export async function createStaffUnitPriority(clinicId: string, data: CreateStaf
 }
 
 // スタッフユニット優先順位更新
-export async function updateStaffUnitPriority(clinicId: string, priorityId: string, data: UpdateStaffUnitPriorityData): Promise<StaffUnitPriority> {
+export async function updateStaffUnitPriority(clinicId: string, priorityId: string, data: { priority_order?: number; is_active?: boolean }): Promise<StaffUnitPriority> {
   if (MOCK_MODE) {
     console.log('モックモード: スタッフユニット優先順位を更新します', { clinicId, priorityId, data })
-    return {
-      id: priorityId,
-      clinic_id: clinicId,
-      staff_id: 'staff-1',
-      unit_id: 'unit-1',
-      priority_order: data.priority_order || 1,
-      is_active: data.is_active ?? true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+    const priorities = getMockStaffUnitPriorities()
+    const priority = priorities.find(p => p.id === priorityId)
+    if (priority) {
+      Object.assign(priority, data, { updated_at: new Date().toISOString() })
+      // localStorageに保存
+      const updatedPriorities = priorities.map(p => p.id === priorityId ? priority : p)
+      localStorage.setItem('mock_staff_unit_priorities', JSON.stringify(updatedPriorities))
     }
+    return priority
   }
 
   try {
@@ -370,6 +349,7 @@ export async function updateStaffUnitPriority(clinicId: string, priorityId: stri
 export async function deleteStaffUnitPriority(clinicId: string, priorityId: string): Promise<void> {
   if (MOCK_MODE) {
     console.log('モックモード: スタッフユニット優先順位を削除します', { clinicId, priorityId })
+    removeMockStaffUnitPriority(priorityId)
     return
   }
 

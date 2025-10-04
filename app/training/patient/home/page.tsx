@@ -132,6 +132,22 @@ export default function PatientHomePage() {
           )}
         </div>
 
+        {/* 全完了メッセージ */}
+        {trainings.length > 0 && trainings.every(t => t.completed) && (
+          <div className="bg-gradient-to-r from-green-400 to-blue-500 rounded-2xl p-8 mb-6 text-white text-center">
+            <div className="text-6xl mb-4">🎉</div>
+            <h2 className="text-2xl font-bold mb-2">
+              今日のトレーニングは修了です！
+            </h2>
+            <p className="text-lg opacity-90 mb-1">
+              お疲れ様でした
+            </p>
+            <p className="text-sm opacity-80">
+              よく頑張りました！また明日も続けましょう💪
+            </p>
+          </div>
+        )}
+
         {/* 今日のトレーニング */}
         <div className="mb-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">

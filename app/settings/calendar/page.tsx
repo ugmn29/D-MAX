@@ -48,8 +48,6 @@ export default function CalendarSettingsPage() {
   
   // 基本設定
   const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
-  const [unitCount, setUnitCount] = useState(3)
-  const [units, setUnits] = useState(['チェア1', 'チェア2', 'チェア3'])
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState(40)
 
@@ -97,8 +95,6 @@ export default function CalendarSettingsPage() {
       // updateClinicSettingsを使用して一括保存
       const result = await updateClinicSettings(DEMO_CLINIC_ID, {
         timeSlotMinutes,
-        unitCount,
-        units,
         displayItems,
         cellHeight,
         cancelTypes,
@@ -111,7 +107,7 @@ export default function CalendarSettingsPage() {
     } finally {
       setSaving(false)
     }
-  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings])
+  }, [timeSlotMinutes, displayItems, cellHeight, cancelTypes, penaltySettings])
 
   // 自動保存関数
   const autoSave = useCallback(async () => {
@@ -126,8 +122,6 @@ export default function CalendarSettingsPage() {
       console.log('設定ページ: updateClinicSettingsで一括保存中...')
       const result = await updateClinicSettings(DEMO_CLINIC_ID, {
         timeSlotMinutes,
-        unitCount,
-        units,
         displayItems,
         cellHeight,
         cancelTypes,
@@ -160,7 +154,7 @@ export default function CalendarSettingsPage() {
     } finally {
       setSaving(false)
     }
-  }, [isInitialLoad, timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings])
+  }, [isInitialLoad, timeSlotMinutes, displayItems, cellHeight, cancelTypes, penaltySettings])
 
   // データ読み込み
   useEffect(() => {
@@ -182,8 +176,6 @@ export default function CalendarSettingsPage() {
         const numericTimeSlotValue = Number(timeSlotValue)
         console.log('設定ページ: 数値変換後:', numericTimeSlotValue)
         setTimeSlotMinutes(numericTimeSlotValue)
-        setUnitCount(settings.unit_count || 3)
-        setUnits(settings.units || ['チェア1', 'チェア2', 'チェア3'])
 
         // displayItemsを設定
         const loadedDisplayItems = settings.display_items || []
@@ -222,7 +214,7 @@ export default function CalendarSettingsPage() {
     }, 500)
     
     return () => clearTimeout(timeoutId)
-  }, [timeSlotMinutes, unitCount, units, displayItems, cellHeight, cancelTypes, penaltySettings, isInitialLoad, autoSave])
+  }, [timeSlotMinutes, displayItems, cellHeight, cancelTypes, penaltySettings, isInitialLoad, autoSave])
 
 
   // 表示項目の変更
@@ -235,21 +227,6 @@ export default function CalendarSettingsPage() {
   }
 
 
-  // ユニット数の変更
-  const handleUnitCountChange = (count: number) => {
-    setUnitCount(count)
-    const newUnits = Array.from({ length: count }, (_, i) => 
-      units[i] || `チェア${i + 1}`
-    )
-    setUnits(newUnits)
-  }
-
-  // ユニット名の変更
-  const handleUnitNameChange = (index: number, name: string) => {
-    const newUnits = [...units]
-    newUnits[index] = name
-    setUnits(newUnits)
-  }
 
   if (loading) {
     return (
@@ -366,38 +343,6 @@ export default function CalendarSettingsPage() {
                   </CardContent>
                 </Card>
 
-                {/* ユニット設定 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>ユニット設定</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="max-w-xs">
-                      <Label htmlFor="unit_count">ユニット数</Label>
-                      <Input
-                        id="unit_count"
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={unitCount}
-                        onChange={(e) => handleUnitCountChange(parseInt(e.target.value) || 1)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-3">
-                      {units.map((unit, index) => (
-                        <div key={index} className="flex items-center space-x-3">
-                          <Label className="w-20">ユニット{index + 1}:</Label>
-                          <Input
-                            value={unit}
-                            onChange={(e) => handleUnitNameChange(index, e.target.value)}
-                            placeholder={`チェア${index + 1}`}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
 
                 {/* 表示項目 */}
                 <Card>

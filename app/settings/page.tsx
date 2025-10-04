@@ -69,6 +69,7 @@ import {
   getStaffUnitPriorities,
   createStaffUnitPriority,
   updateStaffUnitPriorities,
+  updateStaffUnitPriority,
   deleteStaffUnitPriority,
   Unit,
   StaffUnitPriority,
@@ -249,11 +250,8 @@ export default function SettingsPage() {
   const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   // カレンダー設定の状態
-  const [unitCount, setUnitCount] = useState(3)
-  const [units, setUnits] = useState(['チェア1', 'チェア2', 'チェア3'])
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState(40)
-  const [activeTab, setActiveTab] = useState('basic')
 
   // ユニット管理の状態
   const [unitsData, setUnitsData] = useState<any[]>([])
@@ -353,21 +351,31 @@ export default function SettingsPage() {
   }
 
   const handleAddStaffToUnit = async (unitId: string, staffId: string) => {
+    console.log('handleAddStaffToUnit called:', { unitId, staffId })
     try {
       // そのユニットの現在の最大優先順位を取得
       const unitPriorities = staffUnitPriorities.filter(p => p.unit_id === unitId)
       const maxPriority = Math.max(0, ...unitPriorities.map(p => p.priority_order))
       
-      await createStaffUnitPriority(DEMO_CLINIC_ID, {
+      console.log('Creating staff unit priority:', {
+        clinicId: DEMO_CLINIC_ID,
+        staff_id: staffId,
+        unit_id: unitId,
+        priority_order: maxPriority + 1
+      })
+      
+      const result = await createStaffUnitPriority(DEMO_CLINIC_ID, {
         staff_id: staffId,
         unit_id: unitId,
         priority_order: maxPriority + 1,
         is_active: true
       })
+      
+      console.log('Staff unit priority created:', result)
       loadStaffUnitPriorities()
     } catch (error) {
       console.error('スタッフ割り当てエラー:', error)
-      alert('スタッフの割り当てに失敗しました')
+      alert('スタッフの割り当てに失敗しました: ' + error.message)
     }
   }
 
@@ -400,23 +408,37 @@ export default function SettingsPage() {
       return
     }
 
+    // 同じユニット内でのみ並び替え可能
+    if (draggedPriority.unit_id !== targetPriority.unit_id) {
+      setDraggedPriority(null)
+      return
+    }
+
     try {
-      // 優先順位を再計算
-      const priorities = [...staffUnitPriorities]
-      const draggedIndex = priorities.findIndex(p => p.id === draggedPriority.id)
-      const targetIndex = priorities.findIndex(p => p.id === targetPriority.id)
+      // 同じユニット内の優先順位を再計算
+      const unitId = draggedPriority.unit_id
+      const unitPriorities = staffUnitPriorities
+        .filter(p => p.unit_id === unitId)
+        .sort((a, b) => a.priority_order - b.priority_order)
+      
+      const draggedIndex = unitPriorities.findIndex(p => p.id === draggedPriority.id)
+      const targetIndex = unitPriorities.findIndex(p => p.id === targetPriority.id)
       
       // 配列を並び替え
-      const [draggedItem] = priorities.splice(draggedIndex, 1)
-      priorities.splice(targetIndex, 0, draggedItem)
+      const [draggedItem] = unitPriorities.splice(draggedIndex, 1)
+      unitPriorities.splice(targetIndex, 0, draggedItem)
       
       // 新しい優先順位を設定
-      const newPriorities = priorities.map((p, index) => ({
-        unitId: p.unit_id,
-        priorityOrder: index + 1
+      const newPriorities = unitPriorities.map((p, index) => ({
+        id: p.id,
+        priority_order: index + 1
       }))
       
-      await updateStaffUnitPriorities(DEMO_CLINIC_ID, selectedStaff, newPriorities)
+      // 各優先順位を個別に更新
+      for (const priority of newPriorities) {
+        await updateStaffUnitPriority(DEMO_CLINIC_ID, priority.id, { priority_order: priority.priority_order })
+      }
+      
       loadStaffUnitPriorities()
     } catch (error) {
       console.error('優先順位更新エラー:', error)
@@ -591,26 +613,7 @@ export default function SettingsPage() {
 
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(categoryId)
-    // クリニックタブが選択された場合は、基本情報タブを自動選択
-    if (categoryId === 'clinic') {
-      setActiveTab('basic')
-    }
-    // カレンダータブが選択された場合は、基本設定タブを自動選択
-    else if (categoryId === 'calendar') {
-      setActiveTab('basic')
-    }
-    // スタッフタブが選択された場合は、スタッフ管理タブを自動選択
-    else if (categoryId === 'staff') {
-      setActiveTab('staff')
-    }
-    // シフトタブが選択された場合は、シフト表タブを自動選択
-    else if (categoryId === 'shift') {
-      setActiveTab('shiftTable')
-    }
-    // Web予約タブが選択された場合は、基本設定タブを自動選択
-    else if (categoryId === 'web') {
-      setActiveTab('basic')
-    }
+    // カテゴリが変更された時の処理（タブは削除済み）
   }
 
   // デフォルトテキストの保存
@@ -694,6 +697,20 @@ export default function SettingsPage() {
   useEffect(() => {
     if (selectedCategory === 'units') {
       loadUnitsData()
+      // スタッフデータも読み込み
+      const loadStaffForUnits = async () => {
+        try {
+          setStaffLoading(true)
+          const data = await getStaff(DEMO_CLINIC_ID)
+          console.log('ユニットタブ用スタッフデータ:', data)
+          setStaff(data)
+        } catch (error) {
+          console.error('スタッフデータ読み込みエラー:', error)
+        } finally {
+          setStaffLoading(false)
+        }
+      }
+      loadStaffForUnits()
     }
   }, [selectedCategory])
 
@@ -786,13 +803,6 @@ export default function SettingsPage() {
           setCellHeight(settings.cell_height)
         }
 
-        if (settings.unit_count) {
-          setUnitCount(settings.unit_count)
-        }
-
-        if (settings.units) {
-          setUnits(settings.units)
-        }
 
         // Web予約設定を読み込み
         if (settings.web_reservation) {
@@ -1079,21 +1089,6 @@ export default function SettingsPage() {
     }
   }
 
-  // ユニット数の変更
-  const handleUnitCountChange = (count: number) => {
-    setUnitCount(count)
-    const newUnits = Array.from({ length: count }, (_, i) => 
-      units[i] || `チェア${i + 1}`
-    )
-    setUnits(newUnits)
-  }
-
-  // ユニット名の変更
-  const handleUnitNameChange = (index: number, name: string) => {
-    const newUnits = [...units]
-    newUnits[index] = name
-    setUnits(newUnits)
-  }
 
   // 診療メニューのWeb予約設定を更新
   const handleMenuUpdate = async (menuId: string, updates: any) => {
@@ -1508,8 +1503,6 @@ export default function SettingsPage() {
         settings.holidays = holidays
       } else if (selectedCategory === 'calendar') {
         settings.timeSlotMinutes = timeSlotMinutes
-        settings.unitCount = unitCount
-        settings.units = units
         settings.displayItems = displayItems
         settings.cellHeight = cellHeight
       }
@@ -1550,32 +1543,7 @@ export default function SettingsPage() {
   // クリニック設定コンテンツ
   const renderClinicSettings = () => (
     <div className="space-y-6">
-      {/* タブ */}
-      <div className="flex space-x-0 mb-6 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('basic')}
-          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-            activeTab === 'basic'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          基本情報
-        </button>
-        <button
-          onClick={() => setActiveTab('hours')}
-          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-            activeTab === 'hours'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          診療時間
-        </button>
-      </div>
-
-      {/* クリニック情報タブ */}
-      {activeTab === 'basic' && (
+      {/* クリニック情報 */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="space-y-6">
           <div className="space-y-4">
@@ -1670,10 +1638,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-      )}
 
-      {/* 診療時間設定タブ */}
-      {activeTab === 'hours' && (
+      {/* 診療時間設定 */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="space-y-6">
           <div className="space-y-4">
@@ -1778,165 +1744,79 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-      )}
     </div>
   )
 
   // カレンダー設定コンテンツ
   const renderCalendarSettings = () => (
-    <div className="space-y-6">
-      {/* タブ */}
-      <div className="flex space-x-0 mb-6 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('basic')}
-          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-            activeTab === 'basic'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          基本設定
-        </button>
-        <button
-          onClick={() => setActiveTab('units')}
-          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-            activeTab === 'units'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          ユニット設定
-        </button>
-        <button
-          onClick={() => setActiveTab('display')}
-          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-            activeTab === 'display'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          表示設定
-        </button>
+    <div className="space-y-8">
+      {/* 1コマの時間 */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">1コマの時間</h3>
+          <div className="max-w-xs">
+            <Select
+              value={timeSlotMinutes.toString()}
+              onValueChange={(value) => setTimeSlotMinutes(parseInt(value))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_SLOT_OPTIONS.map(option => (
+                  <SelectItem key={option.value} value={option.value.toString()}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
-      {/* 基本設定タブ */}
-      {activeTab === 'basic' && (
-        <div className="space-y-8">
-          {/* 1コマの時間 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">1コマの時間</h3>
-              <div className="max-w-xs">
-                <Select
-                  value={timeSlotMinutes.toString()}
-                  onValueChange={(value) => setTimeSlotMinutes(parseInt(value))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_SLOT_OPTIONS.map(option => (
-                      <SelectItem key={option.value} value={option.value.toString()}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ユニット設定タブ */}
-      {activeTab === 'units' && (
-        <div className="space-y-8">
-          {/* ユニット設定 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">ユニット</h3>
-              <div className="space-y-4">
-                <div className="max-w-xs">
-                  <Label htmlFor="unit_count" className="text-sm font-medium text-gray-700">ユニット数:</Label>
-                  <Input
-                    id="unit_count"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={unitCount}
-                    onChange={(e) => handleUnitCountChange(parseInt(e.target.value) || 1)}
-                    className="mt-1"
-                  />
-                </div>
-                
-                <div className="space-y-3">
-                  {units.map((unit, index) => (
-                    <div key={`unit-${index}-${unit}`} className="flex items-center space-x-4">
-                      <Label className="w-20 text-sm font-medium text-gray-700">ユニット{index + 1}:</Label>
-                      <Input
-                        value={unit}
-                        onChange={(e) => handleUnitNameChange(index, e.target.value)}
-                        placeholder={`チェア${index + 1}`}
-                        className="flex-1"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 表示設定タブ */}
-      {activeTab === 'display' && (
-        <div className="space-y-8">
-          {/* 表示項目 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">表示項目</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {DISPLAY_ITEMS.map(item => (
-                  <div key={item.id} className="flex items-center space-x-2 p-1.5 rounded hover:bg-gray-50">
-                    <Checkbox
-                      id={item.id}
-                      checked={displayItems.includes(item.id)}
-                      onCheckedChange={(checked) => 
-                        handleDisplayItemChange(item.id, checked as boolean)
-                      }
-                      className="flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <Label htmlFor={item.id} className="text-sm font-medium text-gray-900 cursor-pointer block truncate">
-                        {item.name}
-                      </Label>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* セル表示設定 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">セル表示設定</h3>
-              <div className="max-w-md">
-                <Label className="text-sm font-medium text-gray-700">セルの高さ: {cellHeight}px</Label>
-                <Slider
-                  value={[cellHeight]}
-                  onValueChange={(value) => setCellHeight(value[0])}
-                  min={20}
-                  max={80}
-                  step={5}
-                  className="mt-2"
+      {/* 表示項目 */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">表示項目</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {DISPLAY_ITEMS.map(item => (
+              <div key={item.id} className="flex items-center space-x-2 p-1.5 rounded hover:bg-gray-50">
+                <Checkbox
+                  id={item.id}
+                  checked={displayItems.includes(item.id)}
+                  onCheckedChange={(checked) => 
+                    handleDisplayItemChange(item.id, checked as boolean)
+                  }
+                  className="flex-shrink-0"
                 />
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor={item.id} className="text-sm font-medium text-gray-900 cursor-pointer block truncate">
+                    {item.name}
+                  </Label>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
 
+      {/* セル表示設定 */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">セル表示設定</h3>
+          <div className="max-w-md">
+            <Label className="text-sm font-medium text-gray-700">セルの高さ: {cellHeight}px</Label>
+            <Slider
+              value={[cellHeight]}
+              onValueChange={(value) => setCellHeight(value[0])}
+              min={20}
+              max={80}
+              step={5}
+              className="mt-2"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   )
 
@@ -3507,7 +3387,6 @@ export default function SettingsPage() {
                                 <GripVertical className="w-4 h-4 text-gray-400" />
                                 <div className="flex-1">
                                   <div className="font-medium">{priority.staff?.name}</div>
-                                  <div className="text-sm text-gray-500">優先順位: {priority.priority_order}</div>
                                 </div>
                                 <button
                                   onClick={() => handleDeletePriority(priority.id)}
@@ -3529,7 +3408,10 @@ export default function SettingsPage() {
                                     <div className="font-medium text-gray-700">{staffMember.name}</div>
                                     <Button
                                       size="sm"
-                                      onClick={() => handleAddStaffToUnit(unit.id, staffMember.id)}
+                                      onClick={() => {
+                                        console.log('Add button clicked:', { unitId: unit.id, staffId: staffMember.id })
+                                        handleAddStaffToUnit(unit.id, staffMember.id)
+                                      }}
                                       className="bg-green-600 hover:bg-green-700"
                                     >
                                       <Plus className="w-4 h-4 mr-1" />
@@ -3768,33 +3650,7 @@ export default function SettingsPage() {
         {selectedCategory === 'units' && renderUnitsSettings()}
         {selectedCategory === 'staff' && (
           <div className="space-y-6">
-
-            {/* タブ */}
-            <div className="flex space-x-0 mb-6 border-b border-gray-200">
-              <button
-                onClick={() => setActiveTab('staff')}
-                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  activeTab === 'staff'
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                スタッフ管理
-              </button>
-              <button
-                onClick={() => setActiveTab('units')}
-                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  activeTab === 'units'
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                ユニット管理
-              </button>
-            </div>
-
-            {/* スタッフ管理タブ */}
-            {activeTab === 'staff' && (
+            {/* スタッフ管理 */}
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center space-x-2">
@@ -4004,117 +3860,28 @@ export default function SettingsPage() {
                   </div>
                 </Modal>
               </div>
-            )}
 
-            {/* ユニット管理タブ */}
-            {activeTab === 'units' && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">ユニット管理</h2>
-                </div>
-
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="text-center py-8 text-gray-500">
-                    <p className="text-sm">ユニット管理機能は別ページで実装されています</p>
-                    <p className="text-sm mt-2">
-                      <a href="/settings/units" className="text-blue-600 hover:text-blue-800 underline">
-                        ユニット設定ページへ移動
-                      </a>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
         {selectedCategory === 'shift' && (
           <div className="space-y-6">
-            {/* タブ */}
-            <div className="flex space-x-0 mb-6 border-b border-gray-200">
-              <button
-                onClick={() => setActiveTab('shiftTable')}
-                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  activeTab === 'shiftTable'
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                シフト表
-              </button>
-              <button
-                onClick={() => setActiveTab('patterns')}
-                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  activeTab === 'patterns'
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                パターン
-              </button>
+            {/* シフト表 */}
+            <div>
+              <ShiftTable 
+                clinicId={DEMO_CLINIC_ID} 
+                refreshTrigger={refreshTrigger}
+              />
             </div>
-
-            {/* シフト表タブ */}
-            {activeTab === 'shiftTable' && (
-              <div>
-            <ShiftTable 
-              clinicId={DEMO_CLINIC_ID} 
-              refreshTrigger={refreshTrigger}
-            />
-              </div>
-            )}
             
-            {/* パターンタブ */}
-            {activeTab === 'patterns' && (
-              <div>
-            <ShiftPatterns clinicId={DEMO_CLINIC_ID} />
-              </div>
-            )}
+            {/* パターン */}
+            <div>
+              <ShiftPatterns clinicId={DEMO_CLINIC_ID} />
+            </div>
           </div>
         )}
         {selectedCategory === 'web' && (
           <div className="space-y-6">
-            {/* タブ */}
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex space-x-0 border-b border-gray-200 flex-1">
-                <button
-                  onClick={() => setActiveTab('basic')}
-                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                    activeTab === 'basic'
-                      ? 'text-blue-600 border-blue-600'
-                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  基本設定
-                </button>
-                <button
-                  onClick={() => setActiveTab('flow')}
-                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                    activeTab === 'flow'
-                      ? 'text-blue-600 border-blue-600'
-                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  フロー設定
-                </button>
-                <button
-                  onClick={() => setActiveTab('menu')}
-                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                    activeTab === 'menu'
-                      ? 'text-blue-600 border-blue-600'
-                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  メニュー設定
-                </button>
-              </div>
-              <Button onClick={handleSaveWebSettings} size="sm" className="ml-4">
-                    <Save className="w-4 h-4 mr-2" />
-                    保存
-                  </Button>
-                </div>
-
-            {/* 基本設定タブ */}
-            {activeTab === 'basic' && (
+            {/* 基本設定 */}
               <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -4233,10 +4000,8 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
               </div>
-            )}
 
-            {/* フロー設定タブ */}
-            {activeTab === 'flow' && (
+            {/* フロー設定 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* 左側: フロー設定 */}
                 <div className="space-y-6">
@@ -4753,10 +4518,8 @@ export default function SettingsPage() {
                   </Card>
                 </div>
               </div>
-            )}
 
-            {/* メニュー設定タブ */}
-            {activeTab === 'menu' && (
+            {/* メニュー設定 */}
               <div className="space-y-6">
             {/* Web予約メニュー設定 */}
             {webSettings.isEnabled ? (
@@ -4885,7 +4648,6 @@ export default function SettingsPage() {
               </div>
             )}
               </div>
-            )}
 
             {/* Web予約メニュー追加ダイアログ */}
             <Modal

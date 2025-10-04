@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Clock, User, Grid3X3, Users } from 'lucide-r
 import { getAppointmentsByDate, createAppointment, updateAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
-import { getUnits } from '@/lib/api/units'
+import { getUnits, getStaffUnitPriorities } from '@/lib/api/units'
 import { Appointment, BusinessHours, BreakTimes, StaffShift } from '@/types/database'
 import { AppointmentEditModal } from '@/components/forms/appointment-edit-modal'
 import { CancelInfoModal } from '@/components/ui/cancel-info-modal'
@@ -56,6 +56,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
   const [breakTimes, setBreakTimes] = useState<BreakTimes>({})
   const [units, setUnits] = useState<any[]>([])
+  const [staffUnitPriorities, setStaffUnitPriorities] = useState<any[]>([])
 
   // 複数選択関連の状態
   const [isSelecting, setIsSelecting] = useState(false)
@@ -948,12 +949,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
         const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
-        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData] = await Promise.all([
+        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData, staffUnitPrioritiesData] = await Promise.all([
           getAppointmentsByDate(clinicId, dateString),
           getBusinessHours(clinicId),
           getBreakTimes(clinicId),
           getHolidays(clinicId),
-          getUnits(clinicId)
+          getUnits(clinicId),
+          getStaffUnitPriorities(clinicId)
         ])
 
         console.log('取得した予約データ:', appointmentsData)
@@ -971,6 +973,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         setBreakTimes(breakTimesData)
         setHolidays(holidaysData)
         setUnits(unitsData)
+        setStaffUnitPriorities(staffUnitPrioritiesData)
         
         console.log('カレンダー: 取得した予約データ:', appointmentsData)
         console.log('カレンダー: 取得した休診日:', holidaysData)
@@ -1155,6 +1158,26 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     return !isWithinAnyTimeSlot
   }
 
+  // 休診日かどうかを判定
+  const isHolidayDay = (): boolean => {
+    const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+    
+    const dayMapping: Record<string, string> = {
+      'monday': 'monday',
+      'tuesday': 'tuesday', 
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    }
+    
+    const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
+    const dayHours = businessHours[dayId]
+    
+    return !dayHours?.isOpen || !dayHours?.timeSlots || dayHours.timeSlots.length === 0
+  }
+
   // 休憩時間かどうかを判定
   const isBreakTime = (time: string): boolean => {
     const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
@@ -1315,20 +1338,55 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               })
             )
           ) : displayMode === 'both' ? (
-            workingStaff.length === 0 ? (
-              <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
-                出勤スタッフなし
-              </div>
-            ) : (
-              workingStaff.map((shift, index) => {
-                const isLastColumn = index === workingStaff.length - 1
-                // 予約からユニット情報を取得
-                const appointment = appointments.find(apt => apt.staff1_id === shift.staff.id)
-                const unitName = appointment?.unit_id ? units.find(u => u.id === appointment.unit_id)?.name : '未設定'
+            (() => {
+              // スタッフに割り当てられたユニットを取得
+              const assignedUnitIds = new Set()
+              workingStaff.forEach(shift => {
+                const staffPriority = staffUnitPriorities
+                  .filter(p => p.staff_id === shift.staff.id)
+                  .sort((a, b) => a.priority_order - b.priority_order)[0]
+                if (staffPriority) {
+                  assignedUnitIds.add(staffPriority.unit_id)
+                }
+              })
+              
+              // 割り当てられていないユニットのみを取得
+              const unassignedUnits = units.filter(unit => !assignedUnitIds.has(unit.id))
+              
+              // 表示モードに応じて列を決定
+              const columns = [...workingStaff, ...unassignedUnits]
+              
+              if (columns.length === 0) {
+                return (
+                  <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
+                    出勤スタッフ・ユニットなし
+                  </div>
+                )
+              }
+              
+              return columns.map((column, index) => {
+                const isLastColumn = index === columns.length - 1
+                
+                // 列の種類を判定
+                const isStaffColumn = 'staff' in column
+                const isUnitColumn = 'name' in column && !isStaffColumn
+                
+                let displayText = ''
+                if (isStaffColumn) {
+                  // スタッフ列の場合
+                  const staffPriority = staffUnitPriorities
+                    .filter(p => p.staff_id === column.staff.id)
+                    .sort((a, b) => a.priority_order - b.priority_order)[0]
+                  const unitName = staffPriority ? units.find(u => u.id === staffPriority.unit_id)?.name : '未設定'
+                  displayText = `${column.staff.name} ${unitName}`
+                } else if (isUnitColumn) {
+                  // ユニット列の場合
+                  displayText = column.name
+                }
                 
                 return (
                   <div 
-                    key={`${shift.staff.id}-${index}`} 
+                    key={`${isStaffColumn ? column.staff.id : column.id}-${index}`} 
                     className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
                     style={{ 
                       minWidth: getColumnMinWidth(),
@@ -1337,16 +1395,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   >
                     <div className="text-center px-2">
                       <div className="text-sm font-medium text-gray-700 truncate">
-                        {shift.staff.name}
-                      </div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {unitName}
+                        {displayText}
                       </div>
                     </div>
                   </div>
                 )
               })
-            )
+            })()
           ) : null}
         </div>
 
@@ -1367,7 +1422,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           }}
         >
           {timeSlots.map((slot, index) => {
-            const isOutside = isOutsideBusinessHours(slot.time)
+            const isHoliday = isHolidayDay()
+            const isOutside = isHoliday ? false : isOutsideBusinessHours(slot.time)
             const isBreak = isBreakTime(slot.time)
             const isHourBoundary = slot.minute === 0
             const isDropTarget = isDragging && dropTargetTime === slot.time
@@ -1388,11 +1444,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           : 'bg-blue-200 border-blue-400' // 通常時間での複数選択時
                         : isHovered
                           ? 'bg-blue-50 border-blue-200 border' // ホバー時の薄い青
-                          : isOutside 
-                            ? 'bg-gray-100' 
-                            : isBreak 
-                              ? 'bg-gray-200 cursor-pointer' 
-                              : 'bg-white'
+                          : isHoliday
+                            ? 'bg-gray-50' // 休診日は薄いグレー
+                            : isOutside 
+                              ? 'bg-gray-100' // 診療時間外はグレー
+                              : isBreak 
+                                ? 'bg-gray-200 cursor-pointer' 
+                                : 'bg-white'
                 }`}
                 style={{
                   borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB',
@@ -1458,44 +1516,68 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   }
                 }}
               >
-                {workingStaff.map((_, staffIndex) => {
-                  const isLastColumn = staffIndex === workingStaff.length - 1
-                  const isDropTargetStaff = isDragging && dropTargetTime === slot.time && (() => {
-                    if (!dragCurrentPosition) return false
-                    const dropTarget = calculateDropTarget(dragCurrentPosition.x, dragCurrentPosition.y)
-                    return dropTarget.staffIndex === staffIndex
-                  })()
-                  const isDropTargetStaffInvalid = isDropTargetStaff && !isDropTargetValid
+                {(() => {
+                  // 表示モードに応じて列を決定
+                  let columns
+                  if (displayMode === 'units') {
+                    columns = units
+                  } else if (displayMode === 'both') {
+                    // スタッフに割り当てられたユニットを取得
+                    const assignedUnitIds = new Set()
+                    workingStaff.forEach(shift => {
+                      const staffPriority = staffUnitPriorities
+                        .filter(p => p.staff_id === shift.staff.id)
+                        .sort((a, b) => a.priority_order - b.priority_order)[0]
+                      if (staffPriority) {
+                        assignedUnitIds.add(staffPriority.unit_id)
+                      }
+                    })
+                    
+                    // 割り当てられていないユニットのみを取得
+                    const unassignedUnits = units.filter(unit => !assignedUnitIds.has(unit.id))
+                    columns = [...workingStaff, ...unassignedUnits]
+                  } else {
+                    columns = workingStaff
+                  }
                   
-                  return (
-                    <div
-                      key={staffIndex}
-                      className={`flex-1 border-r border-gray-200 ${
-                        isBreak ? 'bg-gray-200' : ''
-                      } ${
-                        isDropTargetStaffInvalid
-                          ? 'bg-red-200 border-red-400 border-2' // 重複するドロップ先のハイライト（赤）
-                          : isDropTargetStaff
-                            ? 'bg-green-200 border-green-400 border-2' // 有効なドロップ先のハイライト（緑）
-                            : hoveredTimeSlot === slot.time && hoveredStaffIndex === staffIndex
-                              ? 'bg-blue-50 border-blue-200' // ホバー時の薄い青（キャンセルされた予約でも適用）
-                              : ''
-                      }`}
-                      style={{ 
-                        minWidth: getColumnMinWidth(),
-                        maxWidth: getColumnWidth()
-                      }}
-                      onMouseEnter={() => handleCellMouseEnter(slot.time, staffIndex)}
-                      onMouseLeave={handleCellMouseLeave}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
+                  return columns.map((_, columnIndex) => {
+                    const isLastColumn = columnIndex === columns.length - 1
+                    const isDropTargetColumn = isDragging && dropTargetTime === slot.time && (() => {
+                      if (!dragCurrentPosition) return false
+                      const dropTarget = calculateDropTarget(dragCurrentPosition.x, dragCurrentPosition.y)
+                      return dropTarget.staffIndex === columnIndex
+                    })()
+                    const isDropTargetColumnInvalid = isDropTargetColumn && !isDropTargetValid
+                    
+                    return (
+                      <div
+                        key={columnIndex}
+                        className={`flex-1 border-r border-gray-200 ${
+                          isBreak ? 'bg-gray-200' : ''
+                        } ${
+                          isDropTargetColumnInvalid
+                            ? 'bg-red-200 border-red-400 border-2' // 重複するドロップ先のハイライト（赤）
+                            : isDropTargetColumn
+                              ? 'bg-green-200 border-green-400 border-2' // 有効なドロップ先のハイライト（緑）
+                              : hoveredTimeSlot === slot.time && hoveredStaffIndex === columnIndex
+                                ? 'bg-blue-50 border-blue-200' // ホバー時の薄い青（キャンセルされた予約でも適用）
+                                : ''
+                        }`}
+                        style={{ 
+                          minWidth: getColumnMinWidth(),
+                          maxWidth: getColumnWidth()
+                        }}
+                        onMouseEnter={() => handleCellMouseEnter(slot.time, columnIndex)}
+                        onMouseLeave={handleCellMouseLeave}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
                         
-                        // 貼り付けモードの場合は予約編集モーダルを開く
-                        if (isPasteMode && copiedAppointment) {
-                          // 貼り付け先のスタッフを取得
-                          const targetStaff = workingStaff[staffIndex]
-                          const newStaffId = targetStaff ? targetStaff.staff.id : ''
+                          // 貼り付けモードの場合は予約編集モーダルを開く
+                          if (isPasteMode && copiedAppointment) {
+                            // 貼り付け先のスタッフを取得（スタッフ表示モードの場合のみ）
+                            const targetStaff = displayMode === 'staff' || displayMode === 'both' ? workingStaff[columnIndex] : null
+                            const newStaffId = targetStaff ? targetStaff.staff.id : ''
                           
                           console.log('コピー元の予約データ（スタッフ列）:', copiedAppointment)
                           console.log('コピー元の患者情報（スタッフ列）:', (copiedAppointment as any).patient)
@@ -1518,21 +1600,22 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           console.log('貼り付け時の患者ID（スタッフ列）:', modifiedAppointment.patient_id)
                           setEditingAppointment(modifiedAppointment as any)
                           setSelectedTimeSlot(slot.time)
-                          setSelectedStaffIndex(staffIndex)
+                          setSelectedStaffIndex(columnIndex)
                           setShowAppointmentModal(true)
                           return
                         }
                         
-                        // 休憩時間や時間外でもクリックを許可（警告モーダルで対応）
-                        // スタッフ列をクリックした場合
-                        console.log('スタッフ列クリック:', slot.time, 'スタッフインデックス:', staffIndex, '休憩時間:', isBreak, '時間外:', isOutside)
-                        setSelectedTimeSlot(slot.time)
-                        setSelectedStaffIndex(staffIndex)
-                        setShowAppointmentModal(true)
-                      }}
-                    />
-                  )
-                })}
+                          // 休憩時間や時間外でもクリックを許可（警告モーダルで対応）
+                          // 列をクリックした場合
+                          console.log('列クリック:', slot.time, '列インデックス:', columnIndex, '休憩時間:', isBreak, '時間外:', isOutside)
+                          setSelectedTimeSlot(slot.time)
+                          setSelectedStaffIndex(columnIndex)
+                          setShowAppointmentModal(true)
+                        }}
+                      />
+                    )
+                  })
+                })()}
               </div>
             )
           })}

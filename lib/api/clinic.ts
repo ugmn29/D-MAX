@@ -41,7 +41,7 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
         wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
         thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
         friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-        saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '17:00' }] },
+        saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
         sunday: { isOpen: false, timeSlots: [] }
       },
       break_times: savedSettings.break_times || {
@@ -357,7 +357,7 @@ export async function getBusinessHours(clinicId: string) {
       wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
       thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
       friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-      saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '17:00' }] },
+      saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
       sunday: { isOpen: false, timeSlots: [] }
     }
     return defaultBusinessHours
@@ -382,7 +382,7 @@ export async function getBusinessHours(clinicId: string) {
     wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
     thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
     friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-    saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '17:00' }] },
+    saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
     sunday: { isOpen: false, timeSlots: [] }
   }
   

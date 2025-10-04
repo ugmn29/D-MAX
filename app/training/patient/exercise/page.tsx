@@ -20,9 +20,11 @@ function ExerciseContent() {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [showInterruptConfirm, setShowInterruptConfirm] = useState(false)
   const [isStartCountdown, setIsStartCountdown] = useState(false)
+  const [currentPrecautionIndex, setCurrentPrecautionIndex] = useState(0)
 
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const precautionTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const requestWakeLock = async () => {
     try {
@@ -186,6 +188,26 @@ function ExerciseContent() {
     }
   }, [isRunning, handleTimerEnd])
 
+  // 注意事項の自動切り替え
+  useEffect(() => {
+    if (isRunning && !isStartCountdown && !isResting && training?.precautions && training.precautions.length > 0) {
+      precautionTimerRef.current = setInterval(() => {
+        setCurrentPrecautionIndex((prev) => (prev + 1) % training.precautions.length)
+      }, 5000) // 5秒ごとに切り替え
+    } else {
+      if (precautionTimerRef.current) {
+        clearInterval(precautionTimerRef.current)
+        precautionTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (precautionTimerRef.current) {
+        clearInterval(precautionTimerRef.current)
+      }
+    }
+  }, [isRunning, isStartCountdown, isResting, training])
+
   const handleStart = () => {
     // 5秒カウントダウンを開始
     setIsStartCountdown(true)
@@ -335,6 +357,26 @@ function ExerciseContent() {
           </div>
         )}
       </div>
+
+      {/* 注意事項表示（トレーニング中のみ） */}
+      {isRunning && !isStartCountdown && !isResting && training?.precautions && training.precautions.length > 0 && (
+        <div className="px-4 py-3 bg-gradient-to-r from-orange-500/90 to-red-500/90 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+              <span className="text-lg">⚠️</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-white/80 mb-1">注意事項</div>
+              <div className="text-base text-white font-medium leading-snug">
+                {training.precautions[currentPrecautionIndex]}
+              </div>
+            </div>
+            <div className="flex-shrink-0 text-xs text-white/60">
+              {currentPrecautionIndex + 1}/{training.precautions.length}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 操作ボタン */}
       <div className="p-4 bg-black/30 backdrop-blur-sm">

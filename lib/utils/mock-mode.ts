@@ -14,7 +14,9 @@ const STORAGE_KEYS = {
   STAFF: 'mock_staff',
   TREATMENT_MENUS: 'mock_treatment_menus',
   SHIFT_PATTERNS: 'mock_shift_patterns',
-  STAFF_SHIFTS: 'mock_staff_shifts'
+  STAFF_SHIFTS: 'mock_staff_shifts',
+  STAFF_UNIT_PRIORITIES: 'mock_staff_unit_priorities',
+  UNITS: 'mock_units'
 }
 
 // localStorageからデータを読み込む関数
@@ -162,6 +164,73 @@ export const removeMockStaffShift = (id: string) => {
   const data = getMockStaffShifts()
   const filtered = data.filter(item => item.id !== id)
   saveToStorage(STORAGE_KEYS.STAFF_SHIFTS, filtered)
+}
+
+// スタッフユニット優先順位の管理関数
+export const getMockStaffUnitPriorities = () => loadFromStorage(STORAGE_KEYS.STAFF_UNIT_PRIORITIES)
+export const addMockStaffUnitPriority = (item: any) => {
+  const data = getMockStaffUnitPriorities()
+  data.push(item)
+  saveToStorage(STORAGE_KEYS.STAFF_UNIT_PRIORITIES, data)
+  return item
+}
+export const removeMockStaffUnitPriority = (id: string) => {
+  const data = getMockStaffUnitPriorities()
+  const filtered = data.filter(item => item.id !== id)
+  saveToStorage(STORAGE_KEYS.STAFF_UNIT_PRIORITIES, filtered)
+}
+
+// デフォルトユニットデータ
+const DEFAULT_UNITS = [
+  {
+    id: '1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: 'ユニット1',
+    sort_order: 1,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: '2',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: 'ユニット2',
+    sort_order: 2,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: '3',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: 'ユニット3',
+    sort_order: 3,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+]
+
+// ユニットの管理関数
+export const getMockUnits = () => loadFromStorage(STORAGE_KEYS.UNITS)
+export const addMockUnit = (item: any) => {
+  const data = getMockUnits()
+  data.push(item)
+  saveToStorage(STORAGE_KEYS.UNITS, data)
+  return item
+}
+export const updateMockUnit = (id: string, updates: any) => {
+  const data = getMockUnits()
+  const updatedData = data.map(item => 
+    item.id === id ? { ...item, ...updates, updated_at: new Date().toISOString() } : item
+  )
+  saveToStorage(STORAGE_KEYS.UNITS, updatedData)
+  return updatedData.find(item => item.id === id)
+}
+export const removeMockUnit = (id: string) => {
+  const data = getMockUnits()
+  const filtered = data.filter(item => item.id !== id)
+  saveToStorage(STORAGE_KEYS.UNITS, filtered)
 }
 
 // 患者の管理関数
@@ -431,6 +500,13 @@ export const initializeMockData = () => {
   if (existingStaff.length === 0) {
     saveToStorage(STORAGE_KEYS.STAFF, DEFAULT_STAFF)
     console.log('スタッフデータを初期化しました')
+  }
+  
+  // ユニットが空の場合はデフォルトデータを設定
+  const existingUnits = getMockUnits()
+  if (existingUnits.length === 0) {
+    saveToStorage(STORAGE_KEYS.UNITS, DEFAULT_UNITS)
+    console.log('ユニットデータを初期化しました')
   }
   
   // スタッフシフトが空の場合はデフォルトデータを設定
