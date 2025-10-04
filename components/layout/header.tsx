@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const navigation = [
-  { name: 'カレンダー', href: '/calendar', icon: Calendar },
+  { name: 'カレンダー', href: '/', icon: Calendar },
   { name: '患者管理', href: '/patients', icon: Users },
   { name: '分析', href: '/analytics', icon: BarChart3 },
   { name: '設定', href: '/settings', icon: Settings },
@@ -34,7 +34,7 @@ export function Header() {
           <nav className="hidden md:flex space-x-1">
             {navigation.map((item) => {
               const Icon = item.icon
-              const isActive = pathname.startsWith(item.href)
+              const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
 
               return (
                 <Link

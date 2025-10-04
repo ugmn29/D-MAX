@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, User, Grid3X3, Users } from 'lucide-react'
 import { getAppointmentsByDate, createAppointment, updateAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
+import { getUnits } from '@/lib/api/units'
 import { Appointment, BusinessHours, BreakTimes, StaffShift } from '@/types/database'
 import { AppointmentEditModal } from '@/components/forms/appointment-edit-modal'
 import { CancelInfoModal } from '@/components/ui/cancel-info-modal'
@@ -20,6 +21,8 @@ interface MainCalendarProps {
   timeSlotMinutes: number // 必須パラメータに変更
   displayItems?: string[] // 表示項目の設定
   cellHeight?: number // セルの高さ設定
+  displayMode?: 'staff' | 'units' | 'both' // 表示モード
+  onDisplayModeChange?: (mode: 'staff' | 'units' | 'both') => void // 表示モード変更コールバック
   onCopyStateChange?: (copiedAppointment: any, isPasteMode: boolean) => void
   onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
 }
@@ -47,11 +50,12 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
-export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, onCopyStateChange, onAppointmentCancel }: MainCalendarProps) {
+export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, displayMode = 'staff', onDisplayModeChange, onCopyStateChange, onAppointmentCancel }: MainCalendarProps) {
   const [workingStaff, setWorkingStaff] = useState<WorkingStaff[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
   const [breakTimes, setBreakTimes] = useState<BreakTimes>({})
+  const [units, setUnits] = useState<any[]>([])
 
   // 複数選択関連の状態
   const [isSelecting, setIsSelecting] = useState(false)
@@ -944,11 +948,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
         const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
-        const [appointmentsData, businessHoursData, breakTimesData, holidaysData] = await Promise.all([
+        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData] = await Promise.all([
           getAppointmentsByDate(clinicId, dateString),
           getBusinessHours(clinicId),
           getBreakTimes(clinicId),
-          getHolidays(clinicId)
+          getHolidays(clinicId),
+          getUnits(clinicId)
         ])
 
         console.log('取得した予約データ:', appointmentsData)
@@ -965,6 +970,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         setBusinessHours(businessHoursData)
         setBreakTimes(breakTimesData)
         setHolidays(holidaysData)
+        setUnits(unitsData)
         
         console.log('カレンダー: 取得した予約データ:', appointmentsData)
         console.log('カレンダー: 取得した休診日:', holidaysData)
@@ -1244,6 +1250,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
       {/* 右側: スタッフ列と予約ブロック */}
       <div className="flex-1 overflow-hidden">
+
+
         {/* スタッフヘッダー */}
         <div className="h-11 flex border-b border-gray-200">
           {staffLoading ? (
@@ -1254,31 +1262,92 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             <div className="flex-1 h-full flex items-center justify-center bg-red-50 text-red-600 text-sm">
               {staffError}
             </div>
-          ) : workingStaff.length === 0 ? (
-            <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
-              出勤スタッフなし
-            </div>
-          ) : (
-            workingStaff.map((shift, index) => {
-              const isLastColumn = index === workingStaff.length - 1
-              return (
-                <div 
-                  key={`${shift.staff.id}-${index}`} 
-                  className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
-                  style={{ 
-                    minWidth: getColumnMinWidth(),
-                    maxWidth: getColumnWidth()
-                  }}
-                >
-                  <div className="text-center px-2">
-                    <div className="text-sm font-medium text-gray-700 truncate">
-                      {shift.staff.name}
+          ) : displayMode === 'staff' ? (
+            workingStaff.length === 0 ? (
+              <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
+                出勤スタッフなし
+              </div>
+            ) : (
+              workingStaff.map((shift, index) => {
+                const isLastColumn = index === workingStaff.length - 1
+                return (
+                  <div 
+                    key={`${shift.staff.id}-${index}`} 
+                    className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
+                    style={{ 
+                      minWidth: getColumnMinWidth(),
+                      maxWidth: getColumnWidth()
+                    }}
+                  >
+                    <div className="text-center px-2">
+                      <div className="text-sm font-medium text-gray-700 truncate">
+                        {shift.staff.name}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })
-          )}
+                )
+              })
+            )
+          ) : displayMode === 'units' ? (
+            units.length === 0 ? (
+              <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
+                ユニットなし
+              </div>
+            ) : (
+              units.map((unit, index) => {
+                const isLastColumn = index === units.length - 1
+                return (
+                  <div 
+                    key={`${unit.id}-${index}`} 
+                    className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
+                    style={{ 
+                      minWidth: getColumnMinWidth(),
+                      maxWidth: getColumnWidth()
+                    }}
+                  >
+                    <div className="text-center px-2">
+                      <div className="text-sm font-medium text-gray-700 truncate">
+                        {unit.name}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )
+          ) : displayMode === 'both' ? (
+            workingStaff.length === 0 ? (
+              <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
+                出勤スタッフなし
+              </div>
+            ) : (
+              workingStaff.map((shift, index) => {
+                const isLastColumn = index === workingStaff.length - 1
+                // 予約からユニット情報を取得
+                const appointment = appointments.find(apt => apt.staff1_id === shift.staff.id)
+                const unitName = appointment?.unit_id ? units.find(u => u.id === appointment.unit_id)?.name : '未設定'
+                
+                return (
+                  <div 
+                    key={`${shift.staff.id}-${index}`} 
+                    className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
+                    style={{ 
+                      minWidth: getColumnMinWidth(),
+                      maxWidth: getColumnWidth()
+                    }}
+                  >
+                    <div className="text-center px-2">
+                      <div className="text-sm font-medium text-gray-700 truncate">
+                        {shift.staff.name}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {unitName}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )
+          ) : null}
         </div>
 
 

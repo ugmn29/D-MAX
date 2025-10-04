@@ -18,6 +18,7 @@ export default function HomePage() {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState<number>(40)
+  const [displayMode, setDisplayMode] = useState<'staff' | 'units' | 'both'>('staff')
   
   // コピータブ機能関連
   const [copiedAppointment, setCopiedAppointment] = useState<any>(null)
@@ -202,6 +203,8 @@ export default function HomePage() {
           timeSlotMinutes={timeSlotMinutes ?? 15}
           displayItems={displayItems}
           cellHeight={cellHeight}
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
           onCopyStateChange={(copied, pasteMode) => {
             setCopiedAppointment(copied)
             setIsPasteMode(pasteMode)
@@ -209,15 +212,17 @@ export default function HomePage() {
         />
       </div>
 
-      {/* 右側: サイドバー */}
-      <SidebarCalendar
-        clinicId={DEMO_CLINIC_ID}
-        selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
-        onPatientSelect={handlePatientSelect}
-        isPasteMode={isPasteMode}
-        onPasteToDate={handlePasteToDate}
-      />
+        {/* 右側: サイドバー */}
+        <SidebarCalendar
+          clinicId={DEMO_CLINIC_ID}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          onPatientSelect={handlePatientSelect}
+          isPasteMode={isPasteMode}
+          onPasteToDate={handlePasteToDate}
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
+        />
     </div>
   )
 }

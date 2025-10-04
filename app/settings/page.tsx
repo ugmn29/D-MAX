@@ -24,6 +24,7 @@ import {
   Bell,
   Database,
   BarChart3,
+  Grid3X3,
   Edit,
   Trash2,
   Plus,
@@ -43,6 +44,7 @@ import {
   Receipt,
   Accessibility,
   Frown,
+  GripVertical,
   Star,
   Car,
   DollarSign,
@@ -59,6 +61,20 @@ import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelR
 import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
 import { getQuestionnaires, createQuestionnaire, updateQuestionnaire, deleteQuestionnaire, Questionnaire, QuestionnaireQuestion } from '@/lib/api/questionnaires'
 import { QuestionnaireEditModal } from '@/components/forms/questionnaire-edit-modal'
+import { 
+  getUnits, 
+  createUnit, 
+  updateUnit, 
+  deleteUnit,
+  getStaffUnitPriorities,
+  createStaffUnitPriority,
+  updateStaffUnitPriorities,
+  deleteStaffUnitPriority,
+  Unit,
+  StaffUnitPriority,
+  CreateUnitData,
+  UpdateUnitData
+} from '@/lib/api/units'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -178,6 +194,12 @@ const settingCategories = [
     name: 'サブカルテ',
     icon: BarChart3,
     href: '/settings/subkarte'
+  },
+  {
+    id: 'units',
+    name: 'ユニット',
+    icon: Grid3X3,
+    href: '/settings/units'
   }
 ]
 
@@ -232,6 +254,177 @@ export default function SettingsPage() {
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState(40)
   const [activeTab, setActiveTab] = useState('basic')
+
+  // ユニット管理の状態
+  const [unitsData, setUnitsData] = useState<any[]>([])
+  const [showUnitModal, setShowUnitModal] = useState(false)
+  const [editingUnit, setEditingUnit] = useState<any>(null)
+  const [unitFormData, setUnitFormData] = useState({
+    name: '',
+    sort_order: 0,
+    is_active: true
+  })
+
+  // スタッフユニット優先順位の状態
+  const [staffUnitPriorities, setStaffUnitPriorities] = useState<any[]>([])
+  const [draggedPriority, setDraggedPriority] = useState<any>(null)
+  const [unitsActiveTab, setUnitsActiveTab] = useState<'units' | 'priorities'>('units')
+
+  // ユニット管理の関数
+  const loadUnitsData = async () => {
+    try {
+      const data = await getUnits(DEMO_CLINIC_ID)
+      setUnitsData(data)
+    } catch (error) {
+      console.error('ユニットデータ読み込みエラー:', error)
+    }
+  }
+
+  const handleAddUnit = () => {
+    setEditingUnit(null)
+    setUnitFormData({
+      name: '',
+      sort_order: unitsData.length + 1,
+      is_active: true
+    })
+    setShowUnitModal(true)
+  }
+
+  const handleEditUnit = (unit: any) => {
+    setEditingUnit(unit)
+    setUnitFormData({
+      name: unit.name,
+      sort_order: unit.sort_order,
+      is_active: unit.is_active
+    })
+    setShowUnitModal(true)
+  }
+
+  const handleSaveUnit = async () => {
+    try {
+      setSaving(true)
+      
+      if (editingUnit) {
+        // 更新
+        const updatedUnit = await updateUnit(DEMO_CLINIC_ID, editingUnit.id, unitFormData)
+        setUnitsData(unitsData.map(u => u.id === editingUnit.id ? updatedUnit : u))
+      } else {
+        // 新規作成
+        const newUnit = await createUnit(DEMO_CLINIC_ID, unitFormData)
+        setUnitsData([...unitsData, newUnit])
+      }
+      
+      setShowUnitModal(false)
+    } catch (error) {
+      console.error('ユニット保存エラー:', error)
+      alert('ユニットの保存に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteUnit = async (unit: any) => {
+    if (!confirm(`ユニット「${unit.name}」を削除しますか？`)) return
+    
+    try {
+      setSaving(true)
+      await deleteUnit(DEMO_CLINIC_ID, unit.id)
+      setUnitsData(unitsData.filter(u => u.id !== unit.id))
+    } catch (error) {
+      console.error('ユニット削除エラー:', error)
+      if (error instanceof Error && error.message.includes('予約が存在する')) {
+        alert('このユニットに関連する予約が存在するため削除できません')
+      } else {
+        alert('ユニットの削除に失敗しました')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // スタッフユニット優先順位の関数
+  const loadStaffUnitPriorities = async () => {
+    try {
+      const priorities = await getStaffUnitPriorities(DEMO_CLINIC_ID)
+      setStaffUnitPriorities(priorities)
+    } catch (error) {
+      console.error('スタッフユニット優先順位読み込みエラー:', error)
+    }
+  }
+
+  const handleAddStaffToUnit = async (unitId: string, staffId: string) => {
+    try {
+      // そのユニットの現在の最大優先順位を取得
+      const unitPriorities = staffUnitPriorities.filter(p => p.unit_id === unitId)
+      const maxPriority = Math.max(0, ...unitPriorities.map(p => p.priority_order))
+      
+      await createStaffUnitPriority(DEMO_CLINIC_ID, {
+        staff_id: staffId,
+        unit_id: unitId,
+        priority_order: maxPriority + 1,
+        is_active: true
+      })
+      loadStaffUnitPriorities()
+    } catch (error) {
+      console.error('スタッフ割り当てエラー:', error)
+      alert('スタッフの割り当てに失敗しました')
+    }
+  }
+
+  const handleDeletePriority = async (priorityId: string) => {
+    try {
+      await deleteStaffUnitPriority(DEMO_CLINIC_ID, priorityId)
+      loadStaffUnitPriorities()
+    } catch (error) {
+      console.error('優先順位削除エラー:', error)
+      alert('優先順位の削除に失敗しました')
+    }
+  }
+
+  // ドラッグ&ドロップ処理
+  const handleDragStart = (e: React.DragEvent, priority: any) => {
+    setDraggedPriority(priority)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetPriority: any) => {
+    e.preventDefault()
+    
+    if (!draggedPriority || draggedPriority.id === targetPriority.id) {
+      setDraggedPriority(null)
+      return
+    }
+
+    try {
+      // 優先順位を再計算
+      const priorities = [...staffUnitPriorities]
+      const draggedIndex = priorities.findIndex(p => p.id === draggedPriority.id)
+      const targetIndex = priorities.findIndex(p => p.id === targetPriority.id)
+      
+      // 配列を並び替え
+      const [draggedItem] = priorities.splice(draggedIndex, 1)
+      priorities.splice(targetIndex, 0, draggedItem)
+      
+      // 新しい優先順位を設定
+      const newPriorities = priorities.map((p, index) => ({
+        unitId: p.unit_id,
+        priorityOrder: index + 1
+      }))
+      
+      await updateStaffUnitPriorities(DEMO_CLINIC_ID, selectedStaff, newPriorities)
+      loadStaffUnitPriorities()
+    } catch (error) {
+      console.error('優先順位更新エラー:', error)
+      alert('優先順位の更新に失敗しました')
+    } finally {
+      setDraggedPriority(null)
+    }
+  }
 
   // 診療メニューの状態
   const [menus, setMenus] = useState<any[]>([])
@@ -496,6 +689,20 @@ export default function SettingsPage() {
     }
     loadQuestionnaires()
   }, [selectedCategory])
+
+  // ユニットデータの読み込み
+  useEffect(() => {
+    if (selectedCategory === 'units') {
+      loadUnitsData()
+    }
+  }, [selectedCategory])
+
+  // スタッフユニット優先順位を読み込み
+  useEffect(() => {
+    if (selectedCategory === 'units' && unitsActiveTab === 'priorities') {
+      loadStaffUnitPriorities()
+    }
+  }, [selectedCategory, unitsActiveTab])
 
   // デフォルトテキストの読み込み
   useEffect(() => {
@@ -3167,6 +3374,236 @@ export default function SettingsPage() {
     }
   }
 
+  // ユニット設定のレンダリング
+  const renderUnitsSettings = () => {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">ユニット設定</h2>
+          <p className="text-gray-600">ユニットの管理とスタッフの優先順位設定</p>
+        </div>
+
+        {/* タブ */}
+        <div className="flex space-x-0 mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setUnitsActiveTab('units')}
+            className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+              unitsActiveTab === 'units'
+                ? 'text-blue-600 border-blue-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Grid3X3 className="w-4 h-4 inline mr-2" />
+            ユニット管理
+          </button>
+          <button
+            onClick={() => setUnitsActiveTab('priorities')}
+            className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+              unitsActiveTab === 'priorities'
+                ? 'text-blue-600 border-blue-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Users className="w-4 h-4 inline mr-2" />
+            スタッフ優先順位
+          </button>
+        </div>
+
+        {/* ユニット管理タブ */}
+        {unitsActiveTab === 'units' && (
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="space-y-3">
+                  {unitsData.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      ユニットが登録されていません
+                    </div>
+                  ) : (
+                    unitsData.map((unit) => (
+                      <div key={unit.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Grid3X3 className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">{unit.name}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleEditUnit(unit)}
+                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUnit(unit)}
+                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  
+                  {/* 新規追加ボタン */}
+                  <div className="pt-3">
+                    <Button 
+                      onClick={() => setShowUnitModal(true)} 
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      新規追加
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* スタッフ優先順位タブ */}
+        {unitsActiveTab === 'priorities' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Users className="w-5 h-5" />
+                  <span>ユニット別スタッフ割り当て</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {unitsData.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      ユニットが登録されていません
+                    </div>
+                  ) : (
+                    unitsData.map((unit) => (
+                      <div key={unit.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Grid3X3 className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <h3 className="text-lg font-medium text-gray-900">{unit.name}</h3>
+                        </div>
+                        
+                        {/* このユニットのスタッフ優先順位 */}
+                        <div className="space-y-2">
+                          {staffUnitPriorities
+                            .filter(priority => priority.unit_id === unit.id)
+                            .sort((a, b) => a.priority_order - b.priority_order)
+                            .map((priority) => (
+                              <div
+                                key={priority.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, priority)}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDrop(e, priority)}
+                                className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg cursor-move hover:bg-gray-50"
+                              >
+                                <GripVertical className="w-4 h-4 text-gray-400" />
+                                <div className="flex-1">
+                                  <div className="font-medium">{priority.staff?.name}</div>
+                                  <div className="text-sm text-gray-500">優先順位: {priority.priority_order}</div>
+                                </div>
+                                <button
+                                  onClick={() => handleDeletePriority(priority.id)}
+                                  className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          
+                          {/* 未割り当てスタッフ */}
+                          <div className="mt-4">
+                            <Label className="text-sm font-medium text-gray-700">未割り当てスタッフ</Label>
+                            <div className="space-y-2 mt-2">
+                              {staff
+                                .filter(s => !staffUnitPriorities.some(p => p.unit_id === unit.id && p.staff_id === s.id))
+                                .map((staffMember) => (
+                                  <div key={staffMember.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <div className="font-medium text-gray-700">{staffMember.name}</div>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleAddStaffToUnit(unit.id, staffMember.id)}
+                                      className="bg-green-600 hover:bg-green-700"
+                                    >
+                                      <Plus className="w-4 h-4 mr-1" />
+                                      追加
+                                    </Button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ユニット編集モーダル */}
+        {showUnitModal && (
+          <Modal isOpen={showUnitModal} onClose={() => setShowUnitModal(false)}>
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">
+                  {editingUnit ? 'ユニット編集' : 'ユニット新規作成'}
+                </h3>
+                <button
+                  onClick={() => setShowUnitModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="unit-name">ユニット名</Label>
+                  <Input
+                    id="unit-name"
+                    value={unitFormData.name}
+                    onChange={(e) => setUnitFormData({ ...unitFormData, name: e.target.value })}
+                    placeholder="ユニット名を入力"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="sort-order">並び順</Label>
+                  <Input
+                    id="sort-order"
+                    type="number"
+                    value={unitFormData.sort_order}
+                    onChange={(e) => setUnitFormData({ ...unitFormData, sort_order: parseInt(e.target.value) || 0 })}
+                    placeholder="並び順を入力"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-2 mt-6">
+                <Button variant="outline" onClick={() => setShowUnitModal(false)}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleSaveUnit} disabled={saving || !unitFormData.name.trim()}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {saving ? '保存中...' : '保存'}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </div>
+    )
+  }
+
   // 問診票設定のレンダリング
   const renderQuestionnaireSettings = () => {
     return (
@@ -3328,6 +3765,7 @@ export default function SettingsPage() {
         {selectedCategory === 'calendar' && renderCalendarSettings()}
         {selectedCategory === 'treatment' && renderTreatmentSettings()}
         {selectedCategory === 'questionnaire' && renderQuestionnaireSettings()}
+        {selectedCategory === 'units' && renderUnitsSettings()}
         {selectedCategory === 'staff' && (
           <div className="space-y-6">
 
@@ -3577,7 +4015,12 @@ export default function SettingsPage() {
 
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                   <div className="text-center py-8 text-gray-500">
-                    <p className="text-sm">ユニット管理機能は今後実装予定です</p>
+                    <p className="text-sm">ユニット管理機能は別ページで実装されています</p>
+                    <p className="text-sm mt-2">
+                      <a href="/settings/units" className="text-blue-600 hover:text-blue-800 underline">
+                        ユニット設定ページへ移動
+                      </a>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -5360,6 +5803,7 @@ export default function SettingsPage() {
               設定
             </h1>
           </div>
+
 
           {/* メニュー項目 */}
           <div className="flex-1 overflow-y-auto">
