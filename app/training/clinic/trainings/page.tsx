@@ -124,10 +124,10 @@ export default function TrainingsPage() {
           </button>
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">トレーニング一覧 ({trainings.length}件)</h1>
-            {trainings.length < 16 && (
+            {trainings.length < 29 && (
               <button
                 onClick={async () => {
-                  if (confirm('デフォルトトレーニング16件を登録しますか？\n既存データは削除されます。')) {
+                  if (confirm('デフォルトトレーニング29件を登録しますか？\n既存データは削除されます。')) {
                     const response = await fetch('/api/training/clinic/seed', { method: 'POST' })
                     const data = await response.json()
                     if (response.ok) {
@@ -140,7 +140,7 @@ export default function TrainingsPage() {
                 }}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
-                デフォルトデータを投入 (16件)
+                デフォルトデータを投入 (29件)
               </button>
             )}
           </div>

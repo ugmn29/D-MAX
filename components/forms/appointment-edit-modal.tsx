@@ -32,6 +32,7 @@ import Link from 'next/link'
 import { getStaff } from '@/lib/api/staff'
 import { getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
 import { getAppointments, updateAppointment } from '@/lib/api/appointments'
+import { getUnits, getStaffUnitPriorities, Unit, StaffUnitPriority } from '@/lib/api/units'
 import { logAppointmentChange, logAppointmentCreation } from '@/lib/api/appointment-logs'
 import { getUnlinkedQuestionnaireResponses, linkQuestionnaireResponseToPatient, unlinkQuestionnaireResponse, QuestionnaireResponse, debugQuestionnaireResponses } from '@/lib/api/questionnaires'
 import { MOCK_MODE } from '@/lib/utils/mock-mode'
@@ -60,9 +61,11 @@ interface AppointmentEditModalProps {
   selectedDate: string
   selectedTime: string
   selectedStaffIndex?: number
+  selectedUnitIndex?: number
   selectedTimeSlots?: string[]
   timeSlotMinutes?: number
   workingStaff?: WorkingStaff[]
+  units?: Unit[]
   editingAppointment?: any
   onSave: (appointmentData: any) => void
   onUpdate?: (appointmentData: any) => void
@@ -81,9 +84,11 @@ export function AppointmentEditModal({
   selectedDate, 
   selectedTime, 
   selectedStaffIndex, 
+  selectedUnitIndex,
   selectedTimeSlots = [], 
   timeSlotMinutes = 15, 
   workingStaff = [],
+  units = [],
   editingAppointment,
   onSave,
   onUpdate,
@@ -124,6 +129,16 @@ export function AppointmentEditModal({
   const [staff, setStaff] = useState<Staff[]>([])
   const [selectedStaff, setSelectedStaff] = useState<Staff[]>([])
   const [showStaffModal, setShowStaffModal] = useState(false)
+  
+  // ユニット
+  const [localUnits, setLocalUnits] = useState<Unit[]>([])
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null)
+  const [showUnitModal, setShowUnitModal] = useState(false)
+  const [staffUnitPriorities, setStaffUnitPriorities] = useState<StaffUnitPriority[]>([])
+  const [availableUnits, setAvailableUnits] = useState<Unit[]>([])
+  
+  // propsのunitsとローカルのunitsを統合
+  const allUnits = units.length > 0 ? units : localUnits
   
   // 時間変換のヘルパー関数
   const timeToMinutes = (time: string): number => {
@@ -550,32 +565,81 @@ export function AppointmentEditModal({
     }
   }, [isOpen, getInitialAppointmentData, editingAppointment])
 
-  // 選択されたスタッフインデックスに基づいて担当者を自動選択
+  // 選択されたスタッフインデックスまたはユニットインデックスに基づいて自動選択
   useEffect(() => {
-    if (isOpen && selectedStaffIndex !== undefined && workingStaff.length > 0) {
-      const selectedStaffMember = workingStaff[selectedStaffIndex]
-      if (selectedStaffMember) {
-        // workingStaffからStaffオブジェクトに変換
-        const staffObject: Staff = {
-          id: selectedStaffMember.staff.id,
-          name: selectedStaffMember.staff.name,
-          position: selectedStaffMember.staff.position,
-          email: '',
-          phone: '',
-          created_at: '',
-          updated_at: ''
+    if (isOpen) {
+      // スタッフが選択された場合
+      if (selectedStaffIndex !== undefined && workingStaff.length > 0) {
+        const selectedStaffMember = workingStaff[selectedStaffIndex]
+        if (selectedStaffMember) {
+          // workingStaffからStaffオブジェクトに変換
+          const staffObject: Staff = {
+            id: selectedStaffMember.staff.id,
+            name: selectedStaffMember.staff.name,
+            position: selectedStaffMember.staff.position,
+            email: '',
+            phone: '',
+            created_at: '',
+            updated_at: ''
+          }
+          setSelectedStaff([staffObject])
+          console.log('自動選択された担当者:', staffObject)
+          console.log('selectedStaffIndex:', selectedStaffIndex)
+          console.log('workingStaff:', workingStaff)
+          
+          // スタッフ選択時にユニットを自動割り当て
+          const autoAssignUnit = async () => {
+            if (appointmentData.start_time && appointmentData.end_time) {
+              const autoUnit = await getAutoAssignedUnit(
+                staffObject.id,
+                selectedDate,
+                appointmentData.start_time,
+                appointmentData.end_time
+              )
+              if (autoUnit) {
+                setSelectedUnit(autoUnit)
+                setAppointmentData(prev => ({
+                  ...prev,
+                  unit_id: autoUnit.id
+                }))
+                console.log('自動割り当てされたユニット:', autoUnit)
+              } else {
+                console.log('ユニットの自動割り当てに失敗（全ユニット埋まり）')
+              }
+            }
+          }
+          autoAssignUnit()
         }
-        setSelectedStaff([staffObject])
-        console.log('自動選択された担当者:', staffObject)
-        console.log('selectedStaffIndex:', selectedStaffIndex)
-        console.log('workingStaff:', workingStaff)
       }
-    } else if (isOpen && selectedStaffIndex === undefined) {
-      // 空のセルをクリックした場合は担当者をクリア
-      setSelectedStaff([])
-      console.log('担当者をクリア（空のセル選択）')
+      // ユニットが選択された場合
+      else if (selectedUnitIndex !== undefined && allUnits.length > 0) {
+        const selectedUnitMember = allUnits[selectedUnitIndex]
+        if (selectedUnitMember) {
+          setSelectedUnit(selectedUnitMember)
+          setAppointmentData(prev => ({
+            ...prev,
+            unit_id: selectedUnitMember.id
+          }))
+          console.log('自動選択されたユニット:', selectedUnitMember)
+          console.log('selectedUnitIndex:', selectedUnitIndex)
+          console.log('allUnits:', allUnits)
+          
+          // ユニット選択時にスタッフをクリア（ユニット優先）
+          setSelectedStaff([])
+        }
+      }
+      // どちらも選択されていない場合
+      else {
+        setSelectedStaff([])
+        setSelectedUnit(null)
+        setAppointmentData(prev => ({
+          ...prev,
+          unit_id: ''
+        }))
+        console.log('担当者とユニットをクリア（空のセル選択）')
+      }
     }
-  }, [isOpen, selectedStaffIndex, workingStaff])
+  }, [isOpen, selectedStaffIndex, selectedUnitIndex, workingStaff, allUnits, appointmentData.start_time, appointmentData.end_time, selectedDate])
 
   // 患者が選択された時に予約履歴を取得
   useEffect(() => {
@@ -627,13 +691,17 @@ export function AppointmentEditModal({
   const loadData = async () => {
     try {
       setLoading(true)
-      const [menusData, staffData] = await Promise.all([
+      const [menusData, staffData, unitsData, prioritiesData] = await Promise.all([
         getTreatmentMenus(clinicId),
-        getStaff(clinicId)
+        getStaff(clinicId),
+        getUnits(clinicId),
+        getStaffUnitPriorities(clinicId)
       ])
       
       setTreatmentMenus(menusData)
       setStaff(staffData)
+      setLocalUnits(unitsData)
+      setStaffUnitPriorities(prioritiesData)
     } catch (error) {
       console.error('データ読み込みエラー:', error)
     } finally {
@@ -699,6 +767,94 @@ export function AppointmentEditModal({
     if (!selectedMenu2) return []
     return treatmentMenus.filter(menu => menu.level === 3 && menu.parent_id === selectedMenu2.id)
   }
+
+  // ユニット関連の関数
+  const getAutoAssignedUnit = async (staffId: string, date: string, startTime: string, endTime: string): Promise<Unit | null> => {
+    try {
+      // 1. スタッフの優先ユニットを取得
+      const staffPriorities = staffUnitPriorities.filter(p => p.staff_id === staffId)
+      const sortedPriorities = staffPriorities.sort((a, b) => a.priority_order - b.priority_order)
+      
+      // 2. 各優先ユニットの空き状況をチェック
+      for (const priority of sortedPriorities) {
+        const isAvailable = await checkUnitAvailability(priority.unit_id, date, startTime, endTime)
+        if (isAvailable) {
+          const unit = allUnits.find(u => u.id === priority.unit_id)
+          if (unit) return unit
+        }
+      }
+      
+      // 3. 優先ユニットが全て埋まっている場合は、他の空いているユニットを探す
+      for (const unit of allUnits) {
+        if (unit.is_active) {
+          const isAvailable = await checkUnitAvailability(unit.id, date, startTime, endTime)
+          if (isAvailable) return unit
+        }
+      }
+      
+      return null // 全てのユニットが埋まっている
+    } catch (error) {
+      console.error('ユニット自動割り当てエラー:', error)
+      return null
+    }
+  }
+
+  const checkUnitAvailability = async (unitId: string, date: string, startTime: string, endTime: string): Promise<boolean> => {
+    try {
+      // 既存予約との重複チェック
+      const appointments = await getAppointments(clinicId, date, date)
+      const conflictingAppointments = appointments.filter(apt => 
+        apt.unit_id === unitId &&
+        apt.status !== 'キャンセル' &&
+        !(apt.end_time <= startTime || apt.start_time >= endTime)
+      )
+      
+      return conflictingAppointments.length === 0
+    } catch (error) {
+      console.error('ユニット空き状況チェックエラー:', error)
+      return false
+    }
+  }
+
+  const getAvailableUnits = async (date: string, startTime: string, endTime: string): Promise<Unit[]> => {
+    const availableUnits: Unit[] = []
+    
+    for (const unit of allUnits) {
+      if (unit.is_active) {
+        const isAvailable = await checkUnitAvailability(unit.id, date, startTime, endTime)
+        if (isAvailable) {
+          availableUnits.push(unit)
+        }
+      }
+    }
+    
+    return availableUnits
+  }
+
+  const handleUnitSelect = (unit: Unit) => {
+    setSelectedUnit(unit)
+    setAppointmentData(prev => ({
+      ...prev,
+      unit_id: unit.id
+    }))
+    setShowUnitModal(false)
+  }
+
+  // ユニットモーダルが開かれた時に空き状況をチェック
+  useEffect(() => {
+    const checkAvailableUnits = async () => {
+      if (showUnitModal && appointmentData.start_time && appointmentData.end_time) {
+        const available = await getAvailableUnits(
+          selectedDate,
+          appointmentData.start_time,
+          appointmentData.end_time
+        )
+        setAvailableUnits(available)
+      }
+    }
+    
+    checkAvailableUnits()
+  }, [showUnitModal, selectedDate, appointmentData.start_time, appointmentData.end_time])
 
   // メニュー選択
   const handleMenu1Select = (menu: TreatmentMenu) => {
@@ -1577,6 +1733,21 @@ export function AppointmentEditModal({
                   )}
                 </div>
 
+                {/* ユニット選択 */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setShowUnitModal(true)}
+                    className="w-24 h-10 flex items-center justify-center px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-800 font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                  >
+                    ユニット
+                  </button>
+                  {selectedUnit && (
+                    <div className="text-gray-600 font-medium">
+                      : {selectedUnit.name}
+                    </div>
+                  )}
+                </div>
+
                 {/* メモ */}
                 <div>
                   <Label htmlFor="notes" className="text-sm font-medium">メモ</Label>
@@ -1977,6 +2148,55 @@ export function AppointmentEditModal({
                   保険証を読み取り
                 </Button>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ユニット選択モーダル */}
+    {showUnitModal && (
+      <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">ユニット選択</h3>
+              <button
+                onClick={() => setShowUnitModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {allUnits.filter(unit => unit.is_active).map((unit) => {
+                const isAvailable = availableUnits.some(availableUnit => availableUnit.id === unit.id)
+                
+                return (
+                  <button
+                    key={unit.id}
+                    onClick={() => handleUnitSelect(unit)}
+                    disabled={!isAvailable}
+                    className={`w-full p-3 text-left border rounded-lg transition-colors ${
+                      selectedUnit?.id === unit.id
+                        ? 'border-blue-500 bg-blue-50 text-blue-900'
+                        : isAvailable
+                        ? 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="font-medium">{unit.name}</div>
+                    {!isAvailable && (
+                      <div className="text-xs text-gray-400 mt-1">予約済み</div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            
+            <div className="mt-4 text-sm text-gray-500">
+              ※ 予約済みのユニットは選択できません
             </div>
           </div>
         </div>

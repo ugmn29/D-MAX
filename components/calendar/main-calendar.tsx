@@ -73,6 +73,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('')
   const [selectedStaffIndex, setSelectedStaffIndex] = useState<number | undefined>(undefined)
+  const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | undefined>(undefined)
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
   
   // ドラッグ&ドロップ関連
@@ -93,6 +94,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // ホバー状態管理
   const [hoveredTimeSlot, setHoveredTimeSlot] = useState<string | null>(null)
   const [hoveredStaffIndex, setHoveredStaffIndex] = useState<number | null>(null)
+  
+  // 選択されたセル状態管理
+  const [selectedCell, setSelectedCell] = useState<{timeSlot: string, columnIndex: number} | null>(null)
+  const [selectedCells, setSelectedCells] = useState<{timeSlot: string, columnIndex: number}[]>([])
+  const [isSelectingCells, setIsSelectingCells] = useState(false)
 
   // キャンセル情報モーダル
   const [showCancelInfoModal, setShowCancelInfoModal] = useState(false)
@@ -1428,7 +1434,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             const isHourBoundary = slot.minute === 0
             const isDropTarget = isDragging && dropTargetTime === slot.time
             const isDropTargetInvalid = isDropTarget && !isDropTargetValid
-            const isHovered = hoveredTimeSlot === slot.time
+            // 行全体のホバーを無効化（セル単位のホバーのみ有効）
+            const isHovered = false
             
             return (
               <div
@@ -1438,19 +1445,15 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     ? 'bg-red-200 border-red-400 border-2' // 重複するドロップ先のハイライト（赤）
                     : isDropTarget
                       ? 'bg-green-200 border-green-400 border-2' // 有効なドロップ先のハイライト（緑）
-                      : selectedTimeSlots.includes(slot.time)
-                        ? isBreak 
-                          ? 'bg-blue-300 border-blue-500 border-2' // 休憩時間での複数選択時はより濃い青
-                          : 'bg-blue-200 border-blue-400' // 通常時間での複数選択時
-                        : isHovered
-                          ? 'bg-blue-50 border-blue-200 border' // ホバー時の薄い青
-                          : isHoliday
-                            ? 'bg-gray-50' // 休診日は薄いグレー
-                            : isOutside 
-                              ? 'bg-gray-100' // 診療時間外はグレー
-                              : isBreak 
-                                ? 'bg-gray-200 cursor-pointer' 
-                                : 'bg-white'
+                      : isHovered
+                        ? 'bg-blue-50 border-blue-200 border' // ホバー時の薄い青
+                        : isHoliday
+                          ? 'bg-gray-50' // 休診日は薄いグレー
+                          : isOutside 
+                            ? 'bg-gray-100' // 診療時間外はグレー
+                            : isBreak 
+                              ? 'bg-gray-200 cursor-pointer' 
+                              : 'bg-white'
                 }`}
                 style={{
                   borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB',
@@ -1459,18 +1462,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 }}
                 onMouseEnter={() => handleCellMouseEnter(slot.time)}
                 onMouseLeave={handleCellMouseLeave}
-                onMouseDown={(e) => {
-                  // 休憩時間や時間外でもマウスダウンを許可（選択範囲の開始）
-                  handleMouseDown(slot.time, e)
-                }}
-                onMouseMove={() => {
-                  // 休憩時間や時間外でもマウス移動を許可（選択範囲の拡張）
-                  handleMouseMove(slot.time)
-                }}
-                onMouseUp={() => {
-                  // 休憩時間や時間外でもマウスアップを許可（選択範囲の終了処理）
-                  handleMouseUp()
-                }}
+                // 複数選択機能を無効化（セル単位選択のみ有効）
+                // onMouseDown={(e) => {
+                //   // 休憩時間や時間外でもマウスダウンを許可（選択範囲の開始）
+                //   handleMouseDown(slot.time, e)
+                // }}
+                // onMouseMove={() => {
+                //   // 休憩時間や時間外でもマウス移動を許可（選択範囲の拡張）
+                //   handleMouseMove(slot.time)
+                // }}
+                // onMouseUp={() => {
+                //   // 休憩時間や時間外でもマウスアップを許可（選択範囲の終了処理）
+                //   handleMouseUp()
+                // }}
                 onClick={(e) => {
                   // 貼り付けモードの場合は予約編集モーダルを開く
                   if (isPasteMode && copiedAppointment) {
@@ -1559,9 +1563,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                             ? 'bg-red-200 border-red-400 border-2' // 重複するドロップ先のハイライト（赤）
                             : isDropTargetColumn
                               ? 'bg-green-200 border-green-400 border-2' // 有効なドロップ先のハイライト（緑）
-                              : hoveredTimeSlot === slot.time && hoveredStaffIndex === columnIndex
-                                ? 'bg-blue-50 border-blue-200' // ホバー時の薄い青（キャンセルされた予約でも適用）
-                                : ''
+                              : selectedCells.some(cell => cell.timeSlot === slot.time && cell.columnIndex === columnIndex)
+                                ? 'bg-blue-200 border-blue-400' // 複数選択されたセルのハイライト
+                                : selectedCell?.timeSlot === slot.time && selectedCell?.columnIndex === columnIndex
+                                  ? 'bg-blue-200 border-blue-400' // 単一選択されたセルのハイライト
+                                  : hoveredTimeSlot === slot.time && hoveredStaffIndex === columnIndex
+                                    ? 'bg-blue-50 border-blue-200' // ホバー時の薄い青（キャンセルされた予約でも適用）
+                                    : ''
                         }`}
                         style={{ 
                           minWidth: getColumnMinWidth(),
@@ -1569,6 +1577,77 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                         }}
                         onMouseEnter={() => handleCellMouseEnter(slot.time, columnIndex)}
                         onMouseLeave={handleCellMouseLeave}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          console.log('セル複数選択開始:', slot.time, columnIndex)
+                          setIsSelectingCells(true)
+                          setSelectedCells([{ timeSlot: slot.time, columnIndex }])
+                        }}
+                        onMouseMove={() => {
+                          if (!isSelectingCells) return
+                          const newCell = { timeSlot: slot.time, columnIndex }
+                          setSelectedCells(prev => {
+                            const exists = prev.some(cell => 
+                              cell.timeSlot === newCell.timeSlot && cell.columnIndex === newCell.columnIndex
+                            )
+                            if (!exists) {
+                              return [...prev, newCell]
+                            }
+                            return prev
+                          })
+                        }}
+                        onMouseUp={() => {
+                          if (!isSelectingCells) return
+                          console.log('セル複数選択完了:', selectedCells)
+                          setIsSelectingCells(false)
+                          
+                          // 複数選択されたセルがある場合、最初のセルで予約編集モーダルを開く
+                          if (selectedCells.length > 0) {
+                            const firstCell = selectedCells[0]
+                            setSelectedTimeSlot(firstCell.timeSlot)
+                            setSelectedCell(firstCell)
+                            
+                            // 複数選択されたセルの時間範囲を計算
+                            const selectedTimeSlots = selectedCells.map(cell => cell.timeSlot).sort()
+                            const startTime = selectedTimeSlots[0]
+                            const endTime = selectedTimeSlots[selectedTimeSlots.length - 1]
+                            
+                            // 診療時間を計算（15分単位）
+                            const duration = selectedCells.length * 15 // 15分 × 選択セル数
+                            
+                            console.log('セル複数選択による時間計算:', {
+                              selectedCells,
+                              selectedTimeSlots,
+                              startTime,
+                              endTime,
+                              duration,
+                              cellCount: selectedCells.length
+                            })
+                            
+                            // 選択された時間範囲を状態に保存
+                            setSelectedTimeSlots(selectedTimeSlots)
+                            
+                            // 表示モードに応じてスタッフインデックスとユニットインデックスを設定
+                            if (displayMode === 'units') {
+                              setSelectedStaffIndex(undefined)
+                              setSelectedUnitIndex(firstCell.columnIndex)
+                            } else if (displayMode === 'staff') {
+                              setSelectedStaffIndex(firstCell.columnIndex)
+                              setSelectedUnitIndex(undefined)
+                            } else if (displayMode === 'both') {
+                              if (firstCell.columnIndex < workingStaff.length) {
+                                setSelectedStaffIndex(firstCell.columnIndex)
+                                setSelectedUnitIndex(undefined)
+                              } else {
+                                setSelectedStaffIndex(undefined)
+                                setSelectedUnitIndex(firstCell.columnIndex - workingStaff.length)
+                              }
+                            }
+                            
+                            setShowAppointmentModal(true)
+                          }
+                        }}
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -1609,7 +1688,32 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           // 列をクリックした場合
                           console.log('列クリック:', slot.time, '列インデックス:', columnIndex, '休憩時間:', isBreak, '時間外:', isOutside)
                           setSelectedTimeSlot(slot.time)
-                          setSelectedStaffIndex(columnIndex)
+                          
+                          // 選択されたセルを設定
+                          setSelectedCell({ timeSlot: slot.time, columnIndex })
+                          
+                          // 表示モードに応じてスタッフインデックスとユニットインデックスを設定
+                          if (displayMode === 'units') {
+                            // ユニット表示モードの場合
+                            setSelectedStaffIndex(undefined)
+                            setSelectedUnitIndex(columnIndex)
+                          } else if (displayMode === 'staff') {
+                            // スタッフ表示モードの場合
+                            setSelectedStaffIndex(columnIndex)
+                            setSelectedUnitIndex(undefined)
+                          } else if (displayMode === 'both') {
+                            // 同時表示モードの場合
+                            if (columnIndex < workingStaff.length) {
+                              // スタッフ列の場合
+                              setSelectedStaffIndex(columnIndex)
+                              setSelectedUnitIndex(undefined)
+                            } else {
+                              // ユニット列の場合
+                              setSelectedStaffIndex(undefined)
+                              setSelectedUnitIndex(columnIndex - workingStaff.length)
+                            }
+                          }
+                          
                           setShowAppointmentModal(true)
                         }}
                       />
@@ -1988,14 +2092,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           setSelectedTimeSlots([])
           setSelectionStart(null)
           setSelectionEnd(null)
+          setSelectedCell(null)
+          setSelectedCells([])
+          setIsSelectingCells(false)
         }}
         clinicId={clinicId}
         selectedDate={formatDateForDB(selectedDate)}
         selectedTime={selectedTimeSlot}
-        selectedStaffIndex={selectedStaffIndex}
         selectedTimeSlots={selectedTimeSlots}
+        selectedStaffIndex={selectedStaffIndex}
+        selectedUnitIndex={selectedUnitIndex}
         timeSlotMinutes={timeSlotMinutes}
         workingStaff={workingStaff}
+        units={units}
         editingAppointment={editingAppointment}
         onUpdate={async (appointmentData) => {
           try {
@@ -2049,6 +2158,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             setSelectedTimeSlots([])
             setSelectionStart(null)
             setSelectionEnd(null)
+            setSelectedCell(null)
+            setSelectedCells([])
+            setIsSelectingCells(false)
 
             // コピー状態を解除（保存成功時のみ）
             if (isPasteMode) {

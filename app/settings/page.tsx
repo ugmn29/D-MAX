@@ -161,6 +161,12 @@ const settingCategories = [
     href: '/settings/questionnaire'
   },
   {
+    id: 'units',
+    name: 'ユニット',
+    icon: Grid3X3,
+    href: '/settings/units'
+  },
+  {
     id: 'staff',
     name: 'スタッフ',
     icon: Users,
@@ -197,10 +203,10 @@ const settingCategories = [
     href: '/settings/subkarte'
   },
   {
-    id: 'units',
-    name: 'ユニット',
-    icon: Grid3X3,
-    href: '/settings/units'
+    id: 'training',
+    name: 'トレーニング',
+    icon: Accessibility,
+    href: '/settings/training'
   }
 ]
 
@@ -209,6 +215,7 @@ export default function SettingsPage() {
   const pathname = usePathname()
   const [selectedCategory, setSelectedCategory] = useState<string | null>('clinic')
   const [selectedMasterTab, setSelectedMasterTab] = useState('icons')
+  const [selectedClinicTab, setSelectedClinicTab] = useState('info')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -1543,207 +1550,235 @@ export default function SettingsPage() {
   // クリニック設定コンテンツ
   const renderClinicSettings = () => (
     <div className="space-y-6">
-      {/* クリニック情報 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="space-y-6">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name" className="text-sm font-medium text-gray-700">クリニック名（正式名称）</Label>
-                <Input
-                  id="name"
-                  value={clinicInfo.name}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="例: 田中歯科医院"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="name_kana" className="text-sm font-medium text-gray-700">クリニック名（ふりがな）</Label>
-                <Input
-                  id="name_kana"
-                  value={clinicInfo.name_kana}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, name_kana: e.target.value }))}
-                  placeholder="例: たなかしかいいん"
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="website_url" className="text-sm font-medium text-gray-700">ホームページURL</Label>
-              <Input
-                id="website_url"
-                value={clinicInfo.website_url}
-                onChange={(e) => setClinicInfo(prev => ({ ...prev, website_url: e.target.value }))}
-                placeholder="例: https://example.com"
-                className="mt-1"
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="postal_code" className="text-sm font-medium text-gray-700">郵便番号</Label>
-                <Input
-                  id="postal_code"
-                  value={clinicInfo.postal_code}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, postal_code: e.target.value }))}
-                  placeholder="例: 123-4567"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="prefecture" className="text-sm font-medium text-gray-700">都道府県</Label>
-                <Input
-                  id="prefecture"
-                  value={clinicInfo.prefecture}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, prefecture: e.target.value }))}
-                  placeholder="例: 東京都"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="city" className="text-sm font-medium text-gray-700">市区町村</Label>
-                <Input
-                  id="city"
-                  value={clinicInfo.city}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, city: e.target.value }))}
-                  placeholder="例: 渋谷区"
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="address_line" className="text-sm font-medium text-gray-700">住所（番地・建物名）</Label>
-              <Input
-                id="address_line"
-                value={clinicInfo.address_line}
-                onChange={(e) => setClinicInfo(prev => ({ ...prev, address_line: e.target.value }))}
-                placeholder="例: 1-2-3 田中ビル 2F"
-                className="mt-1"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="phone" className="text-sm font-medium text-gray-700">電話番号</Label>
-              <Input
-                id="phone"
-                value={clinicInfo.phone}
-                onChange={(e) => setClinicInfo(prev => ({ ...prev, phone: e.target.value }))}
-                placeholder="例: 03-1234-5678"
-                className="mt-1"
-              />
-            </div>
-          </div>
-        </div>
+      {/* サブタブ */}
+      <div className="flex space-x-0 mb-6 border-b border-gray-200">
+        <button
+          onClick={() => setSelectedClinicTab('info')}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedClinicTab === 'info'
+              ? 'border-blue-500 text-blue-600 bg-blue-50'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          医院情報
+        </button>
+        <button
+          onClick={() => setSelectedClinicTab('hours')}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedClinicTab === 'hours'
+              ? 'border-blue-500 text-blue-600 bg-blue-50'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          診療時間
+        </button>
       </div>
 
-      {/* 診療時間設定 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="space-y-6">
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {WEEKDAYS.map(day => {
-                const isHoliday = holidays.includes(day.id)
-                const timeSlots = businessHours[day.id]?.timeSlots || []
-                
-                return (
-                  <div key={day.id} className={`flex items-center p-2 rounded-lg border ${
-                    isHoliday 
-                      ? 'bg-gray-50 border-gray-200' 
-                      : 'bg-white border-gray-200'
-                  }`}>
-                    {/* 曜日名 */}
-                    <div className="w-20 flex-shrink-0">
-                      <h4 className="text-sm font-medium text-gray-900">{day.name}</h4>
-                    </div>
-                    
-                    {/* 休診チェックボックス */}
-                    <div className="w-20 flex-shrink-0 flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={`holiday_${day.id}`}
-                        checked={isHoliday}
-                        onChange={(e) => {
-                          const checked = e.target.checked
-                          console.log('チェックボックス変更:', day.id, checked)
-                          handleHolidayChange(day.id, checked)
-                        }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <Label htmlFor={`holiday_${day.id}`} className="text-xs text-gray-600 cursor-pointer">
-                        休診
-                      </Label>
-                    </div>
-                    
-                    {/* 時間枠 */}
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-3">
-                        {timeSlots.map((slot, index) => (
-                          <div key={`${day.id}-${slot.id}`} className={`flex items-center space-x-2 rounded-md px-3 py-2 ${
-                            isHoliday ? 'bg-gray-100' : 'bg-gray-50'
-                          }`}>
-                            <span className={`text-xs font-medium ${
-                              isHoliday ? 'text-gray-400' : 'text-gray-600'
-                            }`}>
-                              {slot.period === 'morning' ? '午前' : '午後'}
-                            </span>
-                            <Input
-                              type="time"
-                              value={slot.start}
-                              onChange={(e) => updateTimeSlot(day.id, slot.id, 'start', e.target.value)}
-                              disabled={isHoliday}
-                              className={`w-24 text-xs ${
-                                isHoliday 
-                                  ? 'border-gray-200 bg-gray-100 text-gray-400' 
-                                  : 'border-gray-200'
-                              }`}
-                            />
-                            <span className="text-gray-400">～</span>
-                            <Input
-                              type="time"
-                              value={slot.end}
-                              onChange={(e) => updateTimeSlot(day.id, slot.id, 'end', e.target.value)}
-                              disabled={isHoliday}
-                              className={`w-24 text-xs ${
-                                isHoliday 
-                                  ? 'border-gray-200 bg-gray-100 text-gray-400' 
-                                  : 'border-gray-200'
-                              }`}
-                            />
-                            <button
-                              onClick={() => removeTimeSlot(day.id, slot.id)}
-                              disabled={isHoliday}
-                              className={`${
-                                isHoliday 
-                                  ? 'text-gray-300 cursor-not-allowed' 
-                                  : 'text-gray-400 hover:text-red-500'
-                              }`}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                        
-                        {!isHoliday && (
-                          <button
-                            onClick={() => addTimeSlot(day.id)}
-                            className="flex items-center space-x-1 px-3 py-2 text-xs text-blue-600 border border-dashed border-blue-300 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>追加</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+      {/* 医院情報タブ */}
+      {selectedClinicTab === 'info' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name" className="text-sm font-medium text-gray-700">クリニック名（正式名称）</Label>
+                  <Input
+                    id="name"
+                    value={clinicInfo.name}
+                    onChange={(e) => setClinicInfo(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="例: 田中歯科医院"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="name_kana" className="text-sm font-medium text-gray-700">クリニック名（ふりがな）</Label>
+                  <Input
+                    id="name_kana"
+                    value={clinicInfo.name_kana}
+                    onChange={(e) => setClinicInfo(prev => ({ ...prev, name_kana: e.target.value }))}
+                    placeholder="例: たなかしかいいん"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="website_url" className="text-sm font-medium text-gray-700">ホームページURL</Label>
+                <Input
+                  id="website_url"
+                  value={clinicInfo.website_url}
+                  onChange={(e) => setClinicInfo(prev => ({ ...prev, website_url: e.target.value }))}
+                  placeholder="例: https://example.com"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="postal_code" className="text-sm font-medium text-gray-700">郵便番号</Label>
+                  <Input
+                    id="postal_code"
+                    value={clinicInfo.postal_code}
+                    onChange={(e) => setClinicInfo(prev => ({ ...prev, postal_code: e.target.value }))}
+                    placeholder="例: 123-4567"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="prefecture" className="text-sm font-medium text-gray-700">都道府県</Label>
+                  <Input
+                    id="prefecture"
+                    value={clinicInfo.prefecture}
+                    onChange={(e) => setClinicInfo(prev => ({ ...prev, prefecture: e.target.value }))}
+                    placeholder="例: 東京都"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="city" className="text-sm font-medium text-gray-700">市区町村</Label>
+                  <Input
+                    id="city"
+                    value={clinicInfo.city}
+                    onChange={(e) => setClinicInfo(prev => ({ ...prev, city: e.target.value }))}
+                    placeholder="例: 渋谷区"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="address_line" className="text-sm font-medium text-gray-700">住所（番地・建物名）</Label>
+                <Input
+                  id="address_line"
+                  value={clinicInfo.address_line}
+                  onChange={(e) => setClinicInfo(prev => ({ ...prev, address_line: e.target.value }))}
+                  placeholder="例: 1-2-3 田中ビル 2F"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="phone" className="text-sm font-medium text-gray-700">電話番号</Label>
+                <Input
+                  id="phone"
+                  value={clinicInfo.phone}
+                  onChange={(e) => setClinicInfo(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="例: 03-1234-5678"
+                  className="mt-1"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 診療時間タブ */}
+      {selectedClinicTab === 'hours' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-3">
+                {WEEKDAYS.map(day => {
+                  const isHoliday = holidays.includes(day.id)
+                  const timeSlots = businessHours[day.id]?.timeSlots || []
+                  
+                  return (
+                    <div key={day.id} className={`flex items-center p-2 rounded-lg border ${
+                      isHoliday 
+                        ? 'bg-gray-50 border-gray-200' 
+                        : 'bg-white border-gray-200'
+                    }`}>
+                      {/* 曜日名 */}
+                      <div className="w-20 flex-shrink-0">
+                        <h4 className="text-sm font-medium text-gray-900">{day.name}</h4>
+                      </div>
+                      
+                      {/* 休診チェックボックス */}
+                      <div className="w-20 flex-shrink-0 flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`holiday_${day.id}`}
+                          checked={isHoliday}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            console.log('チェックボックス変更:', day.id, checked)
+                            handleHolidayChange(day.id, checked)
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <Label htmlFor={`holiday_${day.id}`} className="text-xs text-gray-600 cursor-pointer">
+                          休診
+                        </Label>
+                      </div>
+                      
+                      {/* 時間枠 */}
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          {timeSlots.map((slot, index) => (
+                            <div key={`${day.id}-${slot.id}`} className={`flex items-center space-x-2 rounded-md px-3 py-2 ${
+                              isHoliday ? 'bg-gray-100' : 'bg-gray-50'
+                            }`}>
+                              <span className={`text-xs font-medium ${
+                                isHoliday ? 'text-gray-400' : 'text-gray-600'
+                              }`}>
+                                {slot.period === 'morning' ? '午前' : '午後'}
+                              </span>
+                              <Input
+                                type="time"
+                                value={slot.start}
+                                onChange={(e) => updateTimeSlot(day.id, slot.id, 'start', e.target.value)}
+                                disabled={isHoliday}
+                                className={`w-24 text-xs ${
+                                  isHoliday 
+                                    ? 'border-gray-200 bg-gray-100 text-gray-400' 
+                                    : 'border-gray-200'
+                                }`}
+                              />
+                              <span className="text-gray-400">～</span>
+                              <Input
+                                type="time"
+                                value={slot.end}
+                                onChange={(e) => updateTimeSlot(day.id, slot.id, 'end', e.target.value)}
+                                disabled={isHoliday}
+                                className={`w-24 text-xs ${
+                                  isHoliday 
+                                    ? 'border-gray-200 bg-gray-100 text-gray-400' 
+                                    : 'border-gray-200'
+                                }`}
+                              />
+                              <button
+                                onClick={() => removeTimeSlot(day.id, slot.id)}
+                                disabled={isHoliday}
+                                className={`${
+                                  isHoliday 
+                                    ? 'text-gray-300 cursor-not-allowed' 
+                                    : 'text-gray-400 hover:text-red-500'
+                                }`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                          
+                          {!isHoliday && (
+                            <button
+                              onClick={() => addTimeSlot(day.id)}
+                              className="flex items-center space-x-1 px-3 py-2 text-xs text-blue-600 border border-dashed border-blue-300 rounded-md hover:bg-blue-50"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>追加</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -3258,10 +3293,6 @@ export default function SettingsPage() {
   const renderUnitsSettings = () => {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">ユニット設定</h2>
-          <p className="text-gray-600">ユニットの管理とスタッフの優先順位設定</p>
-        </div>
 
         {/* タブ */}
         <div className="flex space-x-0 mb-6 border-b border-gray-200">
@@ -3578,6 +3609,95 @@ export default function SettingsPage() {
     )
   }
 
+  // トレーニング設定のレンダリング
+  const renderTrainingSettings = () => {
+    const trainingUrls = [
+      {
+        title: '医院管理画面',
+        url: `${window.location.origin}/training/clinic`,
+        description: 'トレーニング管理のトップページ'
+      },
+      {
+        title: 'トレーニング管理',
+        url: `${window.location.origin}/training/clinic/trainings`,
+        description: 'トレーニングメニューの管理'
+      },
+      {
+        title: '患者一覧',
+        url: `${window.location.origin}/training/clinic/patients`,
+        description: 'トレーニング患者の管理'
+      },
+      {
+        title: 'テンプレート管理',
+        url: `${window.location.origin}/training/clinic/templates`,
+        description: 'トレーニングテンプレートの管理'
+      },
+      {
+        title: '分析',
+        url: `${window.location.origin}/training/clinic/analytics`,
+        description: 'トレーニングデータの分析'
+      }
+    ]
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">トレーニング管理</h2>
+          <p className="text-gray-600">医院管理画面へのアクセス</p>
+        </div>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {trainingUrls.map((item, index) => (
+                <div key={index} className="p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Accessibility className="w-5 h-5 text-blue-600" />
+                        <h3 className="font-medium text-gray-900">{item.title}</h3>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={item.url}
+                          readOnly
+                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700 font-mono"
+                        />
+                        <Button
+                          onClick={() => {
+                            navigator.clipboard.writeText(item.url)
+                            alert('URLをコピーしました')
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                        >
+                          <Copy className="w-4 h-4 mr-1" />
+                          コピー
+                        </Button>
+                        <Button
+                          onClick={() => window.open(item.url, '_blank')}
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                        >
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          開く
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // 問診票の削除処理
   const handleDeleteQuestionnaire = async (questionnaireId: string) => {
     try {
@@ -3648,19 +3768,11 @@ export default function SettingsPage() {
         {selectedCategory === 'treatment' && renderTreatmentSettings()}
         {selectedCategory === 'questionnaire' && renderQuestionnaireSettings()}
         {selectedCategory === 'units' && renderUnitsSettings()}
+        {selectedCategory === 'training' && renderTrainingSettings()}
         {selectedCategory === 'staff' && (
           <div className="space-y-6">
             {/* スタッフ管理 */}
               <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-2">
-                    <Users className="w-5 h-5 text-gray-600" />
-                    <h3 className="text-lg font-medium">スタッフ一覧</h3>
-                  </div>
-                  <Button onClick={() => setShowAddStaff(true)} className="rounded-full w-8 h-8 p-0">
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
 
                 {/* スタッフ一覧表示（役職別グループ化） */}
                 <div className="space-y-6">
@@ -3685,27 +3797,30 @@ export default function SettingsPage() {
                     })
 
                     return sortedPositions.map(positionName => (
-                      <div key={positionName} className="bg-white rounded-lg border border-gray-200">
+                      <div key={positionName} className="bg-white rounded-lg border border-gray-200 relative">
                         {/* 役職ヘッダー */}
-                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                          <h4 className="font-medium text-gray-900">{positionName}</h4>
-                          <p className="text-sm text-gray-500">
-                            {staffByPosition[positionName].length}名
-                          </p>
+                        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium text-gray-900">{positionName}</h4>
+                            <p className="text-sm text-gray-500">
+                              {staffByPosition[positionName].length}名
+                            </p>
+                          </div>
                         </div>
+                        
                         
                         {/* スタッフ一覧 */}
                         <div className="divide-y divide-gray-200">
                           {staffByPosition[positionName].map(member => (
-                            <div key={member.id} className="p-4 flex items-center justify-between">
+                            <div key={member.id} className="p-1 flex items-center justify-between">
                               <div className="flex-1">
                                 <div className="font-medium text-gray-900">{member.name}</div>
                                 <div className="text-sm text-gray-500">{member.email}</div>
                               </div>
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-center space-x-1">
                                 <Button
                                   size="sm"
-                                  className={`${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                  className={`text-xs px-2 py-1 ${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
                                   {member.is_active ? '在籍' : '退職'}
                                 </Button>
@@ -3713,9 +3828,9 @@ export default function SettingsPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setEditingStaff(member)}
-                                  className="p-1 text-gray-400 hover:text-blue-600"
+                                  className="p-0.5 text-gray-400 hover:text-blue-600"
                                 >
-                                  <Edit className="w-4 h-4" />
+                                  <Edit className="w-3 h-3" />
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -3733,9 +3848,9 @@ export default function SettingsPage() {
                                       }
                                     }
                                   }}
-                                  className="p-1 text-gray-400 hover:text-red-600"
+                                  className="p-0.5 text-gray-400 hover:text-red-600"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-3 h-3" />
                                 </Button>
                               </div>
                             </div>
@@ -3745,9 +3860,16 @@ export default function SettingsPage() {
                     ))
                   })()}
                   
+                  {/* 受付セクションの枠外に+ボタンを配置 */}
+                  <div className="flex justify-start items-center mt-4">
+                    <Button onClick={() => setShowAddStaff(true)} className="rounded-full w-8 h-8 p-0">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
                   {/* スタッフが登録されていない場合 */}
                   {staff.length === 0 && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                    <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 relative">
                       <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                       <p className="text-sm">スタッフが登録されていません</p>
                       <Button 
@@ -3757,6 +3879,12 @@ export default function SettingsPage() {
                         <Plus className="w-4 h-4 mr-2" />
                         最初のスタッフを追加
                       </Button>
+                      {/* 受付の枠の左下に配置 */}
+                      <div className="absolute bottom-4 left-4">
+                        <Button onClick={() => setShowAddStaff(true)} className="rounded-full w-8 h-8 p-0">
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
