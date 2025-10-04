@@ -216,6 +216,7 @@ export default function SettingsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>('clinic')
   const [selectedMasterTab, setSelectedMasterTab] = useState('icons')
   const [selectedClinicTab, setSelectedClinicTab] = useState('info')
+  const [selectedShiftTab, setSelectedShiftTab] = useState('table')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -3993,18 +3994,46 @@ export default function SettingsPage() {
         )}
         {selectedCategory === 'shift' && (
           <div className="space-y-6">
-            {/* シフト表 */}
-            <div>
-              <ShiftTable 
-                clinicId={DEMO_CLINIC_ID} 
-                refreshTrigger={refreshTrigger}
-              />
+            {/* サブタブ */}
+            <div className="flex space-x-0 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => setSelectedShiftTab('table')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  selectedShiftTab === 'table'
+                    ? 'border-blue-500 text-blue-600 bg-blue-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                シフト表
+              </button>
+              <button
+                onClick={() => setSelectedShiftTab('pattern')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  selectedShiftTab === 'pattern'
+                    ? 'border-blue-500 text-blue-600 bg-blue-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                パターン
+              </button>
             </div>
+
+            {/* シフト表タブ */}
+            {selectedShiftTab === 'table' && (
+              <div>
+                <ShiftTable 
+                  clinicId={DEMO_CLINIC_ID} 
+                  refreshTrigger={refreshTrigger}
+                />
+              </div>
+            )}
             
-            {/* パターン */}
-            <div>
-              <ShiftPatterns clinicId={DEMO_CLINIC_ID} />
-            </div>
+            {/* パターンタブ */}
+            {selectedShiftTab === 'pattern' && (
+              <div>
+                <ShiftPatterns clinicId={DEMO_CLINIC_ID} />
+              </div>
+            )}
           </div>
         )}
         {selectedCategory === 'web' && (
