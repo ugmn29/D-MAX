@@ -463,8 +463,20 @@ export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
 export async function getHolidays(clinicId: string): Promise<string[]> {
   console.log('getHolidays呼び出し:', clinicId)
   
-  // モックモードの場合は空配列を返す
+  // モックモードの場合はlocalStorageから取得
   if (MOCK_MODE) {
+    console.log('モックモード: 休診日データを取得します')
+    try {
+      const savedSettings = localStorage.getItem('mock_clinic_settings')
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings)
+        const holidays = settings.holidays || []
+        console.log('モックモード: 取得した休診日:', holidays)
+        return holidays
+      }
+    } catch (error) {
+      console.error('モックモード: localStorage読み込みエラー:', error)
+    }
     console.log('モックモード: 休診日データを返します（空配列）')
     return []
   }

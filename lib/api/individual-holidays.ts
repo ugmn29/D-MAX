@@ -3,9 +3,20 @@ import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 // 個別休診日の取得（月単位）
 export async function getIndividualHolidays(clinicId: string, year: number, month: number): Promise<Record<string, boolean>> {
-  // モックモードの場合は空のオブジェクトを返す
+  // モックモードの場合はlocalStorageから取得
   if (MOCK_MODE) {
-    console.log('モックモード: 個別休診日データを返します（空オブジェクト）', { clinicId, year, month })
+    console.log('モックモード: 個別休診日データを取得します', { clinicId, year, month })
+    try {
+      const savedHolidays = localStorage.getItem('mock_individual_holidays')
+      if (savedHolidays) {
+        const holidaysData = JSON.parse(savedHolidays)
+        console.log('モックモード: 取得した個別休診日:', holidaysData)
+        return holidaysData
+      }
+    } catch (error) {
+      console.error('モックモード: localStorage読み込みエラー:', error)
+    }
+    console.log('モックモード: 個別休診日データを返します（空オブジェクト）')
     return {}
   }
 
@@ -39,6 +50,23 @@ export async function getIndividualHolidays(clinicId: string, year: number, mont
 export async function setIndividualHoliday(clinicId: string, date: string, isHoliday: boolean): Promise<void> {
   console.log('setIndividualHoliday呼び出し:', { clinicId, date, isHoliday })
   
+  // モックモードの場合はlocalStorageに保存
+  if (MOCK_MODE) {
+    console.log('モックモード: 個別休診日を保存します', { clinicId, date, isHoliday })
+    try {
+      const savedHolidays = localStorage.getItem('mock_individual_holidays')
+      const holidaysData = savedHolidays ? JSON.parse(savedHolidays) : {}
+      const dateKey = `${clinicId}_${date}`
+      holidaysData[dateKey] = isHoliday
+      localStorage.setItem('mock_individual_holidays', JSON.stringify(holidaysData))
+      console.log('モックモード: 個別休診日を保存しました', holidaysData)
+    } catch (error) {
+      console.error('モックモード: localStorage保存エラー:', error)
+      throw error
+    }
+    return
+  }
+  
   const upsertData = {
     clinic_id: clinicId,
     date: date,
@@ -69,7 +97,29 @@ export async function setIndividualHoliday(clinicId: string, date: string, isHol
 
 // 個別休診日の削除
 export async function deleteIndividualHoliday(clinicId: string, date: string): Promise<void> {
-  const { error } = await supabase
+  // モックモードの場合はlocalStorageから削除
+  if (MOCK_MODE) {
+    console.log('モックモード: 個別休診日を削除します', { clinicId, date })
+    try {
+      const savedHolidays = localStorage.getItem('mock_individual_holidays')
+      if (savedHolidays) {
+        const holidaysData = JSON.parse(savedHolidays)
+        const dateKey = `${clinicId}_${date}`
+        if (holidaysData[dateKey]) {
+          delete holidaysData[dateKey]
+          localStorage.setItem('mock_individual_holidays', JSON.stringify(holidaysData))
+          console.log('モックモード: 個別休診日を削除しました', holidaysData)
+        }
+      }
+    } catch (error) {
+      console.error('モックモード: localStorage削除エラー:', error)
+      throw error
+    }
+    return
+  }
+  
+  const client = getSupabaseClient()
+  const { error } = await client
     .from('individual_holidays')
     .delete()
     .eq('clinic_id', clinicId)

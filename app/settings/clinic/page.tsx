@@ -156,6 +156,15 @@ export default function ClinicSettingsPage() {
       console.log('全ての設定保存完了')
       alert('設定を保存しました')
       
+      // シフト表に変更を通知
+      localStorage.setItem('clinic_settings_updated', JSON.stringify({
+        timeSlotMinutes,
+        businessHours: formattedBusinessHours,
+        breakTimes,
+        holidays,
+        timestamp: Date.now()
+      }))
+      
       // 保存後はデータを再読み込みしない（現在の状態を保持）
     } catch (error: any) {
       console.error('保存エラー:', error)

@@ -151,6 +151,28 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     loadData()
   }, [clinicId, currentDate, refreshTrigger])
 
+  // クリニック設定の変更を監視
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'clinic_settings_updated' && e.newValue) {
+        try {
+          const updateData = JSON.parse(e.newValue)
+          console.log('シフト表: クリニック設定変更を検知:', updateData)
+          // 休診日設定が変更された場合はデータを再読み込み
+          if (updateData.holidays) {
+            console.log('シフト表: 休診日設定変更によりデータを再読み込み')
+            loadData()
+          }
+        } catch (error) {
+          console.error('シフト表: 設定更新データの解析エラー:', error)
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
+
   // 月の移動
   const changeMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate)
@@ -474,8 +496,12 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     }
     
     // 個別設定がない場合は医院設定の休診日を適用
-    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
-    return holidays.includes(dayOfWeek)
+    const dayOfWeek = date.getDay() // 0=日曜日, 1=月曜日, ..., 6=土曜日
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const englishDayName = dayNames[dayOfWeek]
+    
+    console.log('休診日判定:', { date: dateString, dayOfWeek, englishDayName, holidays })
+    return holidays.includes(englishDayName)
   }
 
   // セルの背景色を取得
@@ -495,7 +521,6 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <CardTitle>シフト表</CardTitle>
             <div className="flex items-center space-x-2">
               <Button
                 variant="outline"
@@ -536,11 +561,6 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
           </div>
         </div>
         
-        <div className="text-sm text-gray-600 space-y-1">
-          <p>・日付ヘッダーをクリックで休みの設定/解除</p>
-          <p>・セルをクリックで個別シフト設定</p>
-          <p>・休みはグレーで表示</p>
-        </div>
       </CardHeader>
       
       <CardContent>

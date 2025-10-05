@@ -35,6 +35,28 @@ export const WorkingDayModal: React.FC<WorkingDayModalProps> = ({
     try {
       setLoading(true)
       
+      // モックモードの場合はlocalStorageから削除
+      if (typeof window !== 'undefined') {
+        try {
+          const savedHolidays = localStorage.getItem('mock_individual_holidays')
+          if (savedHolidays) {
+            const holidaysData = JSON.parse(savedHolidays)
+            const dateKey = `${clinicId}_${date}`
+            if (holidaysData[dateKey]) {
+              delete holidaysData[dateKey]
+              localStorage.setItem('mock_individual_holidays', JSON.stringify(holidaysData))
+              console.log('モックモード: 個別休診日を削除しました', dateKey)
+            }
+          }
+        } catch (error) {
+          console.error('モックモード: localStorage削除エラー:', error)
+        }
+        
+        onSave()
+        onClose()
+        return
+      }
+      
       // 個別休診日設定を削除（診療日に戻す）
       const response = await fetch('/api/individual-holidays', {
         method: 'DELETE',
