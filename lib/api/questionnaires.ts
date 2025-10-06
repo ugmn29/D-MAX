@@ -569,6 +569,18 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
+          {
+            id: 'q1-11-1',
+            questionnaire_id: '11111111-1111-1111-1111-111111111112',
+            section_name: '患者情報',
+            question_text: 'ご希望の連絡方法',
+            question_type: 'radio',
+            options: ['LINE', 'メール', 'SMS(ショートメール)', '特に希望なし'],
+            is_required: false,
+            sort_order: 15,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
           // 主訴・症状セクション
           {
             id: 'q1-12',

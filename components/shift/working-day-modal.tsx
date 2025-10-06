@@ -22,34 +22,52 @@ export const WorkingDayModal: React.FC<WorkingDayModalProps> = ({
   date,
   onSave
 }) => {
-  const [isWorkingDay, setIsWorkingDay] = useState(false)
+  const [isWorkingDay, setIsWorkingDay] = useState(true)
   const [loading, setLoading] = useState(false)
 
   React.useEffect(() => {
     if (isOpen) {
-      setIsWorkingDay(false) // デフォルトは診療日にする
+      setIsWorkingDay(true) // デフォルトは診療日にする
     }
   }, [isOpen])
 
   const handleSave = async () => {
+    console.log('working-day-modal: handleSave開始', { isWorkingDay, clinicId, date })
     try {
       setLoading(true)
       
-      // モックモードの場合はlocalStorageから削除
+      // モックモードの場合はlocalStorageを更新
       if (typeof window !== 'undefined') {
         try {
           const savedHolidays = localStorage.getItem('mock_individual_holidays')
-          if (savedHolidays) {
-            const holidaysData = JSON.parse(savedHolidays)
-            const dateKey = `${clinicId}_${date}`
-            if (holidaysData[dateKey]) {
-              delete holidaysData[dateKey]
-              localStorage.setItem('mock_individual_holidays', JSON.stringify(holidaysData))
-              console.log('モックモード: 個別休診日を削除しました', dateKey)
-            }
+          const holidaysData = savedHolidays ? JSON.parse(savedHolidays) : {}
+          const dateKey = `${clinicId}_${date}`
+          
+          if (isWorkingDay) {
+            // 診療日に設定する場合は個別休診日設定をfalseに設定
+            holidaysData[dateKey] = false
+            console.log('モックモード: 個別休診日をfalseに設定しました（診療日に設定）', dateKey)
+          } else {
+            // 休診日に設定する場合は個別休診日設定をtrueに設定
+            holidaysData[dateKey] = true
+            console.log('モックモード: 個別休診日をtrueに設定しました（休診日に設定）', dateKey)
           }
+          
+          localStorage.setItem('mock_individual_holidays', JSON.stringify(holidaysData))
+          console.log('モックモード: localStorage更新完了', holidaysData)
+          
+          // 保存後の確認
+          const verifyData = localStorage.getItem('mock_individual_holidays')
+          console.log('モックモード: 保存後の確認', verifyData)
+          
+          // カスタムイベントを発火してシフト表に通知
+          const event = new CustomEvent('individualHolidaysUpdated', {
+            detail: { clinicId, date, isWorkingDay }
+          })
+          window.dispatchEvent(event)
+          console.log('モックモード: カスタムイベント発火', event.detail)
         } catch (error) {
-          console.error('モックモード: localStorage削除エラー:', error)
+          console.error('モックモード: localStorage更新エラー:', error)
         }
         
         onSave()

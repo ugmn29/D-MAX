@@ -694,3 +694,6 @@ export type PatientWithNotes = Patient & {
     }
   }>
 }
+
+// 通知システムの型をre-export
+export * from './notification'

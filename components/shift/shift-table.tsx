@@ -151,7 +151,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     loadData()
   }, [clinicId, currentDate, refreshTrigger])
 
-  // クリニック設定の変更を監視
+  // クリニック設定と個別休診日の変更を監視
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'clinic_settings_updated' && e.newValue) {
@@ -166,11 +166,27 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
         } catch (error) {
           console.error('シフト表: 設定更新データの解析エラー:', error)
         }
+      } else if (e.key === 'mock_individual_holidays') {
+        console.log('シフト表: 個別休診日設定変更を検知')
+        // 個別休診日設定が変更された場合はデータを再読み込み
+        loadData()
       }
     }
 
+    const handleIndividualHolidaysUpdate = (e: CustomEvent) => {
+      console.log('シフト表: 個別休診日更新イベントを受信:', e.detail)
+      // 個別休診日設定が変更された場合はデータを再読み込み
+      console.log('シフト表: loadData()を実行します')
+      loadData()
+    }
+
     window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
+    window.addEventListener('individualHolidaysUpdated', handleIndividualHolidaysUpdate as EventListener)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('individualHolidaysUpdated', handleIndividualHolidaysUpdate as EventListener)
+    }
   }, [])
 
   // 月の移動
@@ -293,10 +309,13 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
   // 診療日設定保存
   const handleWorkingDaySave = async () => {
     try {
+      console.log('診療日設定保存開始:', selectedWorkingDate)
       // 個別休診日データを再読み込み
       const year = currentDate.getFullYear()
       const month = currentDate.getMonth() + 1
+      console.log('診療日設定: 個別休診日を再読み込み', { clinicId, year, month })
       const individualHolidaysData = await getIndividualHolidays(clinicId, year, month)
+      console.log('診療日設定: 取得した個別休診日データ:', individualHolidaysData)
       setIndividualHolidays(individualHolidaysData)
       
       console.log('診療日設定を保存しました:', selectedWorkingDate)
@@ -492,6 +511,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     
     // 個別休診日の設定がある場合はそれを優先
     if (individualHolidays.hasOwnProperty(dateString)) {
+      console.log('休診日判定: 個別設定あり', { date: dateString, isHoliday: individualHolidays[dateString] })
       return individualHolidays[dateString]
     }
     
@@ -500,8 +520,9 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const englishDayName = dayNames[dayOfWeek]
     
-    console.log('休診日判定:', { date: dateString, dayOfWeek, englishDayName, holidays })
-    return holidays.includes(englishDayName)
+    const isClinicHoliday = holidays.includes(englishDayName)
+    console.log('休診日判定: 医院設定適用', { date: dateString, dayOfWeek, englishDayName, holidays, isHoliday: isClinicHoliday })
+    return isClinicHoliday
   }
 
   // セルの背景色を取得

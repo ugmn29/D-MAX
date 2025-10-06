@@ -336,3 +336,127 @@ export async function getPatientsStats(clinicId: string) {
     temporary
   }
 }
+
+// ========================================
+// 通知設定関連
+// ========================================
+
+/**
+ * 患者の希望連絡手段を取得
+ */
+export async function getPatientContactMethod(patientId: string): Promise<string | null> {
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('patients')
+    .select('preferred_contact_method')
+    .eq('id', patientId)
+    .single()
+
+  if (error || !data) {
+    return null
+  }
+
+  return data.preferred_contact_method
+}
+
+/**
+ * 患者の希望連絡手段を更新
+ */
+export async function updatePatientContactMethod(
+  patientId: string,
+  contactMethod: 'line' | 'email' | 'sms'
+): Promise<void> {
+  const client = getSupabaseClient()
+  await client
+    .from('patients')
+    .update({ preferred_contact_method: contactMethod })
+    .eq('id', patientId)
+}
+
+/**
+ * 患者の通知設定を取得
+ */
+export async function getPatientNotificationPreferences(
+  patientId: string
+): Promise<Record<string, boolean>> {
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('patients')
+    .select('notification_preferences')
+    .eq('id', patientId)
+    .single()
+
+  if (error || !data) {
+    return {
+      appointment_reminder: true,
+      treatment_reminder: true,
+      periodic_checkup: true,
+      other: true
+    }
+  }
+
+  return data.notification_preferences || {
+    appointment_reminder: true,
+    treatment_reminder: true,
+    periodic_checkup: true,
+    other: true
+  }
+}
+
+/**
+ * 患者の通知設定を更新
+ */
+export async function updatePatientNotificationPreferences(
+  patientId: string,
+  preferences: Record<string, boolean>
+): Promise<void> {
+  const client = getSupabaseClient()
+  await client
+    .from('patients')
+    .update({ notification_preferences: preferences })
+    .eq('id', patientId)
+}
+
+/**
+ * 患者の自動リマインド設定を取得
+ */
+export async function getPatientAutoReminderSettings(
+  patientId: string
+): Promise<{ enabled: boolean; custom_intervals: any }> {
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('patients')
+    .select('auto_reminder_enabled, auto_reminder_custom_intervals')
+    .eq('id', patientId)
+    .single()
+
+  if (error || !data) {
+    return {
+      enabled: true,
+      custom_intervals: null
+    }
+  }
+
+  return {
+    enabled: data.auto_reminder_enabled ?? true,
+    custom_intervals: data.auto_reminder_custom_intervals
+  }
+}
+
+/**
+ * 患者の自動リマインド設定を更新
+ */
+export async function updatePatientAutoReminderSettings(
+  patientId: string,
+  enabled: boolean,
+  customIntervals?: any
+): Promise<void> {
+  const client = getSupabaseClient()
+  await client
+    .from('patients')
+    .update({
+      auto_reminder_enabled: enabled,
+      auto_reminder_custom_intervals: customIntervals
+    })
+    .eq('id', patientId)
+}

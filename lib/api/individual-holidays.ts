@@ -8,10 +8,29 @@ export async function getIndividualHolidays(clinicId: string, year: number, mont
     console.log('モックモード: 個別休診日データを取得します', { clinicId, year, month })
     try {
       const savedHolidays = localStorage.getItem('mock_individual_holidays')
+      console.log('モックモード: localStorageから取得した生データ:', savedHolidays)
       if (savedHolidays) {
         const holidaysData = JSON.parse(savedHolidays)
-        console.log('モックモード: 取得した個別休診日:', holidaysData)
-        return holidaysData
+        console.log('モックモード: 取得した個別休診日（生データ）:', holidaysData)
+        
+        // クリニックIDと日付の組み合わせでフィルタリング
+        const filteredData: Record<string, boolean> = {}
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+        const lastDay = new Date(year, month, 0).getDate()
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+        
+        for (let day = 1; day <= lastDay; day++) {
+          const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const dateKey = `${clinicId}_${dateString}`
+          console.log('モックモード: フィルタリング処理', { day, dateString, dateKey, hasData: holidaysData[dateKey] !== undefined, value: holidaysData[dateKey] })
+          if (holidaysData[dateKey] !== undefined) {
+            filteredData[dateString] = holidaysData[dateKey]
+            console.log('モックモード: フィルタリング結果に追加', { dateString, value: holidaysData[dateKey] })
+          }
+        }
+        
+        console.log('モックモード: フィルタリング後の個別休診日:', filteredData)
+        return filteredData
       }
     } catch (error) {
       console.error('モックモード: localStorage読み込みエラー:', error)

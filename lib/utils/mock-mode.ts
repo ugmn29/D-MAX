@@ -78,7 +78,12 @@ export const addMockStaff = (item: any) => {
   return item
 }
 
-export const getMockTreatmentMenus = () => loadFromStorage(STORAGE_KEYS.TREATMENT_MENUS)
+export const getMockTreatmentMenus = () => {
+  const data = loadFromStorage(STORAGE_KEYS.TREATMENT_MENUS)
+  console.log('getMockTreatmentMenus: 取得したデータ数', data.length)
+  console.log('getMockTreatmentMenus: 取得したデータ', data)
+  return data
+}
 export const addMockTreatmentMenu = (item: any) => {
   const data = getMockTreatmentMenus()
   data.push(item)
@@ -319,6 +324,32 @@ const DEFAULT_TREATMENT_MENUS = [
     updated_at: new Date().toISOString()
   },
   {
+    id: 'menu-1-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '一般初診',
+    level: 2,
+    parent_id: 'menu-1',
+    color: '#3B82F6',
+    standard_duration: 30,
+    is_active: true,
+    sort_order: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'menu-1-2',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '緊急初診',
+    level: 2,
+    parent_id: 'menu-1',
+    color: '#3B82F6',
+    standard_duration: 45,
+    is_active: true,
+    sort_order: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
     id: 'menu-2',
     clinic_id: '11111111-1111-1111-1111-111111111111',
     name: '定期健診',
@@ -332,6 +363,32 @@ const DEFAULT_TREATMENT_MENUS = [
     updated_at: new Date().toISOString()
   },
   {
+    id: 'menu-2-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '一般健診',
+    level: 2,
+    parent_id: 'menu-2',
+    color: '#10B981',
+    standard_duration: 30,
+    is_active: true,
+    sort_order: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'menu-2-2',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '精密健診',
+    level: 2,
+    parent_id: 'menu-2',
+    color: '#10B981',
+    standard_duration: 60,
+    is_active: true,
+    sort_order: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
     id: 'menu-3',
     clinic_id: '11111111-1111-1111-1111-111111111111',
     name: '治療',
@@ -339,6 +396,45 @@ const DEFAULT_TREATMENT_MENUS = [
     parent_id: null,
     color: '#F59E0B',
     standard_duration: 60,
+    is_active: true,
+    sort_order: 3,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'menu-3-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '虫歯治療',
+    level: 2,
+    parent_id: 'menu-3',
+    color: '#F59E0B',
+    standard_duration: 60,
+    is_active: true,
+    sort_order: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'menu-3-2',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '歯周病治療',
+    level: 2,
+    parent_id: 'menu-3',
+    color: '#F59E0B',
+    standard_duration: 60,
+    is_active: true,
+    sort_order: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'menu-3-3',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '歯が痛い',
+    level: 2,
+    parent_id: 'menu-3',
+    color: '#F59E0B',
+    standard_duration: 30,
     is_active: true,
     sort_order: 3,
     created_at: new Date().toISOString(),
@@ -477,16 +573,24 @@ export const getMockCancelReasons = () => {
 
 // 初期化時にデフォルトデータを設定
 export const initializeMockData = () => {
-  if (typeof window === 'undefined') return
+  console.log('モックデータ初期化: 開始', { window: typeof window })
+  
+  if (typeof window === 'undefined') {
+    console.log('モックデータ初期化: windowがundefinedのためスキップ')
+    return
+  }
   
   console.log('モックデータを初期化中...')
   
-  // 診療メニューが空の場合はデフォルトデータを設定
-  const existingMenus = getMockTreatmentMenus()
-  if (existingMenus.length === 0) {
-    saveToStorage(STORAGE_KEYS.TREATMENT_MENUS, DEFAULT_TREATMENT_MENUS)
-    console.log('診療メニューデータを初期化しました')
-  }
+  // 強制的に診療メニューデータを初期化（デバッグ用）
+  console.log('モックデータ初期化: 診療メニューデータを強制初期化します', DEFAULT_TREATMENT_MENUS.length, '個のメニュー')
+  saveToStorage(STORAGE_KEYS.TREATMENT_MENUS, DEFAULT_TREATMENT_MENUS)
+  console.log('診療メニューデータを強制初期化しました')
+  
+  // 初期化後の確認
+  const afterInit = getMockTreatmentMenus()
+  console.log('モックデータ初期化: 初期化後の診療メニュー数', afterInit.length)
+  console.log('モックデータ初期化: 初期化後の診療メニュー', afterInit)
   
   // スタッフ役職が空の場合はデフォルトデータを設定
   const existingPositions = getMockStaffPositions()

@@ -12,6 +12,7 @@ import { getClinicSettings, getBusinessHours, getBreakTimes } from '@/lib/api/cl
 import { TreatmentMenu } from '@/types/database'
 import { TimeWarningModal } from '@/components/ui/time-warning-modal'
 import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
+import { HierarchicalMenu } from '@/components/ui/hierarchical-menu'
 
 interface AppointmentFormProps {
   clinicId: string
@@ -310,89 +311,44 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
         {/* 診療メニュー */}
         <div className="space-y-4">
           <h3 className="font-medium text-lg">診療メニュー</h3>
-          <div className="space-y-4">
-            {/* レベル1（大分類） */}
-            <div>
-              <Label>大分類</Label>
-              <Select value={appointmentData.menu1_id} onValueChange={handleMenu1Change}>
-                <SelectTrigger>
-                  <SelectValue placeholder="大分類を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {treatmentMenus.level1.map(menu => (
-                    <SelectItem key={menu.id} value={menu.id}>
-                      <div className="flex items-center space-x-2">
-                        <div 
-                          className="w-3 h-3 rounded"
-                          style={{ backgroundColor: menu.color }}
-                        />
-                        <span>{menu.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* レベル2（中分類） */}
-            {selectedMenu1 && (
-              <div>
-                <Label>中分類</Label>
-                <Select value={appointmentData.menu2_id} onValueChange={handleMenu2Change}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="中分類を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {treatmentMenus.level2
-                      .filter(menu => menu.parent_id === selectedMenu1.id)
-                      .map(menu => (
-                        <SelectItem key={menu.id} value={menu.id}>
-                          <div className="flex items-center space-x-2">
-                            <div 
-                              className="w-3 h-3 rounded"
-                              style={{ backgroundColor: menu.color }}
-                            />
-                            <span>{menu.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* レベル3（詳細） */}
-            {selectedMenu2 && (
-              <div>
-                <Label>詳細</Label>
-                <Select value={appointmentData.menu3_id} onValueChange={handleMenu3Change}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="詳細を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {treatmentMenus.level3
-                      .filter(menu => menu.parent_id === selectedMenu2.id)
-                      .map(menu => (
-                        <SelectItem key={menu.id} value={menu.id}>
-                          <div className="flex items-center space-x-2">
-                            <div 
-                              className="w-3 h-3 rounded"
-                              style={{ backgroundColor: menu.color }}
-                            />
-                            <span>{menu.name}</span>
-                            {menu.standard_duration && (
-                              <span className="text-xs text-gray-500">
-                                ({menu.standard_duration}分)
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
+          <HierarchicalMenu
+            level1Menus={treatmentMenus.level1}
+            level2Menus={treatmentMenus.level2}
+            level3Menus={treatmentMenus.level3}
+            selectedMenu1={selectedMenu1}
+            selectedMenu2={selectedMenu2}
+            selectedMenu3={selectedMenu3}
+            onMenu1Select={(menu) => {
+              setSelectedMenu1(menu)
+              setSelectedMenu2(null)
+              setSelectedMenu3(null)
+              setAppointmentData(prev => ({
+                ...prev,
+                menu1_id: menu.id,
+                menu2_id: '',
+                menu3_id: ''
+              }))
+              // 診療メニュー1を選択した場合はモーダルを閉じない（サブメニューを表示するため）
+            }}
+            onMenu2Select={(menu) => {
+              setSelectedMenu2(menu)
+              setSelectedMenu3(null)
+              setAppointmentData(prev => ({
+                ...prev,
+                menu2_id: menu.id,
+                menu3_id: ''
+              }))
+              // 診療メニュー2を選択した場合は選択完了（フォームではモーダルがないので何もしない）
+            }}
+            onMenu3Select={(menu) => {
+              setSelectedMenu3(menu)
+              setAppointmentData(prev => ({
+                ...prev,
+                menu3_id: menu.id
+              }))
+              // 診療メニュー3を選択した場合は選択完了（フォームではモーダルがないので何もしない）
+            }}
+          />
         </div>
 
         {/* 担当者・時間 */}

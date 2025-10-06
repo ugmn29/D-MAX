@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Clock, User, Grid3X3, Users } from 'lucide-r
 import { getAppointmentsByDate, createAppointment, updateAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
+import { getIndividualHolidays } from '@/lib/api/individual-holidays'
 import { getUnits, getStaffUnitPriorities } from '@/lib/api/units'
 import { Appointment, BusinessHours, BreakTimes, StaffShift } from '@/types/database'
 import { AppointmentEditModal } from '@/components/forms/appointment-edit-modal'
@@ -65,6 +66,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [selectionEnd, setSelectionEnd] = useState<string | null>(null)
 
   const [holidays, setHolidays] = useState<string[]>([])
+  const [individualHolidays, setIndividualHolidays] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [staffLoading, setStaffLoading] = useState(false)
   const [staffError, setStaffError] = useState<string | null>(null)
@@ -955,13 +957,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
         const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
-        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData, staffUnitPrioritiesData] = await Promise.all([
+        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData, staffUnitPrioritiesData, individualHolidaysData] = await Promise.all([
           getAppointmentsByDate(clinicId, dateString),
           getBusinessHours(clinicId),
           getBreakTimes(clinicId),
           getHolidays(clinicId),
           getUnits(clinicId),
-          getStaffUnitPriorities(clinicId)
+          getStaffUnitPriorities(clinicId),
+          getIndividualHolidays(clinicId, selectedDate.getFullYear(), selectedDate.getMonth() + 1)
         ])
 
         console.log('取得した予約データ:', appointmentsData)
@@ -980,6 +983,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         setHolidays(holidaysData)
         setUnits(unitsData)
         setStaffUnitPriorities(staffUnitPrioritiesData)
+        setIndividualHolidays(individualHolidaysData)
         
         console.log('カレンダー: 取得した予約データ:', appointmentsData)
         console.log('カレンダー: 取得した休診日:', holidaysData)
@@ -997,6 +1001,43 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // スタッフデータを読み込み（日付変更時）
   useEffect(() => {
     loadWorkingStaff(selectedDate)
+  }, [selectedDate])
+
+  // 個別休診日設定の変更を監視
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'clinic_settings_updated' && e.newValue) {
+        try {
+          const updateData = JSON.parse(e.newValue)
+          console.log('メインカレンダー: クリニック設定変更を検知:', updateData)
+          // 休診日設定が変更された場合はデータを再読み込み
+          if (updateData.holidays) {
+            console.log('メインカレンダー: 休診日設定変更によりデータを再読み込み')
+            loadWorkingStaff(selectedDate)
+          }
+        } catch (error) {
+          console.error('メインカレンダー: 設定更新データの解析エラー:', error)
+        }
+      } else if (e.key === 'mock_individual_holidays') {
+        console.log('メインカレンダー: 個別休診日設定変更を検知')
+        // 個別休診日設定が変更された場合はデータを再読み込み
+        loadWorkingStaff(selectedDate)
+      }
+    }
+
+    const handleIndividualHolidaysUpdate = (e: CustomEvent) => {
+      console.log('メインカレンダー: 個別休診日更新イベントを受信:', e.detail)
+      // 個別休診日設定が変更された場合はデータを再読み込み
+      loadWorkingStaff(selectedDate)
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('individualHolidaysUpdated', handleIndividualHolidaysUpdate as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('individualHolidaysUpdated', handleIndividualHolidaysUpdate as EventListener)
+    }
   }, [selectedDate])
 
   // 予約ブロックの位置とサイズを計算
@@ -1111,8 +1152,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   }
 
 
-  // 休診日かどうかを判定
+  // 休診日かどうかを判定（医院設定の休診日 + 個別休診日）
   const isHoliday = (date: Date): boolean => {
+    const dateString = formatDateForDB(date) // 日本時間で日付を処理
+    
+    // 個別休診日の設定がある場合はそれを優先
+    if (individualHolidays.hasOwnProperty(dateString)) {
+      console.log('メインカレンダー: 個別設定あり', { date: dateString, isHoliday: individualHolidays[dateString] })
+      return individualHolidays[dateString]
+    }
+    
+    // 個別設定がない場合は医院設定の休診日を適用
     const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
     
     // 曜日名のマッピング（英語 → 設定で使用されるID）
@@ -1127,8 +1177,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
     
     const dayId = dayMapping[dayOfWeek]
-    
-    return dayId ? holidays.includes(dayId) : false
+    const isClinicHoliday = dayId ? holidays.includes(dayId) : false
+    console.log('メインカレンダー: 医院設定適用', { date: dateString, dayOfWeek, dayId, holidays, isHoliday: isClinicHoliday })
+    return isClinicHoliday
   }
 
   // 診療時間外かどうかを判定

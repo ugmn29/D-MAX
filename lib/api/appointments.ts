@@ -665,3 +665,86 @@ export async function cancelAppointment(
 
   return data
 }
+
+// ========================================
+// 来院登録関連
+// ========================================
+
+/**
+ * 予約を来院済みにする（QRコードスキャンなど）
+ */
+export async function checkInAppointment(
+  appointmentId: string,
+  method: 'qr_code' | 'manual' | 'auto' = 'manual'
+): Promise<void> {
+  const client = getSupabaseClient()
+  await client
+    .from('appointments')
+    .update({
+      checked_in_at: new Date().toISOString(),
+      check_in_method: method
+    })
+    .eq('id', appointmentId)
+}
+
+/**
+ * 来院済みかどうかを確認
+ */
+export async function isAppointmentCheckedIn(appointmentId: string): Promise<boolean> {
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('appointments')
+    .select('checked_in_at')
+    .eq('id', appointmentId)
+    .single()
+
+  if (error || !data) {
+    return false
+  }
+
+  return !!data.checked_in_at
+}
+
+/**
+ * 来院登録を取り消す
+ */
+export async function cancelCheckIn(appointmentId: string): Promise<void> {
+  const client = getSupabaseClient()
+  await client
+    .from('appointments')
+    .update({
+      checked_in_at: null,
+      check_in_method: null
+    })
+    .eq('id', appointmentId)
+}
+
+/**
+ * 本日来院済みの予約一覧を取得
+ */
+export async function getTodayCheckedInAppointments(
+  clinicId: string
+): Promise<Appointment[]> {
+  const client = getSupabaseClient()
+
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const todayEnd = new Date(todayStart)
+  todayEnd.setDate(todayEnd.getDate() + 1)
+
+  const { data, error } = await client
+    .from('appointments')
+    .select('*')
+    .eq('clinic_id', clinicId)
+    .gte('start_time', todayStart.toISOString())
+    .lt('start_time', todayEnd.toISOString())
+    .not('checked_in_at', 'is', null)
+    .order('checked_in_at', { ascending: false })
+
+  if (error) {
+    console.error('来院済み予約取得エラー:', error)
+    throw new Error('来院済み予約の取得に失敗しました')
+  }
+
+  return data || []
+}

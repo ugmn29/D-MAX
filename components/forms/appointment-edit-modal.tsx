@@ -35,11 +35,12 @@ import { getAppointments, updateAppointment } from '@/lib/api/appointments'
 import { getUnits, getStaffUnitPriorities, Unit, StaffUnitPriority } from '@/lib/api/units'
 import { logAppointmentChange, logAppointmentCreation } from '@/lib/api/appointment-logs'
 import { getUnlinkedQuestionnaireResponses, linkQuestionnaireResponseToPatient, unlinkQuestionnaireResponse, QuestionnaireResponse, debugQuestionnaireResponses } from '@/lib/api/questionnaires'
-import { MOCK_MODE } from '@/lib/utils/mock-mode'
+import { MOCK_MODE, initializeMockData } from '@/lib/utils/mock-mode'
 import { Patient, TreatmentMenu, Staff } from '@/types/database'
 import { TimeWarningModal } from '@/components/ui/time-warning-modal'
 import { validateAppointmentTime, TimeValidationResult } from '@/lib/utils/time-validation'
 import { CancelReasonModal } from '@/components/ui/cancel-reason-modal'
+import { HierarchicalMenu } from '@/components/ui/hierarchical-menu'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 import { SubKarteTab } from '@/components/patients/subkarte-tab'
 import { PatientEditModal } from '@/components/forms/patient-edit-modal'
@@ -124,6 +125,9 @@ export function AppointmentEditModal({
   const [selectedMenu2, setSelectedMenu2] = useState<TreatmentMenu | null>(null)
   const [selectedMenu3, setSelectedMenu3] = useState<TreatmentMenu | null>(null)
   const [showMenuModal, setShowMenuModal] = useState(false)
+  const [hoveredMenu1, setHoveredMenu1] = useState<string | null>(null)
+  const [showSubMenus, setShowSubMenus] = useState(false)
+  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null)
   
   // スタッフ
   const [staff, setStaff] = useState<Staff[]>([])
@@ -688,15 +692,55 @@ export function AppointmentEditModal({
     }
   }, [isOpen, clinicId])
 
+  // クリーンアップ処理
+  useEffect(() => {
+    return () => {
+      if (hoverTimeout) {
+        clearTimeout(hoverTimeout)
+      }
+    }
+  }, [hoverTimeout])
+
   const loadData = async () => {
     try {
       setLoading(true)
+      
+      // デバッグ: モックデータの初期化を確認
+      console.log('診療メニュー: loadData開始')
+      console.log('診療メニュー: モックデータ初期化前')
+      
+      // localStorageをクリアして強制初期化
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mock_treatment_menus')
+        console.log('診療メニュー: localStorageをクリアしました')
+      }
+      
+      initializeMockData()
+      console.log('診療メニュー: モックデータ初期化後')
+      
       const [menusData, staffData, unitsData, prioritiesData] = await Promise.all([
         getTreatmentMenus(clinicId),
         getStaff(clinicId),
         getUnits(clinicId),
         getStaffUnitPriorities(clinicId)
       ])
+      
+      console.log('診療メニュー: データ読み込み完了', { 
+        menusData: menusData.length, 
+        level1: menusData.filter(m => m.level === 1).length,
+        level2: menusData.filter(m => m.level === 2).length,
+        menusData 
+      })
+      
+      // デバッグ: 各レベルのメニューを詳細表示
+      const level1Menus = menusData.filter(m => m.level === 1)
+      const level2Menus = menusData.filter(m => m.level === 2)
+      console.log('診療メニュー: Level 1メニュー', level1Menus)
+      console.log('診療メニュー: Level 2メニュー', level2Menus)
+      
+      // デバッグ: menu-1のサブメニューを確認
+      const menu1SubMenus = level2Menus.filter(m => m.parent_id === 'menu-1')
+      console.log('診療メニュー: menu-1のサブメニュー', menu1SubMenus)
       
       setTreatmentMenus(menusData)
       setStaff(staffData)
@@ -867,6 +911,8 @@ export function AppointmentEditModal({
       menu2_id: '',
       menu3_id: ''
     }))
+    // 診療1のみ選択した場合はモーダルを閉じる
+    setShowMenuModal(false)
   }
 
   const handleMenu2Select = (menu: TreatmentMenu) => {
@@ -877,6 +923,8 @@ export function AppointmentEditModal({
       menu2_id: menu.id,
       menu3_id: ''
     }))
+    // 診療2選択時は診療1+2の表示でモーダルを閉じる
+    setShowMenuModal(false)
   }
 
   const handleMenu3Select = (menu: TreatmentMenu) => {
@@ -886,6 +934,35 @@ export function AppointmentEditModal({
       menu3_id: menu.id
     }))
     setShowMenuModal(false)
+  }
+
+  // ホバー時の小メニュー表示（デバウンス処理付き）
+  const handleMenu1Hover = (menuId: string | null) => {
+    console.log('診療メニュー: ホバー検知', { menuId, treatmentMenus: treatmentMenus.length })
+    
+    // 既存のタイムアウトをクリア
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout)
+    }
+    
+    if (menuId) {
+      // ホバー開始時は即座に表示
+      setHoveredMenu1(menuId)
+      setShowSubMenus(true)
+      console.log('診療メニュー: ホバー開始', { menuId, showSubMenus: true })
+      
+      // サブメニューの存在確認
+      const subMenus = getMenuLevel2().filter(menu => menu.parent_id === menuId)
+      console.log('診療メニュー: サブメニュー確認', { menuId, subMenus: subMenus.length, subMenus })
+    } else {
+      // ホバー終了時は少し遅延して非表示（マウスが一時的に外れても震えないように）
+      const timeout = setTimeout(() => {
+        setHoveredMenu1(null)
+        setShowSubMenus(false)
+        console.log('診療メニュー: ホバー終了')
+      }, 150) // 150msの遅延
+      setHoverTimeout(timeout)
+    }
   }
 
   // 時間設定
@@ -1242,7 +1319,7 @@ export function AppointmentEditModal({
       />
       
       {/* モーダルコンテンツ */}
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 h-[700px] overflow-hidden">
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 h-[750px] overflow-hidden">
         {/* コンテンツ */}
         <div className="p-6 h-full flex flex-col">
           {/* 閉じるボタン */}
@@ -1421,21 +1498,23 @@ export function AppointmentEditModal({
                     <div className="p-4 border border-gray-200 rounded-md bg-gray-50 mt-3">
                       <div className="text-sm font-medium mb-3">新規患者登録</div>
                       <div className="space-y-3">
-                        {/* 1行目: 姓名 */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            placeholder="姓"
-                            value={newPatientData.last_name}
-                            onChange={(e) => setNewPatientData(prev => ({ ...prev, last_name: e.target.value }))}
-                            className="text-sm h-10"
-                          />
-                          <Input
-                            placeholder="名"
-                            value={newPatientData.first_name}
-                            onChange={(e) => setNewPatientData(prev => ({ ...prev, first_name: e.target.value }))}
-                            className="text-sm h-10"
-                          />
-                        </div>
+                        {/* 1行目: 名前 */}
+                        <Input
+                          placeholder="名前"
+                          value={`${newPatientData.last_name} ${newPatientData.first_name}`.trim()}
+                          onChange={(e) => {
+                            const fullName = e.target.value
+                            const nameParts = fullName.split(' ')
+                            const lastName = nameParts[0] || ''
+                            const firstName = nameParts.slice(1).join(' ') || ''
+                            setNewPatientData(prev => ({ 
+                              ...prev, 
+                              last_name: lastName,
+                              first_name: firstName
+                            }))
+                          }}
+                          className="text-sm h-10"
+                        />
                         {/* 2行目: 電話番号 */}
                         <Input
                           placeholder="電話番号"
@@ -1824,65 +1903,58 @@ export function AppointmentEditModal({
       {showMenuModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowMenuModal(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+          <div className="relative bg-white rounded-lg shadow-xl w-[800px] h-[500px] mx-4 overflow-hidden">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">診療メニュー選択</h3>
               
-              <div className="space-y-4">
-                {/* レベル1 */}
-                <div>
-                  <Label className="font-medium">診療1</Label>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    {getMenuLevel1().map((menu) => (
-                      <Button
-                        key={menu.id}
-                        variant={selectedMenu1?.id === menu.id ? "default" : "outline"}
-                        onClick={() => handleMenu1Select(menu)}
-                        className="justify-start"
-                      >
-                        {menu.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* レベル2 */}
-                {selectedMenu1 && (
-                  <div>
-                    <Label className="font-medium">診療2</Label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {getMenuLevel2().map((menu) => (
-                        <Button
-                          key={menu.id}
-                          variant={selectedMenu2?.id === menu.id ? "default" : "outline"}
-                          onClick={() => handleMenu2Select(menu)}
-                          className="justify-start"
-                        >
-                          {menu.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* レベル3 */}
-                {selectedMenu2 && (
-                  <div>
-                    <Label className="font-medium">診療3</Label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {getMenuLevel3().map((menu) => (
-                        <Button
-                          key={menu.id}
-                          variant={selectedMenu3?.id === menu.id ? "default" : "outline"}
-                          onClick={() => handleMenu3Select(menu)}
-                          className="justify-start"
-                        >
-                          {menu.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              <div className="h-[400px] overflow-y-auto">
+                <HierarchicalMenu
+                  level1Menus={getMenuLevel1()}
+                  level2Menus={treatmentMenus.filter(menu => menu.level === 2)}
+                  level3Menus={treatmentMenus.filter(menu => menu.level === 3)}
+                  selectedMenu1={selectedMenu1}
+                  selectedMenu2={selectedMenu2}
+                  selectedMenu3={selectedMenu3}
+                  onMenu1Select={(menu) => {
+                    setSelectedMenu1(menu)
+                    setSelectedMenu2(null)
+                    setSelectedMenu3(null)
+                    setAppointmentData(prev => ({
+                      ...prev,
+                      menu1_id: menu.id,
+                      menu2_id: '',
+                      menu3_id: ''
+                    }))
+                    // 診療メニュー1を選択した場合は、サブメニューが表示されるまで少し待ってからモーダルを閉じる
+                    setTimeout(() => {
+                      setShowMenuModal(false)
+                    }, 500)
+                  }}
+                  onMenu2Select={(menu) => {
+                    setSelectedMenu2(menu)
+                    setSelectedMenu3(null)
+                    setAppointmentData(prev => ({
+                      ...prev,
+                      menu2_id: menu.id,
+                      menu3_id: ''
+                    }))
+                    // 診療メニュー2を選択した場合はモーダルを閉じる
+                    setTimeout(() => {
+                      setShowMenuModal(false)
+                    }, 300)
+                  }}
+                  onMenu3Select={(menu) => {
+                    setSelectedMenu3(menu)
+                    setAppointmentData(prev => ({
+                      ...prev,
+                      menu3_id: menu.id
+                    }))
+                    // 診療メニュー3を選択した場合はモーダルを閉じる
+                    setTimeout(() => {
+                      setShowMenuModal(false)
+                    }, 300)
+                  }}
+                />
               </div>
 
               <div className="flex justify-end mt-6">

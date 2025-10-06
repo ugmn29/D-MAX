@@ -9,7 +9,12 @@ export async function getTreatmentMenus(clinicId: string): Promise<TreatmentMenu
   // モックモードの場合はモックデータを返す
   if (MOCK_MODE) {
     console.log('モックモード: 診療メニューデータを返します')
-    return getMockTreatmentMenus().filter(item => item.clinic_id === clinicId)
+    const allMenus = getMockTreatmentMenus()
+    const filteredMenus = allMenus.filter(item => item.clinic_id === clinicId)
+    console.log('モックモード: 全メニュー数', allMenus.length, 'フィルタ後', filteredMenus.length)
+    console.log('モックモード: Level 1メニュー', allMenus.filter(m => m.level === 1))
+    console.log('モックモード: Level 2メニュー', allMenus.filter(m => m.level === 2))
+    return filteredMenus
   }
 
   const client = getSupabaseClient()
