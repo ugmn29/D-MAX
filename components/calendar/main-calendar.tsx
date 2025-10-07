@@ -259,7 +259,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     setHasMoved(false)
   }
 
-  // ドロップ先の時間スロットとスタッフインデックスを計算（1枠ごとに制限、スクロール位置考慮）
+  // ドロップ先の時間スロットと列インデックスを計算（displayMode対応、スクロール位置考慮）
   const calculateDropTarget = (clientX: number, clientY: number): { timeSlot: string | null; staffIndex: number | null } => {
     if (!gridRef.current) return { timeSlot: null, staffIndex: null }
     
@@ -273,11 +273,21 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const slotHeight = cellHeight
     const slotIndex = Math.floor(relativeY / slotHeight)
     
-    // スタッフ列の幅を計算
-    const columnWidth = rect.width / workingStaff.length
-    const staffIndex = Math.floor(relativeX / columnWidth)
+    // displayModeに応じて列数を計算
+    let totalColumns = 0
+    if (displayMode === 'staff') {
+      totalColumns = workingStaff.length
+    } else if (displayMode === 'units') {
+      totalColumns = units.length
+    } else if (displayMode === 'both') {
+      totalColumns = workingStaff.length + units.length
+    }
     
-    console.log('calculateDropTarget デバッグ（スクロール位置考慮）:', {
+    // 列の幅を計算
+    const columnWidth = rect.width / totalColumns
+    const columnIndex = Math.floor(relativeX / columnWidth)
+    
+    console.log('calculateDropTarget デバッグ（displayMode対応）:', {
       clientX,
       clientY,
       rectTop: rect.top,
@@ -288,18 +298,21 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       slotHeight,
       slotIndex,
       columnWidth,
-      staffIndex,
-      timeSlotsLength: timeSlots.length,
+      columnIndex,
+      displayMode,
+      totalColumns,
       workingStaffLength: workingStaff.length,
+      unitsLength: units.length,
+      timeSlotsLength: timeSlots.length,
       calculatedTime: slotIndex >= 0 && slotIndex < timeSlots.length ? timeSlots[slotIndex]?.time : 'out of range',
-      calculatedStaff: staffIndex >= 0 && staffIndex < workingStaff.length ? workingStaff[staffIndex]?.staff.name : 'out of range'
+      calculatedColumn: columnIndex >= 0 && columnIndex < totalColumns ? `column_${columnIndex}` : 'out of range'
     })
     
-    // 1枠ごとの制限：有効な時間スロットの範囲内でのみ移動を許可
+    // 1枠ごとの制限：有効な時間スロットと列の範囲内でのみ移動を許可
     const timeSlot = (slotIndex >= 0 && slotIndex < timeSlots.length) ? timeSlots[slotIndex].time : null
-    const validStaffIndex = (staffIndex >= 0 && staffIndex < workingStaff.length) ? staffIndex : null
+    const validColumnIndex = (columnIndex >= 0 && columnIndex < totalColumns) ? columnIndex : null
     
-    return { timeSlot, staffIndex: validStaffIndex }
+    return { timeSlot, staffIndex: validColumnIndex }
   }
 
   // 休憩時間との重複チェック
@@ -424,16 +437,60 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         appointment_date: formatDateForDB(selectedDate)
       }
       
-      // スタッフ間移動の場合、担当者を変更
-      if (newStaffIndex !== null && workingStaff[newStaffIndex]) {
-        const newStaff = workingStaff[newStaffIndex].staff
-        updateData.staff1_id = newStaff.id
-        
-        console.log('スタッフ間移動:', {
-          from: appointment.staff1_id,
-          to: newStaff.id,
-          staffName: newStaff.name
-        })
+      // 列間移動の場合、担当者またはユニットを変更
+      if (newStaffIndex !== null) {
+        if (displayMode === 'staff' && workingStaff[newStaffIndex]) {
+          // スタッフ表示モード：スタッフを変更
+          const newStaff = workingStaff[newStaffIndex].staff
+          updateData.staff1_id = newStaff.id
+          
+          console.log('スタッフ間移動:', {
+            from: appointment.staff1_id,
+            to: newStaff.id,
+            staffName: newStaff.name
+          })
+        } else if (displayMode === 'units' && units[newStaffIndex]) {
+          // ユニット表示モード：ユニットを変更
+          const newUnit = units[newStaffIndex]
+          updateData.unit_id = newUnit.id
+          
+          console.log('ユニット間移動:', {
+            from: appointment.unit_id,
+            to: newUnit.id,
+            unitName: newUnit.name
+          })
+        } else if (displayMode === 'both') {
+          // 両方表示モード：スタッフとユニットの両方を考慮
+          const totalColumns = workingStaff.length + units.length
+          if (newStaffIndex < workingStaff.length) {
+            // スタッフ列
+            const newStaff = workingStaff[newStaffIndex].staff
+            updateData.staff1_id = newStaff.id
+            // ユニットは元のまま（または削除）
+            updateData.unit_id = null
+            
+            console.log('両方表示モード - スタッフ列移動:', {
+              from: appointment.staff1_id,
+              to: newStaff.id,
+              staffName: newStaff.name
+            })
+          } else {
+            // ユニット列
+            const unitIndex = newStaffIndex - workingStaff.length
+            if (units[unitIndex]) {
+              const newUnit = units[unitIndex]
+              updateData.unit_id = newUnit.id
+              // スタッフは元のまま（または削除）
+              updateData.staff1_id = null
+              
+              console.log('両方表示モード - ユニット列移動:', {
+                from: appointment.unit_id,
+                to: newUnit.id,
+                unitName: newUnit.name
+              })
+            }
+          }
+        }
       }
       
       // 予約を更新
@@ -1087,22 +1144,23 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           console.log('ユニットが見つからないため、最初のユニットを使用:', staffIndex)
         }
       } else if (displayMode === 'both') {
-        // 両方表示モードの場合、スタッフとユニットの組み合わせで列インデックスを取得
+        // 両方表示モードの場合、スタッフ列とユニット列を分けて計算
         // まずスタッフを特定
         const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
         const workingStaffIndex = workingStaff.findIndex(staff => staff.staff.id === staffId)
         
         if (workingStaffIndex !== -1) {
-          // スタッフのユニットIDを取得
-          const staffUnitId = appointment.unit_id
-          // スタッフのユニットインデックスを取得
-          const unitIndex = units.findIndex(unit => unit.id === staffUnitId)
-          
+          // スタッフ列の場合
+          staffIndex = workingStaffIndex
+        } else {
+          // ユニット列の場合
+          const unitIndex = units.findIndex(unit => unit.id === appointment.unit_id)
           if (unitIndex !== -1) {
-            // 列インデックス = (スタッフインデックス * ユニット数) + ユニットインデックス
-            staffIndex = workingStaffIndex * units.length + unitIndex
+            // ユニット列はスタッフ列の後に配置
+            staffIndex = workingStaff.length + unitIndex
           } else {
-            staffIndex = workingStaffIndex * units.length
+            // どちらも見つからない場合は最初の列を使用
+            staffIndex = 0
           }
         }
       } else {
@@ -1876,15 +1934,48 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   left: `${isDragging && draggedAppointment?.id === block.appointment.id 
                     ? (() => {
                         // ドラッグ中の場合は、マウス位置に基づいて新しい位置を計算
-                        if (!dragCurrentPosition || !dragStartPosition) return (block.staffIndex / workingStaff.length) * 100
+                        if (!dragCurrentPosition || !dragStartPosition) {
+                          // displayModeに応じて列数を計算
+                          let totalColumns = 0
+                          if (displayMode === 'staff') {
+                            totalColumns = workingStaff.length
+                          } else if (displayMode === 'units') {
+                            totalColumns = units.length
+                          } else if (displayMode === 'both') {
+                            totalColumns = workingStaff.length + units.length
+                          }
+                          return (block.staffIndex / totalColumns) * 100
+                        }
                         
                         // マウスの移動量を計算
                         const deltaX = dragCurrentPosition.x - dragStartPosition.x
-                        const originalLeft = (block.staffIndex / workingStaff.length) * 100
+                        
+                        // displayModeに応じて列数を計算
+                        let totalColumns = 0
+                        if (displayMode === 'staff') {
+                          totalColumns = workingStaff.length
+                        } else if (displayMode === 'units') {
+                          totalColumns = units.length
+                        } else if (displayMode === 'both') {
+                          totalColumns = workingStaff.length + units.length
+                        }
+                        
+                        const originalLeft = (block.staffIndex / totalColumns) * 100
                         const newLeft = originalLeft + (deltaX / window.innerWidth) * 100
-                        return Math.max(0, Math.min(100 - (100 / workingStaff.length), newLeft))
+                        return Math.max(0, Math.min(100 - (100 / totalColumns), newLeft))
                       })()
-                    : (block.staffIndex / workingStaff.length) * 100}%`,
+                    : (() => {
+                        // displayModeに応じて列数を計算
+                        let totalColumns = 0
+                        if (displayMode === 'staff') {
+                          totalColumns = workingStaff.length
+                        } else if (displayMode === 'units') {
+                          totalColumns = units.length
+                        } else if (displayMode === 'both') {
+                          totalColumns = workingStaff.length + units.length
+                        }
+                        return (block.staffIndex / totalColumns) * 100
+                      })()}%`,
                   width: getColumnWidth(),
                   minWidth: getColumnMinWidth(),
                   backgroundColor: (() => {
