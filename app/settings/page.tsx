@@ -108,10 +108,10 @@ import {
   QuestionnaireQuestion,
 } from "@/lib/api/questionnaires";
 import { QuestionnaireEditModal } from "@/components/forms/questionnaire-edit-modal";
-import {
-  getUnits,
-  createUnit,
-  updateUnit,
+import { 
+  getUnits, 
+  createUnit, 
+  updateUnit, 
   deleteUnit,
   getStaffUnitPriorities,
   createStaffUnitPriority,
@@ -452,7 +452,7 @@ export default function SettingsPage() {
         isOpen: boolean;
         start: string;
         end: string;
-        timeSlots: Array<{
+    timeSlots: Array<{
           id: string;
           start: string;
           end: string;
@@ -522,7 +522,7 @@ export default function SettingsPage() {
   const handleSaveUnit = async () => {
     try {
       setSaving(true);
-
+      
       if (editingUnit) {
         // 更新
         const updatedUnit = await updateUnit(
@@ -538,7 +538,7 @@ export default function SettingsPage() {
         const newUnit = await createUnit(DEMO_CLINIC_ID, unitFormData);
         setUnitsData([...unitsData, newUnit]);
       }
-
+      
       setShowUnitModal(false);
     } catch (error) {
       console.error("ユニット保存エラー:", error);
@@ -595,14 +595,14 @@ export default function SettingsPage() {
         unit_id: unitId,
         priority_order: maxPriority + 1,
       });
-
+      
       const result = await createStaffUnitPriority(DEMO_CLINIC_ID, {
         staff_id: staffId,
         unit_id: unitId,
         priority_order: maxPriority + 1,
         is_active: true,
       });
-
+      
       console.log("Staff unit priority created:", result);
       loadStaffUnitPriorities();
     } catch (error) {
@@ -634,7 +634,7 @@ export default function SettingsPage() {
 
   const handleDrop = async (e: React.DragEvent, targetPriority: any) => {
     e.preventDefault();
-
+    
     if (!draggedPriority || draggedPriority.id === targetPriority.id) {
       setDraggedPriority(null);
       return;
@@ -659,24 +659,24 @@ export default function SettingsPage() {
       const targetIndex = unitPriorities.findIndex(
         (p) => p.id === targetPriority.id,
       );
-
+      
       // 配列を並び替え
       const [draggedItem] = unitPriorities.splice(draggedIndex, 1);
       unitPriorities.splice(targetIndex, 0, draggedItem);
-
+      
       // 新しい優先順位を設定
       const newPriorities = unitPriorities.map((p, index) => ({
         id: p.id,
         priority_order: index + 1,
       }));
-
+      
       // 各優先順位を個別に更新
       for (const priority of newPriorities) {
         await updateStaffUnitPriority(DEMO_CLINIC_ID, priority.id, {
           priority_order: priority.priority_order,
         });
       }
-
+      
       loadStaffUnitPriorities();
     } catch (error) {
       console.error("優先順位更新エラー:", error);
@@ -739,7 +739,7 @@ export default function SettingsPage() {
   const [isAddWebMenuDialogOpen, setIsAddWebMenuDialogOpen] = useState(false);
   const [isEditWebMenuDialogOpen, setIsEditWebMenuDialogOpen] = useState(false);
   const [editingWebMenu, setEditingWebMenu] = useState<any>(null);
-
+  
   // キャンセルポリシー編集ダイアログ
   const [isCancelPolicyDialogOpen, setIsCancelPolicyDialogOpen] =
     useState(false);
@@ -754,13 +754,13 @@ export default function SettingsPage() {
     emailRequired: false,
     emailEnabled: true,
   });
-
+  
   type StaffAssignment = {
     staff_id: string;
     priority: number;
     is_required: boolean;
   };
-
+  
   type BookingStep = {
     id: string;
     step_order: number;
@@ -771,7 +771,7 @@ export default function SettingsPage() {
     description: string;
     staff_assignments: StaffAssignment[];
   };
-
+  
   const [newWebMenu, setNewWebMenu] = useState({
     treatment_menu_id: "",
     treatment_menu_level2_id: "",
@@ -971,7 +971,7 @@ export default function SettingsPage() {
         }
       };
       loadStaffForUnits();
-    }
+      }
   }, [selectedCategory]);
 
   // スタッフユニット優先順位を読み込み
@@ -1022,9 +1022,9 @@ export default function SettingsPage() {
             const templatesData = await templatesResponse.json();
             setTemplates(
               templatesData.map((t: any) => ({
-                id: t.id,
-                name: t.name,
-                notification_type: t.notification_type,
+              id: t.id,
+              name: t.name,
+              notification_type: t.notification_type,
                 line_message: t.line_message || "",
                 email_subject: t.email_subject || "",
                 email_message: t.email_message || "",
@@ -1047,7 +1047,7 @@ export default function SettingsPage() {
         console.log("クリニック設定読み込み開始");
         const settings = await getClinicSettings(DEMO_CLINIC_ID);
         console.log("読み込んだ設定:", settings);
-
+        
         // 保存された設定があれば使用、なければデフォルト値を使用
         if (settings.business_hours) {
           setBusinessHours(settings.business_hours);
@@ -1086,20 +1086,20 @@ export default function SettingsPage() {
           });
           setBusinessHours(defaultBusinessHours);
         }
-
+        
         if (settings.break_times) {
           setBreakTimes(settings.break_times);
         }
-
+        
         if (settings.time_slot_minutes) {
           setTimeSlotMinutes(settings.time_slot_minutes);
         }
-
+        
         if (settings.holidays) {
           console.log("読み込んだ休診日:", settings.holidays);
           setHolidays(settings.holidays);
         }
-
+        
         if (settings.clinic_info) {
           setClinicInfo(settings.clinic_info);
         }
@@ -1213,7 +1213,7 @@ export default function SettingsPage() {
         setStaffLoading(false);
       }
     };
-
+    
     loadStaff();
 
     // マスタデータの読み込み
@@ -1221,8 +1221,8 @@ export default function SettingsPage() {
       try {
         const [positionsData, noteTypesData, cancelReasonsData] =
           await Promise.all([
-            getStaffPositions(DEMO_CLINIC_ID),
-            getPatientNoteTypes(DEMO_CLINIC_ID),
+          getStaffPositions(DEMO_CLINIC_ID),
+          getPatientNoteTypes(DEMO_CLINIC_ID),
             getCancelReasons(DEMO_CLINIC_ID),
           ]);
         setStaffPositions(positionsData);
@@ -1232,7 +1232,7 @@ export default function SettingsPage() {
         console.error("マスタデータ読み込みエラー:", error);
       }
     };
-
+    
     loadMasterData();
 
     // 診療メニューデータの読み込み
@@ -1246,7 +1246,7 @@ export default function SettingsPage() {
         console.error("メニュー読み込みエラー:", error);
       }
     };
-
+    
     loadTreatmentMenus();
   }, []);
 
@@ -1258,20 +1258,20 @@ export default function SettingsPage() {
       "timeSlotMinutes:",
       timeSlotMinutes,
     );
-
+    
     if (isInitialLoad) {
       console.log("設定ページ: 初期読み込み中のため自動保存をスキップ");
       return; // 初期読み込み時は保存しない
     }
-
+    
     console.log("設定ページ: timeSlotMinutes変更検知:", timeSlotMinutes);
-
+    
     // デバウンス処理（500ms後に保存）
     const timeoutId = setTimeout(async () => {
       try {
         console.log("設定ページ: 自動保存開始");
         console.log("設定ページ: timeSlotMinutes保存値:", timeSlotMinutes);
-
+        
         // 数値として保存することを確認
         const numericTimeSlotMinutes = Number(timeSlotMinutes);
         console.log("設定ページ: 数値変換後の値:", numericTimeSlotMinutes);
@@ -1341,7 +1341,7 @@ export default function SettingsPage() {
         console.error("自動保存エラー:", error);
       }
     }, 500);
-
+    
     return () => clearTimeout(timeoutId);
   }, [timeSlotMinutes, isInitialLoad]);
 
@@ -1516,7 +1516,7 @@ export default function SettingsPage() {
   const handleAddStep = () => {
     const lastStep = newWebMenu.steps[newWebMenu.steps.length - 1];
     const startTime = lastStep ? lastStep.end_time : 0;
-
+    
     const newStep: BookingStep = {
       id: `step_${Date.now()}`,
       step_order: newWebMenu.steps.length + 1,
@@ -1578,7 +1578,7 @@ export default function SettingsPage() {
     const step = updatedSteps[stepIndex];
     step.end_time = endTime;
     step.duration = endTime - step.start_time;
-
+    
     // 後続のステップの時間を再計算
     for (let i = stepIndex + 1; i < updatedSteps.length; i++) {
       const prevStep = updatedSteps[i - 1];
@@ -1636,11 +1636,11 @@ export default function SettingsPage() {
             ...step,
             staff_assignments: [...step.staff_assignments, newAssignment],
           };
+          }
         }
-      }
       return step;
     });
-
+    
     setNewWebMenu((prev) => ({
       ...prev,
       steps: updatedSteps,
@@ -1657,10 +1657,10 @@ export default function SettingsPage() {
             .filter((sa) => sa.staff_id !== staffId)
             .map((sa, index) => ({ ...sa, priority: index + 1 })),
         };
-      }
+        }
       return step;
     });
-
+    
     setNewWebMenu((prev) => ({
       ...prev,
       steps: updatedSteps,
@@ -1689,7 +1689,7 @@ export default function SettingsPage() {
         const temp = newAssignments[currentIndex];
         newAssignments[currentIndex] = newAssignments[newIndex];
         newAssignments[newIndex] = temp;
-
+        
         // 優先順位を再設定
         return {
           ...step,
@@ -1912,19 +1912,19 @@ export default function SettingsPage() {
       console.log("Web予約設定保存開始");
       console.log("保存するwebSettings:", webSettings);
       console.log("保存するwebBookingMenus:", webBookingMenus);
-
+      
       const settingsToSave = {
         ...webSettings,
         booking_menus: webBookingMenus,
       };
-
+      
       console.log("保存データ:", settingsToSave);
       await setClinicSetting(DEMO_CLINIC_ID, "web_reservation", settingsToSave);
-
+      
       // 保存後にデータを再読み込み
       const reloadedSettings = await getClinicSettings(DEMO_CLINIC_ID);
       console.log("再読み込みした設定:", reloadedSettings);
-
+      
       if (reloadedSettings.web_reservation) {
         setWebSettings(reloadedSettings.web_reservation);
         setWebBookingMenus(
@@ -2088,7 +2088,7 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-
+              
               <div>
                 <Label
                   htmlFor="website_url"
@@ -2109,7 +2109,7 @@ export default function SettingsPage() {
                   className="mt-1"
                 />
               </div>
-
+              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label
@@ -2172,7 +2172,7 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-
+              
               <div>
                 <Label
                   htmlFor="address_line"
@@ -2193,7 +2193,7 @@ export default function SettingsPage() {
                   className="mt-1"
                 />
               </div>
-
+              
               <div>
                 <Label
                   htmlFor="phone"
@@ -2228,12 +2228,12 @@ export default function SettingsPage() {
                 {WEEKDAYS.map((day) => {
                   const isHoliday = holidays.includes(day.id);
                   const timeSlots = businessHours[day.id]?.timeSlots || [];
-
+                  
                   return (
                     <div
                       key={day.id}
                       className={`flex items-center p-2 rounded-lg border ${
-                        isHoliday
+                      isHoliday 
                           ? "bg-gray-50 border-gray-200"
                           : "bg-white border-gray-200"
                       }`}
@@ -2244,7 +2244,7 @@ export default function SettingsPage() {
                           {day.name}
                         </h4>
                       </div>
-
+                      
                       {/* 休診チェックボックス */}
                       <div className="w-20 flex-shrink-0 flex items-center space-x-2">
                         <input
@@ -2269,7 +2269,7 @@ export default function SettingsPage() {
                           休診
                         </Label>
                       </div>
-
+                      
                       {/* 時間枠 */}
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-3">
@@ -2300,7 +2300,7 @@ export default function SettingsPage() {
                                 }
                                 disabled={isHoliday}
                                 className={`w-24 text-xs ${
-                                  isHoliday
+                                  isHoliday 
                                     ? "border-gray-200 bg-gray-100 text-gray-400"
                                     : "border-gray-200"
                                 }`}
@@ -2319,7 +2319,7 @@ export default function SettingsPage() {
                                 }
                                 disabled={isHoliday}
                                 className={`w-24 text-xs ${
-                                  isHoliday
+                                  isHoliday 
                                     ? "border-gray-200 bg-gray-100 text-gray-400"
                                     : "border-gray-200"
                                 }`}
@@ -2328,7 +2328,7 @@ export default function SettingsPage() {
                                 onClick={() => removeTimeSlot(day.id, slot.id)}
                                 disabled={isHoliday}
                                 className={`${
-                                  isHoliday
+                                  isHoliday 
                                     ? "text-gray-300 cursor-not-allowed"
                                     : "text-gray-400 hover:text-red-500"
                                 }`}
@@ -2337,7 +2337,7 @@ export default function SettingsPage() {
                               </button>
                             </div>
                           ))}
-
+                          
                           {!isHoliday && (
                             <button
                               onClick={() => addTimeSlot(day.id)}
@@ -2403,7 +2403,7 @@ export default function SettingsPage() {
                 <Checkbox
                   id={item.id}
                   checked={displayItems.includes(item.id)}
-                  onCheckedChange={(checked) =>
+                  onCheckedChange={(checked) => 
                     handleDisplayItemChange(item.id, checked as boolean)
                   }
                   className="flex-shrink-0"
@@ -2490,7 +2490,7 @@ export default function SettingsPage() {
 
   const handleDeletePosition = async (positionId: string) => {
     if (!confirm("この役職を削除しますか？")) return;
-
+    
     try {
       setSaving(true);
       await deleteStaffPosition(DEMO_CLINIC_ID, positionId);
@@ -2587,7 +2587,7 @@ export default function SettingsPage() {
 
   const handleDeleteCancelReason = async (reasonId: string) => {
     if (!confirm("このキャンセル理由を削除しますか？")) return;
-
+    
     try {
       setSaving(true);
       await deleteCancelReason(DEMO_CLINIC_ID, reasonId);
@@ -2614,9 +2614,9 @@ export default function SettingsPage() {
       console.error("編集するキャンセル理由がありません");
       return;
     }
-
+    
     console.log("編集保存開始:", editingCancelReason);
-
+    
     try {
       setSaving(true);
       await updateCancelReason(DEMO_CLINIC_ID, editingCancelReason.id, {
@@ -2645,20 +2645,20 @@ export default function SettingsPage() {
     try {
       console.log("handleAddStaff開始");
       console.log("newStaff:", newStaff);
-
+      
       setStaffLoading(true);
       await createStaff(DEMO_CLINIC_ID, newStaff);
-
+      
       console.log("スタッフ作成成功");
-
+      
       // データを再読み込み
       const data = await getStaff(DEMO_CLINIC_ID);
       console.log("再読み込みしたスタッフデータ:", data);
       setStaff(data);
-
+      
       // シフト表をリフレッシュ
       setRefreshTrigger((prev) => prev + 1);
-
+      
       setNewStaff({
         name: "",
         name_kana: "",
@@ -2780,7 +2780,7 @@ export default function SettingsPage() {
                           autoFocus
                         />
                       ) : (
-                        <span
+                        <span 
                           className="text-sm font-medium text-gray-900 cursor-pointer"
                           onClick={() => setEditingIconId(icon.id)}
                         >
@@ -2789,7 +2789,7 @@ export default function SettingsPage() {
                       )}
                     </div>
                   </div>
-
+                  
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center space-x-2">
                       <input
@@ -2829,9 +2829,9 @@ export default function SettingsPage() {
                 <CardTitle>役職管理</CardTitle>
                 <Button
                   onClick={() => {
-                    setNewPosition({
+                  setNewPosition({
                       name: "",
-                      sort_order: staffPositions.length,
+                    sort_order: staffPositions.length,
                       enabled: true,
                     });
                     setShowAddPosition(true);
@@ -2880,11 +2880,11 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ))}
-
+                
                 {staffPositions.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <p className="text-sm">役職が登録されていません</p>
-                    <Button
+                    <Button 
                       onClick={() => setShowAddPosition(true)}
                       className="mt-2"
                     >
@@ -2919,7 +2919,7 @@ export default function SettingsPage() {
                     placeholder="例: 歯科医師"
                   />
                 </div>
-
+                
                 <div>
                   <Label htmlFor="position_sort_order">並び順</Label>
                   <Input
@@ -2935,7 +2935,7 @@ export default function SettingsPage() {
                     placeholder="0"
                   />
                 </div>
-
+                
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="position_enabled"
@@ -2949,7 +2949,7 @@ export default function SettingsPage() {
                   />
                   <Label htmlFor="position_enabled">有効</Label>
                 </div>
-
+                
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
@@ -3025,7 +3025,7 @@ export default function SettingsPage() {
                   <button className="p-1 text-gray-400 hover:text-blue-600">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button
+                  <button 
                     onClick={() => {
                       if (confirm("このノートタイプを削除しますか？")) {
                         deletePatientNoteType(DEMO_CLINIC_ID, noteType.id).then(
@@ -3043,7 +3043,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
-
+            
             {patientNoteTypes.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-sm">ノートタイプが登録されていません</p>
@@ -3073,7 +3073,7 @@ export default function SettingsPage() {
                     placeholder="例: 診療メモ"
                   />
                 </div>
-
+                
                 <div>
                   <Label htmlFor="note_type_description">説明</Label>
                   <Input
@@ -3088,7 +3088,7 @@ export default function SettingsPage() {
                     placeholder="例: 診療内容のメモ"
                   />
                 </div>
-
+                
                 <div>
                   <Label htmlFor="note_type_sort_order">並び順</Label>
                   <Input
@@ -3104,7 +3104,7 @@ export default function SettingsPage() {
                     placeholder="0"
                   />
                 </div>
-
+                
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="note_type_active"
@@ -3118,7 +3118,7 @@ export default function SettingsPage() {
                   />
                   <Label htmlFor="note_type_active">有効</Label>
                 </div>
-
+                
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
@@ -3186,7 +3186,7 @@ export default function SettingsPage() {
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button
+                  <button 
                     onClick={() => handleDeleteCancelReason(reason.id)}
                     className="p-1 text-gray-400 hover:text-red-600"
                   >
@@ -3195,11 +3195,11 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
-
+            
             {cancelReasons.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-sm">キャンセル理由が登録されていません</p>
-                <Button
+                <Button 
                   onClick={() => setShowAddCancelReason(true)}
                   className="mt-2"
                 >
@@ -3232,7 +3232,7 @@ export default function SettingsPage() {
                     placeholder="例: 無断キャンセル"
                   />
                 </div>
-
+                
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="cancel_reason_active"
@@ -3246,7 +3246,7 @@ export default function SettingsPage() {
                   />
                   <Label htmlFor="cancel_reason_active">有効</Label>
                 </div>
-
+                
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
@@ -3292,7 +3292,7 @@ export default function SettingsPage() {
                     placeholder="例: 無断キャンセル"
                   />
                 </div>
-
+                
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="edit_cancel_reason_active"
@@ -3307,7 +3307,7 @@ export default function SettingsPage() {
                   />
                   <Label htmlFor="edit_cancel_reason_active">有効</Label>
                 </div>
-
+                
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
@@ -3337,10 +3337,10 @@ export default function SettingsPage() {
     <div className="space-y-6">
       {/* 上部ナビゲーションバー */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
             <div className="relative">
-              <button
+              <button 
                 onClick={() => setSelectedTab("menu1")}
                 className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
               >
@@ -3356,7 +3356,7 @@ export default function SettingsPage() {
                         : "text-gray-600"
                     }`}
                   />
-                </div>
+                      </div>
                 <span
                   className={`font-medium text-xs ${
                     selectedTab === "menu1" ? "text-blue-600" : "text-gray-600"
@@ -3365,9 +3365,9 @@ export default function SettingsPage() {
                   メニュー1
                 </span>
               </button>
-            </div>
-
-            <button
+                    </div>
+            
+            <button 
               onClick={() => setSelectedTab("menu2")}
               className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
             >
@@ -3381,17 +3381,17 @@ export default function SettingsPage() {
                     selectedTab === "menu2" ? "text-blue-600" : "text-gray-600"
                   }`}
                 />
-              </div>
+                  </div>
               <span
                 className={`font-medium text-xs ${
                   selectedTab === "menu2" ? "text-blue-600" : "text-gray-600"
                 }`}
               >
-                メニュー2
-              </span>
+                  メニュー2
+                </span>
             </button>
-
-            <button
+            
+            <button 
               onClick={() => setSelectedTab("submenu")}
               className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
             >
@@ -3413,8 +3413,8 @@ export default function SettingsPage() {
                   selectedTab === "submenu" ? "text-blue-600" : "text-gray-600"
                 }`}
               >
-                サブメニュー
-              </span>
+                  サブメニュー
+                </span>
             </button>
           </div>
         </div>
@@ -3430,11 +3430,11 @@ export default function SettingsPage() {
                 {getFilteredTreatmentMenus().map((menu) => (
                   <div key={`root-${menu.id}`}>{renderMenuItem(menu, 0)}</div>
                 ))}
-
+                
                 {/* メニュー-1を追加ボタン */}
                 <div className="ml-4 mt-12">
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     size="sm"
                     onClick={() => {
                       setParentMenuForChild(null);
@@ -3480,7 +3480,7 @@ export default function SettingsPage() {
                   {selectedTab === "submenu" &&
                     "上部の「サブメニューを追加」ボタンから新しいメニューを追加してください"}
                 </p>
-                <Button
+                    <Button
                   onClick={() => {
                     setParentMenuForChild(null);
                     setUseParentColor(true);
@@ -3502,14 +3502,14 @@ export default function SettingsPage() {
                   {selectedTab === "menu1" && "メニュー-1を追加"}
                   {selectedTab === "menu2" && "メニュー-2を追加"}
                   {selectedTab === "submenu" && "サブメニューを追加"}
-                </Button>
-              </div>
-            )}
-          </div>
+                    </Button>
+                  </div>
+        )}
+      </div>
 
           {/* メニュー追加モーダル */}
           {showTreatmentAddForm && (
-            <div
+            <div 
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
               onClick={() => {
                 setShowTreatmentAddForm(false);
@@ -3530,7 +3530,7 @@ export default function SettingsPage() {
                 });
               }}
             >
-              <div
+              <div 
                 className="bg-white rounded-lg p-6 w-96 max-w-md mx-4"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -3543,11 +3543,11 @@ export default function SettingsPage() {
                         ? "新しいメニュー-2を追加"
                         : "新しいサブメニューを追加"}
                 </h3>
-
+                
                 <div className="space-y-4">
-                  <div>
+              <div>
                     <Label htmlFor="modal_menu_name">メニュー名</Label>
-                    <Input
+                <Input
                       id="modal_menu_name"
                       value={newTreatmentMenu.name}
                       onChange={(e) =>
@@ -3556,12 +3556,12 @@ export default function SettingsPage() {
                           name: e.target.value,
                         }))
                       }
-                      placeholder="例: 虫歯治療"
+                  placeholder="例: 虫歯治療"
                       className="mt-1"
-                    />
-                  </div>
-
-                  <div>
+                />
+              </div>
+                  
+              <div>
                     <Label htmlFor="modal_standard_duration">
                       標準時間（分）
                     </Label>
@@ -3578,7 +3578,7 @@ export default function SettingsPage() {
                       className="mt-1"
                     />
                   </div>
-
+                  
                   <div>
                     <Label htmlFor="modal_menu_color">色</Label>
                     {parentMenuForChild && (
@@ -3643,7 +3643,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-
+                
                 <div className="flex justify-end space-x-2 mt-6">
                   <Button
                     variant="outline"
@@ -3678,27 +3678,27 @@ export default function SettingsPage() {
                   >
                     {saving ? "追加中..." : "追加"}
                   </Button>
-                </div>
               </div>
+            </div>
             </div>
           )}
 
           {/* 編集モーダル */}
           {editingTreatmentMenu && (
-            <div
+            <div 
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
               onClick={() => setEditingTreatmentMenu(null)}
             >
-              <div
+              <div 
                 className="bg-white rounded-lg p-6 w-96 max-w-md mx-4"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-lg font-semibold mb-4">メニューを編集</h3>
-
+                
                 <div className="space-y-4">
-                  <div>
+              <div>
                     <Label htmlFor="modal_edit_name">メニュー名</Label>
-                    <Input
+                <Input
                       id="modal_edit_name"
                       value={editingTreatmentMenu.name}
                       onChange={(e) =>
@@ -3709,12 +3709,12 @@ export default function SettingsPage() {
                       className="mt-1"
                     />
                   </div>
-
+                  
                   <div>
                     <Label htmlFor="modal_edit_duration">標準時間（分）</Label>
                     <Input
                       id="modal_edit_duration"
-                      type="number"
+                  type="number"
                       value={editingTreatmentMenu.standard_duration || 30}
                       onChange={(e) =>
                         setEditingTreatmentMenu((prev: any) =>
@@ -3727,15 +3727,15 @@ export default function SettingsPage() {
                         )
                       }
                       className="mt-1"
-                    />
-                  </div>
-
-                  <div>
+                />
+              </div>
+                  
+              <div>
                     <Label htmlFor="modal_edit_color">色</Label>
                     <div className="flex items-center space-x-2 mt-1">
-                      <Input
+                <Input
                         id="modal_edit_color"
-                        type="color"
+                  type="color"
                         value={editingTreatmentMenu.color || "#3B82F6"}
                         onChange={(e) =>
                           setEditingTreatmentMenu((prev: any) =>
@@ -3753,19 +3753,19 @@ export default function SettingsPage() {
                         }
                         placeholder="#3B82F6"
                         className="flex-1"
-                      />
-                    </div>
-                  </div>
+                />
+              </div>
+            </div>
                 </div>
-
+                
                 <div className="flex justify-end space-x-2 mt-6">
-                  <Button
-                    variant="outline"
+              <Button
+                variant="outline"
                     onClick={() => setEditingTreatmentMenu(null)}
-                  >
-                    キャンセル
-                  </Button>
-                  <Button
+              >
+                キャンセル
+              </Button>
+              <Button
                     onClick={() =>
                       editingTreatmentMenu &&
                       handleEditTreatmentMenu(editingTreatmentMenu)
@@ -3773,8 +3773,8 @@ export default function SettingsPage() {
                     disabled={saving}
                   >
                     {saving ? "保存中..." : "保存"}
-                  </Button>
-                </div>
+              </Button>
+            </div>
               </div>
             </div>
           )}
@@ -3787,7 +3787,7 @@ export default function SettingsPage() {
   const handleAddTreatmentMenu = async () => {
     try {
       setSaving(true);
-
+      
       // 選択されたタブに応じてレベルを設定
       const menuData = {
         ...newTreatmentMenu,
@@ -3800,11 +3800,11 @@ export default function SettingsPage() {
 
       const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
       console.log("メニュー追加成功:", result);
-
+      
       // データを再読み込み
       const data = await getTreatmentMenus(DEMO_CLINIC_ID);
       setTreatmentMenus(data);
-
+      
       setNewTreatmentMenu({
         name: "",
         level: selectedTab === "menu1" ? 1 : selectedTab === "menu2" ? 2 : 3,
@@ -3830,32 +3830,32 @@ export default function SettingsPage() {
   const handleAddChildMenu = async () => {
     try {
       setSaving(true);
-
+      
       if (!parentMenuForChild) return;
-
+      
       // 親メニューのレベルに基づいて子メニューのレベルを決定
       const childLevel = parentMenuForChild.level + 1;
       if (childLevel > 3) {
         alert("最大3階層までしか作成できません");
         return;
       }
-
+      
       const menuData = {
         ...newTreatmentMenu,
         level: childLevel,
         parent_id: parentMenuForChild.id,
         standard_duration: newTreatmentMenu.standard_duration || 30,
       };
-
+      
       console.log("子メニュー追加開始:", menuData);
-
+      
       const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
       console.log("子メニュー追加成功:", result);
-
+      
       // データを再読み込み
       const data = await getTreatmentMenus(DEMO_CLINIC_ID);
       setTreatmentMenus(data);
-
+      
       setNewTreatmentMenu({
         name: "",
         level: childLevel,
@@ -3888,7 +3888,7 @@ export default function SettingsPage() {
         sort_order: menu.sort_order,
         is_active: menu.is_active,
       });
-
+      
       // データを再読み込み
       const data = await getTreatmentMenus(DEMO_CLINIC_ID);
       setTreatmentMenus(data);
@@ -3903,11 +3903,11 @@ export default function SettingsPage() {
 
   const handleDeleteTreatmentMenu = async (menuId: string) => {
     if (!confirm("このメニューを削除しますか？")) return;
-
+    
     try {
       setSaving(true);
       await deleteTreatmentMenu(DEMO_CLINIC_ID, menuId);
-
+      
       // データを再読み込み
       const data = await getTreatmentMenus(DEMO_CLINIC_ID);
       setTreatmentMenus(data);
@@ -3922,7 +3922,7 @@ export default function SettingsPage() {
   // タブに応じたメニューのフィルタリング（階層構造で表示）
   const getFilteredTreatmentMenus = () => {
     const allMenus = treatmentMenus;
-
+    
     // レベル1のメニューを取得し、子メニューを追加
     const buildHierarchy = (
       menus: any[],
@@ -3935,7 +3935,7 @@ export default function SettingsPage() {
           children: buildHierarchy(menus, menu.id),
         }));
     };
-
+    
     switch (selectedTab) {
       case "menu1":
         return buildHierarchy(allMenus, null);
@@ -3968,15 +3968,15 @@ export default function SettingsPage() {
     const indent = level * 24;
     const isParent = menu.children && menu.children.length > 0;
     const isExpanded = expandedMenus.has(menu.id);
-
+    
     return (
       <div key={menu.id}>
-        <div
+        <div 
           className="border rounded-lg p-3 mb-1 bg-white"
           style={{ marginLeft: `${indent}px` }}
         >
           <div className="flex items-center justify-between">
-            <div
+            <div 
               className="flex items-center space-x-3 cursor-pointer flex-1"
               onClick={() => isParent && toggleMenuExpansion(menu.id)}
             >
@@ -3989,7 +3989,7 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
-              <div
+              <div 
                 className="w-4 h-4 rounded"
                 style={{ backgroundColor: menu.color }}
               />
@@ -4038,11 +4038,11 @@ export default function SettingsPage() {
                 className="text-red-600 hover:text-red-700"
               >
                 <Trash2 className="w-4 h-4" />
-              </Button>
+          </Button>
             </div>
           </div>
         </div>
-
+        
         {/* 子メニューを階層表示（展開時のみ） */}
         {isParent && isExpanded && (
           <div className="ml-4">
@@ -4051,9 +4051,9 @@ export default function SettingsPage() {
                 {renderMenuItem(child, level + 1)}
               </div>
             ))}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
     );
   };
 
@@ -4157,11 +4157,11 @@ export default function SettingsPage() {
                       </div>
                     ))
                   )}
-
+                  
                   {/* 新規追加ボタン */}
                   <div className="pt-3">
-                    <Button
-                      onClick={() => setShowUnitModal(true)}
+                    <Button 
+                      onClick={() => setShowUnitModal(true)} 
                       className="w-full bg-blue-600 hover:bg-blue-700"
                     >
                       <Plus className="w-4 h-4 mr-2" />
@@ -4204,7 +4204,7 @@ export default function SettingsPage() {
                             {unit.name}
                           </h3>
                         </div>
-
+                        
                         {/* このユニットのスタッフ優先順位 */}
                         <div className="space-y-2">
                           {staffUnitPriorities
@@ -4237,7 +4237,7 @@ export default function SettingsPage() {
                                 </button>
                               </div>
                             ))}
-
+                          
                           {/* 未割り当てスタッフ */}
                           <div className="mt-4">
                             <Label className="text-sm font-medium text-gray-700">
@@ -4307,7 +4307,7 @@ export default function SettingsPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
+              
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="unit-name">ユニット名</Label>
@@ -4320,7 +4320,7 @@ export default function SettingsPage() {
                     placeholder="ユニット名を入力"
                   />
                 </div>
-
+                
                 <div>
                   <Label htmlFor="sort-order">並び順</Label>
                   <Input
@@ -4337,7 +4337,7 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-
+              
               <div className="flex justify-end space-x-2 mt-6">
                 <Button
                   variant="outline"
@@ -4403,7 +4403,7 @@ export default function SettingsPage() {
                           </h4>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              questionnaire.is_active
+                            questionnaire.is_active 
                                 ? "bg-green-100 text-green-800"
                                 : "bg-gray-100 text-gray-800"
                             }`}
@@ -4642,11 +4642,11 @@ export default function SettingsPage() {
         {selectedCategory === "staff" && (
           <div className="space-y-6">
             {/* スタッフ管理 */}
-            <div className="space-y-6">
-              {/* スタッフ一覧表示（役職別グループ化） */}
               <div className="space-y-6">
-                {(() => {
-                  // スタッフを役職別にグループ化
+                {/* スタッフ一覧表示（役職別グループ化） */}
+                <div className="space-y-6">
+                  {(() => {
+                    // スタッフを役職別にグループ化
                   const staffByPosition = staff.reduce(
                     (groups: { [key: string]: any[] }, member) => {
                       const positionName = member.position?.name || "その他";
@@ -4659,7 +4659,7 @@ export default function SettingsPage() {
                     {},
                   );
 
-                  // 役職の並び順を決定（マスタ設定のsort_orderに基づく）
+                    // 役職の並び順を決定（マスタ設定のsort_orderに基づく）
                   const sortedPositions = Object.keys(staffByPosition).sort(
                     (a, b) => {
                       const positionA = staffPositions.find(
@@ -4679,52 +4679,52 @@ export default function SettingsPage() {
                       key={positionName}
                       className="bg-white rounded-lg border border-gray-200 relative"
                     >
-                      {/* 役職ヘッダー */}
-                      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-                        <div className="flex justify-between items-center">
+                        {/* 役職ヘッダー */}
+                        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                          <div className="flex justify-between items-center">
                           <h4 className="font-medium text-gray-900">
                             {positionName}
                           </h4>
-                          <p className="text-sm text-gray-500">
-                            {staffByPosition[positionName].length}名
-                          </p>
+                            <p className="text-sm text-gray-500">
+                              {staffByPosition[positionName].length}名
+                            </p>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* スタッフ一覧 */}
-                      <div className="divide-y divide-gray-200">
+                        
+                        {/* スタッフ一覧 */}
+                        <div className="divide-y divide-gray-200">
                         {staffByPosition[positionName].map((member) => (
                           <div
                             key={member.id}
                             className="p-1 flex items-center justify-between"
                           >
-                            <div className="flex-1">
+                              <div className="flex-1">
                               <div className="font-medium text-gray-900">
                                 {member.name}
                               </div>
                               <div className="text-sm text-gray-500">
                                 {member.email}
                               </div>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Button
-                                size="sm"
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <Button
+                                  size="sm"
                                 className={`text-xs px-2 py-1 ${member.is_active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                              >
+                                >
                                 {member.is_active ? "在籍" : "退職"}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setEditingStaff(member)}
-                                className="p-0.5 text-gray-400 hover:text-blue-600"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={async () => {
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingStaff(member)}
+                                  className="p-0.5 text-gray-400 hover:text-blue-600"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={async () => {
                                   if (confirm("このスタッフを削除しますか？")) {
                                     try {
                                       await deleteStaff(
@@ -4734,168 +4734,168 @@ export default function SettingsPage() {
                                       const data =
                                         await getStaff(DEMO_CLINIC_ID);
                                       setStaff(data);
-                                      // シフト表をリフレッシュ
+                                        // シフト表をリフレッシュ
                                       setRefreshTrigger((prev) => prev + 1);
-                                    } catch (error) {
+                                      } catch (error) {
                                       console.error(
                                         "スタッフ削除エラー:",
                                         error,
                                       );
+                                      }
                                     }
-                                  }
-                                }}
-                                className="p-0.5 text-gray-400 hover:text-red-600"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
+                                  }}
+                                  className="p-0.5 text-gray-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
                   ));
-                })()}
-
-                {/* 受付セクションの枠外に+ボタンを配置 */}
-                <div className="flex justify-start items-center mt-4">
+                  })()}
+                  
+                  {/* 受付セクションの枠外に+ボタンを配置 */}
+                  <div className="flex justify-start items-center mt-4">
                   <Button
                     onClick={() => setShowAddStaff(true)}
                     className="rounded-full w-8 h-8 p-0"
                   >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* スタッフが登録されていない場合 */}
-                {staff.length === 0 && (
-                  <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 relative">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">スタッフが登録されていません</p>
-                    <Button
-                      onClick={() => setShowAddStaff(true)}
-                      className="mt-2"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      最初のスタッフを追加
+                      <Plus className="w-4 h-4" />
                     </Button>
-                    {/* 受付の枠の左下に配置 */}
-                    <div className="absolute bottom-4 left-4">
+                  </div>
+                  
+                  {/* スタッフが登録されていない場合 */}
+                  {staff.length === 0 && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 relative">
+                      <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">スタッフが登録されていません</p>
+                      <Button 
+                        onClick={() => setShowAddStaff(true)}
+                        className="mt-2"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        最初のスタッフを追加
+                      </Button>
+                      {/* 受付の枠の左下に配置 */}
+                      <div className="absolute bottom-4 left-4">
                       <Button
                         onClick={() => setShowAddStaff(true)}
                         className="rounded-full w-8 h-8 p-0"
                       >
-                        <Plus className="w-4 h-4" />
-                      </Button>
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
-              {/* スタッフ追加モーダル */}
-              <Modal
-                isOpen={showAddStaff}
-                onClose={() => setShowAddStaff(false)}
-                title="新しいスタッフを追加"
-              >
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="staff_name">名前</Label>
-                      <Input
-                        id="staff_name"
-                        value={newStaff.name}
+                {/* スタッフ追加モーダル */}
+                <Modal
+                  isOpen={showAddStaff}
+                  onClose={() => setShowAddStaff(false)}
+                  title="新しいスタッフを追加"
+                >
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="staff_name">名前</Label>
+                        <Input
+                          id="staff_name"
+                          value={newStaff.name}
                         onChange={(e) =>
                           setNewStaff((prev) => ({
                             ...prev,
                             name: e.target.value,
                           }))
                         }
-                        placeholder="例: 田中太郎"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="staff_name_kana">フリガナ</Label>
-                      <Input
-                        id="staff_name_kana"
-                        value={newStaff.name_kana}
+                          placeholder="例: 田中太郎"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="staff_name_kana">フリガナ</Label>
+                        <Input
+                          id="staff_name_kana"
+                          value={newStaff.name_kana}
                         onChange={(e) =>
                           setNewStaff((prev) => ({
                             ...prev,
                             name_kana: e.target.value,
                           }))
                         }
-                        placeholder="例: タナカタロウ"
-                      />
+                          placeholder="例: タナカタロウ"
+                        />
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="staff_email">メールアドレス</Label>
-                      <Input
-                        id="staff_email"
-                        type="email"
-                        value={newStaff.email}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="staff_email">メールアドレス</Label>
+                        <Input
+                          id="staff_email"
+                          type="email"
+                          value={newStaff.email}
                         onChange={(e) =>
                           setNewStaff((prev) => ({
                             ...prev,
                             email: e.target.value,
                           }))
                         }
-                        placeholder="例: tanaka@example.com"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="staff_phone">電話番号</Label>
-                      <Input
-                        id="staff_phone"
-                        value={newStaff.phone}
+                          placeholder="例: tanaka@example.com"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="staff_phone">電話番号</Label>
+                        <Input
+                          id="staff_phone"
+                          value={newStaff.phone}
                         onChange={(e) =>
                           setNewStaff((prev) => ({
                             ...prev,
                             phone: e.target.value,
                           }))
                         }
-                        placeholder="例: 03-1234-5678"
-                      />
+                          placeholder="例: 03-1234-5678"
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <Label htmlFor="staff_position">役職</Label>
-                    <Select
-                      value={newStaff.position_id}
+                    <div>
+                      <Label htmlFor="staff_position">役職</Label>
+                      <Select
+                        value={newStaff.position_id}
                       onValueChange={(value) =>
                         setNewStaff((prev) => ({ ...prev, position_id: value }))
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="役職を選択してください" />
-                      </SelectTrigger>
-                      <SelectContent>
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="役職を選択してください" />
+                        </SelectTrigger>
+                        <SelectContent>
                         {staffPositions.map((position) => (
-                          <SelectItem key={position.id} value={position.id}>
-                            {position.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {staffPositions.length === 0 && (
-                      <p className="text-sm text-gray-500 mt-1">
-                        役職が登録されていません。マスタタブで役職を追加してください。
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex justify-end space-x-2 pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddStaff(false)}
-                    >
-                      キャンセル
-                    </Button>
-                    <Button
-                      onClick={() => {
+                            <SelectItem key={position.id} value={position.id}>
+                              {position.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {staffPositions.length === 0 && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          役職が登録されていません。マスタタブで役職を追加してください。
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-end space-x-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowAddStaff(false)}
+                      >
+                        キャンセル
+                      </Button>
+                      <Button
+                        onClick={() => {
                         console.log("追加ボタンがクリックされました");
                         console.log("staffLoading:", staffLoading);
                         console.log("newStaff.name:", newStaff.name);
@@ -4905,15 +4905,15 @@ export default function SettingsPage() {
                         );
                         console.log("newStaff全体:", newStaff);
                         handleAddStaff();
-                      }}
-                      disabled={staffLoading || !newStaff.name}
-                    >
+                        }}
+                        disabled={staffLoading || !newStaff.name}
+                      >
                       {staffLoading ? "追加中..." : "追加"}
-                    </Button>
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </Modal>
-            </div>
+                </Modal>
+              </div>
           </div>
         )}
         {selectedCategory === "shift" && (
@@ -4945,13 +4945,13 @@ export default function SettingsPage() {
             {/* シフト表タブ */}
             {selectedShiftTab === "table" && (
               <div>
-                <ShiftTable
-                  clinicId={DEMO_CLINIC_ID}
+                <ShiftTable 
+                  clinicId={DEMO_CLINIC_ID} 
                   refreshTrigger={refreshTrigger}
                 />
               </div>
             )}
-
+            
             {/* パターンタブ */}
             {selectedShiftTab === "pattern" && (
               <div>
@@ -4963,564 +4963,564 @@ export default function SettingsPage() {
         {selectedCategory === "web" && (
           <div className="space-y-6">
             {/* 基本設定 */}
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>基本設定</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <Checkbox
-                      id="is_enabled"
-                      checked={webSettings.isEnabled}
-                      onCheckedChange={(checked) =>
+              <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>基本設定</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <Checkbox
+                    id="is_enabled"
+                    checked={webSettings.isEnabled}
+                    onCheckedChange={(checked) =>
                         setWebSettings((prev) => ({
                           ...prev,
                           isEnabled: checked as boolean,
                         }))
-                      }
-                    />
-                    <Label htmlFor="is_enabled" className="font-medium">
-                      Web予約機能を有効にする
-                    </Label>
-                  </div>
+                    }
+                  />
+                  <Label htmlFor="is_enabled" className="font-medium">
+                    Web予約機能を有効にする
+                  </Label>
+                </div>
 
-                  {webSettings.isEnabled && (
-                    <>
-                      <div>
+                {webSettings.isEnabled && (
+                  <>
+                    <div>
                         <Label htmlFor="reservation_period">
                           予約可能期間（日）
                         </Label>
-                        <Input
-                          id="reservation_period"
-                          type="number"
-                          min="1"
-                          max="365"
-                          value={webSettings.reservationPeriod}
-                          onChange={(e) =>
+                      <Input
+                        id="reservation_period"
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={webSettings.reservationPeriod}
+                        onChange={(e) =>
                             setWebSettings((prev) => ({
-                              ...prev,
+                            ...prev,
                               reservationPeriod: parseInt(e.target.value) || 30,
-                            }))
-                          }
-                          className="max-w-xs"
-                        />
-                      </div>
+                          }))
+                        }
+                        className="max-w-xs"
+                      />
+                    </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="allow_current_time"
-                          checked={webSettings.allowCurrentTime}
-                          onCheckedChange={(checked) =>
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="allow_current_time"
+                        checked={webSettings.allowCurrentTime}
+                        onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
                               ...prev,
                               allowCurrentTime: checked as boolean,
                             }))
-                          }
-                        />
-                        <Label htmlFor="allow_current_time">
-                          現在時刻・日付以降のみ予約可
-                        </Label>
-                      </div>
+                        }
+                      />
+                      <Label htmlFor="allow_current_time">
+                        現在時刻・日付以降のみ予約可
+                      </Label>
+                    </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="open_all_slots"
-                          checked={webSettings.openAllSlots}
-                          onCheckedChange={(checked) =>
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="open_all_slots"
+                        checked={webSettings.openAllSlots}
+                        onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
                               ...prev,
                               openAllSlots: checked as boolean,
                             }))
-                          }
-                        />
+                        }
+                      />
                         <Label htmlFor="open_all_slots">全空き枠開放</Label>
-                      </div>
+                    </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="allow_staff_selection"
-                          checked={webSettings.allowStaffSelection}
-                          onCheckedChange={(checked) =>
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="allow_staff_selection"
+                        checked={webSettings.allowStaffSelection}
+                        onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
                               ...prev,
                               allowStaffSelection: checked as boolean,
                             }))
-                          }
-                        />
-                        <Label htmlFor="allow_staff_selection">
-                          担当者指定を許可
-                        </Label>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+                        }
+                      />
+                      <Label htmlFor="allow_staff_selection">
+                        担当者指定を許可
+                      </Label>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-              {/* Web予約ページ設定 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Web予約ページ設定</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="web_page_url">予約ページURL</Label>
-                    <div className="flex gap-2 mt-1">
-                      <Input
-                        id="web_page_url"
+            {/* Web予約ページ設定 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Web予約ページ設定</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="web_page_url">予約ページURL</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      id="web_page_url"
                         value={
                           typeof window !== "undefined"
                             ? `${window.location.origin}/web-booking`
                             : "/web-booking"
                         }
-                        readOnly
-                        className="flex-1 bg-gray-50"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
+                      readOnly
+                      className="flex-1 bg-gray-50"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
                           const url =
                             typeof window !== "undefined"
                               ? `${window.location.origin}/web-booking`
                               : "/web-booking";
                           navigator.clipboard.writeText(url);
                           alert("URLをコピーしました");
-                        }}
-                        className="shrink-0"
-                      >
-                        <Copy className="w-4 h-4 mr-2" />
-                        コピー
-                      </Button>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      患者がアクセスする予約ページのURLです。このURLを患者に共有してください。
-                    </p>
+                      }}
+                      className="shrink-0"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      コピー
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    患者がアクセスする予約ページのURLです。このURLを患者に共有してください。
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+              </div>
 
             {/* フロー設定 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 左側: フロー設定 */}
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>予約フロー設定</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* キャンセルポリシー設定 */}
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="flow_cancel_policy"
-                          checked={webSettings.showCancelPolicy}
-                          onCheckedChange={(checked) =>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 左側: フロー設定 */}
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>予約フロー設定</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* キャンセルポリシー設定 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_cancel_policy"
+                            checked={webSettings.showCancelPolicy}
+                            onCheckedChange={(checked) => 
                             setWebSettings((prev) => ({
-                              ...prev,
+                                ...prev,
                               showCancelPolicy: checked as boolean,
-                            }))
-                          }
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
                             <Label
                               htmlFor="flow_cancel_policy"
                               className="font-medium"
                             >
-                              キャンセルポリシー表示
-                            </Label>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleOpenCancelPolicyDialog}
-                              className="p-1 h-auto"
-                            >
-                              <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
-                            </Button>
+                                キャンセルポリシー表示
+                              </Label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleOpenCancelPolicyDialog}
+                                className="p-1 h-auto"
+                              >
+                                <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* 初診/再診選択 */}
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="flow_initial"
-                          checked={webSettings.flow.initialSelection}
-                          onCheckedChange={(checked) =>
+                        {/* 初診/再診選択 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_initial"
+                            checked={webSettings.flow.initialSelection}
+                            onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
-                              ...prev,
+                                ...prev,
                               flow: {
                                 ...prev.flow,
                                 initialSelection: checked as boolean,
                               },
-                            }))
-                          }
-                        />
-                        <div className="flex-1">
-                          <Label htmlFor="flow_initial" className="font-medium">
-                            初診/再診選択
-                          </Label>
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="flow_initial" className="font-medium">
+                              初診/再診選択
+                            </Label>
+                          </div>
                         </div>
-                      </div>
 
-                      {/* 診療メニュー選択 */}
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="flow_menu"
-                          checked={webSettings.flow.menuSelection}
-                          onCheckedChange={(checked) =>
+                        {/* 診療メニュー選択 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_menu"
+                            checked={webSettings.flow.menuSelection}
+                            onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
-                              ...prev,
+                                ...prev,
                               flow: {
                                 ...prev.flow,
                                 menuSelection: checked as boolean,
                               },
-                            }))
-                          }
-                        />
-                        <div className="flex-1">
-                          <Label htmlFor="flow_menu" className="font-medium">
-                            診療メニュー選択
-                          </Label>
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="flow_menu" className="font-medium">
+                              診療メニュー選択
+                            </Label>
+                          </div>
                         </div>
-                      </div>
 
-                      {/* カレンダー表示 */}
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="flow_calendar"
-                          checked={webSettings.flow.calendarDisplay}
-                          onCheckedChange={(checked) =>
+                        {/* カレンダー表示 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_calendar"
+                            checked={webSettings.flow.calendarDisplay}
+                            onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
-                              ...prev,
+                                ...prev,
                               flow: {
                                 ...prev.flow,
                                 calendarDisplay: checked as boolean,
                               },
-                            }))
-                          }
-                        />
-                        <div className="flex-1">
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
                           <Label
                             htmlFor="flow_calendar"
                             className="font-medium"
                           >
-                            カレンダー表示
-                          </Label>
+                              カレンダー表示
+                            </Label>
+                          </div>
                         </div>
-                      </div>
 
-                      {/* 患者情報入力 */}
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="flow_patient"
-                          checked={webSettings.flow.patientInfo}
-                          onCheckedChange={(checked) =>
+                        {/* 患者情報入力 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_patient"
+                            checked={webSettings.flow.patientInfo}
+                            onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
-                              ...prev,
+                                ...prev,
                               flow: {
                                 ...prev.flow,
                                 patientInfo: checked as boolean,
                               },
-                            }))
-                          }
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
                             <Label
                               htmlFor="flow_patient"
                               className="font-medium"
                             >
-                              患者情報入力
-                            </Label>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleOpenPatientInfoFieldsDialog}
-                              className="p-1 h-auto"
-                            >
-                              <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
-                            </Button>
+                                患者情報入力
+                              </Label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleOpenPatientInfoFieldsDialog}
+                                className="p-1 h-auto"
+                              >
+                                <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* 確認・確定 */}
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="flow_confirmation"
-                          checked={webSettings.flow.confirmation}
-                          onCheckedChange={(checked) =>
+                        {/* 確認・確定 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_confirmation"
+                            checked={webSettings.flow.confirmation}
+                            onCheckedChange={(checked) =>
                             setWebSettings((prev) => ({
-                              ...prev,
+                                ...prev,
                               flow: {
                                 ...prev.flow,
                                 confirmation: checked as boolean,
                               },
-                            }))
-                          }
-                        />
-                        <div className="flex-1">
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
                           <Label
                             htmlFor="flow_confirmation"
                             className="font-medium"
                           >
-                            確認・確定
-                          </Label>
+                              確認・確定
+                            </Label>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
-              {/* 右側: プレビュー */}
-              <div className="space-y-6">
-                <Card className="h-[600px] flex flex-col">
-                  <CardHeader className="flex-shrink-0">
-                    <CardTitle>プレビュー</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 overflow-y-auto p-0">
-                    {/* 実際のWeb予約ページと全く同じプレビュー */}
-                    <div className="min-h-screen bg-gray-50 py-8">
-                      <div className="max-w-4xl mx-auto px-4">
-                        {/* ヘッダー */}
-                        <div className="text-center mb-8">
+                {/* 右側: プレビュー */}
+                <div className="space-y-6">
+                  <Card className="h-[600px] flex flex-col">
+                    <CardHeader className="flex-shrink-0">
+                      <CardTitle>プレビュー</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-y-auto p-0">
+                      {/* 実際のWeb予約ページと全く同じプレビュー */}
+                      <div className="min-h-screen bg-gray-50 py-8">
+                        <div className="max-w-4xl mx-auto px-4">
+                          {/* ヘッダー */}
+                          <div className="text-center mb-8">
                           <h1 className="text-3xl font-bold text-gray-900 mb-2">
                             Web予約
                           </h1>
                           <p className="text-gray-600">
                             簡単にオンラインで予約できます
                           </p>
-                        </div>
+                          </div>
 
-                        <div className="max-w-2xl mx-auto space-y-6">
-                          {/* キャンセルポリシー表示 */}
-                          {webSettings.showCancelPolicy && (
-                            <div className="animate-fadeIn">
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle>医院からのメッセージ</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-                                      {webSettings.cancelPolicyText}
+                          <div className="max-w-2xl mx-auto space-y-6">
+                            {/* キャンセルポリシー表示 */}
+                            {webSettings.showCancelPolicy && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>医院からのメッセージ</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                      <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                        {webSettings.cancelPolicyText}
+                                      </div>
                                     </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </div>
-                          )}
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
 
-                          {/* ステップ1: 初診/再診選択 */}
-                          {webSettings.flow.initialSelection && (
-                            <div className="animate-fadeIn">
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle>初診/再診の選択</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                  <div className="space-y-3">
+                            {/* ステップ1: 初診/再診選択 */}
+                            {webSettings.flow.initialSelection && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>初診/再診の選択</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="space-y-3">
                                     <button className="w-full p-4 border-2 border-blue-500 bg-blue-50 rounded-lg transition-colors">
-                                      <div className="text-left">
-                                        <h3 className="font-medium">初診</h3>
+                                        <div className="text-left">
+                                          <h3 className="font-medium">初診</h3>
                                         <p className="text-sm text-gray-600">
                                           初めてご来院される方
                                         </p>
-                                      </div>
-                                    </button>
+                                        </div>
+                                      </button>
                                     <button className="w-full p-4 border-2 border-gray-200 hover:border-blue-300 rounded-lg transition-colors">
-                                      <div className="text-left">
-                                        <h3 className="font-medium">再診</h3>
+                                        <div className="text-left">
+                                          <h3 className="font-medium">再診</h3>
                                         <p className="text-sm text-gray-600">
                                           過去にご来院されたことがある方
                                         </p>
-                                      </div>
-                                    </button>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </div>
-                          )}
-
-                          {/* ステップ2: 診療メニュー選択 */}
-                          {webSettings.flow.menuSelection && (
-                            <div className="animate-fadeIn">
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle>診療メニューの選択</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <button className="p-4 rounded-lg border-2 border-blue-500 bg-blue-50 shadow-md transition-all text-left">
-                                      <div>
-                                        <h3 className="font-medium text-gray-900 mb-1">
-                                          一般診療
-                                        </h3>
-                                        <p className="text-sm text-gray-600">
-                                          所要時間: 30分
-                                        </p>
-                                      </div>
-                                    </button>
-                                    <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
-                                      <div>
-                                        <h3 className="font-medium text-gray-900 mb-1">
-                                          矯正相談
-                                        </h3>
-                                        <p className="text-sm text-gray-600">
-                                          所要時間: 60分
-                                        </p>
-                                      </div>
-                                    </button>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </div>
-                          )}
-
-                          {/* ステップ3: カレンダー表示 */}
-                          {webSettings.flow.calendarDisplay && (
-                            <div className="animate-fadeIn">
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle>日時選択</CardTitle>
-                                  <p className="text-sm text-gray-600">
-                                    ⭕️をクリックして予約日時を選択してください
-                                  </p>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                  {/* 週ナビゲーション */}
-                                  <div className="flex items-center justify-between gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="px-2 py-1 text-xs shrink-0"
-                                    >
-                                      <ChevronLeft className="w-3 h-3 mr-1" />
-                                      先週
-                                    </Button>
-                                    <div className="text-sm font-medium text-center flex-1">
-                                      01月15日 - 01月21日
+                                        </div>
+                                      </button>
                                     </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ2: 診療メニュー選択 */}
+                            {webSettings.flow.menuSelection && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>診療メニューの選択</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <button className="p-4 rounded-lg border-2 border-blue-500 bg-blue-50 shadow-md transition-all text-left">
+                                        <div>
+                                          <h3 className="font-medium text-gray-900 mb-1">
+                                            一般診療
+                                          </h3>
+                                          <p className="text-sm text-gray-600">
+                                            所要時間: 30分
+                                          </p>
+                                        </div>
+                                      </button>
+                                      <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
+                                        <div>
+                                          <h3 className="font-medium text-gray-900 mb-1">
+                                            矯正相談
+                                          </h3>
+                                          <p className="text-sm text-gray-600">
+                                            所要時間: 60分
+                                          </p>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ3: カレンダー表示 */}
+                            {webSettings.flow.calendarDisplay && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>日時選択</CardTitle>
+                                    <p className="text-sm text-gray-600">
+                                      ⭕️をクリックして予約日時を選択してください
+                                    </p>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    {/* 週ナビゲーション */}
+                                    <div className="flex items-center justify-between gap-2">
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       className="px-2 py-1 text-xs shrink-0"
                                     >
-                                      次週
-                                      <ChevronRight className="w-3 h-3 ml-1" />
-                                    </Button>
-                                  </div>
+                                        <ChevronLeft className="w-3 h-3 mr-1" />
+                                        先週
+                                      </Button>
+                                      <div className="text-sm font-medium text-center flex-1">
+                                        01月15日 - 01月21日
+                                      </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="px-2 py-1 text-xs shrink-0"
+                                    >
+                                        次週
+                                        <ChevronRight className="w-3 h-3 ml-1" />
+                                      </Button>
+                                    </div>
 
-                                  {/* 1週間分のカレンダー */}
-                                  <div className="-mx-2 sm:mx-0">
-                                    {/* ヘッダー（固定） */}
-                                    <div className="overflow-hidden">
+                                    {/* 1週間分のカレンダー */}
+                                    <div className="-mx-2 sm:mx-0">
+                                      {/* ヘッダー（固定） */}
+                                      <div className="overflow-hidden">
                                       <table
                                         className="w-full border-collapse text-xs sm:text-sm"
                                         style={{ tableLayout: "fixed" }}
                                       >
-                                        <colgroup>
+                                          <colgroup>
                                           <col
                                             style={{ width: "40px" }}
                                             className="sm:w-16"
                                           />
-                                          <col />
-                                          <col />
-                                          <col />
-                                          <col />
-                                          <col />
-                                          <col />
-                                        </colgroup>
-                                        <thead>
-                                          <tr>
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                          </colgroup>
+                                          <thead>
+                                            <tr>
                                             <th className="border p-1 sm:p-2 bg-gray-50 font-medium">
                                               時間
                                             </th>
-                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <th className="border p-1 bg-gray-50 font-medium">
                                               <div className="text-[10px] sm:text-xs leading-tight">
                                                 月
                                               </div>
                                               <div className="text-[9px] sm:text-xs text-gray-600">
                                                 01/15
                                               </div>
-                                            </th>
-                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
                                               <div className="text-[10px] sm:text-xs leading-tight">
                                                 火
                                               </div>
                                               <div className="text-[9px] sm:text-xs text-gray-600">
                                                 01/16
                                               </div>
-                                            </th>
-                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
                                               <div className="text-[10px] sm:text-xs leading-tight">
                                                 水
                                               </div>
                                               <div className="text-[9px] sm:text-xs text-gray-600">
                                                 01/17
                                               </div>
-                                            </th>
-                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
                                               <div className="text-[10px] sm:text-xs leading-tight">
                                                 木
                                               </div>
                                               <div className="text-[9px] sm:text-xs text-gray-600">
                                                 01/18
                                               </div>
-                                            </th>
-                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
                                               <div className="text-[10px] sm:text-xs leading-tight">
                                                 金
                                               </div>
                                               <div className="text-[9px] sm:text-xs text-gray-600">
                                                 01/19
                                               </div>
-                                            </th>
-                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
                                               <div className="text-[10px] sm:text-xs leading-tight">
                                                 土
                                               </div>
                                               <div className="text-[9px] sm:text-xs text-gray-600">
                                                 01/20
                                               </div>
-                                            </th>
-                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              </th>
+                                              <th className="border p-1 bg-gray-50 font-medium">
                                               <div className="text-[10px] sm:text-xs leading-tight">
                                                 日
                                               </div>
                                               <div className="text-[9px] sm:text-xs text-gray-600">
                                                 01/21
                                               </div>
-                                            </th>
-                                          </tr>
-                                        </thead>
-                                      </table>
-                                    </div>
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                        </table>
+                                      </div>
 
-                                    {/* ボディ（スクロール可能） */}
-                                    <div className="overflow-y-auto max-h-96 scrollbar-hide">
+                                      {/* ボディ（スクロール可能） */}
+                                      <div className="overflow-y-auto max-h-96 scrollbar-hide">
                                       <table
                                         className="w-full border-collapse text-xs sm:text-sm"
                                         style={{ tableLayout: "fixed" }}
                                       >
-                                        <colgroup>
+                                          <colgroup>
                                           <col
                                             style={{ width: "40px" }}
                                             className="sm:w-16"
                                           />
-                                          <col />
-                                          <col />
-                                          <col />
-                                          <col />
-                                          <col />
-                                          <col />
-                                        </colgroup>
-                                        <tbody>
-                                          {/* 時間ごとの行を生成 */}
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                            <col />
+                                          </colgroup>
+                                          <tbody>
+                                            {/* 時間ごとの行を生成 */}
                                           {[
                                             "9:00",
                                             "10:00",
@@ -5529,237 +5529,237 @@ export default function SettingsPage() {
                                             "15:00",
                                             "16:00",
                                           ].map((time) => (
-                                            <tr key={time}>
+                                              <tr key={time}>
                                               <td className="border p-0.5 sm:p-1 text-[10px] sm:text-sm text-gray-600 text-center">
                                                 {time}
                                               </td>
-                                              <td className="border p-0.5 sm:p-1">
+                                                <td className="border p-0.5 sm:p-1">
                                                 <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
-                                                  ⭕️
-                                                </button>
-                                              </td>
-                                              <td className="border p-0.5 sm:p-1">
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
                                                 <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
-                                                  ⭕️
-                                                </button>
-                                              </td>
-                                              <td className="border p-0.5 sm:p-1">
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
                                                 <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
-                                                  ⭕️
-                                                </button>
-                                              </td>
-                                              <td className="border p-0.5 sm:p-1">
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
                                                 <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
-                                                  ⭕️
-                                                </button>
-                                              </td>
-                                              <td className="border p-0.5 sm:p-1">
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
                                                 <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
-                                                  ⭕️
-                                                </button>
-                                              </td>
-                                              <td className="border p-0.5 sm:p-1">
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
                                                 <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
-                                                  ⭕️
-                                                </button>
-                                              </td>
-                                              <td className="border p-0.5 sm:p-1">
-                                                <button
-                                                  className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-red-100 text-red-800"
-                                                  disabled
-                                                >
-                                                  ❌
-                                                </button>
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
+                                                    ⭕️
+                                                  </button>
+                                                </td>
+                                                <td className="border p-0.5 sm:p-1">
+                                                  <button
+                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-red-100 text-red-800"
+                                                    disabled
+                                                  >
+                                                    ❌
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
                                     </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </div>
-                          )}
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
 
-                          {/* ステップ4: 患者情報入力 */}
-                          {webSettings.flow.patientInfo && (
-                            <div className="animate-fadeIn">
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle>患者情報入力</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
+                            {/* ステップ4: 患者情報入力 */}
+                            {webSettings.flow.patientInfo && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>患者情報入力</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
                                   <div
                                     className={`grid gap-4 ${webSettings.patientInfoFields.phoneEnabled ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}
                                   >
-                                    <div>
+                                      <div>
                                       <Label htmlFor="patientName">
                                         お名前 *
                                       </Label>
-                                      <Input
-                                        id="patientName"
-                                        placeholder="例: 田中太郎"
-                                        readOnly
-                                      />
-                                    </div>
+                                        <Input
+                                          id="patientName"
+                                          placeholder="例: 田中太郎"
+                                          readOnly
+                                        />
+                                      </div>
                                     {webSettings.patientInfoFields
                                       .phoneEnabled && (
-                                      <div>
-                                        <Label htmlFor="patientPhone">
+                                        <div>
+                                          <Label htmlFor="patientPhone">
                                           電話番号{" "}
                                           {webSettings.patientInfoFields
                                             .phoneRequired
                                             ? "*"
                                             : ""}
-                                        </Label>
-                                        <Input
-                                          id="patientPhone"
-                                          placeholder="例: 03-1234-5678"
-                                          readOnly
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
+                                          </Label>
+                                          <Input
+                                            id="patientPhone"
+                                            placeholder="例: 03-1234-5678"
+                                            readOnly
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
                                   {webSettings.patientInfoFields
                                     .emailEnabled && (
-                                    <div>
-                                      <Label htmlFor="patientEmail">
+                                      <div>
+                                        <Label htmlFor="patientEmail">
                                         メールアドレス{" "}
                                         {webSettings.patientInfoFields
                                           .emailRequired
                                           ? "*"
                                           : ""}
-                                      </Label>
-                                      <Input
-                                        id="patientEmail"
-                                        type="email"
-                                        placeholder="例: tanaka@example.com"
-                                        readOnly
-                                      />
-                                    </div>
-                                  )}
-                                  <div>
+                                        </Label>
+                                        <Input
+                                          id="patientEmail"
+                                          type="email"
+                                          placeholder="例: tanaka@example.com"
+                                          readOnly
+                                        />
+                                      </div>
+                                    )}
+                                    <div>
                                     <Label htmlFor="patientRequest">
                                       ご要望・ご相談など（任意）
                                     </Label>
-                                    <textarea
-                                      id="patientRequest"
-                                      placeholder="ご要望やご相談がございましたらご記入ください"
-                                      className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
-                                      readOnly
-                                    />
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </div>
-                          )}
+                                      <textarea
+                                        id="patientRequest"
+                                        placeholder="ご要望やご相談がございましたらご記入ください"
+                                        className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                                        readOnly
+                                      />
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
 
-                          {/* ステップ5: 確認・確定 */}
-                          {webSettings.flow.confirmation && (
-                            <div className="animate-fadeIn">
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle>予約内容確認</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                                    <div className="flex items-center space-x-2">
-                                      <Calendar className="w-4 h-4 text-gray-500" />
+                            {/* ステップ5: 確認・確定 */}
+                            {webSettings.flow.confirmation && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>予約内容確認</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                                      <div className="flex items-center space-x-2">
+                                        <Calendar className="w-4 h-4 text-gray-500" />
                                       <span className="font-medium">
                                         予約日時:
                                       </span>
-                                      <span>2024-01-15 10:00</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <CheckCircle className="w-4 h-4 text-gray-500" />
+                                        <span>2024-01-15 10:00</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <CheckCircle className="w-4 h-4 text-gray-500" />
                                       <span className="font-medium">
                                         診療メニュー:
                                       </span>
-                                      <span>一般診療</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <Clock className="w-4 h-4 text-gray-500" />
+                                        <span>一般診療</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Clock className="w-4 h-4 text-gray-500" />
                                       <span className="font-medium">
                                         診療時間:
                                       </span>
-                                      <span>30分</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <User className="w-4 h-4 text-gray-500" />
+                                        <span>30分</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <User className="w-4 h-4 text-gray-500" />
                                       <span className="font-medium">
                                         患者名:
                                       </span>
-                                      <span>田中太郎</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <Clock className="w-4 h-4 text-gray-500" />
+                                        <span>田中太郎</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Clock className="w-4 h-4 text-gray-500" />
                                       <span className="font-medium">
                                         電話番号:
                                       </span>
-                                      <span>03-1234-5678</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <CheckCircle className="w-4 h-4 text-gray-500" />
+                                        <span>03-1234-5678</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <CheckCircle className="w-4 h-4 text-gray-500" />
                                       <span className="font-medium">
                                         診療種別:
                                       </span>
-                                      <span>初診</span>
+                                        <span>初診</span>
+                                      </div>
                                     </div>
-                                  </div>
 
-                                  <div className="flex justify-center">
+                                    <div className="flex justify-center">
                                     <Button
                                       size="lg"
                                       className="w-full max-w-xs"
                                     >
-                                      予約確定
-                                    </Button>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </div>
-                          )}
+                                        予約確定
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
 
             {/* メニュー設定 */}
-            <div className="space-y-6">
-              {/* Web予約メニュー設定 */}
-              {webSettings.isEnabled ? (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Web予約メニュー</CardTitle>
-                      </div>
-                      <Button onClick={() => setIsAddWebMenuDialogOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        メニューを追加
-                      </Button>
+              <div className="space-y-6">
+            {/* Web予約メニュー設定 */}
+            {webSettings.isEnabled ? (
+            <Card>
+              <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Web予約メニュー</CardTitle>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    {webBookingMenus.length === 0 ? (
-                      <p className="text-sm text-gray-500">
-                        Web予約メニューが登録されていません。「メニューを追加」ボタンから追加してください。
-                      </p>
-                    ) : (
-                      <div className="space-y-4">
+                    <Button onClick={() => setIsAddWebMenuDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      メニューを追加
+                    </Button>
+                  </div>
+              </CardHeader>
+              <CardContent>
+                  {webBookingMenus.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                      Web予約メニューが登録されていません。「メニューを追加」ボタンから追加してください。
+                  </p>
+                ) : (
+                    <div className="space-y-4">
                         {webBookingMenus.map((menu) => (
-                          <div key={menu.id} className="border rounded-lg p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 space-y-3">
-                                {/* メニュー名とカラー */}
-                                <div className="space-y-1">
-                                  <div className="flex items-center space-x-3">
-                                    <div
-                                      className="w-6 h-6 rounded"
+                        <div key={menu.id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 space-y-3">
+                          {/* メニュー名とカラー */}
+                              <div className="space-y-1">
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className="w-6 h-6 rounded"
                                       style={{
                                         backgroundColor:
                                           menu.treatment_menu_color ||
@@ -5770,25 +5770,25 @@ export default function SettingsPage() {
                                       {menu.display_name ||
                                         menu.treatment_menu_name}
                                     </h4>
-                                  </div>
+                                </div>
                                   {menu.display_name &&
                                     menu.display_name !==
                                       menu.treatment_menu_name && (
-                                      <p className="text-xs text-gray-500 ml-9">
-                                        元のメニュー: {menu.treatment_menu_name}
-                                      </p>
-                                    )}
-                                </div>
+                                  <p className="text-xs text-gray-500 ml-9">
+                                    元のメニュー: {menu.treatment_menu_name}
+                                  </p>
+                                )}
+                              </div>
 
-                                {/* 診療時間 */}
-                                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                  <span className="font-medium">診療時間:</span>
-                                  <span>{menu.duration}分</span>
-                                </div>
+                              {/* 診療時間 */}
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">診療時間:</span>
+                                <span>{menu.duration}分</span>
+                              </div>
 
-                                {/* ステップ情報 */}
-                                {menu.steps && menu.steps.length > 0 ? (
-                                  <div className="space-y-2">
+                              {/* ステップ情報 */}
+                              {menu.steps && menu.steps.length > 0 ? (
+                                <div className="space-y-2">
                                     <span className="font-medium text-sm text-gray-700">
                                       処置ステップ:
                                     </span>
@@ -5798,21 +5798,21 @@ export default function SettingsPage() {
                                           key={step.id}
                                           className="bg-gray-50 p-2 rounded text-sm"
                                         >
-                                          <div className="flex items-center justify-between mb-1">
-                                            <span className="font-medium text-gray-700">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-gray-700">
                                               ステップ{index + 1}:{" "}
                                               {step.description || "未設定"}
-                                            </span>
-                                            <span className="text-xs text-gray-500">
+                                        </span>
+                                        <span className="text-xs text-gray-500">
                                               {step.start_time}分～
                                               {step.end_time}分 (
                                               {step.type === "serial"
                                                 ? "順番"
                                                 : "同時"}
                                               )
-                                            </span>
-                                          </div>
-                                          <div className="flex flex-wrap gap-1">
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1">
                                             {step.staff_assignments?.map(
                                               (assignment: any) => {
                                                 const s = staff.find(
@@ -5820,33 +5820,33 @@ export default function SettingsPage() {
                                                     st.id ===
                                                     assignment.staff_id,
                                                 );
-                                                return s ? (
+                                          return s ? (
                                                   <span
                                                     key={assignment.staff_id}
                                                     className="bg-white px-2 py-0.5 rounded text-xs border"
                                                   >
-                                                    {s.name}
+                                              {s.name}
                                                     {step.type === "serial" &&
                                                       ` (優先度: ${assignment.priority})`}
-                                                  </span>
+                                            </span>
                                                 ) : null;
                                               },
                                             )}
-                                          </div>
-                                        </div>
+                                      </div>
+                                    </div>
                                       ),
                                     )}
-                                  </div>
-                                ) : (
-                                  <div className="text-sm text-gray-500">
-                                    ステップが設定されていません
-                                  </div>
-                                )}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-500">
+                                  ステップが設定されていません
+                                </div>
+                              )}
 
-                                {/* 受付可能な患者 */}
-                                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                  <span className="font-medium">受付:</span>
-                                  <span>
+                              {/* 受付可能な患者 */}
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">受付:</span>
+                                <span>
                                     {menu.allow_new_patient &&
                                       menu.allow_returning &&
                                       "初診・再診"}
@@ -5859,47 +5859,47 @@ export default function SettingsPage() {
                                     {!menu.allow_new_patient &&
                                       !menu.allow_returning &&
                                       "なし"}
-                                  </span>
-                                </div>
+                                </span>
                               </div>
+                            </div>
 
-                              {/* 編集・削除ボタン */}
-                              <div className="flex space-x-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditWebMenu(menu)}
-                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
+                            {/* 編集・削除ボタン */}
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditWebMenu(menu)}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                   onClick={() =>
                                     handleRemoveWebBookingMenu(menu.id)
                                   }
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                  <p className="text-sm text-yellow-800">
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                <p className="text-sm text-yellow-800">
                     ⚠️
                     Web予約機能が無効になっています。基本設定タブで「Web予約機能を有効にする」をチェックしてください。
-                  </p>
-                </div>
-              )}
-            </div>
+                </p>
+              </div>
+            )}
+              </div>
 
             {/* Web予約メニュー追加ダイアログ */}
             <Modal
@@ -5932,7 +5932,7 @@ export default function SettingsPage() {
                       value={newWebMenu.treatment_menu_id}
                       onValueChange={(value) =>
                         setNewWebMenu((prev) => ({
-                          ...prev,
+                          ...prev, 
                           treatment_menu_id: value,
                           treatment_menu_level2_id: "",
                           treatment_menu_level3_id: "",
@@ -5946,21 +5946,21 @@ export default function SettingsPage() {
                         {treatmentMenus
                           .filter((m) => m.level === 1)
                           .map((menu) => (
-                            <SelectItem key={menu.id} value={menu.id}>
-                              <div className="flex items-center space-x-2">
-                                <div
-                                  className="w-4 h-4 rounded"
+                          <SelectItem key={menu.id} value={menu.id}>
+                            <div className="flex items-center space-x-2">
+                              <div
+                                className="w-4 h-4 rounded"
                                   style={{
                                     backgroundColor: menu.color || "#bfbfbf",
                                   }}
-                                />
-                                <span>{menu.name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
+                            />
+                              <span>{menu.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                  </div>
+                          </div>
 
                   {/* メニュー2選択（メニュー1が選択されている場合のみ表示） */}
                   {newWebMenu.treatment_menu_id &&
@@ -5968,46 +5968,46 @@ export default function SettingsPage() {
                       const childMenus = treatmentMenus.filter(
                         (m) => m.parent_id === newWebMenu.treatment_menu_id,
                       );
-                      return childMenus.length > 0 ? (
-                        <div>
+                    return childMenus.length > 0 ? (
+                      <div>
                           <Label htmlFor="web_treatment_menu_level2">
                             診療メニュー2（オプション）
                           </Label>
-                          <Select
+                        <Select
                             value={
                               newWebMenu.treatment_menu_level2_id || undefined
                             }
-                            onValueChange={(value) =>
+                          onValueChange={(value) =>
                               setNewWebMenu((prev) => ({
-                                ...prev,
-                                treatment_menu_level2_id: value,
+                              ...prev, 
+                              treatment_menu_level2_id: value,
                                 treatment_menu_level3_id: "",
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="メニュー2を選択（任意）" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="メニュー2を選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
                               {childMenus.map((menu) => (
-                                <SelectItem key={menu.id} value={menu.id}>
-                                  <div className="flex items-center space-x-2">
-                                    <div
-                                      className="w-4 h-4 rounded"
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
                                       style={{
                                         backgroundColor:
                                           menu.color || "#bfbfbf",
                                       }}
-                                    />
-                                    <span>{menu.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                                  />
+                                  <span>{menu.name}</span>
+                          </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       ) : null;
-                    })()}
+                  })()}
 
                   {/* メニュー3選択（メニュー2が選択されている場合のみ表示） */}
                   {newWebMenu.treatment_menu_level2_id &&
@@ -6016,55 +6016,55 @@ export default function SettingsPage() {
                         (m) =>
                           m.parent_id === newWebMenu.treatment_menu_level2_id,
                       );
-                      return childMenus.length > 0 ? (
-                        <div>
+                    return childMenus.length > 0 ? (
+                              <div>
                           <Label htmlFor="web_treatment_menu_level3">
                             サブメニュー（オプション）
                           </Label>
-                          <Select
+                        <Select
                             value={
                               newWebMenu.treatment_menu_level3_id || undefined
                             }
-                            onValueChange={(value) =>
+                          onValueChange={(value) =>
                               setNewWebMenu((prev) => ({
-                                ...prev,
+                              ...prev, 
                                 treatment_menu_level3_id: value,
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="サブメニューを選択（任意）" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="サブメニューを選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
                               {childMenus.map((menu) => (
-                                <SelectItem key={menu.id} value={menu.id}>
-                                  <div className="flex items-center space-x-2">
-                                    <div
-                                      className="w-4 h-4 rounded"
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
                                       style={{
                                         backgroundColor:
                                           menu.color || "#bfbfbf",
                                       }}
-                                    />
-                                    <span>{menu.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                                  />
+                                  <span>{menu.name}</span>
+                                    </div>
+                              </SelectItem>
+                                  ))}
+                          </SelectContent>
+                        </Select>
+                                </div>
                       ) : null;
-                    })()}
-                </div>
+                  })()}
+                              </div>
 
                 {/* Web予約時の表示名 */}
                 {newWebMenu.treatment_menu_id && (
-                  <div>
+                              <div>
                     <Label htmlFor="web_display_name">Web予約時の表示名</Label>
-                    <Input
+                                <Input
                       id="web_display_name"
                       value={newWebMenu.display_name}
-                      onChange={(e) =>
+                                  onChange={(e) =>
                         setNewWebMenu((prev) => ({
                           ...prev,
                           display_name: e.target.value,
@@ -6096,8 +6096,8 @@ export default function SettingsPage() {
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       空欄の場合は、選択した診療メニュー名が使用されます
-                    </p>
-                  </div>
+                                </p>
+                              </div>
                 )}
 
                 {/* 全体の診療時間表示 */}
@@ -6147,7 +6147,7 @@ export default function SettingsPage() {
 
                           {/* 時間設定 */}
                           <div className="grid grid-cols-3 gap-3 mb-3">
-                            <div>
+                              <div>
                               <Label className="text-xs">開始時間</Label>
                               <Input
                                 type="number"
@@ -6269,26 +6269,26 @@ export default function SettingsPage() {
                               {/* 選択された担当者の優先順位 */}
                               {step.staff_assignments.length > 0 &&
                                 step.type === "serial" && (
-                                  <div className="border-t pt-3 mt-3">
+                                <div className="border-t pt-3 mt-3">
                                     <p className="text-xs font-medium text-gray-700 mb-2">
                                       優先順位（上から順に割り当て）
                                     </p>
-                                    <div className="space-y-1">
+                                  <div className="space-y-1">
                                       {step.staff_assignments.map(
                                         (assignment, idx) => {
                                           const staffMember = staff.find(
                                             (s) => s.id === assignment.staff_id,
                                           );
-                                          return (
+                                      return (
                                             <div
                                               key={assignment.staff_id}
                                               className="flex items-center justify-between bg-white px-2 py-1 rounded"
                                             >
-                                              <span className="text-sm">
-                                                {idx + 1}. {staffMember?.name}
-                                              </span>
-                                              <div className="flex space-x-1">
-                                                <button
+                                          <span className="text-sm">
+                                            {idx + 1}. {staffMember?.name}
+                                          </span>
+                                          <div className="flex space-x-1">
+                                            <button
                                                   onClick={() =>
                                                     handleMoveStaffPriority(
                                                       step.id,
@@ -6296,12 +6296,12 @@ export default function SettingsPage() {
                                                       "up",
                                                     )
                                                   }
-                                                  disabled={idx === 0}
-                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
-                                                >
-                                                  <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
-                                                </button>
-                                                <button
+                                              disabled={idx === 0}
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                                            </button>
+                                            <button
                                                   onClick={() =>
                                                     handleMoveStaffPriority(
                                                       step.id,
@@ -6315,18 +6315,18 @@ export default function SettingsPage() {
                                                       .length -
                                                       1
                                                   }
-                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
-                                                >
-                                                  <ChevronRight className="w-3 h-3 rotate-90" />
-                                                </button>
-                                              </div>
-                                            </div>
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-90" />
+                                            </button>
+                                          </div>
+                                        </div>
                                           );
                                         },
                                       )}
-                                    </div>
                                   </div>
-                                )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -6336,11 +6336,11 @@ export default function SettingsPage() {
                           <div className="flex justify-center py-2">
                             {step.type === "serial" &&
                               newWebMenu.steps[index + 1].type === "serial" && (
-                                <div className="text-gray-400">
-                                  <ChevronRight className="w-5 h-5 rotate-90" />
-                                  <p className="text-xs">順番</p>
-                                </div>
-                              )}
+                              <div className="text-gray-400">
+                                <ChevronRight className="w-5 h-5 rotate-90" />
+                                <p className="text-xs">順番</p>
+                              </div>
+                            )}
                             {step.type === "parallel" ||
                             newWebMenu.steps[index + 1].type === "parallel" ? (
                               <div className="text-gray-400">
@@ -6361,35 +6361,35 @@ export default function SettingsPage() {
                 {/* 受付可能な患者 */}
                 <div>
                   <Label className="mb-2 block">受付可能な患者</Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
                         id="web_menu_allow_new"
                         checked={newWebMenu.allow_new_patient}
-                        onCheckedChange={(checked) =>
+                                      onCheckedChange={(checked) =>
                           setNewWebMenu((prev) => ({
                             ...prev,
                             allow_new_patient: checked as boolean,
                           }))
-                        }
-                      />
+                                      }
+                                    />
                       <Label htmlFor="web_menu_allow_new">初診</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
                         id="web_menu_allow_returning"
                         checked={newWebMenu.allow_returning}
-                        onCheckedChange={(checked) =>
+                                      onCheckedChange={(checked) =>
                           setNewWebMenu((prev) => ({
                             ...prev,
                             allow_returning: checked as boolean,
                           }))
-                        }
-                      />
+                                      }
+                                    />
                       <Label htmlFor="web_menu_allow_returning">再診</Label>
-                    </div>
-                  </div>
-                </div>
+                                  </div>
+                                </div>
+                              </div>
 
                 {/* フッター */}
                 <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
@@ -6397,14 +6397,14 @@ export default function SettingsPage() {
                     variant="outline"
                     onClick={() => {
                       setIsAddWebMenuDialogOpen(false);
-                      setNewWebMenu({
+                    setNewWebMenu({
                         treatment_menu_id: "",
                         treatment_menu_level2_id: "",
                         treatment_menu_level3_id: "",
                         display_name: "",
-                        duration: 30,
-                        steps: [],
-                        allow_new_patient: true,
+                      duration: 30,
+                      steps: [],
+                      allow_new_patient: true,
                         allow_returning: true,
                       });
                     }}
@@ -6413,7 +6413,7 @@ export default function SettingsPage() {
                   </Button>
                   <Button onClick={handleAddWebBookingMenu}>追加</Button>
                 </div>
-              </div>
+                        </div>
             </Modal>
 
             {/* Web予約メニュー編集ダイアログ */}
@@ -6447,7 +6447,7 @@ export default function SettingsPage() {
                       value={newWebMenu.treatment_menu_id}
                       onValueChange={(value) =>
                         setNewWebMenu((prev) => ({
-                          ...prev,
+                          ...prev, 
                           treatment_menu_id: value,
                           treatment_menu_level2_id: "",
                           treatment_menu_level3_id: "",
@@ -6461,18 +6461,18 @@ export default function SettingsPage() {
                         {treatmentMenus
                           .filter((m) => m.level === 1)
                           .map((menu) => (
-                            <SelectItem key={menu.id} value={menu.id}>
-                              <div className="flex items-center space-x-2">
-                                <div
-                                  className="w-4 h-4 rounded"
+                          <SelectItem key={menu.id} value={menu.id}>
+                            <div className="flex items-center space-x-2">
+                              <div
+                                className="w-4 h-4 rounded"
                                   style={{
                                     backgroundColor: menu.color || "#bfbfbf",
                                   }}
-                                />
-                                <span>{menu.name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
+                              />
+                              <span>{menu.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -6483,46 +6483,46 @@ export default function SettingsPage() {
                       const childMenus = treatmentMenus.filter(
                         (m) => m.parent_id === newWebMenu.treatment_menu_id,
                       );
-                      return childMenus.length > 0 ? (
-                        <div>
+                    return childMenus.length > 0 ? (
+                      <div>
                           <Label htmlFor="edit_web_treatment_menu_level2">
                             診療メニュー2（オプション）
                           </Label>
-                          <Select
+                        <Select
                             value={
                               newWebMenu.treatment_menu_level2_id || undefined
                             }
-                            onValueChange={(value) =>
+                          onValueChange={(value) =>
                               setNewWebMenu((prev) => ({
-                                ...prev,
-                                treatment_menu_level2_id: value,
+                              ...prev, 
+                              treatment_menu_level2_id: value,
                                 treatment_menu_level3_id: "",
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="メニュー2を選択（任意）" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="メニュー2を選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
                               {childMenus.map((menu) => (
-                                <SelectItem key={menu.id} value={menu.id}>
-                                  <div className="flex items-center space-x-2">
-                                    <div
-                                      className="w-4 h-4 rounded"
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
                                       style={{
                                         backgroundColor:
                                           menu.color || "#bfbfbf",
                                       }}
-                                    />
-                                    <span>{menu.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                                  />
+                                  <span>{menu.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       ) : null;
-                    })()}
+                  })()}
 
                   {/* メニュー3選択 */}
                   {newWebMenu.treatment_menu_level2_id &&
@@ -6531,45 +6531,45 @@ export default function SettingsPage() {
                         (m) =>
                           m.parent_id === newWebMenu.treatment_menu_level2_id,
                       );
-                      return childMenus.length > 0 ? (
-                        <div>
+                    return childMenus.length > 0 ? (
+                      <div>
                           <Label htmlFor="edit_web_treatment_menu_level3">
                             サブメニュー（オプション）
                           </Label>
-                          <Select
+                        <Select
                             value={
                               newWebMenu.treatment_menu_level3_id || undefined
                             }
-                            onValueChange={(value) =>
+                          onValueChange={(value) =>
                               setNewWebMenu((prev) => ({
-                                ...prev,
+                              ...prev, 
                                 treatment_menu_level3_id: value,
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="サブメニューを選択（任意）" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="サブメニューを選択（任意）" />
+                          </SelectTrigger>
+                          <SelectContent>
                               {childMenus.map((menu) => (
-                                <SelectItem key={menu.id} value={menu.id}>
-                                  <div className="flex items-center space-x-2">
-                                    <div
-                                      className="w-4 h-4 rounded"
+                              <SelectItem key={menu.id} value={menu.id}>
+                                <div className="flex items-center space-x-2">
+                                  <div
+                                    className="w-4 h-4 rounded"
                                       style={{
                                         backgroundColor:
                                           menu.color || "#bfbfbf",
                                       }}
-                                    />
-                                    <span>{menu.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                                  />
+                                  <span>{menu.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       ) : null;
-                    })()}
+                  })()}
                 </div>
 
                 {/* Web予約時の表示名 */}
@@ -6614,15 +6614,15 @@ export default function SettingsPage() {
                     <p className="text-xs text-gray-500 mt-1">
                       空欄の場合は、選択した診療メニュー名が使用されます
                     </p>
-                  </div>
-                )}
+                            </div>
+                          )}
 
                 {/* 全体の診療時間表示 */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm font-medium text-blue-900">
                     全体の診療時間: {newWebMenu.duration}分
                   </p>
-                </div>
+                        </div>
 
                 {/* ステップ一覧 */}
                 <div className="space-y-4">
@@ -6786,26 +6786,26 @@ export default function SettingsPage() {
                               {/* 選択された担当者の優先順位 */}
                               {step.staff_assignments.length > 0 &&
                                 step.type === "serial" && (
-                                  <div className="border-t pt-3 mt-3">
+                                <div className="border-t pt-3 mt-3">
                                     <p className="text-xs font-medium text-gray-700 mb-2">
                                       優先順位（上から順に割り当て）
                                     </p>
-                                    <div className="space-y-1">
+                                  <div className="space-y-1">
                                       {step.staff_assignments.map(
                                         (assignment, idx) => {
                                           const staffMember = staff.find(
                                             (s) => s.id === assignment.staff_id,
                                           );
-                                          return (
+                                      return (
                                             <div
                                               key={assignment.staff_id}
                                               className="flex items-center justify-between bg-white px-2 py-1 rounded"
                                             >
-                                              <span className="text-sm">
-                                                {idx + 1}. {staffMember?.name}
-                                              </span>
-                                              <div className="flex space-x-1">
-                                                <button
+                                          <span className="text-sm">
+                                            {idx + 1}. {staffMember?.name}
+                                          </span>
+                                          <div className="flex space-x-1">
+                                            <button
                                                   onClick={() =>
                                                     handleMoveStaffPriority(
                                                       step.id,
@@ -6813,12 +6813,12 @@ export default function SettingsPage() {
                                                       "up",
                                                     )
                                                   }
-                                                  disabled={idx === 0}
-                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
-                                                >
-                                                  <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
-                                                </button>
-                                                <button
+                                              disabled={idx === 0}
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                                            </button>
+                                            <button
                                                   onClick={() =>
                                                     handleMoveStaffPriority(
                                                       step.id,
@@ -6832,18 +6832,18 @@ export default function SettingsPage() {
                                                       .length -
                                                       1
                                                   }
-                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
-                                                >
-                                                  <ChevronRight className="w-3 h-3 rotate-90" />
-                                                </button>
-                                              </div>
-                                            </div>
+                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                            >
+                                              <ChevronRight className="w-3 h-3 rotate-90" />
+                                            </button>
+                                          </div>
+                                        </div>
                                           );
                                         },
                                       )}
-                                    </div>
                                   </div>
-                                )}
+                    </div>
+                  )}
                             </div>
                           </div>
                         </div>
@@ -6853,11 +6853,11 @@ export default function SettingsPage() {
                           <div className="flex justify-center py-2">
                             {step.type === "serial" &&
                               newWebMenu.steps[index + 1].type === "serial" && (
-                                <div className="text-gray-400">
-                                  <ChevronRight className="w-5 h-5 rotate-90" />
-                                  <p className="text-xs">順番</p>
-                                </div>
-                              )}
+                              <div className="text-gray-400">
+                                <ChevronRight className="w-5 h-5 rotate-90" />
+                                <p className="text-xs">順番</p>
+                              </div>
+                            )}
                             {step.type === "parallel" ||
                             newWebMenu.steps[index + 1].type === "parallel" ? (
                               <div className="text-gray-400">
@@ -6917,14 +6917,14 @@ export default function SettingsPage() {
                     onClick={() => {
                       setIsEditWebMenuDialogOpen(false);
                       setEditingWebMenu(null);
-                      setNewWebMenu({
+                    setNewWebMenu({
                         treatment_menu_id: "",
                         treatment_menu_level2_id: "",
                         treatment_menu_level3_id: "",
                         display_name: "",
-                        duration: 30,
-                        steps: [],
-                        allow_new_patient: true,
+                      duration: 30,
+                      steps: [],
+                      allow_new_patient: true,
                         allow_returning: true,
                       });
                     }}
@@ -7038,7 +7038,7 @@ export default function SettingsPage() {
                         checked={notificationSettings.email.enabled}
                         onChange={(e) =>
                           setNotificationSettings({
-                            ...notificationSettings,
+                          ...notificationSettings,
                             email: {
                               ...notificationSettings.email,
                               enabled: e.target.checked,
@@ -7064,7 +7064,7 @@ export default function SettingsPage() {
                           value={notificationSettings.email.smtp_host}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               email: {
                                 ...notificationSettings.email,
                                 smtp_host: e.target.value,
@@ -7084,7 +7084,7 @@ export default function SettingsPage() {
                           value={notificationSettings.email.smtp_port}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               email: {
                                 ...notificationSettings.email,
                                 smtp_port: parseInt(e.target.value),
@@ -7103,7 +7103,7 @@ export default function SettingsPage() {
                           value={notificationSettings.email.smtp_user}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               email: {
                                 ...notificationSettings.email,
                                 smtp_user: e.target.value,
@@ -7122,7 +7122,7 @@ export default function SettingsPage() {
                           value={notificationSettings.email.smtp_password}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               email: {
                                 ...notificationSettings.email,
                                 smtp_password: e.target.value,
@@ -7141,7 +7141,7 @@ export default function SettingsPage() {
                           value={notificationSettings.email.from_address}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               email: {
                                 ...notificationSettings.email,
                                 from_address: e.target.value,
@@ -7161,7 +7161,7 @@ export default function SettingsPage() {
                           value={notificationSettings.email.from_name}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               email: {
                                 ...notificationSettings.email,
                                 from_name: e.target.value,
@@ -7196,7 +7196,7 @@ export default function SettingsPage() {
                         checked={notificationSettings.sms.enabled}
                         onChange={(e) =>
                           setNotificationSettings({
-                            ...notificationSettings,
+                          ...notificationSettings,
                             sms: {
                               ...notificationSettings.sms,
                               enabled: e.target.checked,
@@ -7221,7 +7221,7 @@ export default function SettingsPage() {
                           value={notificationSettings.sms.provider}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               sms: {
                                 ...notificationSettings.sms,
                                 provider: e.target.value,
@@ -7243,7 +7243,7 @@ export default function SettingsPage() {
                           value={notificationSettings.sms.api_key}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               sms: {
                                 ...notificationSettings.sms,
                                 api_key: e.target.value,
@@ -7262,7 +7262,7 @@ export default function SettingsPage() {
                           value={notificationSettings.sms.api_secret}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               sms: {
                                 ...notificationSettings.sms,
                                 api_secret: e.target.value,
@@ -7281,7 +7281,7 @@ export default function SettingsPage() {
                           value={notificationSettings.sms.sender_number}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               sms: {
                                 ...notificationSettings.sms,
                                 sender_number: e.target.value,
@@ -7316,7 +7316,7 @@ export default function SettingsPage() {
                         checked={notificationSettings.line.enabled}
                         onChange={(e) =>
                           setNotificationSettings({
-                            ...notificationSettings,
+                          ...notificationSettings,
                             line: {
                               ...notificationSettings.line,
                               enabled: e.target.checked,
@@ -7342,7 +7342,7 @@ export default function SettingsPage() {
                           value={notificationSettings.line.channel_id}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               line: {
                                 ...notificationSettings.line,
                                 channel_id: e.target.value,
@@ -7361,7 +7361,7 @@ export default function SettingsPage() {
                           value={notificationSettings.line.channel_secret}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               line: {
                                 ...notificationSettings.line,
                                 channel_secret: e.target.value,
@@ -7380,7 +7380,7 @@ export default function SettingsPage() {
                           value={notificationSettings.line.channel_access_token}
                           onChange={(e) =>
                             setNotificationSettings({
-                              ...notificationSettings,
+                            ...notificationSettings,
                               line: {
                                 ...notificationSettings.line,
                                 channel_access_token: e.target.value,
@@ -7515,7 +7515,7 @@ export default function SettingsPage() {
                   <Button
                     onClick={() => {
                       setEditingTemplate(null);
-                      setTemplateForm({
+                    setTemplateForm({
                         name: "",
                         notification_type: "appointment_reminder",
                         line_message: "",
@@ -7553,23 +7553,23 @@ export default function SettingsPage() {
                             <h4 className="text-sm font-medium text-gray-900">
                               {template.name}
                             </h4>
-                            <div className="flex gap-1">
-                              {template.line_message && (
+                              <div className="flex gap-1">
+                                {template.line_message && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
                                   LINE
                                 </span>
-                              )}
-                              {template.email_message && (
+                                )}
+                                {template.email_message && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
                                   メール
                                 </span>
-                              )}
-                              {template.sms_message && (
+                                )}
+                                {template.sms_message && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
                                   SMS
                                 </span>
-                              )}
-                            </div>
+                                )}
+                              </div>
                             <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
                               {template.notification_type ===
                               "appointment_reminder"
@@ -7584,8 +7584,8 @@ export default function SettingsPage() {
                                         "appointment_change"
                                       ? "予約変更"
                                       : "カスタム"}
-                            </span>
-                          </div>
+                              </span>
+                            </div>
                           <div className="flex items-center gap-1.5">
                             <Button
                               variant="outline"
@@ -7656,12 +7656,31 @@ export default function SettingsPage() {
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
                       {/* ヘッダー */}
-                      <div className="flex justify-between items-center px-6 py-3 border-b border-gray-200">
-                        <h3 className="text-base font-semibold text-gray-900">
-                          {editingTemplate
-                            ? "テンプレート編集"
-                            : "新規テンプレート作成"}
-                        </h3>
+                      <div className="flex justify-between items-center px-6 py-3 border-b border-gray-200 gap-4">
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="flex-1">
+                          <input
+                            type="text"
+                            value={templateForm.name}
+                            onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
+                              placeholder="テンプレート名を入力"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          />
+                        </div>
+                          <div className="w-48">
+                          <select
+                            value={templateForm.notification_type}
+                            onChange={(e) => setTemplateForm({ ...templateForm, notification_type: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          >
+                            <option value="appointment_reminder">予約リマインド</option>
+                            <option value="periodic_checkup">定期検診</option>
+                            <option value="treatment_reminder">治療リマインド</option>
+                            <option value="appointment_change">予約変更</option>
+                            <option value="custom">カスタム</option>
+                          </select>
+                        </div>
+                        </div>
                         <div className="flex items-center gap-3">
                           <Button
                             variant="outline"
@@ -7779,60 +7798,8 @@ export default function SettingsPage() {
                       {/* 2カラムレイアウト */}
                       <div className="flex-1 overflow-y-auto">
                         <div className="grid grid-cols-2 gap-6 p-6">
-                          {/* 左カラム: 基本情報とプレビュー */}
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                  テンプレート名
-                                </label>
-                                <input
-                                  type="text"
-                                  value={templateForm.name}
-                                  onChange={(e) =>
-                                    setTemplateForm({
-                                      ...templateForm,
-                                      name: e.target.value,
-                                    })
-                                  }
-                                  placeholder="例：予約3日前リマインド"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                  通知種類
-                                </label>
-                                <select
-                                  value={templateForm.notification_type}
-                                  onChange={(e) =>
-                                    setTemplateForm({
-                                      ...templateForm,
-                                      notification_type: e.target.value,
-                                    })
-                                  }
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                >
-                                  <option value="appointment_reminder">
-                                    予約リマインド
-                                  </option>
-                                  <option value="periodic_checkup">
-                                    定期検診
-                                  </option>
-                                  <option value="treatment_reminder">
-                                    治療リマインド
-                                  </option>
-                                  <option value="appointment_change">
-                                    予約変更
-                                  </option>
-                                  <option value="custom">カスタム</option>
-                                </select>
-                              </div>
-                            </div>
-
-                            {/* プレビュー */}
-                            <div>
+                          {/* 左カラム: プレビュー */}
+                        <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
                                 プレビュー
                               </label>
@@ -7965,49 +7932,49 @@ export default function SettingsPage() {
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               送信チャンネル別メッセージ
                             </label>
-                            <div className="border border-gray-300 rounded-lg">
-                              <div className="flex border-b border-gray-300">
-                                <button
-                                  type="button"
+                          <div className="border border-gray-300 rounded-lg">
+                            <div className="flex border-b border-gray-300">
+                              <button
+                                type="button"
                                   onClick={() => setActiveChannelTab("line")}
-                                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                className={`flex-1 px-4 py-2 text-sm font-medium ${
                                     activeChannelTab === "line"
                                       ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
                                       : "text-gray-600 hover:bg-gray-50"
                                   }`}
                                 >
                                   LINE {templateForm.line_message && "✓"}
-                                </button>
-                                <button
-                                  type="button"
+                              </button>
+                              <button
+                                type="button"
                                   onClick={() => setActiveChannelTab("email")}
-                                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                className={`flex-1 px-4 py-2 text-sm font-medium ${
                                     activeChannelTab === "email"
                                       ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
                                       : "text-gray-600 hover:bg-gray-50"
                                   }`}
                                 >
                                   メール {templateForm.email_message && "✓"}
-                                </button>
-                                <button
-                                  type="button"
+                              </button>
+                              <button
+                                type="button"
                                   onClick={() => setActiveChannelTab("sms")}
-                                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                className={`flex-1 px-4 py-2 text-sm font-medium ${
                                     activeChannelTab === "sms"
                                       ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
                                       : "text-gray-600 hover:bg-gray-50"
                                   }`}
                                 >
                                   SMS {templateForm.sms_message && "✓"}
-                                </button>
-                              </div>
+                              </button>
+                            </div>
 
-                              <div className="p-4">
+                            <div className="p-4">
                                 {activeChannelTab === "line" && (
-                                  <div>
-                                    <textarea
+                                <div>
+                                  <textarea
                                       id="line-message-textarea"
-                                      value={templateForm.line_message}
+                                    value={templateForm.line_message}
                                       onChange={(e) =>
                                         setTemplateForm({
                                           ...templateForm,
@@ -8015,9 +7982,9 @@ export default function SettingsPage() {
                                         })
                                       }
                                       rows={15}
-                                      placeholder="例：{{patient_name}}様&#10;&#10;{{clinic_name}}です。&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;日時：{{appointment_datetime}}&#10;&#10;よろしくお願いいたします。"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                                    />
+                                    placeholder="例：{{patient_name}}様&#10;&#10;{{clinic_name}}です。&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;日時：{{appointment_datetime}}&#10;&#10;よろしくお願いいたします。"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                  />
                                     <div className="mt-2 space-y-2">
                                       <div className="text-xs font-medium text-gray-700">
                                         変数を挿入:
@@ -8208,36 +8175,36 @@ export default function SettingsPage() {
                                         最大5000文字
                                       </p>
                                     </div>
-                                  </div>
-                                )}
+                                </div>
+                              )}
 
                                 {activeChannelTab === "email" && (
-                                  <div className="space-y-3">
-                                    <div>
+                                <div className="space-y-3">
+                                  <div>
                                       <label className="block text-xs font-medium text-gray-700 mb-1">
                                         件名
                                       </label>
-                                      <input
+                                    <input
                                         id="email-subject-input"
-                                        type="text"
-                                        value={templateForm.email_subject}
+                                      type="text"
+                                      value={templateForm.email_subject}
                                         onChange={(e) =>
                                           setTemplateForm({
                                             ...templateForm,
                                             email_subject: e.target.value,
                                           })
                                         }
-                                        placeholder="例：【〇〇クリニック】ご予約のお知らせ"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                      />
-                                    </div>
-                                    <div>
+                                      placeholder="例：【〇〇クリニック】ご予約のお知らせ"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                    />
+                                  </div>
+                                  <div>
                                       <label className="block text-xs font-medium text-gray-700 mb-1">
                                         本文
                                       </label>
-                                      <textarea
+                                    <textarea
                                         id="email-message-textarea"
-                                        value={templateForm.email_message}
+                                      value={templateForm.email_message}
                                         onChange={(e) =>
                                           setTemplateForm({
                                             ...templateForm,
@@ -8245,9 +8212,9 @@ export default function SettingsPage() {
                                           })
                                         }
                                         rows={16}
-                                        placeholder="例：{{patient_name}}様&#10;&#10;いつもありがとうございます。&#10;{{clinic_name}}です。&#10;&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;■ご予約内容&#10;日時：{{appointment_datetime}}&#10;治療内容：{{treatment_name}}&#10;&#10;よろしくお願いいたします。"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                                      />
+                                      placeholder="例：{{patient_name}}様&#10;&#10;いつもありがとうございます。&#10;{{clinic_name}}です。&#10;&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;■ご予約内容&#10;日時：{{appointment_datetime}}&#10;治療内容：{{treatment_name}}&#10;&#10;よろしくお願いいたします。"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                    />
                                       <div className="mt-2 space-y-2">
                                         <div className="text-xs font-medium text-gray-700">
                                           変数を挿入:
@@ -8435,15 +8402,15 @@ export default function SettingsPage() {
                                           </button>
                                         </div>
                                       </div>
-                                    </div>
                                   </div>
-                                )}
+                                </div>
+                              )}
 
                                 {activeChannelTab === "sms" && (
-                                  <div>
-                                    <textarea
+                                <div>
+                                  <textarea
                                       id="sms-message-textarea"
-                                      value={templateForm.sms_message}
+                                    value={templateForm.sms_message}
                                       onChange={(e) =>
                                         setTemplateForm({
                                           ...templateForm,
@@ -8451,10 +8418,10 @@ export default function SettingsPage() {
                                         })
                                       }
                                       rows={8}
-                                      placeholder="例：明日10時のご予約です。〇〇クリニック"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                                      maxLength={160}
-                                    />
+                                    placeholder="例：明日10時のご予約です。〇〇クリニック"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                    maxLength={160}
+                                  />
                                     <div className="mt-2 space-y-2">
                                       <div className="text-xs font-medium text-gray-700">
                                         変数を挿入:
@@ -8583,12 +8550,12 @@ export default function SettingsPage() {
                                       </div>
                                     </div>
                                     <div className="flex justify-between items-center mt-2">
-                                      <p className="text-xs text-gray-500">
+                                    <p className="text-xs text-gray-500">
                                         70文字推奨
-                                      </p>
+                                    </p>
                                       <p
                                         className={`text-xs font-medium ${
-                                          templateForm.sms_message.length > 70
+                                      templateForm.sms_message.length > 70
                                             ? "text-orange-600"
                                             : "text-gray-600"
                                         }`}
@@ -8597,11 +8564,10 @@ export default function SettingsPage() {
                                         /160文字
                                         {templateForm.sms_message.length > 70 &&
                                           " (課金2倍)"}
-                                      </p>
-                                    </div>
+                                    </p>
                                   </div>
-                                )}
-                              </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -8661,7 +8627,7 @@ export default function SettingsPage() {
                                 value={autoReminderRule.first_interval_months}
                                 onChange={(e) =>
                                   setAutoReminderRule({
-                                    ...autoReminderRule,
+                                  ...autoReminderRule,
                                     first_interval_months: parseInt(
                                       e.target.value,
                                     ),
@@ -8686,7 +8652,7 @@ export default function SettingsPage() {
                                 value={autoReminderRule.second_interval_months}
                                 onChange={(e) =>
                                   setAutoReminderRule({
-                                    ...autoReminderRule,
+                                  ...autoReminderRule,
                                     second_interval_months: parseInt(
                                       e.target.value,
                                     ),
@@ -8711,7 +8677,7 @@ export default function SettingsPage() {
                                 value={autoReminderRule.third_interval_months}
                                 onChange={(e) =>
                                   setAutoReminderRule({
-                                    ...autoReminderRule,
+                                  ...autoReminderRule,
                                     third_interval_months: parseInt(
                                       e.target.value,
                                     ),
@@ -9317,14 +9283,14 @@ export default function SettingsPage() {
                                 {["line", "email", "sms"]
                                   .filter((ch) => ch !== failure.channel)
                                   .map((channel) => (
-                                    <Button
-                                      key={channel}
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
+                                  <Button
+                                    key={channel}
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
                                         setNotificationFailures(
                                           notificationFailures.map((f) =>
-                                            f.id === failure.id
+                                        f.id === failure.id
                                               ? {
                                                   ...f,
                                                   fallback_channel: channel,
@@ -9340,8 +9306,8 @@ export default function SettingsPage() {
                                         : channel === "email"
                                           ? "メール"
                                           : "SMS"}
-                                    </Button>
-                                  ))}
+                                  </Button>
+                                ))}
                               </div>
                             </div>
                           )}
@@ -9657,10 +9623,10 @@ export default function SettingsPage() {
                           const baseUrl = window.location.origin;
                           const buttonsWithFullUrl = richMenuButtons.map(
                             (btn) => ({
-                              ...btn,
+                            ...btn,
                               url:
                                 btn.action === "url" && btn.url.startsWith("/")
-                                  ? `${baseUrl}${btn.url}`
+                              ? `${baseUrl}${btn.url}`
                                   : btn.url,
                             }),
                           );
@@ -9845,7 +9811,7 @@ export default function SettingsPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 デフォルトテキスト管理
               </h2>
-
+              
               <div className="space-y-4">
                 {defaultTexts.map((text) => (
                   <div
@@ -9933,13 +9899,13 @@ export default function SettingsPage() {
               {settingCategories.map((category) => {
                 const Icon = category.icon;
                 const isActive = selectedCategory === category.id;
-
+                
                 return (
                   <button
                     key={category.id}
                     onClick={() => handleCategoryClick(category.id)}
                     className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors rounded-lg ${
-                      isActive
+                      isActive 
                         ? "bg-blue-50 text-blue-600"
                         : "hover:bg-gray-50 text-gray-700"
                     }`}
@@ -10011,7 +9977,7 @@ export default function SettingsPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-
+            
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -10028,7 +9994,7 @@ export default function SettingsPage() {
                   placeholder="デフォルトテキストのタイトル"
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   内容
@@ -10047,10 +10013,10 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
-
+            
             <div className="flex justify-end space-x-2 mt-6">
-              <Button
-                variant="outline"
+              <Button 
+                variant="outline" 
                 onClick={() => {
                   setShowAddDefaultTextModal(false);
                   setEditingDefaultText(null);
@@ -10059,7 +10025,7 @@ export default function SettingsPage() {
               >
                 キャンセル
               </Button>
-              <Button
+              <Button 
                 onClick={
                   editingDefaultText
                     ? handleEditDefaultTextSave
