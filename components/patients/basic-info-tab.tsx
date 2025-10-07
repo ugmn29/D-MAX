@@ -28,6 +28,7 @@ import { Patient } from '@/types/database'
 import { getLinkedQuestionnaireResponse } from '@/lib/api/questionnaires'
 import { getStaff, Staff } from '@/lib/api/staff'
 import { PATIENT_ICONS, PatientIcon } from '@/lib/constants/patient-icons'
+import { getPatientById, updatePatient } from '@/lib/api/patients'
 
 interface BasicInfoTabProps {
   patientId: string
@@ -228,6 +229,24 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         primary_doctor: '',
         assigned_dh: ''
       })
+      
+      // 保存されているアイコンデータを読み込む
+      if ((patientData as any).patient_icons) {
+        setSelectedIconIds((patientData as any).patient_icons)
+        // ローカルストレージにも保存
+        localStorage.setItem(`patient_icons_${patientId}`, JSON.stringify((patientData as any).patient_icons))
+      } else {
+        // データベースに保存されていない場合は、ローカルストレージから読み込む
+        const savedIcons = localStorage.getItem(`patient_icons_${patientId}`)
+        if (savedIcons) {
+          try {
+            const iconIds = JSON.parse(savedIcons)
+            setSelectedIconIds(iconIds)
+          } catch (e) {
+            console.error('アイコンデータの読み込みエラー:', e)
+          }
+        }
+      }
     } catch (error) {
       console.error('患者データの読み込みエラー:', error)
     } finally {
@@ -315,11 +334,30 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
   const handleSave = async () => {
     try {
-      // TODO: 実際のAPI呼び出しに置き換え
-      console.log('患者データを保存:', editData)
+      const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+      
+      // 患者データの更新
+      const updateData = {
+        ...editData,
+        patient_icons: selectedIconIds // 特記事項アイコンを含める
+      }
+      
+      console.log('患者データを保存:', updateData)
+      
+      // 患者データを更新
+      await updatePatient(DEMO_CLINIC_ID, patientId, updateData)
+      
+      // ローカルストレージにアイコンを保存
+      localStorage.setItem(`patient_icons_${patientId}`, JSON.stringify(selectedIconIds))
+      
+      // 患者データを再読み込み
+      await loadPatientData()
+      
       setIsEditing(false)
+      console.log('患者データの保存に成功しました')
     } catch (error) {
       console.error('保存エラー:', error)
+      alert('患者データの保存に失敗しました')
     }
   }
 
