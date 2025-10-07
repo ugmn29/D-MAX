@@ -49,11 +49,8 @@ export default function ClinicSettingsPage() {
   // クリニック情報
   const [clinicInfo, setClinicInfo] = useState({
     name: '',
-    name_kana: '',
     website_url: '',
     postal_code: '',
-    prefecture: '',
-    city: '',
     address_line: '',
     phone: ''
   })
@@ -80,11 +77,8 @@ export default function ClinicSettingsPage() {
         if (clinic) {
           setClinicInfo({
             name: clinic.name || '',
-            name_kana: clinic.name_kana || '',
             website_url: clinic.website_url || '',
             postal_code: clinic.postal_code || '',
-            prefecture: clinic.prefecture || '',
-            city: clinic.city || '',
             address_line: clinic.address_line || '',
             phone: clinic.phone || ''
           })
@@ -312,25 +306,14 @@ export default function ClinicSettingsPage() {
                 <CardTitle>クリニック情報</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">クリニック名（正式名称）</Label>
-                    <Input
-                      id="name"
-                      value={clinicInfo.name}
-                      onChange={(e) => setClinicInfo(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="例: 田中歯科医院"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="name_kana">クリニック名（ふりがな）</Label>
-                    <Input
-                      id="name_kana"
-                      value={clinicInfo.name_kana}
-                      onChange={(e) => setClinicInfo(prev => ({ ...prev, name_kana: e.target.value }))}
-                      placeholder="例: たなかしかいいん"
-                    />
-                  </div>
+                <div>
+                  <Label htmlFor="name">クリニック名</Label>
+                  <Input
+                    id="name"
+                    value={clinicInfo.name}
+                    onChange={(e) => setClinicInfo(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="例: 田中歯科医院"
+                  />
                 </div>
                 
                 <div>
@@ -343,7 +326,7 @@ export default function ClinicSettingsPage() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="postal_code">郵便番号</Label>
                     <Input
@@ -354,33 +337,14 @@ export default function ClinicSettingsPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="prefecture">都道府県</Label>
+                    <Label htmlFor="address_line">住所</Label>
                     <Input
-                      id="prefecture"
-                      value={clinicInfo.prefecture}
-                      onChange={(e) => setClinicInfo(prev => ({ ...prev, prefecture: e.target.value }))}
-                      placeholder="例: 東京都"
+                      id="address_line"
+                      value={clinicInfo.address_line}
+                      onChange={(e) => setClinicInfo(prev => ({ ...prev, address_line: e.target.value }))}
+                      placeholder="例: 東京都渋谷区1-2-3 田中ビル 2F"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="city">市区町村</Label>
-                    <Input
-                      id="city"
-                      value={clinicInfo.city}
-                      onChange={(e) => setClinicInfo(prev => ({ ...prev, city: e.target.value }))}
-                      placeholder="例: 渋谷区"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <Label htmlFor="address_line">住所（番地・建物名）</Label>
-                  <Input
-                    id="address_line"
-                    value={clinicInfo.address_line}
-                    onChange={(e) => setClinicInfo(prev => ({ ...prev, address_line: e.target.value }))}
-                    placeholder="例: 1-2-3 田中ビル 2F"
-                  />
                 </div>
                 
                 <div>

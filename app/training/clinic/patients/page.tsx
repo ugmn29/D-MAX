@@ -2,16 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { Patient } from '@/types/database'
+import { getPatients } from '@/lib/api/patients'
 
-interface Patient {
-  id: string
-  patient_number: string
-  name: string
-  birth_date: string
-  phone: string
-  created_at: string
-}
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function PatientsPage() {
   const router = useRouter()
@@ -25,16 +19,35 @@ export default function PatientsPage() {
 
   const loadPatients = async () => {
     try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .order('created_at', { ascending: false })
+      console.log('患者データ取得開始...')
+      const data = await getPatients(DEMO_CLINIC_ID)
 
-      if (error) throw error
+      console.log('取得した患者データ:', data)
+      console.log('患者数:', data?.length || 0)
+      
+      // 各患者のis_registered状態を確認
+      if (data && data.length > 0) {
+        console.log('全患者のis_registered状態:')
+        data.forEach(p => {
+          console.log(`- ${p.last_name} ${p.first_name} (患者番号: ${p.patient_number}): is_registered = ${p.is_registered}`)
+        })
+      }
 
-      setPatients(data || [])
+      // 本登録済みの患者のみをフィルタリング
+      const registeredPatients = data.filter(p => {
+        const isRegistered = p.is_registered === true
+        if (!isRegistered) {
+          console.log(`フィルタリング除外: ${p.last_name} ${p.first_name} (is_registered: ${p.is_registered})`)
+        }
+        return isRegistered
+      })
+      console.log('本登録済み患者数:', registeredPatients.length)
+      console.log('本登録済み患者:', registeredPatients.map(p => `${p.last_name} ${p.first_name}`))
+      
+      setPatients(registeredPatients)
     } catch (error) {
       console.error('患者取得エラー:', error)
+      setPatients([])
     } finally {
       setIsLoading(false)
     }
@@ -42,8 +55,8 @@ export default function PatientsPage() {
 
   const filteredPatients = patients.filter(
     (patient) =>
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.patient_number.toLowerCase().includes(searchTerm.toLowerCase())
+      `${patient.last_name} ${patient.first_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.patient_number.toString().toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   if (isLoading) {
@@ -120,13 +133,13 @@ export default function PatientsPage() {
                         {patient.patient_number}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {patient.name}
+                        {patient.last_name} {patient.first_name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(patient.birth_date).toLocaleDateString('ja-JP')}
+                        {patient.birth_date ? new Date(patient.birth_date).toLocaleDateString('ja-JP') : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.phone}
+                        {patient.phone || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button

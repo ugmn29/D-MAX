@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
-import { getPatient } from './patients'
+import { getPatientById } from './patients'
 import { getNotificationTemplates } from './notification-templates'
 
 /**
@@ -14,7 +14,7 @@ export async function createAppointmentReminderNotification(
   const client = getSupabaseClient()
 
   // 患者情報を取得
-  const patient = await getPatient(patientId)
+  const patient = await getPatientById('11111111-1111-1111-1111-111111111111', patientId)
   if (!patient) {
     console.error('患者が見つかりません:', patientId)
     return
@@ -98,7 +98,7 @@ export async function createAppointmentChangeNotification(
   const client = getSupabaseClient()
 
   // 患者情報を取得
-  const patient = await getPatient(patientId)
+  const patient = await getPatientById('11111111-1111-1111-1111-111111111111', patientId)
   if (!patient) {
     console.error('患者が見つかりません:', patientId)
     return

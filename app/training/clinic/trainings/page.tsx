@@ -41,13 +41,82 @@ export default function TrainingsPage() {
       }
 
       console.log('取得したトレーニング数:', data?.length || 0)
+      
+      // データが0件の場合、自動的にデフォルトデータを投入
+      if (!data || data.length === 0) {
+        console.log('トレーニングデータが0件のため、デフォルトデータを投入します')
+        try {
+          const response = await fetch('/api/training/clinic/seed', { method: 'POST' })
+          const seedData = await response.json()
+          
+          if (response.ok) {
+            console.log('デフォルトデータ投入成功:', seedData.message)
+            // 再度データを取得
+            const { data: newData, error: newError } = await supabase
+              .from('trainings')
+              .select('*')
+              .order('category', { ascending: true })
+            
+            if (!newError && newData) {
+              setTrainings(newData)
+              return
+            }
+          }
+        } catch (seedError) {
+          console.error('デフォルトデータ投入エラー:', seedError)
+          // エラーの場合はモックデータを表示
+          setTrainings(getMockTrainings())
+          return
+        }
+      }
+      
       setTrainings(data || [])
     } catch (error) {
       console.error('トレーニング取得エラー:', error)
-      setTrainings([])
+      // エラーの場合はモックデータを表示
+      setTrainings(getMockTrainings())
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // モックデータを返す関数
+  const getMockTrainings = (): Training[] => {
+    return [
+      {
+        id: '1',
+        training_name: '口唇閉鎖練習',
+        description: '唇を閉じる力を鍛えるトレーニング',
+        category: '口腔機能',
+        default_action_seconds: 30,
+        default_rest_seconds: 10,
+        default_sets: 3,
+        instructions: ['唇を軽く閉じる', '5秒間保持', 'ゆっくりと開く'],
+        precautions: ['無理をしない', '痛みがある場合は中止']
+      },
+      {
+        id: '2',
+        training_name: '舌の運動',
+        description: '舌の可動域を広げるトレーニング',
+        category: '口腔機能',
+        default_action_seconds: 20,
+        default_rest_seconds: 5,
+        default_sets: 5,
+        instructions: ['舌を前に出す', '左右に動かす', '上に上げる'],
+        precautions: ['ゆっくりと行う', '疲れたら休む']
+      },
+      {
+        id: '3',
+        training_name: '咀嚼練習',
+        description: '咀嚼機能を向上させるトレーニング',
+        category: '口腔機能',
+        default_action_seconds: 60,
+        default_rest_seconds: 30,
+        default_sets: 3,
+        instructions: ['柔らかい食べ物を用意', 'ゆっくりと噛む', '左右均等に'],
+        precautions: ['硬いものは避ける', '飲み込む前に十分噛む']
+      }
+    ]
   }
 
   const handleEdit = (training: Training) => {
@@ -124,25 +193,6 @@ export default function TrainingsPage() {
           </button>
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">トレーニング一覧 ({trainings.length}件)</h1>
-            {trainings.length < 29 && (
-              <button
-                onClick={async () => {
-                  if (confirm('デフォルトトレーニング29件を登録しますか？\n既存データは削除されます。')) {
-                    const response = await fetch('/api/training/clinic/seed', { method: 'POST' })
-                    const data = await response.json()
-                    if (response.ok) {
-                      alert(data.message)
-                      loadTrainings()
-                    } else {
-                      alert('エラー: ' + data.error)
-                    }
-                  }
-                }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                デフォルトデータを投入 (29件)
-              </button>
-            )}
           </div>
         </div>
       </header>

@@ -12,7 +12,7 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
     console.log('モックモード: クリニック情報を返します')
     
     // localStorageから保存された設定を読み込む
-    let savedSettings = {}
+    let savedSettings: any = {}
     try {
       const savedData = localStorage.getItem('mock_clinic_settings')
       if (savedData) {
@@ -26,15 +26,15 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
     
     return {
       id: clinicId,
-      name: 'デモクリニック',
-      name_kana: 'デモクリニック',
-      phone: '03-1234-5678',
-      email: 'demo@clinic.com',
-      website_url: 'https://demo-clinic.com',
-      postal_code: '100-0001',
-      prefecture: '東京都',
-      city: '千代田区',
-      address_line: '千代田1-1-1',
+      name: savedSettings.name || 'デモクリニック',
+      name_kana: savedSettings.name_kana || '',
+      phone: savedSettings.phone || '03-1234-5678',
+      email: savedSettings.email || 'demo@clinic.com',
+      website_url: savedSettings.website_url || '',
+      postal_code: savedSettings.postal_code || '100-0001',
+      prefecture: savedSettings.prefecture || '東京都',
+      city: savedSettings.city || '千代田区',
+      address_line: savedSettings.address_line || '千代田1-1-1',
       business_hours: savedSettings.business_hours || {
         monday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
         tuesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
