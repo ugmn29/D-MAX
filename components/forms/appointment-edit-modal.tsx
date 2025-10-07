@@ -1073,13 +1073,10 @@ export function AppointmentEditModal({
             return
           }
           
-          // 新規患者を作成（IDを連番で1から振る）
-          const { generatePatientNumber } = await import('@/lib/api/patients')
-          const patientNumber = await generatePatientNumber(clinicId)
-          
+          // 新規患者を作成（仮登録時は診察券番号を割り振らない）
           patientToUse = await createPatient(clinicId, {
             ...newPatientData,
-            patient_number: patientNumber,
+            patient_number: '', // 仮登録時は空
             is_registered: false // 仮登録
           })
           
