@@ -198,9 +198,11 @@ export async function createPatient(
     const newPatient = {
       id: `patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       clinic_id: clinicId,
-      patient_number: patientNumber,
       ...patientData,
-      is_registered: true, // 診察券番号が振られた患者は本登録
+      // patientDataのis_registeredを優先、なければpatient_numberの有無で判定
+      is_registered: patientData.is_registered !== undefined 
+        ? patientData.is_registered 
+        : (patientData.patient_number ? true : false),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -209,14 +211,13 @@ export async function createPatient(
   }
 
   // 通常モードの場合
-  // 新しい患者番号を生成
-  const patientNumber = await generatePatientNumber(clinicId)
-
   const newPatient: PatientInsert = {
     ...patientData,
     clinic_id: clinicId,
-    patient_number: patientNumber,
-    is_registered: true // 新規作成時は本登録とする
+    // patientDataのis_registeredを優先
+    is_registered: patientData.is_registered !== undefined 
+      ? patientData.is_registered 
+      : (patientData.patient_number ? true : false)
   }
 
   const client = getSupabaseClient()

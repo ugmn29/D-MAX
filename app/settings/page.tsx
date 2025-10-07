@@ -1,18 +1,24 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Slider } from '@/components/ui/slider'
-import { Modal } from '@/components/ui/modal'
-import { Textarea } from '@/components/ui/textarea'
-import { ShiftPatterns } from '@/components/shift/shift-patterns'
-import { ShiftTable } from '@/components/shift/shift-table'
+import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
+import { Modal } from "@/components/ui/modal";
+import { Textarea } from "@/components/ui/textarea";
+import { ShiftPatterns } from "@/components/shift/shift-patterns";
+import { ShiftTable } from "@/components/shift/shift-table";
 import {
   Settings,
   Building2,
@@ -56,20 +62,56 @@ import {
   MessageCircle,
   Info,
   ArrowRight,
-  RefreshCw
-} from 'lucide-react'
-import { updateClinicSettings, setClinicSetting, getClinicSettings } from '@/lib/api/clinic'
-import { getStaff, createStaff, updateStaff, deleteStaff } from '@/lib/api/staff'
-import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
-import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, deletePatientNoteType } from '@/lib/api/patient-note-types'
-import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
-import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
-import { getQuestionnaires, createQuestionnaire, updateQuestionnaire, deleteQuestionnaire, Questionnaire, QuestionnaireQuestion } from '@/lib/api/questionnaires'
-import { QuestionnaireEditModal } from '@/components/forms/questionnaire-edit-modal'
-import { 
-  getUnits, 
-  createUnit, 
-  updateUnit, 
+  RefreshCw,
+} from "lucide-react";
+import {
+  updateClinicSettings,
+  setClinicSetting,
+  getClinicSettings,
+} from "@/lib/api/clinic";
+import {
+  getStaff,
+  createStaff,
+  updateStaff,
+  deleteStaff,
+} from "@/lib/api/staff";
+import {
+  getStaffPositions,
+  createStaffPosition,
+  updateStaffPosition,
+  deleteStaffPosition,
+} from "@/lib/api/staff-positions";
+import {
+  getPatientNoteTypes,
+  createPatientNoteType,
+  updatePatientNoteType,
+  deletePatientNoteType,
+} from "@/lib/api/patient-note-types";
+import {
+  getCancelReasons,
+  createCancelReason,
+  updateCancelReason,
+  deleteCancelReason,
+} from "@/lib/api/cancel-reasons";
+import {
+  getTreatmentMenus,
+  createTreatmentMenu,
+  updateTreatmentMenu,
+  deleteTreatmentMenu,
+} from "@/lib/api/treatment";
+import {
+  getQuestionnaires,
+  createQuestionnaire,
+  updateQuestionnaire,
+  deleteQuestionnaire,
+  Questionnaire,
+  QuestionnaireQuestion,
+} from "@/lib/api/questionnaires";
+import { QuestionnaireEditModal } from "@/components/forms/questionnaire-edit-modal";
+import {
+  getUnits,
+  createUnit,
+  updateUnit,
   deleteUnit,
   getStaffUnitPriorities,
   createStaffUnitPriority,
@@ -79,193 +121,257 @@ import {
   Unit,
   StaffUnitPriority,
   CreateUnitData,
-  UpdateUnitData
-} from '@/lib/api/units'
+  UpdateUnitData,
+} from "@/lib/api/units";
 
 // 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
 
 const WEEKDAYS = [
-  { id: 'monday', name: '月曜日' },
-  { id: 'tuesday', name: '火曜日' },
-  { id: 'wednesday', name: '水曜日' },
-  { id: 'thursday', name: '木曜日' },
-  { id: 'friday', name: '金曜日' },
-  { id: 'saturday', name: '土曜日' },
-  { id: 'sunday', name: '日曜日' }
-]
+  { id: "monday", name: "月曜日" },
+  { id: "tuesday", name: "火曜日" },
+  { id: "wednesday", name: "水曜日" },
+  { id: "thursday", name: "木曜日" },
+  { id: "friday", name: "金曜日" },
+  { id: "saturday", name: "土曜日" },
+  { id: "sunday", name: "日曜日" },
+];
 
 const TIME_SLOT_OPTIONS = [
-  { value: 10, label: '10分' },
-  { value: 15, label: '15分' },
-  { value: 20, label: '20分' },
-  { value: 30, label: '30分' },
-  { value: 60, label: '60分' }
-]
+  { value: 10, label: "10分" },
+  { value: 15, label: "15分" },
+  { value: 20, label: "20分" },
+  { value: 30, label: "30分" },
+  { value: 60, label: "60分" },
+];
 
 // アイコンマスターデータ
 const ICON_MASTER_DATA = [
-  { id: 'child', icon: User, title: 'お子さん', enabled: true },
-  { id: 'no_contact', icon: AlertCircle, title: '連絡いらない・しない', enabled: true },
-  { id: 'long_talk', icon: MessageSquare, title: 'お話長め', enabled: true },
-  { id: 'pregnant', icon: Heart, title: '妊娠・授乳中', enabled: true },
-  { id: 'implant', icon: Zap, title: 'インプラント', enabled: true },
-  { id: 'no_receipt', icon: Receipt, title: '領収書不要', enabled: true },
-  { id: 'handicap', icon: Accessibility, title: 'ハンディキャップ有り', enabled: true },
-  { id: 'anxious', icon: Frown, title: '心配・恐怖心あり', enabled: true },
-  { id: 'review_requested', icon: Star, title: 'ロコミお願い済', enabled: true },
-  { id: 'parking', icon: Car, title: '駐車券利用する', enabled: true },
-  { id: 'taxi', icon: Car, title: 'タクシーを呼ばれる方', enabled: true },
-  { id: 'accompanied', icon: User, title: '付き添い者あり', enabled: true },
-  { id: 'caution', icon: AlertCircle, title: '要注意!', enabled: true },
-  { id: 'money_caution', icon: DollarSign, title: 'お金関係注意!', enabled: true },
-  { id: 'cancellation_policy', icon: FileText, title: 'キャンセルポリシーお渡し済み', enabled: true },
-  { id: 'assistance_required', icon: HelpCircle, title: '要介助必要', enabled: true },
-  { id: 'referrer', icon: User, title: '紹介者', enabled: true },
-  { id: 'time_specified', icon: Calendar, title: '時間指定あり', enabled: true }
-]
-
+  { id: "child", icon: User, title: "お子さん", enabled: true },
+  {
+    id: "no_contact",
+    icon: AlertCircle,
+    title: "連絡いらない・しない",
+    enabled: true,
+  },
+  { id: "long_talk", icon: MessageSquare, title: "お話長め", enabled: true },
+  { id: "pregnant", icon: Heart, title: "妊娠・授乳中", enabled: true },
+  { id: "implant", icon: Zap, title: "インプラント", enabled: true },
+  { id: "no_receipt", icon: Receipt, title: "領収書不要", enabled: true },
+  {
+    id: "handicap",
+    icon: Accessibility,
+    title: "ハンディキャップ有り",
+    enabled: true,
+  },
+  { id: "anxious", icon: Frown, title: "心配・恐怖心あり", enabled: true },
+  {
+    id: "review_requested",
+    icon: Star,
+    title: "ロコミお願い済",
+    enabled: true,
+  },
+  { id: "parking", icon: Car, title: "駐車券利用する", enabled: true },
+  { id: "taxi", icon: Car, title: "タクシーを呼ばれる方", enabled: true },
+  { id: "accompanied", icon: User, title: "付き添い者あり", enabled: true },
+  { id: "caution", icon: AlertCircle, title: "要注意!", enabled: true },
+  {
+    id: "money_caution",
+    icon: DollarSign,
+    title: "お金関係注意!",
+    enabled: true,
+  },
+  {
+    id: "cancellation_policy",
+    icon: FileText,
+    title: "キャンセルポリシーお渡し済み",
+    enabled: true,
+  },
+  {
+    id: "assistance_required",
+    icon: HelpCircle,
+    title: "要介助必要",
+    enabled: true,
+  },
+  { id: "referrer", icon: User, title: "紹介者", enabled: true },
+  {
+    id: "time_specified",
+    icon: Calendar,
+    title: "時間指定あり",
+    enabled: true,
+  },
+];
 
 const DISPLAY_ITEMS = [
-  { id: 'reservation_time', name: '予約時間', description: '予約の開始・終了時間を表示' },
-  { id: 'medical_card_number', name: '診察券番号', description: '患者の診察券番号を表示' },
-  { id: 'name', name: '名前', description: '患者の氏名を表示' },
-  { id: 'furigana', name: 'フリガナ', description: '患者のフリガナを表示' },
-  { id: 'age', name: '年齢(月齢)', description: '患者の年齢または月齢を表示' },
-  { id: 'patient_icon', name: '患者アイコン', description: '患者の特記事項アイコンを表示' },
-  { id: 'patient_rank', name: '患者ランク', description: '患者のランクを表示' },
-  { id: 'patient_color', name: '患者カラー', description: '患者のカラーを表示' },
-  { id: 'treatment_content', name: '診療内容', description: '診療メニューの全階層を表示（大分類/中分類/詳細）' },
-  { id: 'staff', name: '担当者', description: '担当者の全階層を表示（主担当者/副担当者1/副担当者2）' }
-]
-
+  {
+    id: "reservation_time",
+    name: "予約時間",
+    description: "予約の開始・終了時間を表示",
+  },
+  {
+    id: "medical_card_number",
+    name: "診察券番号",
+    description: "患者の診察券番号を表示",
+  },
+  { id: "name", name: "名前", description: "患者の氏名を表示" },
+  { id: "furigana", name: "フリガナ", description: "患者のフリガナを表示" },
+  { id: "age", name: "年齢(月齢)", description: "患者の年齢または月齢を表示" },
+  {
+    id: "patient_icon",
+    name: "患者アイコン",
+    description: "患者の特記事項アイコンを表示",
+  },
+  { id: "patient_rank", name: "患者ランク", description: "患者のランクを表示" },
+  {
+    id: "patient_color",
+    name: "患者カラー",
+    description: "患者のカラーを表示",
+  },
+  {
+    id: "treatment_content",
+    name: "診療内容",
+    description: "診療メニューの全階層を表示（大分類/中分類/詳細）",
+  },
+  {
+    id: "staff",
+    name: "担当者",
+    description: "担当者の全階層を表示（主担当者/副担当者1/副担当者2）",
+  },
+];
 
 const settingCategories = [
   {
-    id: 'clinic',
-    name: 'クリニック',
+    id: "clinic",
+    name: "クリニック",
     icon: Building2,
-    href: '/settings/clinic'
+    href: "/settings/clinic",
   },
   {
-    id: 'calendar',
-    name: 'カレンダー',
+    id: "calendar",
+    name: "カレンダー",
     icon: Calendar,
-    href: '/settings/calendar'
+    href: "/settings/calendar",
   },
   {
-    id: 'treatment',
-    name: '診療メニュー',
+    id: "treatment",
+    name: "診療メニュー",
     icon: Stethoscope,
-    href: '/settings/treatment'
+    href: "/settings/treatment",
   },
   {
-    id: 'questionnaire',
-    name: '問診表',
+    id: "questionnaire",
+    name: "問診表",
     icon: MessageSquare,
-    href: '/settings/questionnaire'
+    href: "/settings/questionnaire",
   },
   {
-    id: 'units',
-    name: 'ユニット',
+    id: "units",
+    name: "ユニット",
     icon: Grid3X3,
-    href: '/settings/units'
+    href: "/settings/units",
   },
   {
-    id: 'staff',
-    name: 'スタッフ',
+    id: "staff",
+    name: "スタッフ",
     icon: Users,
-    href: '/settings/staff'
+    href: "/settings/staff",
   },
   {
-    id: 'shift',
-    name: 'シフト',
+    id: "shift",
+    name: "シフト",
     icon: Clock,
-    href: '/settings/shift'
+    href: "/settings/shift",
   },
   {
-    id: 'web',
-    name: 'Web予約',
+    id: "web",
+    name: "Web予約",
     icon: Globe,
-    href: '/settings/web'
+    href: "/settings/web",
   },
   {
-    id: 'notification',
-    name: '通知',
+    id: "notification",
+    name: "通知",
     icon: Bell,
-    href: '/settings/notification'
+    href: "/settings/notification",
   },
   {
-    id: 'master',
-    name: 'マスタ',
+    id: "master",
+    name: "マスタ",
     icon: Database,
-    href: '/settings/master'
+    href: "/settings/master",
   },
   {
-    id: 'subkarte',
-    name: 'サブカルテ',
+    id: "subkarte",
+    name: "サブカルテ",
     icon: BarChart3,
-    href: '/settings/subkarte'
+    href: "/settings/subkarte",
   },
   {
-    id: 'training',
-    name: 'トレーニング',
+    id: "training",
+    name: "トレーニング",
     icon: Accessibility,
-    href: '/settings/training'
-  }
-]
+    href: "/settings/training",
+  },
+];
 
 export default function SettingsPage() {
-  const router = useRouter()
-  const pathname = usePathname()
-  const [selectedCategory, setSelectedCategory] = useState<string | null>('clinic')
-  const [selectedMasterTab, setSelectedMasterTab] = useState('icons')
-  const [selectedClinicTab, setSelectedClinicTab] = useState('info')
-  const [selectedShiftTab, setSelectedShiftTab] = useState('table')
-  const [notificationTab, setNotificationTab] = useState('connection')
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(
+    "clinic",
+  );
+  const [selectedMasterTab, setSelectedMasterTab] = useState("icons");
+  const [selectedClinicTab, setSelectedClinicTab] = useState("info");
+  const [selectedShiftTab, setSelectedShiftTab] = useState("table");
+  const [notificationTab, setNotificationTab] = useState("connection");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // 通知設定の状態
   const [notificationSettings, setNotificationSettings] = useState({
     email: {
       enabled: false,
-      smtp_host: '',
+      smtp_host: "",
       smtp_port: 587,
-      smtp_user: '',
-      smtp_password: '',
-      from_address: '',
-      from_name: ''
+      smtp_user: "",
+      smtp_password: "",
+      from_address: "",
+      from_name: "",
     },
     sms: {
       enabled: false,
-      provider: 'twilio',
-      api_key: '',
-      api_secret: '',
-      sender_number: ''
+      provider: "twilio",
+      api_key: "",
+      api_secret: "",
+      sender_number: "",
     },
     line: {
       enabled: false,
-      channel_id: '',
-      channel_secret: '',
-      channel_access_token: '',
-      webhook_url: typeof window !== 'undefined' ? `${window.location.origin}/api/line/webhook` : ''
-    }
-  })
+      channel_id: "",
+      channel_secret: "",
+      channel_access_token: "",
+      webhook_url:
+        typeof window !== "undefined"
+          ? `${window.location.origin}/api/line/webhook`
+          : "",
+    },
+  });
 
   // テンプレート管理の状態
-  const [templates, setTemplates] = useState<any[]>([])
-  const [showTemplateModal, setShowTemplateModal] = useState(false)
-  const [editingTemplate, setEditingTemplate] = useState<any>(null)
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [templateForm, setTemplateForm] = useState({
-    name: '',
-    notification_type: 'appointment_reminder',
-    line_message: '',
-    email_subject: '',
-    email_message: '',
-    sms_message: ''
-  })
-  const [activeChannelTab, setActiveChannelTab] = useState<'line' | 'email' | 'sms'>('line')
+    name: "",
+    notification_type: "appointment_reminder",
+    line_message: "",
+    email_subject: "",
+    email_message: "",
+    sms_message: "",
+  });
+  const [activeChannelTab, setActiveChannelTab] = useState<
+    "line" | "email" | "sms"
+  >("line");
 
   // 自動リマインドルールの状態
   const [autoReminderRule, setAutoReminderRule] = useState({
@@ -273,280 +379,325 @@ export default function SettingsPage() {
     first_interval_months: 3,
     second_interval_months: 3,
     third_interval_months: 6,
-    template_id: '',
-    channel: 'line'
-  })
+    template_id: "",
+    channel: "line",
+  });
 
   // 通知スケジュールの状態
-  const [notificationSchedules, setNotificationSchedules] = useState<any[]>([])
+  const [notificationSchedules, setNotificationSchedules] = useState<any[]>([]);
   const [scheduleFilter, setScheduleFilter] = useState({
-    status: 'all',
-    type: 'all',
-    channel: 'all'
-  })
+    status: "all",
+    type: "all",
+    channel: "all",
+  });
 
   // リッチメニューの状態
-  const [richMenuLayout, setRichMenuLayout] = useState<'fixed'>('fixed') // 固定5つレイアウト
+  const [richMenuLayout, setRichMenuLayout] = useState<"fixed">("fixed"); // 固定5つレイアウト
   const [richMenuButtons, setRichMenuButtons] = useState([
-    { id: 1, label: 'QRコード', action: 'url', url: '/qr-checkin', icon: 'qr' },
-    { id: 2, label: '予約確認', action: 'url', url: '/booking', icon: 'calendar' },
-    { id: 3, label: '家族登録', action: 'url', url: '/family', icon: 'users' },
-    { id: 4, label: 'Webサイト', action: 'url', url: 'https://clinic-website.com', icon: 'web' },
-    { id: 5, label: 'お問合せ', action: 'message', url: 'お問い合わせ', icon: 'chat' }
-  ])
-  const [editingButton, setEditingButton] = useState<number | null>(null)
+    { id: 1, label: "QRコード", action: "url", url: "/qr-checkin", icon: "qr" },
+    {
+      id: 2,
+      label: "予約確認",
+      action: "url",
+      url: "/booking",
+      icon: "calendar",
+    },
+    { id: 3, label: "家族登録", action: "url", url: "/family", icon: "users" },
+    {
+      id: 4,
+      label: "Webサイト",
+      action: "url",
+      url: "https://clinic-website.com",
+      icon: "web",
+    },
+    {
+      id: 5,
+      label: "お問合せ",
+      action: "message",
+      url: "お問い合わせ",
+      icon: "chat",
+    },
+  ]);
+  const [editingButton, setEditingButton] = useState<number | null>(null);
 
   // 送信失敗管理の状態
-  const [notificationFailures, setNotificationFailures] = useState<any[]>([])
+  const [notificationFailures, setNotificationFailures] = useState<any[]>([]);
 
   // 問診票の状態
-  const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([])
-  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<Questionnaire | null>(null)
-  const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false)
+  const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
+  const [selectedQuestionnaire, setSelectedQuestionnaire] =
+    useState<Questionnaire | null>(null);
+  const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false);
   const [newQuestionnaire, setNewQuestionnaire] = useState({
-    name: '',
-    description: '',
-    is_active: true
-  })
+    name: "",
+    description: "",
+    is_active: true,
+  });
 
   // クリニック設定の状態
   const [clinicInfo, setClinicInfo] = useState({
-    name: '',
-    name_kana: '',
-    website_url: '',
-    postal_code: '',
-    prefecture: '',
-    city: '',
-    address_line: '',
-    phone: ''
-  })
-  const [businessHours, setBusinessHours] = useState<Record<string, { 
-    isOpen: boolean, 
-    start: string, 
-    end: string,
-    timeSlots: Array<{
-      id: string,
-      start: string,
-      end: string,
-      period: 'morning' | 'afternoon'
-    }>
-  }>>({})
-  const [breakTimes, setBreakTimes] = useState<Record<string, { start: string; end: string }>>({})
-  const [timeSlotMinutes, setTimeSlotMinutes] = useState(15)
-  const [holidays, setHolidays] = useState<string[]>([]) // 休診日は空で開始
-  const [isInitialLoad, setIsInitialLoad] = useState(true)
+    name: "",
+    name_kana: "",
+    website_url: "",
+    postal_code: "",
+    prefecture: "",
+    city: "",
+    address_line: "",
+    phone: "",
+  });
+  const [businessHours, setBusinessHours] = useState<
+    Record<
+      string,
+      {
+        isOpen: boolean;
+        start: string;
+        end: string;
+        timeSlots: Array<{
+          id: string;
+          start: string;
+          end: string;
+          period: "morning" | "afternoon";
+        }>;
+      }
+    >
+  >({});
+  const [breakTimes, setBreakTimes] = useState<
+    Record<string, { start: string; end: string }>
+  >({});
+  const [timeSlotMinutes, setTimeSlotMinutes] = useState(15);
+  const [holidays, setHolidays] = useState<string[]>([]); // 休診日は空で開始
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // カレンダー設定の状態
-  const [displayItems, setDisplayItems] = useState<string[]>([])
-  const [cellHeight, setCellHeight] = useState(40)
+  const [displayItems, setDisplayItems] = useState<string[]>([]);
+  const [cellHeight, setCellHeight] = useState(40);
 
   // ユニット管理の状態
-  const [unitsData, setUnitsData] = useState<any[]>([])
-  const [showUnitModal, setShowUnitModal] = useState(false)
-  const [editingUnit, setEditingUnit] = useState<any>(null)
+  const [unitsData, setUnitsData] = useState<any[]>([]);
+  const [showUnitModal, setShowUnitModal] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<any>(null);
   const [unitFormData, setUnitFormData] = useState({
-    name: '',
+    name: "",
     sort_order: 0,
-    is_active: true
-  })
+    is_active: true,
+  });
 
   // スタッフユニット優先順位の状態
-  const [staffUnitPriorities, setStaffUnitPriorities] = useState<any[]>([])
-  const [draggedPriority, setDraggedPriority] = useState<any>(null)
-  const [unitsActiveTab, setUnitsActiveTab] = useState<'units' | 'priorities'>('units')
+  const [staffUnitPriorities, setStaffUnitPriorities] = useState<any[]>([]);
+  const [draggedPriority, setDraggedPriority] = useState<any>(null);
+  const [unitsActiveTab, setUnitsActiveTab] = useState<"units" | "priorities">(
+    "units",
+  );
 
   // ユニット管理の関数
   const loadUnitsData = async () => {
     try {
-      const data = await getUnits(DEMO_CLINIC_ID)
-      setUnitsData(data)
+      const data = await getUnits(DEMO_CLINIC_ID);
+      setUnitsData(data);
     } catch (error) {
-      console.error('ユニットデータ読み込みエラー:', error)
+      console.error("ユニットデータ読み込みエラー:", error);
     }
-  }
+  };
 
   const handleAddUnit = () => {
-    setEditingUnit(null)
+    setEditingUnit(null);
     setUnitFormData({
-      name: '',
+      name: "",
       sort_order: unitsData.length + 1,
-      is_active: true
-    })
-    setShowUnitModal(true)
-  }
+      is_active: true,
+    });
+    setShowUnitModal(true);
+  };
 
   const handleEditUnit = (unit: any) => {
-    setEditingUnit(unit)
+    setEditingUnit(unit);
     setUnitFormData({
       name: unit.name,
       sort_order: unit.sort_order,
-      is_active: unit.is_active
-    })
-    setShowUnitModal(true)
-  }
+      is_active: unit.is_active,
+    });
+    setShowUnitModal(true);
+  };
 
   const handleSaveUnit = async () => {
     try {
-      setSaving(true)
-      
+      setSaving(true);
+
       if (editingUnit) {
         // 更新
-        const updatedUnit = await updateUnit(DEMO_CLINIC_ID, editingUnit.id, unitFormData)
-        setUnitsData(unitsData.map(u => u.id === editingUnit.id ? updatedUnit : u))
+        const updatedUnit = await updateUnit(
+          DEMO_CLINIC_ID,
+          editingUnit.id,
+          unitFormData,
+        );
+        setUnitsData(
+          unitsData.map((u) => (u.id === editingUnit.id ? updatedUnit : u)),
+        );
       } else {
         // 新規作成
-        const newUnit = await createUnit(DEMO_CLINIC_ID, unitFormData)
-        setUnitsData([...unitsData, newUnit])
+        const newUnit = await createUnit(DEMO_CLINIC_ID, unitFormData);
+        setUnitsData([...unitsData, newUnit]);
       }
-      
-      setShowUnitModal(false)
+
+      setShowUnitModal(false);
     } catch (error) {
-      console.error('ユニット保存エラー:', error)
-      alert('ユニットの保存に失敗しました')
+      console.error("ユニット保存エラー:", error);
+      alert("ユニットの保存に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDeleteUnit = async (unit: any) => {
-    if (!confirm(`ユニット「${unit.name}」を削除しますか？`)) return
-    
+    if (!confirm(`ユニット「${unit.name}」を削除しますか？`)) return;
+
     try {
-      setSaving(true)
-      await deleteUnit(DEMO_CLINIC_ID, unit.id)
-      setUnitsData(unitsData.filter(u => u.id !== unit.id))
+      setSaving(true);
+      await deleteUnit(DEMO_CLINIC_ID, unit.id);
+      setUnitsData(unitsData.filter((u) => u.id !== unit.id));
     } catch (error) {
-      console.error('ユニット削除エラー:', error)
-      if (error instanceof Error && error.message.includes('予約が存在する')) {
-        alert('このユニットに関連する予約が存在するため削除できません')
+      console.error("ユニット削除エラー:", error);
+      if (error instanceof Error && error.message.includes("予約が存在する")) {
+        alert("このユニットに関連する予約が存在するため削除できません");
       } else {
-        alert('ユニットの削除に失敗しました')
+        alert("ユニットの削除に失敗しました");
       }
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   // スタッフユニット優先順位の関数
   const loadStaffUnitPriorities = async () => {
     try {
-      const priorities = await getStaffUnitPriorities(DEMO_CLINIC_ID)
-      setStaffUnitPriorities(priorities)
+      const priorities = await getStaffUnitPriorities(DEMO_CLINIC_ID);
+      setStaffUnitPriorities(priorities);
     } catch (error) {
-      console.error('スタッフユニット優先順位読み込みエラー:', error)
+      console.error("スタッフユニット優先順位読み込みエラー:", error);
     }
-  }
+  };
 
   const handleAddStaffToUnit = async (unitId: string, staffId: string) => {
-    console.log('handleAddStaffToUnit called:', { unitId, staffId })
+    console.log("handleAddStaffToUnit called:", { unitId, staffId });
     try {
       // そのユニットの現在の最大優先順位を取得
-      const unitPriorities = staffUnitPriorities.filter(p => p.unit_id === unitId)
-      const maxPriority = Math.max(0, ...unitPriorities.map(p => p.priority_order))
-      
-      console.log('Creating staff unit priority:', {
+      const unitPriorities = staffUnitPriorities.filter(
+        (p) => p.unit_id === unitId,
+      );
+      const maxPriority = Math.max(
+        0,
+        ...unitPriorities.map((p) => p.priority_order),
+      );
+
+      console.log("Creating staff unit priority:", {
         clinicId: DEMO_CLINIC_ID,
         staff_id: staffId,
         unit_id: unitId,
-        priority_order: maxPriority + 1
-      })
-      
+        priority_order: maxPriority + 1,
+      });
+
       const result = await createStaffUnitPriority(DEMO_CLINIC_ID, {
         staff_id: staffId,
         unit_id: unitId,
         priority_order: maxPriority + 1,
-        is_active: true
-      })
-      
-      console.log('Staff unit priority created:', result)
-      loadStaffUnitPriorities()
+        is_active: true,
+      });
+
+      console.log("Staff unit priority created:", result);
+      loadStaffUnitPriorities();
     } catch (error) {
-      console.error('スタッフ割り当てエラー:', error)
-      alert('スタッフの割り当てに失敗しました: ' + error.message)
+      console.error("スタッフ割り当てエラー:", error);
+      alert("スタッフの割り当てに失敗しました: " + error.message);
     }
-  }
+  };
 
   const handleDeletePriority = async (priorityId: string) => {
     try {
-      await deleteStaffUnitPriority(DEMO_CLINIC_ID, priorityId)
-      loadStaffUnitPriorities()
+      await deleteStaffUnitPriority(DEMO_CLINIC_ID, priorityId);
+      loadStaffUnitPriorities();
     } catch (error) {
-      console.error('優先順位削除エラー:', error)
-      alert('優先順位の削除に失敗しました')
+      console.error("優先順位削除エラー:", error);
+      alert("優先順位の削除に失敗しました");
     }
-  }
+  };
 
   // ドラッグ&ドロップ処理
   const handleDragStart = (e: React.DragEvent, priority: any) => {
-    setDraggedPriority(priority)
-    e.dataTransfer.effectAllowed = 'move'
-  }
+    setDraggedPriority(priority);
+    e.dataTransfer.effectAllowed = "move";
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
 
   const handleDrop = async (e: React.DragEvent, targetPriority: any) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!draggedPriority || draggedPriority.id === targetPriority.id) {
-      setDraggedPriority(null)
-      return
+      setDraggedPriority(null);
+      return;
     }
 
     // 同じユニット内でのみ並び替え可能
     if (draggedPriority.unit_id !== targetPriority.unit_id) {
-      setDraggedPriority(null)
-      return
+      setDraggedPriority(null);
+      return;
     }
 
     try {
       // 同じユニット内の優先順位を再計算
-      const unitId = draggedPriority.unit_id
+      const unitId = draggedPriority.unit_id;
       const unitPriorities = staffUnitPriorities
-        .filter(p => p.unit_id === unitId)
-        .sort((a, b) => a.priority_order - b.priority_order)
-      
-      const draggedIndex = unitPriorities.findIndex(p => p.id === draggedPriority.id)
-      const targetIndex = unitPriorities.findIndex(p => p.id === targetPriority.id)
-      
+        .filter((p) => p.unit_id === unitId)
+        .sort((a, b) => a.priority_order - b.priority_order);
+
+      const draggedIndex = unitPriorities.findIndex(
+        (p) => p.id === draggedPriority.id,
+      );
+      const targetIndex = unitPriorities.findIndex(
+        (p) => p.id === targetPriority.id,
+      );
+
       // 配列を並び替え
-      const [draggedItem] = unitPriorities.splice(draggedIndex, 1)
-      unitPriorities.splice(targetIndex, 0, draggedItem)
-      
+      const [draggedItem] = unitPriorities.splice(draggedIndex, 1);
+      unitPriorities.splice(targetIndex, 0, draggedItem);
+
       // 新しい優先順位を設定
       const newPriorities = unitPriorities.map((p, index) => ({
         id: p.id,
-        priority_order: index + 1
-      }))
-      
+        priority_order: index + 1,
+      }));
+
       // 各優先順位を個別に更新
       for (const priority of newPriorities) {
-        await updateStaffUnitPriority(DEMO_CLINIC_ID, priority.id, { priority_order: priority.priority_order })
+        await updateStaffUnitPriority(DEMO_CLINIC_ID, priority.id, {
+          priority_order: priority.priority_order,
+        });
       }
-      
-      loadStaffUnitPriorities()
+
+      loadStaffUnitPriorities();
     } catch (error) {
-      console.error('優先順位更新エラー:', error)
-      alert('優先順位の更新に失敗しました')
+      console.error("優先順位更新エラー:", error);
+      alert("優先順位の更新に失敗しました");
     } finally {
-      setDraggedPriority(null)
+      setDraggedPriority(null);
     }
-  }
+  };
 
   // 診療メニューの状態
-  const [menus, setMenus] = useState<any[]>([])
-  const [editingMenu, setEditingMenu] = useState<any>(null)
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [menus, setMenus] = useState<any[]>([]);
+  const [editingMenu, setEditingMenu] = useState<any>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newMenu, setNewMenu] = useState({
-    name: '',
+    name: "",
     level: 1,
-    parent_id: '',
+    parent_id: "",
     standard_duration: 30,
-    color: '#3B82F6',
-    sort_order: 0
-  })
+    color: "#3B82F6",
+    sort_order: 0,
+  });
 
   // Web予約設定の状態
   const [webSettings, setWebSettings] = useState({
@@ -555,7 +706,7 @@ export default function SettingsPage() {
     allowCurrentTime: true,
     openAllSlots: false,
     allowStaffSelection: true,
-    webPageUrl: '',
+    webPageUrl: "",
     showCancelPolicy: false,
     cancelPolicyText: `◆当院のキャンセルポリシー◆
 
@@ -570,150 +721,168 @@ export default function SettingsPage() {
       phoneRequired: true,
       phoneEnabled: true,
       emailRequired: false,
-      emailEnabled: true
+      emailEnabled: true,
     },
     flow: {
       initialSelection: true,
       menuSelection: true,
       calendarDisplay: true,
       patientInfo: true,
-      confirmation: true
-    }
-  })
+      confirmation: true,
+    },
+  });
 
   // Web予約メニュー
-  const [webBookingMenus, setWebBookingMenus] = useState<any[]>([])
+  const [webBookingMenus, setWebBookingMenus] = useState<any[]>([]);
 
   // Web予約メニュー追加ダイアログ
-  const [isAddWebMenuDialogOpen, setIsAddWebMenuDialogOpen] = useState(false)
-  const [isEditWebMenuDialogOpen, setIsEditWebMenuDialogOpen] = useState(false)
-  const [editingWebMenu, setEditingWebMenu] = useState<any>(null)
-  
+  const [isAddWebMenuDialogOpen, setIsAddWebMenuDialogOpen] = useState(false);
+  const [isEditWebMenuDialogOpen, setIsEditWebMenuDialogOpen] = useState(false);
+  const [editingWebMenu, setEditingWebMenu] = useState<any>(null);
+
   // キャンセルポリシー編集ダイアログ
-  const [isCancelPolicyDialogOpen, setIsCancelPolicyDialogOpen] = useState(false)
-  const [tempCancelPolicyText, setTempCancelPolicyText] = useState('')
+  const [isCancelPolicyDialogOpen, setIsCancelPolicyDialogOpen] =
+    useState(false);
+  const [tempCancelPolicyText, setTempCancelPolicyText] = useState("");
 
   // 患者情報フィールド設定ダイアログ
-  const [isPatientInfoFieldsDialogOpen, setIsPatientInfoFieldsDialogOpen] = useState(false)
+  const [isPatientInfoFieldsDialogOpen, setIsPatientInfoFieldsDialogOpen] =
+    useState(false);
   const [tempPatientInfoFields, setTempPatientInfoFields] = useState({
     phoneRequired: true,
     phoneEnabled: true,
     emailRequired: false,
-    emailEnabled: true
-  })
-  
+    emailEnabled: true,
+  });
+
   type StaffAssignment = {
-    staff_id: string
-    priority: number
-    is_required: boolean
-  }
-  
+    staff_id: string;
+    priority: number;
+    is_required: boolean;
+  };
+
   type BookingStep = {
-    id: string
-    step_order: number
-    start_time: number
-    end_time: number
-    duration: number
-    type: 'serial' | 'parallel'
-    description: string
-    staff_assignments: StaffAssignment[]
-  }
-  
+    id: string;
+    step_order: number;
+    start_time: number;
+    end_time: number;
+    duration: number;
+    type: "serial" | "parallel";
+    description: string;
+    staff_assignments: StaffAssignment[];
+  };
+
   const [newWebMenu, setNewWebMenu] = useState({
-    treatment_menu_id: '',
-    treatment_menu_level2_id: '',
-    treatment_menu_level3_id: '',
-    display_name: '',
+    treatment_menu_id: "",
+    treatment_menu_level2_id: "",
+    treatment_menu_level3_id: "",
+    display_name: "",
     duration: 30,
     steps: [] as BookingStep[],
     allow_new_patient: true,
-    allow_returning: true
-  })
+    allow_returning: true,
+  });
 
   // スタッフ管理の状態
-  const [showAddStaff, setShowAddStaff] = useState(false)
-  const [staff, setStaff] = useState<any[]>([])
-  const [staffLoading, setStaffLoading] = useState(false)
-  const [editingStaff, setEditingStaff] = useState<any>(null)
+  const [showAddStaff, setShowAddStaff] = useState(false);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any>(null);
   const [newStaff, setNewStaff] = useState({
-    name: '',
-    name_kana: '',
-    email: '',
-    phone: '',
-    role: 'staff',
-    position_id: ''
-  })
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
+    name: "",
+    name_kana: "",
+    email: "",
+    phone: "",
+    role: "staff",
+    position_id: "",
+  });
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // マスタ設定の状態
-  const [staffPositions, setStaffPositions] = useState<any[]>([])
-  const [patientNoteTypes, setPatientNoteTypes] = useState<any[]>([])
-  const [cancelReasons, setCancelReasons] = useState<any[]>([])
-  const [iconMaster, setIconMaster] = useState(ICON_MASTER_DATA)
-  const [editingIconId, setEditingIconId] = useState<string | null>(null)
-  const [showAddPosition, setShowAddPosition] = useState(false)
-  const [showAddNoteType, setShowAddNoteType] = useState(false)
-  const [showAddCancelReason, setShowAddCancelReason] = useState(false)
-  const [showEditCancelReason, setShowEditCancelReason] = useState(false)
-  const [editingCancelReason, setEditingCancelReason] = useState<any>(null)
+  const [staffPositions, setStaffPositions] = useState<any[]>([]);
+  const [patientNoteTypes, setPatientNoteTypes] = useState<any[]>([]);
+  const [cancelReasons, setCancelReasons] = useState<any[]>([]);
+  const [iconMaster, setIconMaster] = useState(ICON_MASTER_DATA);
+  const [editingIconId, setEditingIconId] = useState<string | null>(null);
+  const [showAddPosition, setShowAddPosition] = useState(false);
+  const [showAddNoteType, setShowAddNoteType] = useState(false);
+  const [showAddCancelReason, setShowAddCancelReason] = useState(false);
+  const [showEditCancelReason, setShowEditCancelReason] = useState(false);
+  const [editingCancelReason, setEditingCancelReason] = useState<any>(null);
   const [newPosition, setNewPosition] = useState({
-    name: '',
+    name: "",
     sort_order: 0,
-    enabled: true
-  })
+    enabled: true,
+  });
   const [newNoteType, setNewNoteType] = useState({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     sort_order: 0,
-    is_active: true
-  })
+    is_active: true,
+  });
   const [newCancelReason, setNewCancelReason] = useState({
-    name: '',
-    is_active: true
-  })
+    name: "",
+    is_active: true,
+  });
 
   // デフォルトテキストの状態
-  const [defaultTexts, setDefaultTexts] = useState<Array<{id: string, title: string, content: string, createdAt: string, updatedAt: string}>>([])
-  const [showAddDefaultTextModal, setShowAddDefaultTextModal] = useState(false)
-  const [editingDefaultText, setEditingDefaultText] = useState<any>(null)
+  const [defaultTexts, setDefaultTexts] = useState<
+    Array<{
+      id: string;
+      title: string;
+      content: string;
+      createdAt: string;
+      updatedAt: string;
+    }>
+  >([]);
+  const [showAddDefaultTextModal, setShowAddDefaultTextModal] = useState(false);
+  const [editingDefaultText, setEditingDefaultText] = useState<any>(null);
   const [newDefaultText, setNewDefaultText] = useState({
-    title: '',
-    content: ''
-  })
+    title: "",
+    content: "",
+  });
 
   // 診療メニュー関連の状態
-  const [treatmentMenus, setTreatmentMenus] = useState<any[]>([])
-  const [editingTreatmentMenu, setEditingTreatmentMenu] = useState<any>(null)
-  const [showTreatmentAddForm, setShowTreatmentAddForm] = useState(false)
-  const [selectedTab, setSelectedTab] = useState('menu1')
-  const [parentMenuForChild, setParentMenuForChild] = useState<any>(null) // 子メニュー作成用の親メニュー
-  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set()) // 展開されたメニューのID
-  const [useParentColor, setUseParentColor] = useState(true) // 親の色を使用するかどうか
+  const [treatmentMenus, setTreatmentMenus] = useState<any[]>([]);
+  const [editingTreatmentMenu, setEditingTreatmentMenu] = useState<any>(null);
+  const [showTreatmentAddForm, setShowTreatmentAddForm] = useState(false);
+  const [selectedTab, setSelectedTab] = useState("menu1");
+  const [parentMenuForChild, setParentMenuForChild] = useState<any>(null); // 子メニュー作成用の親メニュー
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set()); // 展開されたメニューのID
+  const [useParentColor, setUseParentColor] = useState(true); // 親の色を使用するかどうか
   const [newTreatmentMenu, setNewTreatmentMenu] = useState({
-    name: '',
+    name: "",
     level: 1,
-    parent_id: '',
+    parent_id: "",
     standard_duration: 30,
-    color: '#3B82F6',
-    sort_order: 0
-  })
+    color: "#3B82F6",
+    sort_order: 0,
+  });
 
   const handleCategoryClick = (categoryId: string) => {
-    setSelectedCategory(categoryId)
+    setSelectedCategory(categoryId);
     // カテゴリが変更された時の処理（タブは削除済み）
-  }
+  };
 
   // デフォルトテキストの保存
-  const saveDefaultTexts = (texts: Array<{id: string, title: string, content: string, createdAt: string, updatedAt: string}>) => {
-    setDefaultTexts(texts)
-    localStorage.setItem('default_texts', JSON.stringify(texts))
-  }
+  const saveDefaultTexts = (
+    texts: Array<{
+      id: string;
+      title: string;
+      content: string;
+      createdAt: string;
+      updatedAt: string;
+    }>,
+  ) => {
+    setDefaultTexts(texts);
+    localStorage.setItem("default_texts", JSON.stringify(texts));
+  };
 
   // デフォルトテキストの追加
   const handleAddDefaultText = () => {
     if (!newDefaultText.title.trim() || !newDefaultText.content.trim()) {
-      alert('タイトルと内容を入力してください')
-      return
+      alert("タイトルと内容を入力してください");
+      return;
     }
 
     const newText = {
@@ -721,235 +890,248 @@ export default function SettingsPage() {
       title: newDefaultText.title,
       content: newDefaultText.content,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+      updatedAt: new Date().toISOString(),
+    };
 
-    const updatedTexts = [...defaultTexts, newText]
-    saveDefaultTexts(updatedTexts)
-    setNewDefaultText({ title: '', content: '' })
-    setShowAddDefaultTextModal(false)
-  }
+    const updatedTexts = [...defaultTexts, newText];
+    saveDefaultTexts(updatedTexts);
+    setNewDefaultText({ title: "", content: "" });
+    setShowAddDefaultTextModal(false);
+  };
 
   // デフォルトテキストの編集
   const handleEditDefaultText = (text: any) => {
-    setEditingDefaultText(text)
-    setNewDefaultText({ title: text.title, content: text.content })
-    setShowAddDefaultTextModal(true)
-  }
+    setEditingDefaultText(text);
+    setNewDefaultText({ title: text.title, content: text.content });
+    setShowAddDefaultTextModal(true);
+  };
 
   // デフォルトテキストの編集保存
   const handleEditDefaultTextSave = () => {
     if (!newDefaultText.title.trim() || !newDefaultText.content.trim()) {
-      alert('タイトルと内容を入力してください')
-      return
+      alert("タイトルと内容を入力してください");
+      return;
     }
 
-    const updatedTexts = defaultTexts.map(text =>
+    const updatedTexts = defaultTexts.map((text) =>
       text.id === editingDefaultText?.id
-        ? { ...text, title: newDefaultText.title, content: newDefaultText.content, updatedAt: new Date().toISOString() }
-        : text
-    )
+        ? {
+            ...text,
+            title: newDefaultText.title,
+            content: newDefaultText.content,
+            updatedAt: new Date().toISOString(),
+          }
+        : text,
+    );
 
-    saveDefaultTexts(updatedTexts)
-    setNewDefaultText({ title: '', content: '' })
-    setEditingDefaultText(null)
-    setShowAddDefaultTextModal(false)
-  }
+    saveDefaultTexts(updatedTexts);
+    setNewDefaultText({ title: "", content: "" });
+    setEditingDefaultText(null);
+    setShowAddDefaultTextModal(false);
+  };
 
   // デフォルトテキストの削除
   const handleDeleteDefaultText = (id: string) => {
-    if (confirm('このデフォルトテキストを削除しますか？')) {
-      const updatedTexts = defaultTexts.filter(text => text.id !== id)
-      saveDefaultTexts(updatedTexts)
+    if (confirm("このデフォルトテキストを削除しますか？")) {
+      const updatedTexts = defaultTexts.filter((text) => text.id !== id);
+      saveDefaultTexts(updatedTexts);
     }
-  }
-
+  };
 
   // 問診票データの読み込み
   useEffect(() => {
     const loadQuestionnaires = async () => {
-      if (selectedCategory === 'questionnaire') {
+      if (selectedCategory === "questionnaire") {
         try {
-          const data = await getQuestionnaires(DEMO_CLINIC_ID)
-          setQuestionnaires(data)
+          const data = await getQuestionnaires(DEMO_CLINIC_ID);
+          setQuestionnaires(data);
         } catch (error) {
-          console.error('問診票データの読み込みエラー:', error)
+          console.error("問診票データの読み込みエラー:", error);
         }
       }
-    }
-    loadQuestionnaires()
-  }, [selectedCategory])
+    };
+    loadQuestionnaires();
+  }, [selectedCategory]);
 
   // ユニットデータの読み込み
   useEffect(() => {
-    if (selectedCategory === 'units') {
-      loadUnitsData()
+    if (selectedCategory === "units") {
+      loadUnitsData();
       // スタッフデータも読み込み
       const loadStaffForUnits = async () => {
         try {
-          setStaffLoading(true)
-          const data = await getStaff(DEMO_CLINIC_ID)
-          console.log('ユニットタブ用スタッフデータ:', data)
-          setStaff(data)
+          setStaffLoading(true);
+          const data = await getStaff(DEMO_CLINIC_ID);
+          console.log("ユニットタブ用スタッフデータ:", data);
+          setStaff(data);
         } catch (error) {
-          console.error('スタッフデータ読み込みエラー:', error)
+          console.error("スタッフデータ読み込みエラー:", error);
         } finally {
-          setStaffLoading(false)
+          setStaffLoading(false);
         }
-      }
-      loadStaffForUnits()
+      };
+      loadStaffForUnits();
     }
-  }, [selectedCategory])
+  }, [selectedCategory]);
 
   // スタッフユニット優先順位を読み込み
   useEffect(() => {
-    if (selectedCategory === 'units' && unitsActiveTab === 'priorities') {
-      loadStaffUnitPriorities()
+    if (selectedCategory === "units" && unitsActiveTab === "priorities") {
+      loadStaffUnitPriorities();
     }
-  }, [selectedCategory, unitsActiveTab])
+  }, [selectedCategory, unitsActiveTab]);
 
   // デフォルトテキストの読み込み
   useEffect(() => {
-    const savedTexts = localStorage.getItem('default_texts')
+    const savedTexts = localStorage.getItem("default_texts");
     if (savedTexts) {
-      setDefaultTexts(JSON.parse(savedTexts))
+      setDefaultTexts(JSON.parse(savedTexts));
     }
-  }, [])
+  }, []);
 
   // 通知設定の読み込み
   useEffect(() => {
     const loadNotificationSettings = async () => {
-      if (selectedCategory === 'notification') {
+      if (selectedCategory === "notification") {
         try {
-          const response = await fetch(`/api/notification-settings?clinic_id=${DEMO_CLINIC_ID}`)
+          const response = await fetch(
+            `/api/notification-settings?clinic_id=${DEMO_CLINIC_ID}`,
+          );
           if (response.ok) {
-            const settings = await response.json()
+            const settings = await response.json();
             // Webhook URLを常に現在のオリジンで設定
-            const webhookUrl = `${window.location.origin}/api/line/webhook`
+            const webhookUrl = `${window.location.origin}/api/line/webhook`;
             setNotificationSettings({
               ...settings,
               line: {
                 ...settings.line,
-                webhook_url: webhookUrl
-              }
-            })
+                webhook_url: webhookUrl,
+              },
+            });
           }
         } catch (error) {
-          console.error('通知設定の読み込みエラー:', error)
+          console.error("通知設定の読み込みエラー:", error);
         }
 
         // テンプレートの読み込み
         try {
-          const templatesResponse = await fetch(`/api/notification-templates?clinic_id=${DEMO_CLINIC_ID}`)
+          const templatesResponse = await fetch(
+            `/api/notification-templates?clinic_id=${DEMO_CLINIC_ID}`,
+          );
           if (templatesResponse.ok) {
-            const templatesData = await templatesResponse.json()
-            setTemplates(templatesData.map((t: any) => ({
-              id: t.id,
-              name: t.name,
-              notification_type: t.notification_type,
-              line_message: t.line_message || '',
-              email_subject: t.email_subject || '',
-              email_message: t.email_message || '',
-              sms_message: t.sms_message || ''
-            })))
+            const templatesData = await templatesResponse.json();
+            setTemplates(
+              templatesData.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                notification_type: t.notification_type,
+                line_message: t.line_message || "",
+                email_subject: t.email_subject || "",
+                email_message: t.email_message || "",
+                sms_message: t.sms_message || "",
+              })),
+            );
           }
         } catch (error) {
-          console.error('テンプレートの読み込みエラー:', error)
+          console.error("テンプレートの読み込みエラー:", error);
         }
       }
-    }
-    loadNotificationSettings()
-  }, [selectedCategory])
+    };
+    loadNotificationSettings();
+  }, [selectedCategory]);
 
   // 初期データの設定
   useEffect(() => {
     const loadClinicSettings = async () => {
       try {
-        console.log('クリニック設定読み込み開始')
-        const settings = await getClinicSettings(DEMO_CLINIC_ID)
-        console.log('読み込んだ設定:', settings)
-        
+        console.log("クリニック設定読み込み開始");
+        const settings = await getClinicSettings(DEMO_CLINIC_ID);
+        console.log("読み込んだ設定:", settings);
+
         // 保存された設定があれば使用、なければデフォルト値を使用
         if (settings.business_hours) {
-          setBusinessHours(settings.business_hours)
+          setBusinessHours(settings.business_hours);
         } else {
           // デフォルトの診療時間を設定
-          const defaultBusinessHours: Record<string, any> = {}
-          WEEKDAYS.forEach(day => {
-            if (day.id !== 'sunday') {
+          const defaultBusinessHours: Record<string, any> = {};
+          WEEKDAYS.forEach((day) => {
+            if (day.id !== "sunday") {
               defaultBusinessHours[day.id] = {
                 isOpen: true,
-                start: '09:00',
-                end: '18:00',
+                start: "09:00",
+                end: "18:00",
                 timeSlots: [
                   {
                     id: `${day.id}_morning`,
-                    start: '09:00',
-                    end: '13:00',
-                    period: 'morning' as 'morning'
+                    start: "09:00",
+                    end: "13:00",
+                    period: "morning" as "morning",
                   },
                   {
                     id: `${day.id}_afternoon`,
-                    start: '14:30',
-                    end: '18:00',
-                    period: 'afternoon' as 'afternoon'
-                  }
-                ]
-              }
+                    start: "14:30",
+                    end: "18:00",
+                    period: "afternoon" as "afternoon",
+                  },
+                ],
+              };
             } else {
               defaultBusinessHours[day.id] = {
                 isOpen: false,
-                start: '09:00',
-                end: '18:00',
-                timeSlots: []
-              }
+                start: "09:00",
+                end: "18:00",
+                timeSlots: [],
+              };
             }
-          })
-          setBusinessHours(defaultBusinessHours)
+          });
+          setBusinessHours(defaultBusinessHours);
         }
-        
+
         if (settings.break_times) {
-          setBreakTimes(settings.break_times)
+          setBreakTimes(settings.break_times);
         }
-        
+
         if (settings.time_slot_minutes) {
-          setTimeSlotMinutes(settings.time_slot_minutes)
+          setTimeSlotMinutes(settings.time_slot_minutes);
         }
-        
+
         if (settings.holidays) {
-          console.log('読み込んだ休診日:', settings.holidays)
-          setHolidays(settings.holidays)
+          console.log("読み込んだ休診日:", settings.holidays);
+          setHolidays(settings.holidays);
         }
-        
+
         if (settings.clinic_info) {
-          setClinicInfo(settings.clinic_info)
+          setClinicInfo(settings.clinic_info);
         }
 
         // カレンダー設定を読み込み
         if (settings.display_items) {
-          console.log('displayItems読み込み:', settings.display_items)
-          setDisplayItems(settings.display_items)
+          console.log("displayItems読み込み:", settings.display_items);
+          setDisplayItems(settings.display_items);
         }
 
         // cell_heightとtimeSlotMinutesの整合性をチェック
-        let finalCellHeight = settings.cell_height || 40
-        const currentTimeSlotMinutes = settings.time_slot_minutes || 15
-        
+        let finalCellHeight = settings.cell_height || 40;
+        const currentTimeSlotMinutes = settings.time_slot_minutes || 15;
+
         // 整合性チェック: 15分スロットの場合は40px以上を推奨
         if (currentTimeSlotMinutes === 15 && finalCellHeight < 40) {
-          console.warn(`セル高さ（${finalCellHeight}px）が15分スロットに対して低すぎるため、40pxに自動調整します`)
-          finalCellHeight = 40
+          console.warn(
+            `セル高さ（${finalCellHeight}px）が15分スロットに対して低すぎるため、40pxに自動調整します`,
+          );
+          finalCellHeight = 40;
           // 自動修正した値を保存
-          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 40)
+          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 40);
         } else if (currentTimeSlotMinutes === 30 && finalCellHeight < 60) {
-          console.warn(`セル高さ（${finalCellHeight}px）が30分スロットに対して低すぎるため、60pxに自動調整します`)
-          finalCellHeight = 60
+          console.warn(
+            `セル高さ（${finalCellHeight}px）が30分スロットに対して低すぎるため、60pxに自動調整します`,
+          );
+          finalCellHeight = 60;
           // 自動修正した値を保存
-          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 60)
+          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 60);
         }
-        
-        setCellHeight(finalCellHeight)
 
+        setCellHeight(finalCellHeight);
 
         // Web予約設定を読み込み
         if (settings.web_reservation) {
@@ -957,228 +1139,268 @@ export default function SettingsPage() {
             ...settings.web_reservation,
             // デフォルト値でpatientInfoFieldsを設定
             patientInfoFields: {
-              phoneRequired: settings.web_reservation.patientInfoFields?.phoneRequired ?? true,
-              phoneEnabled: settings.web_reservation.patientInfoFields?.phoneEnabled ?? true,
-              emailRequired: settings.web_reservation.patientInfoFields?.emailRequired ?? false,
-              emailEnabled: settings.web_reservation.patientInfoFields?.emailEnabled ?? true
-            }
-          }
-          setWebSettings(webReservationSettings)
-          setWebBookingMenus(settings.web_reservation.booking_menus || [])
+              phoneRequired:
+                settings.web_reservation.patientInfoFields?.phoneRequired ??
+                true,
+              phoneEnabled:
+                settings.web_reservation.patientInfoFields?.phoneEnabled ??
+                true,
+              emailRequired:
+                settings.web_reservation.patientInfoFields?.emailRequired ??
+                false,
+              emailEnabled:
+                settings.web_reservation.patientInfoFields?.emailEnabled ??
+                true,
+            },
+          };
+          setWebSettings(webReservationSettings);
+          setWebBookingMenus(settings.web_reservation.booking_menus || []);
         }
-
       } catch (error) {
-        console.error('クリニック設定読み込みエラー:', error)
+        console.error("クリニック設定読み込みエラー:", error);
         // エラーの場合はデフォルト値を使用
-        const defaultBusinessHours: Record<string, any> = {}
-        WEEKDAYS.forEach(day => {
-          if (day.id !== 'sunday') {
+        const defaultBusinessHours: Record<string, any> = {};
+        WEEKDAYS.forEach((day) => {
+          if (day.id !== "sunday") {
             defaultBusinessHours[day.id] = {
               isOpen: true,
-              start: '09:00',
-              end: '18:00',
+              start: "09:00",
+              end: "18:00",
               timeSlots: [
                 {
                   id: `${day.id}_morning`,
-                  start: '09:00',
-                  end: '13:00',
-                  period: 'morning' as 'morning'
+                  start: "09:00",
+                  end: "13:00",
+                  period: "morning" as "morning",
                 },
                 {
                   id: `${day.id}_afternoon`,
-                  start: '14:30',
-                  end: '18:00',
-                  period: 'afternoon' as 'afternoon'
-                }
-              ]
-            }
+                  start: "14:30",
+                  end: "18:00",
+                  period: "afternoon" as "afternoon",
+                },
+              ],
+            };
           } else {
             defaultBusinessHours[day.id] = {
               isOpen: false,
-              start: '09:00',
-              end: '18:00',
-              timeSlots: []
-            }
+              start: "09:00",
+              end: "18:00",
+              timeSlots: [],
+            };
           }
-        })
-        setBusinessHours(defaultBusinessHours)
+        });
+        setBusinessHours(defaultBusinessHours);
       }
-    }
-    
-    loadClinicSettings()
+    };
+
+    loadClinicSettings();
 
     // 初期読み込み完了フラグを設定
-    setIsInitialLoad(false)
+    setIsInitialLoad(false);
 
     // スタッフデータの読み込み
     const loadStaff = async () => {
       try {
-        console.log('スタッフデータ読み込み開始:', DEMO_CLINIC_ID)
-        setStaffLoading(true)
-        const data = await getStaff(DEMO_CLINIC_ID)
-        console.log('読み込んだスタッフデータ:', data)
-        setStaff(data)
+        console.log("スタッフデータ読み込み開始:", DEMO_CLINIC_ID);
+        setStaffLoading(true);
+        const data = await getStaff(DEMO_CLINIC_ID);
+        console.log("読み込んだスタッフデータ:", data);
+        setStaff(data);
       } catch (error) {
-        console.error('スタッフデータ読み込みエラー:', error)
+        console.error("スタッフデータ読み込みエラー:", error);
       } finally {
-        setStaffLoading(false)
+        setStaffLoading(false);
       }
-    }
-    
-    loadStaff()
+    };
+
+    loadStaff();
 
     // マスタデータの読み込み
     const loadMasterData = async () => {
       try {
-        const [positionsData, noteTypesData, cancelReasonsData] = await Promise.all([
-          getStaffPositions(DEMO_CLINIC_ID),
-          getPatientNoteTypes(DEMO_CLINIC_ID),
-          getCancelReasons(DEMO_CLINIC_ID)
-        ])
-        setStaffPositions(positionsData)
-        setPatientNoteTypes(noteTypesData)
-        setCancelReasons(cancelReasonsData)
+        const [positionsData, noteTypesData, cancelReasonsData] =
+          await Promise.all([
+            getStaffPositions(DEMO_CLINIC_ID),
+            getPatientNoteTypes(DEMO_CLINIC_ID),
+            getCancelReasons(DEMO_CLINIC_ID),
+          ]);
+        setStaffPositions(positionsData);
+        setPatientNoteTypes(noteTypesData);
+        setCancelReasons(cancelReasonsData);
       } catch (error) {
-        console.error('マスタデータ読み込みエラー:', error)
+        console.error("マスタデータ読み込みエラー:", error);
       }
-    }
-    
-    loadMasterData()
+    };
+
+    loadMasterData();
 
     // 診療メニューデータの読み込み
     const loadTreatmentMenus = async () => {
       try {
-        console.log('メニュー読み込み開始:', DEMO_CLINIC_ID)
-        const data = await getTreatmentMenus(DEMO_CLINIC_ID)
-        console.log('読み込んだメニューデータ:', data)
-        setTreatmentMenus(data)
+        console.log("メニュー読み込み開始:", DEMO_CLINIC_ID);
+        const data = await getTreatmentMenus(DEMO_CLINIC_ID);
+        console.log("読み込んだメニューデータ:", data);
+        setTreatmentMenus(data);
       } catch (error) {
-        console.error('メニュー読み込みエラー:', error)
+        console.error("メニュー読み込みエラー:", error);
       }
-    }
-    
-    loadTreatmentMenus()
-  }, [])
+    };
+
+    loadTreatmentMenus();
+  }, []);
 
   // timeSlotMinutesの変更を監視して自動保存
   useEffect(() => {
-    console.log('設定ページ: 自動保存useEffect実行 - isInitialLoad:', isInitialLoad, 'timeSlotMinutes:', timeSlotMinutes)
-    
+    console.log(
+      "設定ページ: 自動保存useEffect実行 - isInitialLoad:",
+      isInitialLoad,
+      "timeSlotMinutes:",
+      timeSlotMinutes,
+    );
+
     if (isInitialLoad) {
-      console.log('設定ページ: 初期読み込み中のため自動保存をスキップ')
-      return // 初期読み込み時は保存しない
+      console.log("設定ページ: 初期読み込み中のため自動保存をスキップ");
+      return; // 初期読み込み時は保存しない
     }
-    
-    console.log('設定ページ: timeSlotMinutes変更検知:', timeSlotMinutes)
-    
+
+    console.log("設定ページ: timeSlotMinutes変更検知:", timeSlotMinutes);
+
     // デバウンス処理（500ms後に保存）
     const timeoutId = setTimeout(async () => {
       try {
-        console.log('設定ページ: 自動保存開始')
-        console.log('設定ページ: timeSlotMinutes保存値:', timeSlotMinutes)
-        
-        // 数値として保存することを確認
-        const numericTimeSlotMinutes = Number(timeSlotMinutes)
-        console.log('設定ページ: 数値変換後の値:', numericTimeSlotMinutes)
+        console.log("設定ページ: 自動保存開始");
+        console.log("設定ページ: timeSlotMinutes保存値:", timeSlotMinutes);
 
-        await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', numericTimeSlotMinutes)
-        console.log('設定ページ: time_slot_minutes保存完了')
+        // 数値として保存することを確認
+        const numericTimeSlotMinutes = Number(timeSlotMinutes);
+        console.log("設定ページ: 数値変換後の値:", numericTimeSlotMinutes);
+
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "time_slot_minutes",
+          numericTimeSlotMinutes,
+        );
+        console.log("設定ページ: time_slot_minutes保存完了");
 
         // timeSlotMinutesに応じてcell_heightを自動調整
-        let recommendedCellHeight = cellHeight
+        let recommendedCellHeight = cellHeight;
         if (numericTimeSlotMinutes === 15 && cellHeight < 40) {
-          recommendedCellHeight = 40
-          setCellHeight(40)
-          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 40)
-          console.log('設定ページ: セルの高さを15分スロットに合わせて40pxに自動調整しました')
+          recommendedCellHeight = 40;
+          setCellHeight(40);
+          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 40);
+          console.log(
+            "設定ページ: セルの高さを15分スロットに合わせて40pxに自動調整しました",
+          );
         } else if (numericTimeSlotMinutes === 30 && cellHeight < 60) {
-          recommendedCellHeight = 60
-          setCellHeight(60)
-          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 60)
-          console.log('設定ページ: セルの高さを30分スロットに合わせて60pxに自動調整しました')
+          recommendedCellHeight = 60;
+          setCellHeight(60);
+          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 60);
+          console.log(
+            "設定ページ: セルの高さを30分スロットに合わせて60pxに自動調整しました",
+          );
         }
 
         // メインページに設定変更を通知
         const updateData = {
           timestamp: Date.now(),
           timeSlotMinutes: numericTimeSlotMinutes,
-          cellHeight: recommendedCellHeight
-        }
-        window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
-        console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
+          cellHeight: recommendedCellHeight,
+        };
+        window.localStorage.setItem(
+          "clinic_settings_updated",
+          JSON.stringify(updateData),
+        );
+        console.log(
+          "設定ページ: localStorageに設定更新通知を保存:",
+          updateData,
+        );
 
         // カスタムイベントを発火
-        const customEvent = new CustomEvent('clinicSettingsUpdated', {
-          detail: { 
+        const customEvent = new CustomEvent("clinicSettingsUpdated", {
+          detail: {
             timeSlotMinutes: numericTimeSlotMinutes,
-            cellHeight: recommendedCellHeight
-          }
-        })
-        window.dispatchEvent(customEvent)
-        console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
+            cellHeight: recommendedCellHeight,
+          },
+        });
+        window.dispatchEvent(customEvent);
+        console.log("設定ページ: カスタムイベントを発火:", customEvent.detail);
 
         // postMessageも発火（追加の通知方法）
-        window.postMessage({
-          type: 'clinicSettingsUpdated',
-          data: { timeSlotMinutes: numericTimeSlotMinutes }
-        }, window.location.origin)
-        console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
+        window.postMessage(
+          {
+            type: "clinicSettingsUpdated",
+            data: { timeSlotMinutes: numericTimeSlotMinutes },
+          },
+          window.location.origin,
+        );
+        console.log("設定ページ: postMessageを発火:", {
+          timeSlotMinutes: numericTimeSlotMinutes,
+        });
       } catch (error) {
-        console.error('自動保存エラー:', error)
+        console.error("自動保存エラー:", error);
       }
-    }, 500)
-    
-    return () => clearTimeout(timeoutId)
-  }, [timeSlotMinutes, isInitialLoad])
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [timeSlotMinutes, isInitialLoad]);
 
   // 診療時間の変更
-  const handleBusinessHoursChange = (day: string, field: string, value: any) => {
-    setBusinessHours(prev => ({
+  const handleBusinessHoursChange = (
+    day: string,
+    field: string,
+    value: any,
+  ) => {
+    setBusinessHours((prev) => ({
       ...prev,
       [day]: {
         ...prev[day],
-        [field]: value
-      }
-    }))
-  }
+        [field]: value,
+      },
+    }));
+  };
 
   // 休憩時間の変更
-  const handleBreakTimesChange = (day: string, field: string, value: string) => {
-    setBreakTimes(prev => ({
+  const handleBreakTimesChange = (
+    day: string,
+    field: string,
+    value: string,
+  ) => {
+    setBreakTimes((prev) => ({
       ...prev,
       [day]: {
         ...prev[day],
-        [field]: value
-      }
-    }))
-  }
+        [field]: value,
+      },
+    }));
+  };
 
   // 休診日の変更
   const handleHolidayChange = (day: string, checked: boolean) => {
-    console.log('休診日変更:', day, checked)
+    console.log("休診日変更:", day, checked);
     if (checked) {
-      setHolidays(prev => {
-        const newHolidays = [...prev, day]
-        console.log('新しい休診日リスト:', newHolidays)
-        return newHolidays
-      })
+      setHolidays((prev) => {
+        const newHolidays = [...prev, day];
+        console.log("新しい休診日リスト:", newHolidays);
+        return newHolidays;
+      });
       // 休診日がチェックされた場合、その日の診療時間をクリア
-      setBusinessHours(prev => ({
+      setBusinessHours((prev) => ({
         ...prev,
         [day]: {
           ...prev[day],
           isOpen: false,
-          timeSlots: []
-        }
-      }))
+          timeSlots: [],
+        },
+      }));
     } else {
-      setHolidays(prev => {
-        const newHolidays = prev.filter(d => d !== day)
-        console.log('新しい休診日リスト:', newHolidays)
-        return newHolidays
-      })
+      setHolidays((prev) => {
+        const newHolidays = prev.filter((d) => d !== day);
+        console.log("新しい休診日リスト:", newHolidays);
+        return newHolidays;
+      });
       // 休診日がチェック解除された場合、デフォルトの診療時間を設定
-      setBusinessHours(prev => ({
+      setBusinessHours((prev) => ({
         ...prev,
         [day]: {
           ...prev[day],
@@ -1186,297 +1408,342 @@ export default function SettingsPage() {
           timeSlots: [
             {
               id: `${day}_morning`,
-              start: '09:00',
-              end: '13:00',
-              period: 'morning' as 'morning'
+              start: "09:00",
+              end: "13:00",
+              period: "morning" as "morning",
             },
             {
               id: `${day}_afternoon`,
-              start: '14:30',
-              end: '18:00',
-              period: 'afternoon' as 'afternoon'
-            }
-          ]
-        }
-      }))
+              start: "14:30",
+              end: "18:00",
+              period: "afternoon" as "afternoon",
+            },
+          ],
+        },
+      }));
     }
-  }
+  };
 
   // 時間枠の追加
   const addTimeSlot = (day: string) => {
-    const currentSlots = businessHours[day]?.timeSlots || []
+    const currentSlots = businessHours[day]?.timeSlots || [];
     const newSlot = {
       id: Date.now().toString(),
-      start: '09:00',
-      end: '18:00',
-      period: 'morning' as 'morning'
-    }
-    
-    setBusinessHours(prev => ({
+      start: "09:00",
+      end: "18:00",
+      period: "morning" as "morning",
+    };
+
+    setBusinessHours((prev) => ({
       ...prev,
       [day]: {
         ...prev[day],
-        timeSlots: [...currentSlots, newSlot]
-      }
-    }))
-  }
+        timeSlots: [...currentSlots, newSlot],
+      },
+    }));
+  };
 
   // 時間枠の削除
   const removeTimeSlot = (day: string, slotId: string) => {
-    setBusinessHours(prev => ({
+    setBusinessHours((prev) => ({
       ...prev,
       [day]: {
         ...prev[day],
-        timeSlots: prev[day]?.timeSlots?.filter(slot => slot.id !== slotId) || []
-      }
-    }))
-  }
+        timeSlots:
+          prev[day]?.timeSlots?.filter((slot) => slot.id !== slotId) || [],
+      },
+    }));
+  };
 
   // 時間枠の変更
-  const updateTimeSlot = (day: string, slotId: string, field: string, value: string) => {
-    setBusinessHours(prev => ({
+  const updateTimeSlot = (
+    day: string,
+    slotId: string,
+    field: string,
+    value: string,
+  ) => {
+    setBusinessHours((prev) => ({
       ...prev,
       [day]: {
         ...prev[day],
-        timeSlots: prev[day]?.timeSlots?.map(slot => 
-          slot.id === slotId ? { ...slot, [field]: value } : slot
-        ) || []
-      }
-    }))
-  }
+        timeSlots:
+          prev[day]?.timeSlots?.map((slot) =>
+            slot.id === slotId ? { ...slot, [field]: value } : slot,
+          ) || [],
+      },
+    }));
+  };
 
   // 表示項目の変更
   const handleDisplayItemChange = (itemId: string, checked: boolean) => {
     if (checked) {
-      setDisplayItems(prev => [...prev, itemId])
+      setDisplayItems((prev) => [...prev, itemId]);
     } else {
-      setDisplayItems(prev => prev.filter(id => id !== itemId))
+      setDisplayItems((prev) => prev.filter((id) => id !== itemId));
     }
-  }
-
+  };
 
   // 診療メニューのWeb予約設定を更新
   const handleMenuUpdate = async (menuId: string, updates: any) => {
     try {
-      await updateTreatmentMenu(DEMO_CLINIC_ID, menuId, updates)
+      await updateTreatmentMenu(DEMO_CLINIC_ID, menuId, updates);
       // ローカル状態を更新
-      setTreatmentMenus(prev => prev.map(menu =>
-        menu.id === menuId ? { ...menu, ...updates } : menu
-      ))
+      setTreatmentMenus((prev) =>
+        prev.map((menu) =>
+          menu.id === menuId ? { ...menu, ...updates } : menu,
+        ),
+      );
     } catch (error) {
-      console.error('診療メニュー更新エラー:', error)
-      alert('診療メニューの更新に失敗しました')
+      console.error("診療メニュー更新エラー:", error);
+      alert("診療メニューの更新に失敗しました");
     }
-  }
+  };
 
   // スタッフ選択の切り替え
   const toggleStaffForMenu = (menuId: string, staffId: string) => {
-    const menu = treatmentMenus.find(m => m.id === menuId)
-    if (!menu) return
+    const menu = treatmentMenus.find((m) => m.id === menuId);
+    if (!menu) return;
 
-    const currentStaffIds = menu.web_booking_staff_ids || []
+    const currentStaffIds = menu.web_booking_staff_ids || [];
     const newStaffIds = currentStaffIds.includes(staffId)
       ? currentStaffIds.filter((id: string) => id !== staffId)
-      : [...currentStaffIds, staffId]
+      : [...currentStaffIds, staffId];
 
-    handleMenuUpdate(menuId, { web_booking_staff_ids: newStaffIds })
-  }
+    handleMenuUpdate(menuId, { web_booking_staff_ids: newStaffIds });
+  };
 
   // ステップを追加
   const handleAddStep = () => {
-    const lastStep = newWebMenu.steps[newWebMenu.steps.length - 1]
-    const startTime = lastStep ? lastStep.end_time : 0
-    
+    const lastStep = newWebMenu.steps[newWebMenu.steps.length - 1];
+    const startTime = lastStep ? lastStep.end_time : 0;
+
     const newStep: BookingStep = {
       id: `step_${Date.now()}`,
       step_order: newWebMenu.steps.length + 1,
       start_time: startTime,
       end_time: startTime + 30,
       duration: 30,
-      type: 'serial',
-      description: '',
-      staff_assignments: []
-    }
-    
-    setNewWebMenu(prev => ({
+      type: "serial",
+      description: "",
+      staff_assignments: [],
+    };
+
+    setNewWebMenu((prev) => ({
       ...prev,
       steps: [...prev.steps, newStep],
-      duration: newStep.end_time
-    }))
-  }
+      duration: newStep.end_time,
+    }));
+  };
 
   // ステップを削除
   const handleRemoveStep = (stepId: string) => {
     const updatedSteps = newWebMenu.steps
-      .filter(s => s.id !== stepId)
+      .filter((s) => s.id !== stepId)
       .map((step, index) => {
         // ステップ順序を再計算
-        let startTime = 0
+        let startTime = 0;
         if (index > 0) {
-          const prevStep = newWebMenu.steps[index - 1]
-          startTime = prevStep.type === 'serial' ? prevStep.end_time : prevStep.start_time
+          const prevStep = newWebMenu.steps[index - 1];
+          startTime =
+            prevStep.type === "serial"
+              ? prevStep.end_time
+              : prevStep.start_time;
         }
         return {
           ...step,
           step_order: index + 1,
           start_time: startTime,
-          end_time: startTime + step.duration
-        }
-      })
-    
-    const totalDuration = updatedSteps.length > 0 
-      ? Math.max(...updatedSteps.map(s => s.end_time))
-      : 30
-    
-    setNewWebMenu(prev => ({
+          end_time: startTime + step.duration,
+        };
+      });
+
+    const totalDuration =
+      updatedSteps.length > 0
+        ? Math.max(...updatedSteps.map((s) => s.end_time))
+        : 30;
+
+    setNewWebMenu((prev) => ({
       ...prev,
       steps: updatedSteps,
-      duration: totalDuration
-    }))
-  }
+      duration: totalDuration,
+    }));
+  };
 
   // ステップの時間を更新
   const handleUpdateStepTime = (stepId: string, endTime: number) => {
-    const stepIndex = newWebMenu.steps.findIndex(s => s.id === stepId)
-    if (stepIndex === -1) return
-    
-    const updatedSteps = [...newWebMenu.steps]
-    const step = updatedSteps[stepIndex]
-    step.end_time = endTime
-    step.duration = endTime - step.start_time
-    
+    const stepIndex = newWebMenu.steps.findIndex((s) => s.id === stepId);
+    if (stepIndex === -1) return;
+
+    const updatedSteps = [...newWebMenu.steps];
+    const step = updatedSteps[stepIndex];
+    step.end_time = endTime;
+    step.duration = endTime - step.start_time;
+
     // 後続のステップの時間を再計算
     for (let i = stepIndex + 1; i < updatedSteps.length; i++) {
-      const prevStep = updatedSteps[i - 1]
-      if (prevStep.type === 'serial') {
-        updatedSteps[i].start_time = prevStep.end_time
-        updatedSteps[i].end_time = updatedSteps[i].start_time + updatedSteps[i].duration
+      const prevStep = updatedSteps[i - 1];
+      if (prevStep.type === "serial") {
+        updatedSteps[i].start_time = prevStep.end_time;
+        updatedSteps[i].end_time =
+          updatedSteps[i].start_time + updatedSteps[i].duration;
       }
     }
-    
-    const totalDuration = Math.max(...updatedSteps.map(s => s.end_time))
-    
-    setNewWebMenu(prev => ({
+
+    const totalDuration = Math.max(...updatedSteps.map((s) => s.end_time));
+
+    setNewWebMenu((prev) => ({
       ...prev,
       steps: updatedSteps,
-      duration: totalDuration
-    }))
-  }
+      duration: totalDuration,
+    }));
+  };
 
   // ステップのタイプを変更
   const handleToggleStepType = (stepId: string) => {
-    const updatedSteps = newWebMenu.steps.map(step => {
+    const updatedSteps = newWebMenu.steps.map((step) => {
       if (step.id === stepId) {
-        return { ...step, type: step.type === 'serial' ? 'parallel' as const : 'serial' as const }
+        return {
+          ...step,
+          type:
+            step.type === "serial"
+              ? ("parallel" as const)
+              : ("serial" as const),
+        };
       }
-      return step
-    })
-    
-    setNewWebMenu(prev => ({
+      return step;
+    });
+
+    setNewWebMenu((prev) => ({
       ...prev,
-      steps: updatedSteps
-    }))
-  }
+      steps: updatedSteps,
+    }));
+  };
 
   // 担当者を追加
   const handleAddStaffToStep = (stepId: string, staffId: string) => {
-    const updatedSteps = newWebMenu.steps.map(step => {
+    const updatedSteps = newWebMenu.steps.map((step) => {
       if (step.id === stepId) {
-        const exists = step.staff_assignments.find(sa => sa.staff_id === staffId)
+        const exists = step.staff_assignments.find(
+          (sa) => sa.staff_id === staffId,
+        );
         if (!exists) {
           const newAssignment: StaffAssignment = {
             staff_id: staffId,
             priority: step.staff_assignments.length + 1,
-            is_required: step.type === 'parallel'
-          }
+            is_required: step.type === "parallel",
+          };
           return {
             ...step,
-            staff_assignments: [...step.staff_assignments, newAssignment]
-          }
+            staff_assignments: [...step.staff_assignments, newAssignment],
+          };
         }
       }
-      return step
-    })
-    
-    setNewWebMenu(prev => ({
+      return step;
+    });
+
+    setNewWebMenu((prev) => ({
       ...prev,
-      steps: updatedSteps
-    }))
-  }
+      steps: updatedSteps,
+    }));
+  };
 
   // 担当者を削除
   const handleRemoveStaffFromStep = (stepId: string, staffId: string) => {
-    const updatedSteps = newWebMenu.steps.map(step => {
+    const updatedSteps = newWebMenu.steps.map((step) => {
       if (step.id === stepId) {
         return {
           ...step,
           staff_assignments: step.staff_assignments
-            .filter(sa => sa.staff_id !== staffId)
-            .map((sa, index) => ({ ...sa, priority: index + 1 }))
-        }
+            .filter((sa) => sa.staff_id !== staffId)
+            .map((sa, index) => ({ ...sa, priority: index + 1 })),
+        };
       }
-      return step
-    })
-    
-    setNewWebMenu(prev => ({
+      return step;
+    });
+
+    setNewWebMenu((prev) => ({
       ...prev,
-      steps: updatedSteps
-    }))
-  }
+      steps: updatedSteps,
+    }));
+  };
 
   // 担当者の優先順位を変更
-  const handleMoveStaffPriority = (stepId: string, staffId: string, direction: 'up' | 'down') => {
-    const updatedSteps = newWebMenu.steps.map(step => {
+  const handleMoveStaffPriority = (
+    stepId: string,
+    staffId: string,
+    direction: "up" | "down",
+  ) => {
+    const updatedSteps = newWebMenu.steps.map((step) => {
       if (step.id === stepId) {
-        const currentIndex = step.staff_assignments.findIndex(sa => sa.staff_id === staffId)
-        if (currentIndex === -1) return step
-        
-        const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-        if (newIndex < 0 || newIndex >= step.staff_assignments.length) return step
-        
-        const newAssignments = [...step.staff_assignments]
-        const temp = newAssignments[currentIndex]
-        newAssignments[currentIndex] = newAssignments[newIndex]
-        newAssignments[newIndex] = temp
-        
+        const currentIndex = step.staff_assignments.findIndex(
+          (sa) => sa.staff_id === staffId,
+        );
+        if (currentIndex === -1) return step;
+
+        const newIndex =
+          direction === "up" ? currentIndex - 1 : currentIndex + 1;
+        if (newIndex < 0 || newIndex >= step.staff_assignments.length)
+          return step;
+
+        const newAssignments = [...step.staff_assignments];
+        const temp = newAssignments[currentIndex];
+        newAssignments[currentIndex] = newAssignments[newIndex];
+        newAssignments[newIndex] = temp;
+
         // 優先順位を再設定
         return {
           ...step,
-          staff_assignments: newAssignments.map((sa, index) => ({ ...sa, priority: index + 1 }))
-        }
+          staff_assignments: newAssignments.map((sa, index) => ({
+            ...sa,
+            priority: index + 1,
+          })),
+        };
       }
-      return step
-    })
-    
-    setNewWebMenu(prev => ({
+      return step;
+    });
+
+    setNewWebMenu((prev) => ({
       ...prev,
-      steps: updatedSteps
-    }))
-  }
+      steps: updatedSteps,
+    }));
+  };
 
   // Web予約メニューを追加
   const handleAddWebBookingMenu = () => {
     if (!newWebMenu.treatment_menu_id) {
-      alert('診療メニューを選択してください')
-      return
+      alert("診療メニューを選択してください");
+      return;
     }
     if (newWebMenu.steps.length === 0) {
-      alert('少なくとも1つのステップを追加してください')
-      return
+      alert("少なくとも1つのステップを追加してください");
+      return;
     }
 
     // 最終的に選択されたメニューを取得（レベル3 > レベル2 > レベル1の順）
-    const selectedMenuId = newWebMenu.treatment_menu_level3_id || newWebMenu.treatment_menu_level2_id || newWebMenu.treatment_menu_id
-    const menu = treatmentMenus.find(m => m.id === selectedMenuId)
-    if (!menu) return
+    const selectedMenuId =
+      newWebMenu.treatment_menu_level3_id ||
+      newWebMenu.treatment_menu_level2_id ||
+      newWebMenu.treatment_menu_id;
+    const menu = treatmentMenus.find((m) => m.id === selectedMenuId);
+    if (!menu) return;
 
     // メニュー階層の名前を構築
-    const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
-    const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
-    const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
-    
-    const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
-    const fullMenuName = menuNameParts.join(' > ')
+    const level1Menu = treatmentMenus.find(
+      (m) => m.id === newWebMenu.treatment_menu_id,
+    );
+    const level2Menu = newWebMenu.treatment_menu_level2_id
+      ? treatmentMenus.find((m) => m.id === newWebMenu.treatment_menu_level2_id)
+      : null;
+    const level3Menu = newWebMenu.treatment_menu_level3_id
+      ? treatmentMenus.find((m) => m.id === newWebMenu.treatment_menu_level3_id)
+      : null;
+
+    const menuNameParts = [
+      level1Menu?.name,
+      level2Menu?.name,
+      level3Menu?.name,
+    ].filter(Boolean);
+    const fullMenuName = menuNameParts.join(" > ");
 
     const webMenu = {
       id: `web_${Date.now()}`,
@@ -1489,68 +1756,83 @@ export default function SettingsPage() {
       duration: newWebMenu.duration,
       steps: newWebMenu.steps,
       allow_new_patient: newWebMenu.allow_new_patient,
-      allow_returning: newWebMenu.allow_returning
-    }
+      allow_returning: newWebMenu.allow_returning,
+    };
 
-    setWebBookingMenus([...webBookingMenus, webMenu])
-    setIsAddWebMenuDialogOpen(false)
+    setWebBookingMenus([...webBookingMenus, webMenu]);
+    setIsAddWebMenuDialogOpen(false);
     setNewWebMenu({
-      treatment_menu_id: '',
-      treatment_menu_level2_id: '',
-      treatment_menu_level3_id: '',
-      display_name: '',
+      treatment_menu_id: "",
+      treatment_menu_level2_id: "",
+      treatment_menu_level3_id: "",
+      display_name: "",
       duration: 30,
       steps: [],
       allow_new_patient: true,
-      allow_returning: true
-    })
-  }
+      allow_returning: true,
+    });
+  };
 
   // Web予約メニューを削除
   const handleRemoveWebBookingMenu = (id: string) => {
-    setWebBookingMenus(webBookingMenus.filter(m => m.id !== id))
-  }
+    setWebBookingMenus(webBookingMenus.filter((m) => m.id !== id));
+  };
 
   // Web予約メニューを編集開始
   const handleEditWebMenu = (menu: any) => {
-    setEditingWebMenu(menu)
+    setEditingWebMenu(menu);
     setNewWebMenu({
-      treatment_menu_id: menu.treatment_menu_id || '',
-      treatment_menu_level2_id: menu.treatment_menu_level2_id || '',
-      treatment_menu_level3_id: menu.treatment_menu_level3_id || '',
-      display_name: menu.display_name || '',
+      treatment_menu_id: menu.treatment_menu_id || "",
+      treatment_menu_level2_id: menu.treatment_menu_level2_id || "",
+      treatment_menu_level3_id: menu.treatment_menu_level3_id || "",
+      display_name: menu.display_name || "",
       duration: menu.duration || 30,
       steps: menu.steps || [],
-      allow_new_patient: menu.allow_new_patient !== undefined ? menu.allow_new_patient : true,
-      allow_returning: menu.allow_returning !== undefined ? menu.allow_returning : true
-    })
-    setIsEditWebMenuDialogOpen(true)
-  }
+      allow_new_patient:
+        menu.allow_new_patient !== undefined ? menu.allow_new_patient : true,
+      allow_returning:
+        menu.allow_returning !== undefined ? menu.allow_returning : true,
+    });
+    setIsEditWebMenuDialogOpen(true);
+  };
 
   // Web予約メニューの編集を保存
   const handleSaveEditWebMenu = () => {
-    if (!editingWebMenu) return
+    if (!editingWebMenu) return;
     if (!newWebMenu.treatment_menu_id) {
-      alert('診療メニューを選択してください')
-      return
+      alert("診療メニューを選択してください");
+      return;
     }
     if (newWebMenu.steps.length === 0) {
-      alert('少なくとも1つのステップを追加してください')
-      return
+      alert("少なくとも1つのステップを追加してください");
+      return;
     }
 
     // 最終的に選択されたメニューを取得
-    const selectedMenuId = newWebMenu.treatment_menu_level3_id || newWebMenu.treatment_menu_level2_id || newWebMenu.treatment_menu_id
-    const menu = treatmentMenus.find(m => m.id === selectedMenuId)
-    if (!menu) return
+    const selectedMenuId =
+      newWebMenu.treatment_menu_level3_id ||
+      newWebMenu.treatment_menu_level2_id ||
+      newWebMenu.treatment_menu_id;
+    const menu = treatmentMenus.find((m) => m.id === selectedMenuId);
+    if (!menu) return;
 
     // メニュー階層の名前を構築
-    const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
-    const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
-    const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
-    
-    const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
-    const fullMenuName = menuNameParts.join(' > ')
+    const level1Menu = treatmentMenus.find(
+      (m) => m.id === newWebMenu.treatment_menu_id,
+    );
+    const level2Menu = newWebMenu.treatment_menu_level2_id
+      ? treatmentMenus.find((m) => m.id === newWebMenu.treatment_menu_level2_id)
+      : null;
+    const level3Menu = newWebMenu.treatment_menu_level3_id
+      ? treatmentMenus.find((m) => m.id === newWebMenu.treatment_menu_level3_id)
+      : null;
+
+    const menuNameParts = [
+      level1Menu?.name,
+      level2Menu?.name,
+      level3Menu?.name,
+    ].filter(Boolean);
+    const fullMenuName = menuNameParts.join(" > ");
 
     const updatedMenu = {
       ...editingWebMenu,
@@ -1563,147 +1845,174 @@ export default function SettingsPage() {
       duration: newWebMenu.duration,
       steps: newWebMenu.steps,
       allow_new_patient: newWebMenu.allow_new_patient,
-      allow_returning: newWebMenu.allow_returning
-    }
+      allow_returning: newWebMenu.allow_returning,
+    };
 
-    setWebBookingMenus(webBookingMenus.map(m => m.id === editingWebMenu.id ? updatedMenu : m))
-    setIsEditWebMenuDialogOpen(false)
-    setEditingWebMenu(null)
+    setWebBookingMenus(
+      webBookingMenus.map((m) =>
+        m.id === editingWebMenu.id ? updatedMenu : m,
+      ),
+    );
+    setIsEditWebMenuDialogOpen(false);
+    setEditingWebMenu(null);
     setNewWebMenu({
-      treatment_menu_id: '',
-      treatment_menu_level2_id: '',
-      treatment_menu_level3_id: '',
-      display_name: '',
+      treatment_menu_id: "",
+      treatment_menu_level2_id: "",
+      treatment_menu_level3_id: "",
+      display_name: "",
       duration: 30,
       steps: [],
       allow_new_patient: true,
-      allow_returning: true
-    })
-  }
+      allow_returning: true,
+    });
+  };
 
   // キャンセルポリシー編集ダイアログを開く
   const handleOpenCancelPolicyDialog = () => {
-    setTempCancelPolicyText(webSettings.cancelPolicyText)
-    setIsCancelPolicyDialogOpen(true)
-  }
+    setTempCancelPolicyText(webSettings.cancelPolicyText);
+    setIsCancelPolicyDialogOpen(true);
+  };
 
   // キャンセルポリシーを保存
   const handleSaveCancelPolicy = () => {
-    setWebSettings(prev => ({
+    setWebSettings((prev) => ({
       ...prev,
-      cancelPolicyText: tempCancelPolicyText
-    }))
-    setIsCancelPolicyDialogOpen(false)
-  }
+      cancelPolicyText: tempCancelPolicyText,
+    }));
+    setIsCancelPolicyDialogOpen(false);
+  };
 
   // キャンセルポリシー編集をキャンセル
   const handleCancelPolicyDialogClose = () => {
-    setIsCancelPolicyDialogOpen(false)
-  }
+    setIsCancelPolicyDialogOpen(false);
+  };
 
   // 患者情報フィールド設定ダイアログの関数
   const handleOpenPatientInfoFieldsDialog = () => {
-    setTempPatientInfoFields(webSettings.patientInfoFields)
-    setIsPatientInfoFieldsDialogOpen(true)
-  }
+    setTempPatientInfoFields(webSettings.patientInfoFields);
+    setIsPatientInfoFieldsDialogOpen(true);
+  };
 
   const handleSavePatientInfoFields = () => {
-    setWebSettings(prev => ({
+    setWebSettings((prev) => ({
       ...prev,
-      patientInfoFields: tempPatientInfoFields
-    }))
-    setIsPatientInfoFieldsDialogOpen(false)
-  }
+      patientInfoFields: tempPatientInfoFields,
+    }));
+    setIsPatientInfoFieldsDialogOpen(false);
+  };
 
   const handlePatientInfoFieldsDialogClose = () => {
-    setIsPatientInfoFieldsDialogOpen(false)
-    setTempPatientInfoFields(webSettings.patientInfoFields)
-  }
+    setIsPatientInfoFieldsDialogOpen(false);
+    setTempPatientInfoFields(webSettings.patientInfoFields);
+  };
 
   // Web予約設定を保存
   const handleSaveWebSettings = async () => {
     try {
-      console.log('Web予約設定保存開始')
-      console.log('保存するwebSettings:', webSettings)
-      console.log('保存するwebBookingMenus:', webBookingMenus)
-      
+      console.log("Web予約設定保存開始");
+      console.log("保存するwebSettings:", webSettings);
+      console.log("保存するwebBookingMenus:", webBookingMenus);
+
       const settingsToSave = {
         ...webSettings,
-        booking_menus: webBookingMenus
-      }
-      
-      console.log('保存データ:', settingsToSave)
-      await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', settingsToSave)
-      
+        booking_menus: webBookingMenus,
+      };
+
+      console.log("保存データ:", settingsToSave);
+      await setClinicSetting(DEMO_CLINIC_ID, "web_reservation", settingsToSave);
+
       // 保存後にデータを再読み込み
-      const reloadedSettings = await getClinicSettings(DEMO_CLINIC_ID)
-      console.log('再読み込みした設定:', reloadedSettings)
-      
+      const reloadedSettings = await getClinicSettings(DEMO_CLINIC_ID);
+      console.log("再読み込みした設定:", reloadedSettings);
+
       if (reloadedSettings.web_reservation) {
-        setWebSettings(reloadedSettings.web_reservation)
-        setWebBookingMenus(reloadedSettings.web_reservation.booking_menus || [])
-        console.log('Web予約メニュー再読み込み完了:', reloadedSettings.web_reservation.booking_menus)
+        setWebSettings(reloadedSettings.web_reservation);
+        setWebBookingMenus(
+          reloadedSettings.web_reservation.booking_menus || [],
+        );
+        console.log(
+          "Web予約メニュー再読み込み完了:",
+          reloadedSettings.web_reservation.booking_menus,
+        );
       }
-      
-      alert('Web予約設定を保存しました')
+
+      alert("Web予約設定を保存しました");
     } catch (error) {
-      console.error('Web予約設定保存エラー:', error)
-      alert('Web予約設定の保存に失敗しました')
+      console.error("Web予約設定保存エラー:", error);
+      alert("Web予約設定の保存に失敗しました");
     }
-  }
+  };
 
   // 保存処理
   const handleSave = async () => {
     try {
-      setSaving(true)
+      setSaving(true);
 
       // カテゴリに応じて保存データを準備
-      const settings: any = {}
+      const settings: any = {};
 
-      if (selectedCategory === 'clinic') {
-        settings.clinicInfo = clinicInfo
-        settings.businessHours = businessHours
-        settings.breakTimes = breakTimes
-        settings.timeSlotMinutes = timeSlotMinutes
-        settings.holidays = holidays
-      } else if (selectedCategory === 'calendar') {
-        settings.timeSlotMinutes = timeSlotMinutes
-        settings.displayItems = displayItems
-        settings.cellHeight = cellHeight
+      if (selectedCategory === "clinic") {
+        settings.clinicInfo = clinicInfo;
+        settings.businessHours = businessHours;
+        settings.breakTimes = breakTimes;
+        settings.timeSlotMinutes = timeSlotMinutes;
+        settings.holidays = holidays;
+      } else if (selectedCategory === "calendar") {
+        settings.timeSlotMinutes = timeSlotMinutes;
+        settings.displayItems = displayItems;
+        settings.cellHeight = cellHeight;
       }
 
-      console.log('保存データ:', settings)
-      console.log('クリニックID:', DEMO_CLINIC_ID)
-      console.log('現在の timeSlotMinutes:', timeSlotMinutes)
-      console.log('現在の holidays:', holidays)
-      console.log('現在の businessHours:', businessHours)
+      console.log("保存データ:", settings);
+      console.log("クリニックID:", DEMO_CLINIC_ID);
+      console.log("現在の timeSlotMinutes:", timeSlotMinutes);
+      console.log("現在の holidays:", holidays);
+      console.log("現在の businessHours:", businessHours);
 
       // Supabaseに保存
-      if (selectedCategory === 'clinic') {
+      if (selectedCategory === "clinic") {
         // クリニック設定は個別に保存
-        await setClinicSetting(DEMO_CLINIC_ID, 'clinic_info', settings.clinicInfo)
-        await setClinicSetting(DEMO_CLINIC_ID, 'business_hours', settings.businessHours)
-        await setClinicSetting(DEMO_CLINIC_ID, 'break_times', settings.breakTimes)
-        await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', settings.timeSlotMinutes)
-        await setClinicSetting(DEMO_CLINIC_ID, 'holidays', settings.holidays)
-        console.log('クリニック設定をclinic_settingsテーブルに保存しました')
-        console.log('保存されたholidays:', settings.holidays)
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "clinic_info",
+          settings.clinicInfo,
+        );
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "business_hours",
+          settings.businessHours,
+        );
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "break_times",
+          settings.breakTimes,
+        );
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "time_slot_minutes",
+          settings.timeSlotMinutes,
+        );
+        await setClinicSetting(DEMO_CLINIC_ID, "holidays", settings.holidays);
+        console.log("クリニック設定をclinic_settingsテーブルに保存しました");
+        console.log("保存されたholidays:", settings.holidays);
       } else {
         // その他の設定は従来通り
-        const result = await updateClinicSettings(DEMO_CLINIC_ID, settings)
-        console.log('保存結果:', result)
-        console.log('保存結果の詳細:', JSON.stringify(result, null, 2))
-        console.log('保存結果のcancel_types:', result.cancel_types)
+        const result = await updateClinicSettings(DEMO_CLINIC_ID, settings);
+        console.log("保存結果:", result);
+        console.log("保存結果の詳細:", JSON.stringify(result, null, 2));
+        console.log("保存結果のcancel_types:", result.cancel_types);
       }
 
-      alert('設定を保存しました。カレンダーページをリロードすると反映されます。')
+      alert(
+        "設定を保存しました。カレンダーページをリロードすると反映されます。",
+      );
     } catch (error) {
-      console.error('保存エラー:', error)
-      alert('保存に失敗しました: ' + (error as Error).message)
+      console.error("保存エラー:", error);
+      alert("保存に失敗しました: " + (error as Error).message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   // クリニック設定コンテンツ
   const renderClinicSettings = () => (
@@ -1711,21 +2020,21 @@ export default function SettingsPage() {
       {/* サブタブ */}
       <div className="flex space-x-0 mb-6 border-b border-gray-200">
         <button
-          onClick={() => setSelectedClinicTab('info')}
+          onClick={() => setSelectedClinicTab("info")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-            selectedClinicTab === 'info'
-              ? 'border-blue-500 text-blue-600 bg-blue-50'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            selectedClinicTab === "info"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
           }`}
         >
           医院情報
         </button>
         <button
-          onClick={() => setSelectedClinicTab('hours')}
+          onClick={() => setSelectedClinicTab("hours")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-            selectedClinicTab === 'hours'
-              ? 'border-blue-500 text-blue-600 bg-blue-50'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            selectedClinicTab === "hours"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
           }`}
         >
           診療時間
@@ -1733,94 +2042,174 @@ export default function SettingsPage() {
       </div>
 
       {/* 医院情報タブ */}
-      {selectedClinicTab === 'info' && (
+      {selectedClinicTab === "info" && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="space-y-6">
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="name" className="text-sm font-medium text-gray-700">クリニック名（正式名称）</Label>
+                  <Label
+                    htmlFor="name"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    クリニック名（正式名称）
+                  </Label>
                   <Input
                     id="name"
                     value={clinicInfo.name}
-                    onChange={(e) => setClinicInfo(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setClinicInfo((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
                     placeholder="例: 田中歯科医院"
                     className="mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="name_kana" className="text-sm font-medium text-gray-700">クリニック名（ふりがな）</Label>
+                  <Label
+                    htmlFor="name_kana"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    クリニック名（ふりがな）
+                  </Label>
                   <Input
                     id="name_kana"
                     value={clinicInfo.name_kana}
-                    onChange={(e) => setClinicInfo(prev => ({ ...prev, name_kana: e.target.value }))}
+                    onChange={(e) =>
+                      setClinicInfo((prev) => ({
+                        ...prev,
+                        name_kana: e.target.value,
+                      }))
+                    }
                     placeholder="例: たなかしかいいん"
                     className="mt-1"
                   />
                 </div>
               </div>
-              
+
               <div>
-                <Label htmlFor="website_url" className="text-sm font-medium text-gray-700">ホームページURL</Label>
+                <Label
+                  htmlFor="website_url"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  ホームページURL
+                </Label>
                 <Input
                   id="website_url"
                   value={clinicInfo.website_url}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, website_url: e.target.value }))}
+                  onChange={(e) =>
+                    setClinicInfo((prev) => ({
+                      ...prev,
+                      website_url: e.target.value,
+                    }))
+                  }
                   placeholder="例: https://example.com"
                   className="mt-1"
                 />
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="postal_code" className="text-sm font-medium text-gray-700">郵便番号</Label>
+                  <Label
+                    htmlFor="postal_code"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    郵便番号
+                  </Label>
                   <Input
                     id="postal_code"
                     value={clinicInfo.postal_code}
-                    onChange={(e) => setClinicInfo(prev => ({ ...prev, postal_code: e.target.value }))}
+                    onChange={(e) =>
+                      setClinicInfo((prev) => ({
+                        ...prev,
+                        postal_code: e.target.value,
+                      }))
+                    }
                     placeholder="例: 123-4567"
                     className="mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="prefecture" className="text-sm font-medium text-gray-700">都道府県</Label>
+                  <Label
+                    htmlFor="prefecture"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    都道府県
+                  </Label>
                   <Input
                     id="prefecture"
                     value={clinicInfo.prefecture}
-                    onChange={(e) => setClinicInfo(prev => ({ ...prev, prefecture: e.target.value }))}
+                    onChange={(e) =>
+                      setClinicInfo((prev) => ({
+                        ...prev,
+                        prefecture: e.target.value,
+                      }))
+                    }
                     placeholder="例: 東京都"
                     className="mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="city" className="text-sm font-medium text-gray-700">市区町村</Label>
+                  <Label
+                    htmlFor="city"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    市区町村
+                  </Label>
                   <Input
                     id="city"
                     value={clinicInfo.city}
-                    onChange={(e) => setClinicInfo(prev => ({ ...prev, city: e.target.value }))}
+                    onChange={(e) =>
+                      setClinicInfo((prev) => ({
+                        ...prev,
+                        city: e.target.value,
+                      }))
+                    }
                     placeholder="例: 渋谷区"
                     className="mt-1"
                   />
                 </div>
               </div>
-              
+
               <div>
-                <Label htmlFor="address_line" className="text-sm font-medium text-gray-700">住所（番地・建物名）</Label>
+                <Label
+                  htmlFor="address_line"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  住所（番地・建物名）
+                </Label>
                 <Input
                   id="address_line"
                   value={clinicInfo.address_line}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, address_line: e.target.value }))}
+                  onChange={(e) =>
+                    setClinicInfo((prev) => ({
+                      ...prev,
+                      address_line: e.target.value,
+                    }))
+                  }
                   placeholder="例: 1-2-3 田中ビル 2F"
                   className="mt-1"
                 />
               </div>
-              
+
               <div>
-                <Label htmlFor="phone" className="text-sm font-medium text-gray-700">電話番号</Label>
+                <Label
+                  htmlFor="phone"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  電話番号
+                </Label>
                 <Input
                   id="phone"
                   value={clinicInfo.phone}
-                  onChange={(e) => setClinicInfo(prev => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) =>
+                    setClinicInfo((prev) => ({
+                      ...prev,
+                      phone: e.target.value,
+                    }))
+                  }
                   placeholder="例: 03-1234-5678"
                   className="mt-1"
                 />
@@ -1831,26 +2220,31 @@ export default function SettingsPage() {
       )}
 
       {/* 診療時間タブ */}
-      {selectedClinicTab === 'hours' && (
+      {selectedClinicTab === "hours" && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-3">
-                {WEEKDAYS.map(day => {
-                  const isHoliday = holidays.includes(day.id)
-                  const timeSlots = businessHours[day.id]?.timeSlots || []
-                  
+                {WEEKDAYS.map((day) => {
+                  const isHoliday = holidays.includes(day.id);
+                  const timeSlots = businessHours[day.id]?.timeSlots || [];
+
                   return (
-                    <div key={day.id} className={`flex items-center p-2 rounded-lg border ${
-                      isHoliday 
-                        ? 'bg-gray-50 border-gray-200' 
-                        : 'bg-white border-gray-200'
-                    }`}>
+                    <div
+                      key={day.id}
+                      className={`flex items-center p-2 rounded-lg border ${
+                        isHoliday
+                          ? "bg-gray-50 border-gray-200"
+                          : "bg-white border-gray-200"
+                      }`}
+                    >
                       {/* 曜日名 */}
                       <div className="w-20 flex-shrink-0">
-                        <h4 className="text-sm font-medium text-gray-900">{day.name}</h4>
+                        <h4 className="text-sm font-medium text-gray-900">
+                          {day.name}
+                        </h4>
                       </div>
-                      
+
                       {/* 休診チェックボックス */}
                       <div className="w-20 flex-shrink-0 flex items-center space-x-2">
                         <input
@@ -1858,66 +2252,92 @@ export default function SettingsPage() {
                           id={`holiday_${day.id}`}
                           checked={isHoliday}
                           onChange={(e) => {
-                            const checked = e.target.checked
-                            console.log('チェックボックス変更:', day.id, checked)
-                            handleHolidayChange(day.id, checked)
+                            const checked = e.target.checked;
+                            console.log(
+                              "チェックボックス変更:",
+                              day.id,
+                              checked,
+                            );
+                            handleHolidayChange(day.id, checked);
                           }}
                           className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
-                        <Label htmlFor={`holiday_${day.id}`} className="text-xs text-gray-600 cursor-pointer">
+                        <Label
+                          htmlFor={`holiday_${day.id}`}
+                          className="text-xs text-gray-600 cursor-pointer"
+                        >
                           休診
                         </Label>
                       </div>
-                      
+
                       {/* 時間枠 */}
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-3">
                           {timeSlots.map((slot, index) => (
-                            <div key={`${day.id}-${slot.id}`} className={`flex items-center space-x-2 rounded-md px-3 py-2 ${
-                              isHoliday ? 'bg-gray-100' : 'bg-gray-50'
-                            }`}>
-                              <span className={`text-xs font-medium ${
-                                isHoliday ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
-                                {slot.period === 'morning' ? '午前' : '午後'}
+                            <div
+                              key={`${day.id}-${slot.id}`}
+                              className={`flex items-center space-x-2 rounded-md px-3 py-2 ${
+                                isHoliday ? "bg-gray-100" : "bg-gray-50"
+                              }`}
+                            >
+                              <span
+                                className={`text-xs font-medium ${
+                                  isHoliday ? "text-gray-400" : "text-gray-600"
+                                }`}
+                              >
+                                {slot.period === "morning" ? "午前" : "午後"}
                               </span>
                               <Input
                                 type="time"
                                 value={slot.start}
-                                onChange={(e) => updateTimeSlot(day.id, slot.id, 'start', e.target.value)}
+                                onChange={(e) =>
+                                  updateTimeSlot(
+                                    day.id,
+                                    slot.id,
+                                    "start",
+                                    e.target.value,
+                                  )
+                                }
                                 disabled={isHoliday}
                                 className={`w-24 text-xs ${
-                                  isHoliday 
-                                    ? 'border-gray-200 bg-gray-100 text-gray-400' 
-                                    : 'border-gray-200'
+                                  isHoliday
+                                    ? "border-gray-200 bg-gray-100 text-gray-400"
+                                    : "border-gray-200"
                                 }`}
                               />
                               <span className="text-gray-400">～</span>
                               <Input
                                 type="time"
                                 value={slot.end}
-                                onChange={(e) => updateTimeSlot(day.id, slot.id, 'end', e.target.value)}
+                                onChange={(e) =>
+                                  updateTimeSlot(
+                                    day.id,
+                                    slot.id,
+                                    "end",
+                                    e.target.value,
+                                  )
+                                }
                                 disabled={isHoliday}
                                 className={`w-24 text-xs ${
-                                  isHoliday 
-                                    ? 'border-gray-200 bg-gray-100 text-gray-400' 
-                                    : 'border-gray-200'
+                                  isHoliday
+                                    ? "border-gray-200 bg-gray-100 text-gray-400"
+                                    : "border-gray-200"
                                 }`}
                               />
                               <button
                                 onClick={() => removeTimeSlot(day.id, slot.id)}
                                 disabled={isHoliday}
                                 className={`${
-                                  isHoliday 
-                                    ? 'text-gray-300 cursor-not-allowed' 
-                                    : 'text-gray-400 hover:text-red-500'
+                                  isHoliday
+                                    ? "text-gray-300 cursor-not-allowed"
+                                    : "text-gray-400 hover:text-red-500"
                                 }`}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
                           ))}
-                          
+
                           {!isHoliday && (
                             <button
                               onClick={() => addTimeSlot(day.id)}
@@ -1930,7 +2350,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             </div>
@@ -1938,7 +2358,7 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
-  )
+  );
 
   // カレンダー設定コンテンツ
   const renderCalendarSettings = () => (
@@ -1956,8 +2376,11 @@ export default function SettingsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIME_SLOT_OPTIONS.map(option => (
-                  <SelectItem key={option.value} value={option.value.toString()}>
+                {TIME_SLOT_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value.toString()}
+                  >
                     {option.label}
                   </SelectItem>
                 ))}
@@ -1972,18 +2395,24 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">表示項目</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {DISPLAY_ITEMS.map(item => (
-              <div key={item.id} className="flex items-center space-x-2 p-1.5 rounded hover:bg-gray-50">
+            {DISPLAY_ITEMS.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center space-x-2 p-1.5 rounded hover:bg-gray-50"
+              >
                 <Checkbox
                   id={item.id}
                   checked={displayItems.includes(item.id)}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     handleDisplayItemChange(item.id, checked as boolean)
                   }
                   className="flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label htmlFor={item.id} className="text-sm font-medium text-gray-900 cursor-pointer block truncate">
+                  <Label
+                    htmlFor={item.id}
+                    className="text-sm font-medium text-gray-900 cursor-pointer block truncate"
+                  >
                     {item.name}
                   </Label>
                 </div>
@@ -1998,7 +2427,9 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">セル表示設定</h3>
           <div className="max-w-md">
-            <Label className="text-sm font-medium text-gray-700">セルの高さ: {cellHeight}px</Label>
+            <Label className="text-sm font-medium text-gray-700">
+              セルの高さ: {cellHeight}px
+            </Label>
             <Slider
               value={[cellHeight]}
               onValueChange={(value) => setCellHeight(value[0])}
@@ -2011,238 +2442,244 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
-  )
+  );
 
   // 診療メニュー設定コンテンツ
-
 
   // マスタ設定のハンドラー
   const handleAddPosition = async () => {
     try {
-      setSaving(true)
-      await createStaffPosition(DEMO_CLINIC_ID, newPosition)
+      setSaving(true);
+      await createStaffPosition(DEMO_CLINIC_ID, newPosition);
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
-      setStaffPositions(data)
+      const data = await getStaffPositions(DEMO_CLINIC_ID);
+      setStaffPositions(data);
 
       setNewPosition({
-        name: '',
+        name: "",
         sort_order: 0,
-        enabled: true
-      })
-      setShowAddPosition(false)
+        enabled: true,
+      });
+      setShowAddPosition(false);
     } catch (error) {
-      console.error('役職追加エラー:', error)
-      const errorMessage = error instanceof Error ? error.message : '役職の追加に失敗しました'
-      alert(`役職の追加に失敗しました: ${errorMessage}`)
+      console.error("役職追加エラー:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "役職の追加に失敗しました";
+      alert(`役職の追加に失敗しました: ${errorMessage}`);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleUpdatePosition = async (positionId: string, updates: any) => {
     try {
-      setSaving(true)
-      await updateStaffPosition(DEMO_CLINIC_ID, positionId, updates)
+      setSaving(true);
+      await updateStaffPosition(DEMO_CLINIC_ID, positionId, updates);
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
-      setStaffPositions(data)
+      const data = await getStaffPositions(DEMO_CLINIC_ID);
+      setStaffPositions(data);
     } catch (error) {
-      console.error('役職更新エラー:', error)
-      alert('役職の更新に失敗しました')
+      console.error("役職更新エラー:", error);
+      alert("役職の更新に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDeletePosition = async (positionId: string) => {
-    if (!confirm('この役職を削除しますか？')) return
-    
+    if (!confirm("この役職を削除しますか？")) return;
+
     try {
-      setSaving(true)
-      await deleteStaffPosition(DEMO_CLINIC_ID, positionId)
+      setSaving(true);
+      await deleteStaffPosition(DEMO_CLINIC_ID, positionId);
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
-      setStaffPositions(data)
+      const data = await getStaffPositions(DEMO_CLINIC_ID);
+      setStaffPositions(data);
     } catch (error) {
-      console.error('役職削除エラー:', error)
-      alert('役職の削除に失敗しました')
+      console.error("役職削除エラー:", error);
+      alert("役職の削除に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleAddNoteType = async () => {
     try {
-      setSaving(true)
-      await createPatientNoteType(DEMO_CLINIC_ID, newNoteType)
+      setSaving(true);
+      await createPatientNoteType(DEMO_CLINIC_ID, newNoteType);
 
       // データを再読み込み
-      const data = await getPatientNoteTypes(DEMO_CLINIC_ID)
-      setPatientNoteTypes(data)
+      const data = await getPatientNoteTypes(DEMO_CLINIC_ID);
+      setPatientNoteTypes(data);
 
       setNewNoteType({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         sort_order: 0,
-        is_active: true
-      })
-      setShowAddNoteType(false)
+        is_active: true,
+      });
+      setShowAddNoteType(false);
     } catch (error) {
-      console.error('ノートタイプ追加エラー:', error)
-      alert('ノートタイプの追加に失敗しました')
+      console.error("ノートタイプ追加エラー:", error);
+      alert("ノートタイプの追加に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleIconTitleEdit = (iconId: string, newTitle: string) => {
-    setIconMaster(prev => prev.map(icon => 
-      icon.id === iconId ? { ...icon, title: newTitle } : icon
-    ))
-  }
+    setIconMaster((prev) =>
+      prev.map((icon) =>
+        icon.id === iconId ? { ...icon, title: newTitle } : icon,
+      ),
+    );
+  };
 
   const handleIconToggle = (iconId: string) => {
-    setIconMaster(prev => prev.map(icon => 
-      icon.id === iconId ? { ...icon, enabled: !icon.enabled } : icon
-    ))
-  }
+    setIconMaster((prev) =>
+      prev.map((icon) =>
+        icon.id === iconId ? { ...icon, enabled: !icon.enabled } : icon,
+      ),
+    );
+  };
 
   // キャンセル理由追加
   const handleAddCancelReason = async () => {
     try {
-      setSaving(true)
-      await createCancelReason(DEMO_CLINIC_ID, newCancelReason)
+      setSaving(true);
+      await createCancelReason(DEMO_CLINIC_ID, newCancelReason);
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID)
-      setCancelReasons(data)
+      const data = await getCancelReasons(DEMO_CLINIC_ID);
+      setCancelReasons(data);
 
       setNewCancelReason({
-        name: '',
-        is_active: true
-      })
-      setShowAddCancelReason(false)
+        name: "",
+        is_active: true,
+      });
+      setShowAddCancelReason(false);
     } catch (error) {
-      console.error('キャンセル理由追加エラー:', error)
-      alert('キャンセル理由の追加に失敗しました')
+      console.error("キャンセル理由追加エラー:", error);
+      alert("キャンセル理由の追加に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleUpdateCancelReason = async (reasonId: string, updates: any) => {
     try {
-      setSaving(true)
-      await updateCancelReason(DEMO_CLINIC_ID, reasonId, updates)
+      setSaving(true);
+      await updateCancelReason(DEMO_CLINIC_ID, reasonId, updates);
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID)
-      setCancelReasons(data)
+      const data = await getCancelReasons(DEMO_CLINIC_ID);
+      setCancelReasons(data);
     } catch (error) {
-      console.error('キャンセル理由更新エラー:', error)
-      alert('キャンセル理由の更新に失敗しました')
+      console.error("キャンセル理由更新エラー:", error);
+      alert("キャンセル理由の更新に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDeleteCancelReason = async (reasonId: string) => {
-    if (!confirm('このキャンセル理由を削除しますか？')) return
-    
+    if (!confirm("このキャンセル理由を削除しますか？")) return;
+
     try {
-      setSaving(true)
-      await deleteCancelReason(DEMO_CLINIC_ID, reasonId)
+      setSaving(true);
+      await deleteCancelReason(DEMO_CLINIC_ID, reasonId);
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID)
-      setCancelReasons(data)
+      const data = await getCancelReasons(DEMO_CLINIC_ID);
+      setCancelReasons(data);
     } catch (error) {
-      console.error('キャンセル理由削除エラー:', error)
-      alert('キャンセル理由の削除に失敗しました')
+      console.error("キャンセル理由削除エラー:", error);
+      alert("キャンセル理由の削除に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleEditCancelReason = (reason: any) => {
-    console.log('編集開始:', reason)
-    setEditingCancelReason(reason)
-    setShowEditCancelReason(true)
-  }
+    console.log("編集開始:", reason);
+    setEditingCancelReason(reason);
+    setShowEditCancelReason(true);
+  };
 
   const handleSaveEditCancelReason = async () => {
     if (!editingCancelReason) {
-      console.error('編集するキャンセル理由がありません')
-      return
+      console.error("編集するキャンセル理由がありません");
+      return;
     }
-    
-    console.log('編集保存開始:', editingCancelReason)
-    
+
+    console.log("編集保存開始:", editingCancelReason);
+
     try {
-      setSaving(true)
+      setSaving(true);
       await updateCancelReason(DEMO_CLINIC_ID, editingCancelReason.id, {
         name: editingCancelReason.name,
-        is_active: editingCancelReason.is_active
-      })
+        is_active: editingCancelReason.is_active,
+      });
 
-      console.log('更新完了、データを再読み込み中...')
+      console.log("更新完了、データを再読み込み中...");
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID)
-      setCancelReasons(data)
-      
-      console.log('編集モーダルを閉じます')
-      setShowEditCancelReason(false)
-      setEditingCancelReason(null)
+      const data = await getCancelReasons(DEMO_CLINIC_ID);
+      setCancelReasons(data);
+
+      console.log("編集モーダルを閉じます");
+      setShowEditCancelReason(false);
+      setEditingCancelReason(null);
     } catch (error) {
-      console.error('キャンセル理由更新エラー:', error)
-      alert('キャンセル理由の更新に失敗しました')
+      console.error("キャンセル理由更新エラー:", error);
+      alert("キャンセル理由の更新に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   // スタッフ追加
   const handleAddStaff = async () => {
     try {
-      console.log('handleAddStaff開始')
-      console.log('newStaff:', newStaff)
-      
-      setStaffLoading(true)
-      await createStaff(DEMO_CLINIC_ID, newStaff)
-      
-      console.log('スタッフ作成成功')
-      
-      // データを再読み込み
-      const data = await getStaff(DEMO_CLINIC_ID)
-      console.log('再読み込みしたスタッフデータ:', data)
-      setStaff(data)
-      
-      // シフト表をリフレッシュ
-      setRefreshTrigger(prev => prev + 1)
-      
-      setNewStaff({
-        name: '',
-        name_kana: '',
-        email: '',
-        phone: '',
-        role: 'staff',
-        position_id: ''
-      })
-      setShowAddStaff(false)
-      console.log('モーダルを閉じました')
-    } catch (error) {
-      console.error('スタッフ追加エラー:', error)
-      alert('スタッフの追加に失敗しました: ' + (error instanceof Error ? error.message : 'Unknown error'))
-    } finally {
-      setStaffLoading(false)
-      console.log('staffLoadingをfalseに設定')
-    }
-  }
+      console.log("handleAddStaff開始");
+      console.log("newStaff:", newStaff);
 
+      setStaffLoading(true);
+      await createStaff(DEMO_CLINIC_ID, newStaff);
+
+      console.log("スタッフ作成成功");
+
+      // データを再読み込み
+      const data = await getStaff(DEMO_CLINIC_ID);
+      console.log("再読み込みしたスタッフデータ:", data);
+      setStaff(data);
+
+      // シフト表をリフレッシュ
+      setRefreshTrigger((prev) => prev + 1);
+
+      setNewStaff({
+        name: "",
+        name_kana: "",
+        email: "",
+        phone: "",
+        role: "staff",
+        position_id: "",
+      });
+      setShowAddStaff(false);
+      console.log("モーダルを閉じました");
+    } catch (error) {
+      console.error("スタッフ追加エラー:", error);
+      alert(
+        "スタッフの追加に失敗しました: " +
+          (error instanceof Error ? error.message : "Unknown error"),
+      );
+    } finally {
+      setStaffLoading(false);
+      console.log("staffLoadingをfalseに設定");
+    }
+  };
 
   const renderMasterSettings = () => (
     <div className="space-y-6">
@@ -2250,41 +2687,41 @@ export default function SettingsPage() {
       <div className="border-b border-gray-200">
         <nav className="flex space-x-8">
           <button
-            onClick={() => setSelectedMasterTab('icons')}
+            onClick={() => setSelectedMasterTab("icons")}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === 'icons'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              selectedMasterTab === "icons"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             アイコン
           </button>
           <button
-            onClick={() => setSelectedMasterTab('staff')}
+            onClick={() => setSelectedMasterTab("staff")}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === 'staff'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              selectedMasterTab === "staff"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             スタッフ
           </button>
           <button
-            onClick={() => setSelectedMasterTab('files')}
+            onClick={() => setSelectedMasterTab("files")}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === 'files'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              selectedMasterTab === "files"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             ファイル
           </button>
           <button
-            onClick={() => setSelectedMasterTab('cancel')}
+            onClick={() => setSelectedMasterTab("cancel")}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === 'cancel'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              selectedMasterTab === "cancel"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             キャンセル
@@ -2293,12 +2730,14 @@ export default function SettingsPage() {
       </div>
 
       {/* アイコンタブのコンテンツ */}
-      {selectedMasterTab === 'icons' && (
+      {selectedMasterTab === "icons" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">アイコン</h3>
-              <p className="text-sm text-gray-500">患者の特記事項を管理します</p>
+              <p className="text-sm text-gray-500">
+                患者の特記事項を管理します
+              </p>
             </div>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" />
@@ -2308,9 +2747,12 @@ export default function SettingsPage() {
 
           <div className="space-y-3">
             {iconMaster.map((icon) => {
-              const IconComponent = icon.icon
+              const IconComponent = icon.icon;
               return (
-                <div key={icon.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+                <div
+                  key={icon.id}
+                  className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
+                >
                   <div className="flex items-center space-x-4">
                     <div className="w-8 h-8 flex items-center justify-center">
                       {IconComponent ? (
@@ -2325,18 +2767,20 @@ export default function SettingsPage() {
                       {editingIconId === icon.id ? (
                         <Input
                           value={icon.title}
-                          onChange={(e) => handleIconTitleEdit(icon.id, e.target.value)}
+                          onChange={(e) =>
+                            handleIconTitleEdit(icon.id, e.target.value)
+                          }
                           onBlur={() => setEditingIconId(null)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              setEditingIconId(null)
+                            if (e.key === "Enter") {
+                              setEditingIconId(null);
                             }
                           }}
                           className="text-sm font-medium"
                           autoFocus
                         />
                       ) : (
-                        <span 
+                        <span
                           className="text-sm font-medium text-gray-900 cursor-pointer"
                           onClick={() => setEditingIconId(icon.id)}
                         >
@@ -2345,7 +2789,7 @@ export default function SettingsPage() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center space-x-2">
                       <input
@@ -2366,14 +2810,14 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
         </div>
       )}
 
       {/* スタッフタブのコンテンツ */}
-      {selectedMasterTab === 'staff' && (
+      {selectedMasterTab === "staff" && (
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">スタッフ</h2>
@@ -2383,14 +2827,16 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>役職管理</CardTitle>
-                <Button onClick={() => {
-                  setNewPosition({
-                    name: '',
-                    sort_order: staffPositions.length,
-                    enabled: true
-                  })
-                  setShowAddPosition(true)
-                }}>
+                <Button
+                  onClick={() => {
+                    setNewPosition({
+                      name: "",
+                      sort_order: staffPositions.length,
+                      enabled: true,
+                    });
+                    setShowAddPosition(true);
+                  }}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   役職追加
                 </Button>
@@ -2398,17 +2844,27 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {staffPositions.map(position => (
-                  <div key={position.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                {staffPositions.map((position) => (
+                  <div
+                    key={position.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                  >
                     <div className="flex-1">
-                      <div className="font-medium text-gray-900">{position.name}</div>
+                      <div className="font-medium text-gray-900">
+                        {position.name}
+                      </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => {
-                          const newName = prompt('新しい役職名を入力してください:', position.name)
+                          const newName = prompt(
+                            "新しい役職名を入力してください:",
+                            position.name,
+                          );
                           if (newName && newName.trim()) {
-                            handleUpdatePosition(position.id, { name: newName.trim() })
+                            handleUpdatePosition(position.id, {
+                              name: newName.trim(),
+                            });
                           }
                         }}
                         className="p-1 text-gray-400 hover:text-blue-600"
@@ -2424,11 +2880,11 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ))}
-                
+
                 {staffPositions.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <p className="text-sm">役職が登録されていません</p>
-                    <Button 
+                    <Button
                       onClick={() => setShowAddPosition(true)}
                       className="mt-2"
                     >
@@ -2454,31 +2910,46 @@ export default function SettingsPage() {
                   <Input
                     id="position_name"
                     value={newPosition.name}
-                    onChange={(e) => setNewPosition(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setNewPosition((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
                     placeholder="例: 歯科医師"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="position_sort_order">並び順</Label>
                   <Input
                     id="position_sort_order"
                     type="number"
                     value={newPosition.sort_order}
-                    onChange={(e) => setNewPosition(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) =>
+                      setNewPosition((prev) => ({
+                        ...prev,
+                        sort_order: parseInt(e.target.value) || 0,
+                      }))
+                    }
                     placeholder="0"
                   />
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="position_enabled"
                     checked={newPosition.enabled}
-                    onCheckedChange={(checked) => setNewPosition(prev => ({ ...prev, enabled: checked as boolean }))}
+                    onCheckedChange={(checked) =>
+                      setNewPosition((prev) => ({
+                        ...prev,
+                        enabled: checked as boolean,
+                      }))
+                    }
                   />
                   <Label htmlFor="position_enabled">有効</Label>
                 </div>
-                
+
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
@@ -2490,7 +2961,7 @@ export default function SettingsPage() {
                     onClick={handleAddPosition}
                     disabled={saving || !newPosition.name.trim()}
                   >
-                    {saving ? '追加中...' : '追加'}
+                    {saving ? "追加中..." : "追加"}
                   </Button>
                 </div>
               </div>
@@ -2500,12 +2971,16 @@ export default function SettingsPage() {
       )}
 
       {/* ファイルタブのコンテンツ */}
-      {selectedMasterTab === 'files' && (
+      {selectedMasterTab === "files" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">患者ノートタイプ</h3>
-              <p className="text-sm text-gray-500">患者ノートの分類を管理します</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                患者ノートタイプ
+              </h3>
+              <p className="text-sm text-gray-500">
+                患者ノートの分類を管理します
+              </p>
             </div>
             <Button onClick={() => setShowAddNoteType(true)}>
               <Plus className="w-4 h-4 mr-2" />
@@ -2514,15 +2989,23 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-3">
-            {patientNoteTypes.map(noteType => (
-              <div key={noteType.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+            {patientNoteTypes.map((noteType) => (
+              <div
+                key={noteType.id}
+                className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
+              >
                 <div className="flex-1">
-                  <div className="font-medium text-gray-900">{noteType.name}</div>
+                  <div className="font-medium text-gray-900">
+                    {noteType.name}
+                  </div>
                   {noteType.description && (
-                    <div className="text-sm text-gray-500">{noteType.description}</div>
+                    <div className="text-sm text-gray-500">
+                      {noteType.description}
+                    </div>
                   )}
                   <div className="text-sm text-gray-500">
-                    並び順: {noteType.sort_order} | ステータス: {noteType.is_active ? '有効' : '無効'}
+                    並び順: {noteType.sort_order} | ステータス:{" "}
+                    {noteType.is_active ? "有効" : "無効"}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -2530,25 +3013,27 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={noteType.is_active}
                     onChange={(e) => {
-                      updatePatientNoteType(DEMO_CLINIC_ID, noteType.id, { is_active: e.target.checked })
-                        .then(() => {
-                          const data = getPatientNoteTypes(DEMO_CLINIC_ID)
-                          data.then(d => setPatientNoteTypes(d))
-                        })
+                      updatePatientNoteType(DEMO_CLINIC_ID, noteType.id, {
+                        is_active: e.target.checked,
+                      }).then(() => {
+                        const data = getPatientNoteTypes(DEMO_CLINIC_ID);
+                        data.then((d) => setPatientNoteTypes(d));
+                      });
                     }}
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <button className="p-1 text-gray-400 hover:text-blue-600">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
-                      if (confirm('このノートタイプを削除しますか？')) {
-                        deletePatientNoteType(DEMO_CLINIC_ID, noteType.id)
-                          .then(() => {
-                            const data = getPatientNoteTypes(DEMO_CLINIC_ID)
-                            data.then(d => setPatientNoteTypes(d))
-                          })
+                      if (confirm("このノートタイプを削除しますか？")) {
+                        deletePatientNoteType(DEMO_CLINIC_ID, noteType.id).then(
+                          () => {
+                            const data = getPatientNoteTypes(DEMO_CLINIC_ID);
+                            data.then((d) => setPatientNoteTypes(d));
+                          },
+                        );
                       }
                     }}
                     className="p-1 text-gray-400 hover:text-red-600"
@@ -2558,7 +3043,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
-            
+
             {patientNoteTypes.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-sm">ノートタイプが登録されていません</p>
@@ -2579,41 +3064,61 @@ export default function SettingsPage() {
                   <Input
                     id="note_type_name"
                     value={newNoteType.name}
-                    onChange={(e) => setNewNoteType(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setNewNoteType((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
                     placeholder="例: 診療メモ"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="note_type_description">説明</Label>
                   <Input
                     id="note_type_description"
                     value={newNoteType.description}
-                    onChange={(e) => setNewNoteType(prev => ({ ...prev, description: e.target.value }))}
+                    onChange={(e) =>
+                      setNewNoteType((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
                     placeholder="例: 診療内容のメモ"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="note_type_sort_order">並び順</Label>
                   <Input
                     id="note_type_sort_order"
                     type="number"
                     value={newNoteType.sort_order}
-                    onChange={(e) => setNewNoteType(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) =>
+                      setNewNoteType((prev) => ({
+                        ...prev,
+                        sort_order: parseInt(e.target.value) || 0,
+                      }))
+                    }
                     placeholder="0"
                   />
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="note_type_active"
                     checked={newNoteType.is_active}
-                    onCheckedChange={(checked) => setNewNoteType(prev => ({ ...prev, is_active: checked as boolean }))}
+                    onCheckedChange={(checked) =>
+                      setNewNoteType((prev) => ({
+                        ...prev,
+                        is_active: checked as boolean,
+                      }))
+                    }
                   />
                   <Label htmlFor="note_type_active">有効</Label>
                 </div>
-                
+
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
@@ -2625,7 +3130,7 @@ export default function SettingsPage() {
                     onClick={handleAddNoteType}
                     disabled={saving || !newNoteType.name.trim()}
                   >
-                    {saving ? '追加中...' : '追加'}
+                    {saving ? "追加中..." : "追加"}
                   </Button>
                 </div>
               </div>
@@ -2635,12 +3140,16 @@ export default function SettingsPage() {
       )}
 
       {/* キャンセルタブのコンテンツ */}
-      {selectedMasterTab === 'cancel' && (
+      {selectedMasterTab === "cancel" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">キャンセル理由</h3>
-              <p className="text-sm text-gray-500">予約キャンセル時の理由を管理します</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                キャンセル理由
+              </h3>
+              <p className="text-sm text-gray-500">
+                予約キャンセル時の理由を管理します
+              </p>
             </div>
             <Button onClick={() => setShowAddCancelReason(true)}>
               <Plus className="w-4 h-4 mr-2" />
@@ -2649,12 +3158,15 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-3">
-            {cancelReasons.map(reason => (
-              <div key={reason.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+            {cancelReasons.map((reason) => (
+              <div
+                key={reason.id}
+                className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
+              >
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">{reason.name}</div>
                   <div className="text-sm text-gray-500">
-                    ステータス: {reason.is_active ? '有効' : '無効'}
+                    ステータス: {reason.is_active ? "有効" : "無効"}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -2662,7 +3174,9 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={reason.is_active}
                     onChange={(e) => {
-                      handleUpdateCancelReason(reason.id, { is_active: e.target.checked })
+                      handleUpdateCancelReason(reason.id, {
+                        is_active: e.target.checked,
+                      });
                     }}
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
@@ -2672,7 +3186,7 @@ export default function SettingsPage() {
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDeleteCancelReason(reason.id)}
                     className="p-1 text-gray-400 hover:text-red-600"
                   >
@@ -2681,11 +3195,11 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
-            
+
             {cancelReasons.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-sm">キャンセル理由が登録されていません</p>
-                <Button 
+                <Button
                   onClick={() => setShowAddCancelReason(true)}
                   className="mt-2"
                 >
@@ -2709,20 +3223,30 @@ export default function SettingsPage() {
                   <Input
                     id="cancel_reason_name"
                     value={newCancelReason.name}
-                    onChange={(e) => setNewCancelReason(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setNewCancelReason((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
                     placeholder="例: 無断キャンセル"
                   />
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="cancel_reason_active"
                     checked={newCancelReason.is_active}
-                    onCheckedChange={(checked) => setNewCancelReason(prev => ({ ...prev, is_active: checked as boolean }))}
+                    onCheckedChange={(checked) =>
+                      setNewCancelReason((prev) => ({
+                        ...prev,
+                        is_active: checked as boolean,
+                      }))
+                    }
                   />
                   <Label htmlFor="cancel_reason_active">有効</Label>
                 </div>
-                
+
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
@@ -2734,7 +3258,7 @@ export default function SettingsPage() {
                     onClick={handleAddCancelReason}
                     disabled={saving || !newCancelReason.name.trim()}
                   >
-                    {saving ? '追加中...' : '追加'}
+                    {saving ? "追加中..." : "追加"}
                   </Button>
                 </div>
               </div>
@@ -2746,40 +3270,50 @@ export default function SettingsPage() {
             <Modal
               isOpen={showEditCancelReason}
               onClose={() => {
-                setShowEditCancelReason(false)
-                setEditingCancelReason(null)
+                setShowEditCancelReason(false);
+                setEditingCancelReason(null);
               }}
               title="キャンセル理由を編集"
             >
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="edit_cancel_reason_name">キャンセル理由名</Label>
+                  <Label htmlFor="edit_cancel_reason_name">
+                    キャンセル理由名
+                  </Label>
                   <Input
                     id="edit_cancel_reason_name"
                     value={editingCancelReason.name}
                     onChange={(e) => {
-                      console.log('名前変更:', e.target.value)
-                      setEditingCancelReason(prev => prev ? { ...prev, name: e.target.value } : null)
+                      console.log("名前変更:", e.target.value);
+                      setEditingCancelReason((prev) =>
+                        prev ? { ...prev, name: e.target.value } : null,
+                      );
                     }}
                     placeholder="例: 無断キャンセル"
                   />
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="edit_cancel_reason_active"
                     checked={editingCancelReason.is_active}
-                    onCheckedChange={(checked) => setEditingCancelReason(prev => prev ? { ...prev, is_active: checked as boolean } : null)}
+                    onCheckedChange={(checked) =>
+                      setEditingCancelReason((prev) =>
+                        prev
+                          ? { ...prev, is_active: checked as boolean }
+                          : null,
+                      )
+                    }
                   />
                   <Label htmlFor="edit_cancel_reason_active">有効</Label>
                 </div>
-                
+
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     variant="outline"
                     onClick={() => {
-                      setShowEditCancelReason(false)
-                      setEditingCancelReason(null)
+                      setShowEditCancelReason(false);
+                      setEditingCancelReason(null);
                     }}
                   >
                     キャンセル
@@ -2788,7 +3322,7 @@ export default function SettingsPage() {
                     onClick={handleSaveEditCancelReason}
                     disabled={saving || !editingCancelReason.name.trim()}
                   >
-                    {saving ? '保存中...' : '保存'}
+                    {saving ? "保存中..." : "保存"}
                   </Button>
                 </div>
               </div>
@@ -2797,68 +3331,90 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
-  )
+  );
 
   const renderTreatmentSettings = () => (
     <div className="space-y-6">
       {/* 上部ナビゲーションバー */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-                <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
             <div className="relative">
-              <button 
-                onClick={() => setSelectedTab('menu1')}
+              <button
+                onClick={() => setSelectedTab("menu1")}
                 className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
               >
-                <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                  selectedTab === 'menu1' ? 'bg-blue-100' : 'bg-gray-100'
-                }`}>
-                  <FileText className={`w-4 h-4 ${
-                    selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
-                  }`} />
-                      </div>
-                <span className={`font-medium text-xs ${
-                  selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
-                }`}>
+                <div
+                  className={`w-6 h-6 rounded flex items-center justify-center ${
+                    selectedTab === "menu1" ? "bg-blue-100" : "bg-gray-100"
+                  }`}
+                >
+                  <FileText
+                    className={`w-4 h-4 ${
+                      selectedTab === "menu1"
+                        ? "text-blue-600"
+                        : "text-gray-600"
+                    }`}
+                  />
+                </div>
+                <span
+                  className={`font-medium text-xs ${
+                    selectedTab === "menu1" ? "text-blue-600" : "text-gray-600"
+                  }`}
+                >
                   メニュー1
                 </span>
               </button>
-                    </div>
-            
-            <button 
-              onClick={() => setSelectedTab('menu2')}
+            </div>
+
+            <button
+              onClick={() => setSelectedTab("menu2")}
               className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
             >
-              <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                selectedTab === 'menu2' ? 'bg-blue-100' : 'bg-gray-100'
-              }`}>
-                <FolderOpen className={`w-4 h-4 ${
-                  selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
-                }`} />
-                  </div>
-                <span className={`font-medium text-xs ${
-                  selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
-                }`}>
-                  メニュー2
-                </span>
-            </button>
-            
-            <button 
-              onClick={() => setSelectedTab('submenu')}
-              className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
-            >
-              <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                selectedTab === 'submenu' ? 'bg-blue-100' : 'bg-gray-100'
-              }`}>
-                <Tag className={`w-4 h-4 ${
-                  selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
-                }`} />
+              <div
+                className={`w-6 h-6 rounded flex items-center justify-center ${
+                  selectedTab === "menu2" ? "bg-blue-100" : "bg-gray-100"
+                }`}
+              >
+                <FolderOpen
+                  className={`w-4 h-4 ${
+                    selectedTab === "menu2" ? "text-blue-600" : "text-gray-600"
+                  }`}
+                />
               </div>
-                <span className={`font-medium text-xs ${
-                  selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
-                }`}>
-                  サブメニュー
-                </span>
+              <span
+                className={`font-medium text-xs ${
+                  selectedTab === "menu2" ? "text-blue-600" : "text-gray-600"
+                }`}
+              >
+                メニュー2
+              </span>
+            </button>
+
+            <button
+              onClick={() => setSelectedTab("submenu")}
+              className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
+            >
+              <div
+                className={`w-6 h-6 rounded flex items-center justify-center ${
+                  selectedTab === "submenu" ? "bg-blue-100" : "bg-gray-100"
+                }`}
+              >
+                <Tag
+                  className={`w-4 h-4 ${
+                    selectedTab === "submenu"
+                      ? "text-blue-600"
+                      : "text-gray-600"
+                  }`}
+                />
+              </div>
+              <span
+                className={`font-medium text-xs ${
+                  selectedTab === "submenu" ? "text-blue-600" : "text-gray-600"
+                }`}
+              >
+                サブメニュー
+              </span>
             </button>
           </div>
         </div>
@@ -2871,26 +3427,24 @@ export default function SettingsPage() {
           <div className="space-y-1">
             {getFilteredTreatmentMenus().length > 0 ? (
               <div className="space-y-1">
-                {getFilteredTreatmentMenus().map(menu => (
-                  <div key={`root-${menu.id}`}>
-                    {renderMenuItem(menu, 0)}
-                  </div>
+                {getFilteredTreatmentMenus().map((menu) => (
+                  <div key={`root-${menu.id}`}>{renderMenuItem(menu, 0)}</div>
                 ))}
-                
+
                 {/* メニュー-1を追加ボタン */}
                 <div className="ml-4 mt-12">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => {
-                      setParentMenuForChild(null)
-                      setUseParentColor(true)
-                      setNewTreatmentMenu(prev => ({
+                      setParentMenuForChild(null);
+                      setUseParentColor(true);
+                      setNewTreatmentMenu((prev) => ({
                         ...prev,
                         level: 1,
-                        color: '#3B82F6'
-                      }))
-                      setShowTreatmentAddForm(true)
+                        color: "#3B82F6",
+                      }));
+                      setShowTreatmentAddForm(true);
                     }}
                     className="flex items-center space-x-1 text-xs px-2 py-1 h-7"
                   >
@@ -2902,96 +3456,129 @@ export default function SettingsPage() {
             ) : (
               <div className="text-center py-12">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  {selectedTab === 'menu1' && <FileText className="w-8 h-8 text-gray-400" />}
-                  {selectedTab === 'menu2' && <FolderOpen className="w-8 h-8 text-gray-400" />}
-                  {selectedTab === 'submenu' && <Tag className="w-8 h-8 text-gray-400" />}
+                  {selectedTab === "menu1" && (
+                    <FileText className="w-8 h-8 text-gray-400" />
+                  )}
+                  {selectedTab === "menu2" && (
+                    <FolderOpen className="w-8 h-8 text-gray-400" />
+                  )}
+                  {selectedTab === "submenu" && (
+                    <Tag className="w-8 h-8 text-gray-400" />
+                  )}
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {selectedTab === 'menu1' && 'メニュー-1が登録されていません'}
-                  {selectedTab === 'menu2' && 'メニュー-2が登録されていません'}
-                  {selectedTab === 'submenu' && 'サブメニューが登録されていません'}
+                  {selectedTab === "menu1" && "メニュー-1が登録されていません"}
+                  {selectedTab === "menu2" && "メニュー-2が登録されていません"}
+                  {selectedTab === "submenu" &&
+                    "サブメニューが登録されていません"}
                 </h3>
                 <p className="text-gray-500 mb-4">
-                  {selectedTab === 'menu1' && '上部の「メニュー-1を追加」ボタンから新しいメニューを追加してください'}
-                  {selectedTab === 'menu2' && '上部の「メニュー-2を追加」ボタンから新しいメニューを追加してください'}
-                  {selectedTab === 'submenu' && '上部の「サブメニューを追加」ボタンから新しいメニューを追加してください'}
+                  {selectedTab === "menu1" &&
+                    "上部の「メニュー-1を追加」ボタンから新しいメニューを追加してください"}
+                  {selectedTab === "menu2" &&
+                    "上部の「メニュー-2を追加」ボタンから新しいメニューを追加してください"}
+                  {selectedTab === "submenu" &&
+                    "上部の「サブメニューを追加」ボタンから新しいメニューを追加してください"}
                 </p>
-                    <Button
+                <Button
                   onClick={() => {
-                    setParentMenuForChild(null)
-                    setUseParentColor(true)
-                    setNewTreatmentMenu(prev => ({
+                    setParentMenuForChild(null);
+                    setUseParentColor(true);
+                    setNewTreatmentMenu((prev) => ({
                       ...prev,
-                      level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
-                      color: '#3B82F6'
-                    }))
-                    setShowTreatmentAddForm(true)
+                      level:
+                        selectedTab === "menu1"
+                          ? 1
+                          : selectedTab === "menu2"
+                            ? 2
+                            : 3,
+                      color: "#3B82F6",
+                    }));
+                    setShowTreatmentAddForm(true);
                   }}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  {selectedTab === 'menu1' && 'メニュー-1を追加'}
-                  {selectedTab === 'menu2' && 'メニュー-2を追加'}
-                  {selectedTab === 'submenu' && 'サブメニューを追加'}
-                    </Button>
-                  </div>
-        )}
-      </div>
+                  {selectedTab === "menu1" && "メニュー-1を追加"}
+                  {selectedTab === "menu2" && "メニュー-2を追加"}
+                  {selectedTab === "submenu" && "サブメニューを追加"}
+                </Button>
+              </div>
+            )}
+          </div>
 
           {/* メニュー追加モーダル */}
           {showTreatmentAddForm && (
-            <div 
+            <div
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
               onClick={() => {
-                setShowTreatmentAddForm(false)
-                setParentMenuForChild(null)
-                setUseParentColor(true)
+                setShowTreatmentAddForm(false);
+                setParentMenuForChild(null);
+                setUseParentColor(true);
                 setNewTreatmentMenu({
-                  name: '',
-                  level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
-                  parent_id: '',
+                  name: "",
+                  level:
+                    selectedTab === "menu1"
+                      ? 1
+                      : selectedTab === "menu2"
+                        ? 2
+                        : 3,
+                  parent_id: "",
                   standard_duration: 30,
-                  color: '#3B82F6',
-                  sort_order: 0
-                })
+                  color: "#3B82F6",
+                  sort_order: 0,
+                });
               }}
             >
-              <div 
+              <div
                 className="bg-white rounded-lg p-6 w-96 max-w-md mx-4"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-lg font-semibold mb-4">
-                  {parentMenuForChild ? 
-                    `「${parentMenuForChild.name}」の子メニューを追加` : 
-                    selectedTab === 'menu1' ? '新しいメニュー-1を追加' :
-                    selectedTab === 'menu2' ? '新しいメニュー-2を追加' :
-                    '新しいサブメニューを追加'
-                  }
+                  {parentMenuForChild
+                    ? `「${parentMenuForChild.name}」の子メニューを追加`
+                    : selectedTab === "menu1"
+                      ? "新しいメニュー-1を追加"
+                      : selectedTab === "menu2"
+                        ? "新しいメニュー-2を追加"
+                        : "新しいサブメニューを追加"}
                 </h3>
-                
+
                 <div className="space-y-4">
-              <div>
+                  <div>
                     <Label htmlFor="modal_menu_name">メニュー名</Label>
-                <Input
+                    <Input
                       id="modal_menu_name"
                       value={newTreatmentMenu.name}
-                      onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="例: 虫歯治療"
+                      onChange={(e) =>
+                        setNewTreatmentMenu((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder="例: 虫歯治療"
                       className="mt-1"
-                />
-              </div>
-                  
-              <div>
-                    <Label htmlFor="modal_standard_duration">標準時間（分）</Label>
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="modal_standard_duration">
+                      標準時間（分）
+                    </Label>
                     <Input
                       id="modal_standard_duration"
                       type="number"
                       value={newTreatmentMenu.standard_duration}
-                      onChange={(e) => setNewTreatmentMenu(prev => ({ ...prev, standard_duration: parseInt(e.target.value) }))}
+                      onChange={(e) =>
+                        setNewTreatmentMenu((prev) => ({
+                          ...prev,
+                          standard_duration: parseInt(e.target.value),
+                        }))
+                      }
                       className="mt-1"
                     />
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="modal_menu_color">色</Label>
                     {parentMenuForChild && (
@@ -3000,18 +3587,26 @@ export default function SettingsPage() {
                           id="use_parent_color"
                           checked={useParentColor}
                           onCheckedChange={(checked) => {
-                            setUseParentColor(checked as boolean)
+                            setUseParentColor(checked as boolean);
                             if (checked && parentMenuForChild) {
-                              setNewTreatmentMenu(prev => ({ ...prev, color: parentMenuForChild.color || '#3B82F6' }))
+                              setNewTreatmentMenu((prev) => ({
+                                ...prev,
+                                color: parentMenuForChild.color || "#3B82F6",
+                              }));
                             }
                           }}
                         />
-                        <Label htmlFor="use_parent_color" className="text-sm flex items-center space-x-2 cursor-pointer">
+                        <Label
+                          htmlFor="use_parent_color"
+                          className="text-sm flex items-center space-x-2 cursor-pointer"
+                        >
                           <span>親メニューの色を使用</span>
                           {parentMenuForChild.color && (
                             <div
                               className="w-5 h-5 rounded border border-gray-300"
-                              style={{ backgroundColor: parentMenuForChild.color }}
+                              style={{
+                                backgroundColor: parentMenuForChild.color,
+                              }}
                             />
                           )}
                         </Label>
@@ -3023,8 +3618,11 @@ export default function SettingsPage() {
                         type="color"
                         value={newTreatmentMenu.color}
                         onChange={(e) => {
-                          setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))
-                          setUseParentColor(false)
+                          setNewTreatmentMenu((prev) => ({
+                            ...prev,
+                            color: e.target.value,
+                          }));
+                          setUseParentColor(false);
                         }}
                         disabled={useParentColor && parentMenuForChild}
                         className="w-12 h-8 p-1"
@@ -3032,8 +3630,11 @@ export default function SettingsPage() {
                       <Input
                         value={newTreatmentMenu.color}
                         onChange={(e) => {
-                          setNewTreatmentMenu(prev => ({ ...prev, color: e.target.value }))
-                          setUseParentColor(false)
+                          setNewTreatmentMenu((prev) => ({
+                            ...prev,
+                            color: e.target.value,
+                          }));
+                          setUseParentColor(false);
                         }}
                         disabled={useParentColor && parentMenuForChild}
                         placeholder="#3B82F6"
@@ -3042,305 +3643,340 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-2 mt-6">
                   <Button
                     variant="outline"
                     onClick={() => {
-                      setShowTreatmentAddForm(false)
-                      setParentMenuForChild(null)
-                      setUseParentColor(true)
+                      setShowTreatmentAddForm(false);
+                      setParentMenuForChild(null);
+                      setUseParentColor(true);
                       setNewTreatmentMenu({
-                        name: '',
-                        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
-                        parent_id: '',
+                        name: "",
+                        level:
+                          selectedTab === "menu1"
+                            ? 1
+                            : selectedTab === "menu2"
+                              ? 2
+                              : 3,
+                        parent_id: "",
                         standard_duration: 30,
-                        color: '#3B82F6',
-                        sort_order: 0
-                      })
+                        color: "#3B82F6",
+                        sort_order: 0,
+                      });
                     }}
                   >
                     キャンセル
                   </Button>
                   <Button
-                    onClick={parentMenuForChild ? handleAddChildMenu : handleAddTreatmentMenu}
+                    onClick={
+                      parentMenuForChild
+                        ? handleAddChildMenu
+                        : handleAddTreatmentMenu
+                    }
                     disabled={saving || !newTreatmentMenu.name}
                   >
-                    {saving ? '追加中...' : '追加'}
+                    {saving ? "追加中..." : "追加"}
                   </Button>
+                </div>
               </div>
-            </div>
             </div>
           )}
 
           {/* 編集モーダル */}
           {editingTreatmentMenu && (
-            <div 
+            <div
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
               onClick={() => setEditingTreatmentMenu(null)}
             >
-              <div 
+              <div
                 className="bg-white rounded-lg p-6 w-96 max-w-md mx-4"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-lg font-semibold mb-4">メニューを編集</h3>
-                
+
                 <div className="space-y-4">
-              <div>
+                  <div>
                     <Label htmlFor="modal_edit_name">メニュー名</Label>
-                <Input
+                    <Input
                       id="modal_edit_name"
                       value={editingTreatmentMenu.name}
-                      onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, name: e.target.value } : null)}
+                      onChange={(e) =>
+                        setEditingTreatmentMenu((prev: any) =>
+                          prev ? { ...prev, name: e.target.value } : null,
+                        )
+                      }
                       className="mt-1"
                     />
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="modal_edit_duration">標準時間（分）</Label>
                     <Input
                       id="modal_edit_duration"
-                  type="number"
+                      type="number"
                       value={editingTreatmentMenu.standard_duration || 30}
-                      onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, standard_duration: parseInt(e.target.value) } : null)}
+                      onChange={(e) =>
+                        setEditingTreatmentMenu((prev: any) =>
+                          prev
+                            ? {
+                                ...prev,
+                                standard_duration: parseInt(e.target.value),
+                              }
+                            : null,
+                        )
+                      }
                       className="mt-1"
-                />
-              </div>
-                  
-              <div>
+                    />
+                  </div>
+
+                  <div>
                     <Label htmlFor="modal_edit_color">色</Label>
                     <div className="flex items-center space-x-2 mt-1">
-                <Input
+                      <Input
                         id="modal_edit_color"
-                  type="color"
-                        value={editingTreatmentMenu.color || '#3B82F6'}
-                        onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, color: e.target.value } : null)}
+                        type="color"
+                        value={editingTreatmentMenu.color || "#3B82F6"}
+                        onChange={(e) =>
+                          setEditingTreatmentMenu((prev: any) =>
+                            prev ? { ...prev, color: e.target.value } : null,
+                          )
+                        }
                         className="w-12 h-8 p-1"
                       />
                       <Input
-                        value={editingTreatmentMenu.color || '#3B82F6'}
-                        onChange={(e) => setEditingTreatmentMenu((prev: any) => prev ? { ...prev, color: e.target.value } : null)}
+                        value={editingTreatmentMenu.color || "#3B82F6"}
+                        onChange={(e) =>
+                          setEditingTreatmentMenu((prev: any) =>
+                            prev ? { ...prev, color: e.target.value } : null,
+                          )
+                        }
                         placeholder="#3B82F6"
                         className="flex-1"
-                />
-              </div>
-            </div>
-            
+                      />
+                    </div>
+                  </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-2 mt-6">
-              <Button
-                variant="outline"
+                  <Button
+                    variant="outline"
                     onClick={() => setEditingTreatmentMenu(null)}
-              >
-                キャンセル
-              </Button>
-              <Button
-                    onClick={() => editingTreatmentMenu && handleEditTreatmentMenu(editingTreatmentMenu)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      editingTreatmentMenu &&
+                      handleEditTreatmentMenu(editingTreatmentMenu)
+                    }
                     disabled={saving}
                   >
-                    {saving ? '保存中...' : '保存'}
-              </Button>
-            </div>
+                    {saving ? "保存中..." : "保存"}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 
   // 診療メニュー関連の関数
   const handleAddTreatmentMenu = async () => {
     try {
-      setSaving(true)
-      
+      setSaving(true);
+
       // 選択されたタブに応じてレベルを設定
       const menuData = {
         ...newTreatmentMenu,
-        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
-        parent_id: newTreatmentMenu.parent_id || undefined // 空文字列の場合はundefinedに変換
-      }
-      
-      console.log('メニュー追加開始:', menuData)
-      console.log('DEMO_CLINIC_ID:', DEMO_CLINIC_ID)
-      
-      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData)
-      console.log('メニュー追加成功:', result)
-      
+        level: selectedTab === "menu1" ? 1 : selectedTab === "menu2" ? 2 : 3,
+        parent_id: newTreatmentMenu.parent_id || undefined, // 空文字列の場合はundefinedに変換
+      };
+
+      console.log("メニュー追加開始:", menuData);
+      console.log("DEMO_CLINIC_ID:", DEMO_CLINIC_ID);
+
+      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
+      console.log("メニュー追加成功:", result);
+
       // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
-      setTreatmentMenus(data)
-      
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
+      setTreatmentMenus(data);
+
       setNewTreatmentMenu({
-        name: '',
-        level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3,
-        parent_id: '',
+        name: "",
+        level: selectedTab === "menu1" ? 1 : selectedTab === "menu2" ? 2 : 3,
+        parent_id: "",
         standard_duration: 30,
-        color: '#3B82F6',
-        sort_order: 0
-      })
-      setUseParentColor(true)
-      setShowTreatmentAddForm(false)
-      
-      alert('メニューを正常に追加しました')
+        color: "#3B82F6",
+        sort_order: 0,
+      });
+      setUseParentColor(true);
+      setShowTreatmentAddForm(false);
+
+      alert("メニューを正常に追加しました");
     } catch (error) {
-      console.error('メニュー追加エラー:', error)
-      console.error('エラーの詳細:', error)
-      alert('メニューの追加に失敗しました: ' + (error as Error).message)
+      console.error("メニュー追加エラー:", error);
+      console.error("エラーの詳細:", error);
+      alert("メニューの追加に失敗しました: " + (error as Error).message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   // 子メニュー作成用の関数
   const handleAddChildMenu = async () => {
     try {
-      setSaving(true)
-      
-      if (!parentMenuForChild) return
-      
+      setSaving(true);
+
+      if (!parentMenuForChild) return;
+
       // 親メニューのレベルに基づいて子メニューのレベルを決定
-      const childLevel = parentMenuForChild.level + 1
+      const childLevel = parentMenuForChild.level + 1;
       if (childLevel > 3) {
-        alert('最大3階層までしか作成できません')
-        return
+        alert("最大3階層までしか作成できません");
+        return;
       }
-      
+
       const menuData = {
         ...newTreatmentMenu,
         level: childLevel,
         parent_id: parentMenuForChild.id,
-        standard_duration: newTreatmentMenu.standard_duration || 30
-      }
-      
-      console.log('子メニュー追加開始:', menuData)
-      
-      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData)
-      console.log('子メニュー追加成功:', result)
-      
+        standard_duration: newTreatmentMenu.standard_duration || 30,
+      };
+
+      console.log("子メニュー追加開始:", menuData);
+
+      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
+      console.log("子メニュー追加成功:", result);
+
       // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
-      setTreatmentMenus(data)
-      
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
+      setTreatmentMenus(data);
+
       setNewTreatmentMenu({
-        name: '',
+        name: "",
         level: childLevel,
-        parent_id: '',
+        parent_id: "",
         standard_duration: 30,
-        color: '#3B82F6',
-        sort_order: 0
-      })
-      setParentMenuForChild(null)
-      setUseParentColor(true)
-      setShowTreatmentAddForm(false)
-      
-      alert('子メニューを正常に追加しました')
+        color: "#3B82F6",
+        sort_order: 0,
+      });
+      setParentMenuForChild(null);
+      setUseParentColor(true);
+      setShowTreatmentAddForm(false);
+
+      alert("子メニューを正常に追加しました");
     } catch (error) {
-      console.error('子メニュー追加エラー:', error)
-      console.error('エラーの詳細:', error)
-      alert('子メニューの追加に失敗しました: ' + (error as Error).message)
+      console.error("子メニュー追加エラー:", error);
+      console.error("エラーの詳細:", error);
+      alert("子メニューの追加に失敗しました: " + (error as Error).message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleEditTreatmentMenu = async (menu: any) => {
     try {
-      setSaving(true)
+      setSaving(true);
       await updateTreatmentMenu(DEMO_CLINIC_ID, menu.id, {
         name: menu.name,
         standard_duration: menu.standard_duration,
         color: menu.color,
         sort_order: menu.sort_order,
-        is_active: menu.is_active
-      })
-      
+        is_active: menu.is_active,
+      });
+
       // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
-      setTreatmentMenus(data)
-      setEditingTreatmentMenu(null)
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
+      setTreatmentMenus(data);
+      setEditingTreatmentMenu(null);
     } catch (error) {
-      console.error('メニュー編集エラー:', error)
-      alert('メニューの編集に失敗しました')
+      console.error("メニュー編集エラー:", error);
+      alert("メニューの編集に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDeleteTreatmentMenu = async (menuId: string) => {
-    if (!confirm('このメニューを削除しますか？')) return
-    
+    if (!confirm("このメニューを削除しますか？")) return;
+
     try {
-      setSaving(true)
-      await deleteTreatmentMenu(DEMO_CLINIC_ID, menuId)
-      
+      setSaving(true);
+      await deleteTreatmentMenu(DEMO_CLINIC_ID, menuId);
+
       // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
-      setTreatmentMenus(data)
+      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
+      setTreatmentMenus(data);
     } catch (error) {
-      console.error('メニュー削除エラー:', error)
-      alert('メニューの削除に失敗しました')
+      console.error("メニュー削除エラー:", error);
+      alert("メニューの削除に失敗しました");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   // タブに応じたメニューのフィルタリング（階層構造で表示）
   const getFilteredTreatmentMenus = () => {
-    const allMenus = treatmentMenus
-    
+    const allMenus = treatmentMenus;
+
     // レベル1のメニューを取得し、子メニューを追加
-    const buildHierarchy = (menus: any[], parentId: string | null = null): any[] => {
+    const buildHierarchy = (
+      menus: any[],
+      parentId: string | null = null,
+    ): any[] => {
       return menus
-        .filter(menu => menu.parent_id === parentId)
-        .map(menu => ({
+        .filter((menu) => menu.parent_id === parentId)
+        .map((menu) => ({
           ...menu,
-          children: buildHierarchy(menus, menu.id)
-        }))
-    }
-    
+          children: buildHierarchy(menus, menu.id),
+        }));
+    };
+
     switch (selectedTab) {
-      case 'menu1':
-        return buildHierarchy(allMenus, null)
-      case 'menu2':
+      case "menu1":
+        return buildHierarchy(allMenus, null);
+      case "menu2":
         // レベル1のメニューのみ表示（子メニューも含む）
-        return buildHierarchy(allMenus, null)
-      case 'submenu':
+        return buildHierarchy(allMenus, null);
+      case "submenu":
         // 全てのメニューを階層表示
-        return buildHierarchy(allMenus, null)
+        return buildHierarchy(allMenus, null);
       default:
-        return buildHierarchy(allMenus, null)
+        return buildHierarchy(allMenus, null);
     }
-  }
+  };
 
   // 展開・収縮のトグル関数
   const toggleMenuExpansion = (menuId: string) => {
-    setExpandedMenus(prev => {
-      const newSet = new Set(prev)
+    setExpandedMenus((prev) => {
+      const newSet = new Set(prev);
       if (newSet.has(menuId)) {
-        newSet.delete(menuId)
+        newSet.delete(menuId);
       } else {
-        newSet.add(menuId)
+        newSet.add(menuId);
       }
-      return newSet
-    })
-  }
+      return newSet;
+    });
+  };
 
   // メニューアイテムのレンダリング（階層表示）
   const renderMenuItem = (menu: any, level: number = 0) => {
-    const indent = level * 24
-    const isParent = menu.children && menu.children.length > 0
-    const isExpanded = expandedMenus.has(menu.id)
-    
+    const indent = level * 24;
+    const isParent = menu.children && menu.children.length > 0;
+    const isExpanded = expandedMenus.has(menu.id);
+
     return (
       <div key={menu.id}>
-        <div 
+        <div
           className="border rounded-lg p-3 mb-1 bg-white"
           style={{ marginLeft: `${indent}px` }}
         >
           <div className="flex items-center justify-between">
-            <div 
+            <div
               className="flex items-center space-x-3 cursor-pointer flex-1"
               onClick={() => isParent && toggleMenuExpansion(menu.id)}
             >
@@ -3353,14 +3989,12 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
-              <div 
+              <div
                 className="w-4 h-4 rounded"
                 style={{ backgroundColor: menu.color }}
               />
               <div>
-                <div className="font-medium">
-                  {menu.name}
-                </div>
+                <div className="font-medium">{menu.name}</div>
                 <div className="text-sm text-gray-500">
                   {menu.standard_duration}分
                 </div>
@@ -3372,17 +4006,17 @@ export default function SettingsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setParentMenuForChild(menu)
-                  setUseParentColor(true)
+                    setParentMenuForChild(menu);
+                    setUseParentColor(true);
                     setNewTreatmentMenu({
-                      name: '',
+                      name: "",
                       level: menu.level + 1,
                       parent_id: menu.id,
                       standard_duration: 30,
-                    color: menu.color || '#3B82F6',
-                      sort_order: 0
-                    })
-                    setShowTreatmentAddForm(true)
+                      color: menu.color || "#3B82F6",
+                      sort_order: 0,
+                    });
+                    setShowTreatmentAddForm(true);
                   }}
                   className="text-green-600 hover:text-green-700"
                   title="子メニューを追加"
@@ -3404,11 +4038,11 @@ export default function SettingsPage() {
                 className="text-red-600 hover:text-red-700"
               >
                 <Trash2 className="w-4 h-4" />
-          </Button>
+              </Button>
             </div>
           </div>
         </div>
-        
+
         {/* 子メニューを階層表示（展開時のみ） */}
         {isParent && isExpanded && (
           <div className="ml-4">
@@ -3417,60 +4051,62 @@ export default function SettingsPage() {
                 {renderMenuItem(child, level + 1)}
               </div>
             ))}
-        </div>
-      )}
-    </div>
-  )
-  }
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // 患者用URLの生成（問診票専用）
   const getPatientUrl = () => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
-    return `${baseUrl}/questionnaire`
-  }
+    const baseUrl =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "http://localhost:3000";
+    return `${baseUrl}/questionnaire`;
+  };
 
   // URLをクリップボードにコピー
   const copyToClipboard = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text)
-      alert('URLをクリップボードにコピーしました')
+      await navigator.clipboard.writeText(text);
+      alert("URLをクリップボードにコピーしました");
     } catch (error) {
-      console.error('コピーに失敗しました:', error)
+      console.error("コピーに失敗しました:", error);
       // フォールバック: テキストエリアを使用
-      const textArea = document.createElement('textarea')
-      textArea.value = text
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
-      alert('URLをクリップボードにコピーしました')
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      alert("URLをクリップボードにコピーしました");
     }
-  }
+  };
 
   // ユニット設定のレンダリング
   const renderUnitsSettings = () => {
     return (
       <div className="space-y-6">
-
         {/* タブ */}
         <div className="flex space-x-0 mb-6 border-b border-gray-200">
           <button
-            onClick={() => setUnitsActiveTab('units')}
+            onClick={() => setUnitsActiveTab("units")}
             className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-              unitsActiveTab === 'units'
-                ? 'text-blue-600 border-blue-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+              unitsActiveTab === "units"
+                ? "text-blue-600 border-blue-600"
+                : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             <Grid3X3 className="w-4 h-4 inline mr-2" />
             ユニット管理
           </button>
           <button
-            onClick={() => setUnitsActiveTab('priorities')}
+            onClick={() => setUnitsActiveTab("priorities")}
             className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-              unitsActiveTab === 'priorities'
-                ? 'text-blue-600 border-blue-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+              unitsActiveTab === "priorities"
+                ? "text-blue-600 border-blue-600"
+                : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             <Users className="w-4 h-4 inline mr-2" />
@@ -3479,7 +4115,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ユニット管理タブ */}
-        {unitsActiveTab === 'units' && (
+        {unitsActiveTab === "units" && (
           <div className="space-y-6">
             <Card>
               <CardContent className="p-6">
@@ -3490,13 +4126,18 @@ export default function SettingsPage() {
                     </div>
                   ) : (
                     unitsData.map((unit) => (
-                      <div key={unit.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+                      <div
+                        key={unit.id}
+                        className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
+                      >
                         <div className="flex items-center space-x-4">
                           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                             <Grid3X3 className="w-4 h-4 text-blue-600" />
                           </div>
                           <div>
-                            <div className="font-medium text-gray-900">{unit.name}</div>
+                            <div className="font-medium text-gray-900">
+                              {unit.name}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -3516,11 +4157,11 @@ export default function SettingsPage() {
                       </div>
                     ))
                   )}
-                  
+
                   {/* 新規追加ボタン */}
                   <div className="pt-3">
-                    <Button 
-                      onClick={() => setShowUnitModal(true)} 
+                    <Button
+                      onClick={() => setShowUnitModal(true)}
                       className="w-full bg-blue-600 hover:bg-blue-700"
                     >
                       <Plus className="w-4 h-4 mr-2" />
@@ -3534,7 +4175,7 @@ export default function SettingsPage() {
         )}
 
         {/* スタッフ優先順位タブ */}
-        {unitsActiveTab === 'priorities' && (
+        {unitsActiveTab === "priorities" && (
           <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -3551,55 +4192,86 @@ export default function SettingsPage() {
                     </div>
                   ) : (
                     unitsData.map((unit) => (
-                      <div key={unit.id} className="border border-gray-200 rounded-lg p-4">
+                      <div
+                        key={unit.id}
+                        className="border border-gray-200 rounded-lg p-4"
+                      >
                         <div className="flex items-center space-x-3 mb-4">
                           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                             <Grid3X3 className="w-4 h-4 text-blue-600" />
                           </div>
-                          <h3 className="text-lg font-medium text-gray-900">{unit.name}</h3>
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {unit.name}
+                          </h3>
                         </div>
-                        
+
                         {/* このユニットのスタッフ優先順位 */}
                         <div className="space-y-2">
                           {staffUnitPriorities
-                            .filter(priority => priority.unit_id === unit.id)
+                            .filter((priority) => priority.unit_id === unit.id)
                             .sort((a, b) => a.priority_order - b.priority_order)
                             .map((priority) => (
                               <div
                                 key={priority.id}
                                 draggable
-                                onDragStart={(e) => handleDragStart(e, priority)}
+                                onDragStart={(e) =>
+                                  handleDragStart(e, priority)
+                                }
                                 onDragOver={handleDragOver}
                                 onDrop={(e) => handleDrop(e, priority)}
                                 className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg cursor-move hover:bg-gray-50"
                               >
                                 <GripVertical className="w-4 h-4 text-gray-400" />
                                 <div className="flex-1">
-                                  <div className="font-medium">{priority.staff?.name}</div>
+                                  <div className="font-medium">
+                                    {priority.staff?.name}
+                                  </div>
                                 </div>
                                 <button
-                                  onClick={() => handleDeletePriority(priority.id)}
+                                  onClick={() =>
+                                    handleDeletePriority(priority.id)
+                                  }
                                   className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                                 >
                                   <X className="w-4 h-4" />
                                 </button>
                               </div>
                             ))}
-                          
+
                           {/* 未割り当てスタッフ */}
                           <div className="mt-4">
-                            <Label className="text-sm font-medium text-gray-700">未割り当てスタッフ</Label>
+                            <Label className="text-sm font-medium text-gray-700">
+                              未割り当てスタッフ
+                            </Label>
                             <div className="space-y-2 mt-2">
                               {staff
-                                .filter(s => !staffUnitPriorities.some(p => p.unit_id === unit.id && p.staff_id === s.id))
+                                .filter(
+                                  (s) =>
+                                    !staffUnitPriorities.some(
+                                      (p) =>
+                                        p.unit_id === unit.id &&
+                                        p.staff_id === s.id,
+                                    ),
+                                )
                                 .map((staffMember) => (
-                                  <div key={staffMember.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                                    <div className="font-medium text-gray-700">{staffMember.name}</div>
+                                  <div
+                                    key={staffMember.id}
+                                    className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                                  >
+                                    <div className="font-medium text-gray-700">
+                                      {staffMember.name}
+                                    </div>
                                     <Button
                                       size="sm"
                                       onClick={() => {
-                                        console.log('Add button clicked:', { unitId: unit.id, staffId: staffMember.id })
-                                        handleAddStaffToUnit(unit.id, staffMember.id)
+                                        console.log("Add button clicked:", {
+                                          unitId: unit.id,
+                                          staffId: staffMember.id,
+                                        });
+                                        handleAddStaffToUnit(
+                                          unit.id,
+                                          staffMember.id,
+                                        );
                                       }}
                                       className="bg-green-600 hover:bg-green-700"
                                     >
@@ -3626,7 +4298,7 @@ export default function SettingsPage() {
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">
-                  {editingUnit ? 'ユニット編集' : 'ユニット新規作成'}
+                  {editingUnit ? "ユニット編集" : "ユニット新規作成"}
                 </h3>
                 <button
                   onClick={() => setShowUnitModal(false)}
@@ -3635,56 +4307,70 @@ export default function SettingsPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="unit-name">ユニット名</Label>
                   <Input
                     id="unit-name"
                     value={unitFormData.name}
-                    onChange={(e) => setUnitFormData({ ...unitFormData, name: e.target.value })}
+                    onChange={(e) =>
+                      setUnitFormData({ ...unitFormData, name: e.target.value })
+                    }
                     placeholder="ユニット名を入力"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="sort-order">並び順</Label>
                   <Input
                     id="sort-order"
                     type="number"
                     value={unitFormData.sort_order}
-                    onChange={(e) => setUnitFormData({ ...unitFormData, sort_order: parseInt(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setUnitFormData({
+                        ...unitFormData,
+                        sort_order: parseInt(e.target.value) || 0,
+                      })
+                    }
                     placeholder="並び順を入力"
                   />
                 </div>
               </div>
-              
+
               <div className="flex justify-end space-x-2 mt-6">
-                <Button variant="outline" onClick={() => setShowUnitModal(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUnitModal(false)}
+                >
                   キャンセル
                 </Button>
-                <Button onClick={handleSaveUnit} disabled={saving || !unitFormData.name.trim()}>
+                <Button
+                  onClick={handleSaveUnit}
+                  disabled={saving || !unitFormData.name.trim()}
+                >
                   <Save className="w-4 h-4 mr-2" />
-                  {saving ? '保存中...' : '保存'}
+                  {saving ? "保存中..." : "保存"}
                 </Button>
               </div>
             </div>
           </Modal>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   // 問診票設定のレンダリング
   const renderQuestionnaireSettings = () => {
     return (
       <div className="p-6">
-
         {/* 問診票一覧 */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">問診票一覧</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                問診票一覧
+              </h3>
               <Button
                 onClick={() => setShowQuestionnaireModal(true)}
                 className="bg-blue-600 hover:bg-blue-700"
@@ -3698,7 +4384,9 @@ export default function SettingsPage() {
               <div className="text-center py-8 text-gray-500">
                 <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                 <p>問診票が登録されていません</p>
-                <p className="text-sm">「新しい問診票を作成」ボタンから問診票を追加してください</p>
+                <p className="text-sm">
+                  「新しい問診票を作成」ボタンから問診票を追加してください
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -3713,21 +4401,32 @@ export default function SettingsPage() {
                           <h4 className="text-lg font-medium text-gray-900 mr-3">
                             {questionnaire.name}
                           </h4>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            questionnaire.is_active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {questionnaire.is_active ? '有効' : '無効'}
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              questionnaire.is_active
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {questionnaire.is_active ? "有効" : "無効"}
                           </span>
                         </div>
                         {questionnaire.description && (
-                          <p className="text-gray-600 text-sm mb-3">{questionnaire.description}</p>
+                          <p className="text-gray-600 text-sm mb-3">
+                            {questionnaire.description}
+                          </p>
                         )}
                         <div className="flex items-center text-sm text-gray-500">
-                          <span>質問数: {questionnaire.questions.length}件</span>
+                          <span>
+                            質問数: {questionnaire.questions.length}件
+                          </span>
                           <span className="mx-2">•</span>
-                          <span>作成日: {new Date(questionnaire.created_at).toLocaleDateString('ja-JP')}</span>
+                          <span>
+                            作成日:{" "}
+                            {new Date(
+                              questionnaire.created_at,
+                            ).toLocaleDateString("ja-JP")}
+                          </span>
                         </div>
                       </div>
                       <div className="flex space-x-2 ml-4">
@@ -3735,8 +4434,8 @@ export default function SettingsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setSelectedQuestionnaire(questionnaire)
-                            setShowQuestionnaireModal(true)
+                            setSelectedQuestionnaire(questionnaire);
+                            setShowQuestionnaireModal(true);
                           }}
                         >
                           <Edit className="w-4 h-4 mr-1" />
@@ -3746,8 +4445,8 @@ export default function SettingsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            if (confirm('この問診票を削除しますか？')) {
-                              handleDeleteQuestionnaire(questionnaire.id)
+                            if (confirm("この問診票を削除しますか？")) {
+                              handleDeleteQuestionnaire(questionnaire.id);
                             }
                           }}
                           className="text-red-600 hover:text-red-700"
@@ -3764,43 +4463,45 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   // トレーニング設定のレンダリング
   const renderTrainingSettings = () => {
     const trainingUrls = [
       {
-        title: '医院管理画面',
+        title: "医院管理画面",
         url: `${window.location.origin}/training/clinic`,
-        description: 'トレーニング管理のトップページ'
+        description: "トレーニング管理のトップページ",
       },
       {
-        title: 'トレーニング管理',
+        title: "トレーニング管理",
         url: `${window.location.origin}/training/clinic/trainings`,
-        description: 'トレーニングメニューの管理'
+        description: "トレーニングメニューの管理",
       },
       {
-        title: '患者一覧',
+        title: "患者一覧",
         url: `${window.location.origin}/training/clinic/patients`,
-        description: 'トレーニング患者の管理'
+        description: "トレーニング患者の管理",
       },
       {
-        title: 'テンプレート管理',
+        title: "テンプレート管理",
         url: `${window.location.origin}/training/clinic/templates`,
-        description: 'トレーニングテンプレートの管理'
+        description: "トレーニングテンプレートの管理",
       },
       {
-        title: '分析',
+        title: "分析",
         url: `${window.location.origin}/training/clinic/analytics`,
-        description: 'トレーニングデータの分析'
-      }
-    ]
+        description: "トレーニングデータの分析",
+      },
+    ];
 
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">トレーニング管理</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            トレーニング管理
+          </h2>
           <p className="text-gray-600">医院管理画面へのアクセス</p>
         </div>
 
@@ -3808,14 +4509,21 @@ export default function SettingsPage() {
           <CardContent className="p-6">
             <div className="space-y-4">
               {trainingUrls.map((item, index) => (
-                <div key={index} className="p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                <div
+                  key={index}
+                  className="p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <Accessibility className="w-5 h-5 text-blue-600" />
-                        <h3 className="font-medium text-gray-900">{item.title}</h3>
+                        <h3 className="font-medium text-gray-900">
+                          {item.title}
+                        </h3>
                       </div>
-                      <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                      <p className="text-sm text-gray-600 mb-3">
+                        {item.description}
+                      </p>
                       <div className="flex items-center space-x-2">
                         <input
                           type="text"
@@ -3825,8 +4533,8 @@ export default function SettingsPage() {
                         />
                         <Button
                           onClick={() => {
-                            navigator.clipboard.writeText(item.url)
-                            alert('URLをコピーしました')
+                            navigator.clipboard.writeText(item.url);
+                            alert("URLをコピーしました");
                           }}
                           variant="outline"
                           size="sm"
@@ -3836,7 +4544,7 @@ export default function SettingsPage() {
                           コピー
                         </Button>
                         <Button
-                          onClick={() => window.open(item.url, '_blank')}
+                          onClick={() => window.open(item.url, "_blank")}
                           variant="outline"
                           size="sm"
                           className="shrink-0"
@@ -3853,19 +4561,19 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
-    )
-  }
+    );
+  };
 
   // 問診票の削除処理
   const handleDeleteQuestionnaire = async (questionnaireId: string) => {
     try {
-      await deleteQuestionnaire(questionnaireId)
-      setQuestionnaires(prev => prev.filter(q => q.id !== questionnaireId))
+      await deleteQuestionnaire(questionnaireId);
+      setQuestionnaires((prev) => prev.filter((q) => q.id !== questionnaireId));
     } catch (error) {
-      console.error('問診票削除エラー:', error)
-      alert('問診票の削除に失敗しました')
+      console.error("問診票削除エラー:", error);
+      alert("問診票の削除に失敗しました");
     }
-  }
+  };
 
   // 右側コンテンツのレンダリング
   const renderRightContent = () => {
@@ -3882,22 +4590,26 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
-      )
+      );
     }
 
-    const category = settingCategories.find(cat => cat.id === selectedCategory)
-    if (!category) return null
+    const category = settingCategories.find(
+      (cat) => cat.id === selectedCategory,
+    );
+    if (!category) return null;
 
     return (
       <div className="p-6">
         {/* ヘッダー */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{category.name}</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {category.name}
+            </h2>
             <p className="text-gray-600">{category.description}</p>
           </div>
           <div className="flex items-center space-x-3">
-            {selectedCategory === 'questionnaire' && (
+            {selectedCategory === "questionnaire" && (
               <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
                 <span className="text-sm font-medium text-blue-800">URL:</span>
                 <span className="text-xs text-blue-700 font-mono">
@@ -3915,260 +4627,315 @@ export default function SettingsPage() {
             )}
             <Button onClick={handleSave} disabled={saving} size="sm">
               <Save className="w-4 h-4 mr-2" />
-              {saving ? '保存中...' : '保存'}
+              {saving ? "保存中..." : "保存"}
             </Button>
           </div>
         </div>
 
         {/* コンテンツ */}
-        {selectedCategory === 'clinic' && renderClinicSettings()}
-        {selectedCategory === 'calendar' && renderCalendarSettings()}
-        {selectedCategory === 'treatment' && renderTreatmentSettings()}
-        {selectedCategory === 'questionnaire' && renderQuestionnaireSettings()}
-        {selectedCategory === 'units' && renderUnitsSettings()}
-        {selectedCategory === 'training' && renderTrainingSettings()}
-        {selectedCategory === 'staff' && (
+        {selectedCategory === "clinic" && renderClinicSettings()}
+        {selectedCategory === "calendar" && renderCalendarSettings()}
+        {selectedCategory === "treatment" && renderTreatmentSettings()}
+        {selectedCategory === "questionnaire" && renderQuestionnaireSettings()}
+        {selectedCategory === "units" && renderUnitsSettings()}
+        {selectedCategory === "training" && renderTrainingSettings()}
+        {selectedCategory === "staff" && (
           <div className="space-y-6">
             {/* スタッフ管理 */}
+            <div className="space-y-6">
+              {/* スタッフ一覧表示（役職別グループ化） */}
               <div className="space-y-6">
-
-                {/* スタッフ一覧表示（役職別グループ化） */}
-                <div className="space-y-6">
-                  {(() => {
-                    // スタッフを役職別にグループ化
-                    const staffByPosition = staff.reduce((groups: { [key: string]: any[] }, member) => {
-                      const positionName = member.position?.name || 'その他'
+                {(() => {
+                  // スタッフを役職別にグループ化
+                  const staffByPosition = staff.reduce(
+                    (groups: { [key: string]: any[] }, member) => {
+                      const positionName = member.position?.name || "その他";
                       if (!groups[positionName]) {
-                        groups[positionName] = []
+                        groups[positionName] = [];
                       }
-                      groups[positionName].push(member)
-                      return groups
-                    }, {})
+                      groups[positionName].push(member);
+                      return groups;
+                    },
+                    {},
+                  );
 
-                    // 役職の並び順を決定（マスタ設定のsort_orderに基づく）
-                    const sortedPositions = Object.keys(staffByPosition).sort((a, b) => {
-                      const positionA = staffPositions.find(p => p.name === a)
-                      const positionB = staffPositions.find(p => p.name === b)
-                      const orderA = positionA?.sort_order || 999
-                      const orderB = positionB?.sort_order || 999
-                      return orderA - orderB
-                    })
+                  // 役職の並び順を決定（マスタ設定のsort_orderに基づく）
+                  const sortedPositions = Object.keys(staffByPosition).sort(
+                    (a, b) => {
+                      const positionA = staffPositions.find(
+                        (p) => p.name === a,
+                      );
+                      const positionB = staffPositions.find(
+                        (p) => p.name === b,
+                      );
+                      const orderA = positionA?.sort_order || 999;
+                      const orderB = positionB?.sort_order || 999;
+                      return orderA - orderB;
+                    },
+                  );
 
-                    return sortedPositions.map(positionName => (
-                      <div key={positionName} className="bg-white rounded-lg border border-gray-200 relative">
-                        {/* 役職ヘッダー */}
-                        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-medium text-gray-900">{positionName}</h4>
-                            <p className="text-sm text-gray-500">
-                              {staffByPosition[positionName].length}名
-                            </p>
-                          </div>
+                  return sortedPositions.map((positionName) => (
+                    <div
+                      key={positionName}
+                      className="bg-white rounded-lg border border-gray-200 relative"
+                    >
+                      {/* 役職ヘッダー */}
+                      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-medium text-gray-900">
+                            {positionName}
+                          </h4>
+                          <p className="text-sm text-gray-500">
+                            {staffByPosition[positionName].length}名
+                          </p>
                         </div>
-                        
-                        
-                        {/* スタッフ一覧 */}
-                        <div className="divide-y divide-gray-200">
-                          {staffByPosition[positionName].map(member => (
-                            <div key={member.id} className="p-1 flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="font-medium text-gray-900">{member.name}</div>
-                                <div className="text-sm text-gray-500">{member.email}</div>
+                      </div>
+
+                      {/* スタッフ一覧 */}
+                      <div className="divide-y divide-gray-200">
+                        {staffByPosition[positionName].map((member) => (
+                          <div
+                            key={member.id}
+                            className="p-1 flex items-center justify-between"
+                          >
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">
+                                {member.name}
                               </div>
-                              <div className="flex items-center space-x-1">
-                                <Button
-                                  size="sm"
-                                  className={`text-xs px-2 py-1 ${member.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                                >
-                                  {member.is_active ? '在籍' : '退職'}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setEditingStaff(member)}
-                                  className="p-0.5 text-gray-400 hover:text-blue-600"
-                                >
-                                  <Edit className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={async () => {
-                                    if (confirm('このスタッフを削除しますか？')) {
-                                      try {
-                                        await deleteStaff(DEMO_CLINIC_ID, member.id)
-                                        const data = await getStaff(DEMO_CLINIC_ID)
-                                        setStaff(data)
-                                        // シフト表をリフレッシュ
-                                        setRefreshTrigger(prev => prev + 1)
-                                      } catch (error) {
-                                        console.error('スタッフ削除エラー:', error)
-                                      }
-                                    }
-                                  }}
-                                  className="p-0.5 text-gray-400 hover:text-red-600"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                              <div className="text-sm text-gray-500">
+                                {member.email}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  })()}
-                  
-                  {/* 受付セクションの枠外に+ボタンを配置 */}
-                  <div className="flex justify-start items-center mt-4">
-                    <Button onClick={() => setShowAddStaff(true)} className="rounded-full w-8 h-8 p-0">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  
-                  {/* スタッフが登録されていない場合 */}
-                  {staff.length === 0 && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 relative">
-                      <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">スタッフが登録されていません</p>
-                      <Button 
-                        onClick={() => setShowAddStaff(true)}
-                        className="mt-2"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        最初のスタッフを追加
-                      </Button>
-                      {/* 受付の枠の左下に配置 */}
-                      <div className="absolute bottom-4 left-4">
-                        <Button onClick={() => setShowAddStaff(true)} className="rounded-full w-8 h-8 p-0">
-                          <Plus className="w-4 h-4" />
-                        </Button>
+                            <div className="flex items-center space-x-1">
+                              <Button
+                                size="sm"
+                                className={`text-xs px-2 py-1 ${member.is_active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                              >
+                                {member.is_active ? "在籍" : "退職"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditingStaff(member)}
+                                className="p-0.5 text-gray-400 hover:text-blue-600"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  if (confirm("このスタッフを削除しますか？")) {
+                                    try {
+                                      await deleteStaff(
+                                        DEMO_CLINIC_ID,
+                                        member.id,
+                                      );
+                                      const data =
+                                        await getStaff(DEMO_CLINIC_ID);
+                                      setStaff(data);
+                                      // シフト表をリフレッシュ
+                                      setRefreshTrigger((prev) => prev + 1);
+                                    } catch (error) {
+                                      console.error(
+                                        "スタッフ削除エラー:",
+                                        error,
+                                      );
+                                    }
+                                  }
+                                }}
+                                className="p-0.5 text-gray-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
+                  ));
+                })()}
+
+                {/* 受付セクションの枠外に+ボタンを配置 */}
+                <div className="flex justify-start items-center mt-4">
+                  <Button
+                    onClick={() => setShowAddStaff(true)}
+                    className="rounded-full w-8 h-8 p-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </div>
 
-                {/* スタッフ追加モーダル */}
-                <Modal
-                  isOpen={showAddStaff}
-                  onClose={() => setShowAddStaff(false)}
-                  title="新しいスタッフを追加"
-                >
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="staff_name">名前</Label>
-                        <Input
-                          id="staff_name"
-                          value={newStaff.name}
-                          onChange={(e) => setNewStaff(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="例: 田中太郎"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="staff_name_kana">フリガナ</Label>
-                        <Input
-                          id="staff_name_kana"
-                          value={newStaff.name_kana}
-                          onChange={(e) => setNewStaff(prev => ({ ...prev, name_kana: e.target.value }))}
-                          placeholder="例: タナカタロウ"
-                        />
-                      </div>
-                    </div>
-
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="staff_email">メールアドレス</Label>
-                        <Input
-                          id="staff_email"
-                          type="email"
-                          value={newStaff.email}
-                          onChange={(e) => setNewStaff(prev => ({ ...prev, email: e.target.value }))}
-                          placeholder="例: tanaka@example.com"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="staff_phone">電話番号</Label>
-                        <Input
-                          id="staff_phone"
-                          value={newStaff.phone}
-                          onChange={(e) => setNewStaff(prev => ({ ...prev, phone: e.target.value }))}
-                          placeholder="例: 03-1234-5678"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="staff_position">役職</Label>
-                      <Select
-                        value={newStaff.position_id}
-                        onValueChange={(value) => setNewStaff(prev => ({ ...prev, position_id: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="役職を選択してください" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {staffPositions.map(position => (
-                            <SelectItem key={position.id} value={position.id}>
-                              {position.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {staffPositions.length === 0 && (
-                        <p className="text-sm text-gray-500 mt-1">
-                          役職が登録されていません。マスタタブで役職を追加してください。
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex justify-end space-x-2 pt-4">
+                {/* スタッフが登録されていない場合 */}
+                {staff.length === 0 && (
+                  <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 relative">
+                    <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">スタッフが登録されていません</p>
+                    <Button
+                      onClick={() => setShowAddStaff(true)}
+                      className="mt-2"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      最初のスタッフを追加
+                    </Button>
+                    {/* 受付の枠の左下に配置 */}
+                    <div className="absolute bottom-4 left-4">
                       <Button
-                        variant="outline"
-                        onClick={() => setShowAddStaff(false)}
+                        onClick={() => setShowAddStaff(true)}
+                        className="rounded-full w-8 h-8 p-0"
                       >
-                        キャンセル
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          console.log('追加ボタンがクリックされました')
-                          console.log('staffLoading:', staffLoading)
-                          console.log('newStaff.name:', newStaff.name)
-                          console.log('newStaff.position_id:', newStaff.position_id)
-                          console.log('newStaff全体:', newStaff)
-                          handleAddStaff()
-                        }}
-                        disabled={staffLoading || !newStaff.name}
-                      >
-                        {staffLoading ? '追加中...' : '追加'}
+                        <Plus className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
-                </Modal>
+                )}
               </div>
 
+              {/* スタッフ追加モーダル */}
+              <Modal
+                isOpen={showAddStaff}
+                onClose={() => setShowAddStaff(false)}
+                title="新しいスタッフを追加"
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="staff_name">名前</Label>
+                      <Input
+                        id="staff_name"
+                        value={newStaff.name}
+                        onChange={(e) =>
+                          setNewStaff((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
+                        placeholder="例: 田中太郎"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="staff_name_kana">フリガナ</Label>
+                      <Input
+                        id="staff_name_kana"
+                        value={newStaff.name_kana}
+                        onChange={(e) =>
+                          setNewStaff((prev) => ({
+                            ...prev,
+                            name_kana: e.target.value,
+                          }))
+                        }
+                        placeholder="例: タナカタロウ"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="staff_email">メールアドレス</Label>
+                      <Input
+                        id="staff_email"
+                        type="email"
+                        value={newStaff.email}
+                        onChange={(e) =>
+                          setNewStaff((prev) => ({
+                            ...prev,
+                            email: e.target.value,
+                          }))
+                        }
+                        placeholder="例: tanaka@example.com"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="staff_phone">電話番号</Label>
+                      <Input
+                        id="staff_phone"
+                        value={newStaff.phone}
+                        onChange={(e) =>
+                          setNewStaff((prev) => ({
+                            ...prev,
+                            phone: e.target.value,
+                          }))
+                        }
+                        placeholder="例: 03-1234-5678"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="staff_position">役職</Label>
+                    <Select
+                      value={newStaff.position_id}
+                      onValueChange={(value) =>
+                        setNewStaff((prev) => ({ ...prev, position_id: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="役職を選択してください" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {staffPositions.map((position) => (
+                          <SelectItem key={position.id} value={position.id}>
+                            {position.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {staffPositions.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        役職が登録されていません。マスタタブで役職を追加してください。
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAddStaff(false)}
+                    >
+                      キャンセル
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        console.log("追加ボタンがクリックされました");
+                        console.log("staffLoading:", staffLoading);
+                        console.log("newStaff.name:", newStaff.name);
+                        console.log(
+                          "newStaff.position_id:",
+                          newStaff.position_id,
+                        );
+                        console.log("newStaff全体:", newStaff);
+                        handleAddStaff();
+                      }}
+                      disabled={staffLoading || !newStaff.name}
+                    >
+                      {staffLoading ? "追加中..." : "追加"}
+                    </Button>
+                  </div>
+                </div>
+              </Modal>
+            </div>
           </div>
         )}
-        {selectedCategory === 'shift' && (
+        {selectedCategory === "shift" && (
           <div className="space-y-6">
             {/* サブタブ */}
             <div className="flex space-x-0 mb-6 border-b border-gray-200">
               <button
-                onClick={() => setSelectedShiftTab('table')}
+                onClick={() => setSelectedShiftTab("table")}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  selectedShiftTab === 'table'
-                    ? 'border-blue-500 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  selectedShiftTab === "table"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 シフト表
               </button>
               <button
-                onClick={() => setSelectedShiftTab('pattern')}
+                onClick={() => setSelectedShiftTab("pattern")}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  selectedShiftTab === 'pattern'
-                    ? 'border-blue-500 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  selectedShiftTab === "pattern"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 パターン
@@ -4176,808 +4943,979 @@ export default function SettingsPage() {
             </div>
 
             {/* シフト表タブ */}
-            {selectedShiftTab === 'table' && (
+            {selectedShiftTab === "table" && (
               <div>
-                <ShiftTable 
-                  clinicId={DEMO_CLINIC_ID} 
+                <ShiftTable
+                  clinicId={DEMO_CLINIC_ID}
                   refreshTrigger={refreshTrigger}
                 />
               </div>
             )}
-            
+
             {/* パターンタブ */}
-            {selectedShiftTab === 'pattern' && (
+            {selectedShiftTab === "pattern" && (
               <div>
                 <ShiftPatterns clinicId={DEMO_CLINIC_ID} />
               </div>
             )}
           </div>
         )}
-        {selectedCategory === 'web' && (
+        {selectedCategory === "web" && (
           <div className="space-y-6">
             {/* 基本設定 */}
-              <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>基本設定</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <Checkbox
-                    id="is_enabled"
-                    checked={webSettings.isEnabled}
-                    onCheckedChange={(checked) =>
-                      setWebSettings(prev => ({ ...prev, isEnabled: checked as boolean }))
-                    }
-                  />
-                  <Label htmlFor="is_enabled" className="font-medium">
-                    Web予約機能を有効にする
-                  </Label>
-                </div>
-
-                {webSettings.isEnabled && (
-                  <>
-                    <div>
-                      <Label htmlFor="reservation_period">予約可能期間（日）</Label>
-                      <Input
-                        id="reservation_period"
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={webSettings.reservationPeriod}
-                        onChange={(e) =>
-                          setWebSettings(prev => ({
-                            ...prev,
-                            reservationPeriod: parseInt(e.target.value) || 30
-                          }))
-                        }
-                        className="max-w-xs"
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="allow_current_time"
-                        checked={webSettings.allowCurrentTime}
-                        onCheckedChange={(checked) =>
-                          setWebSettings(prev => ({ ...prev, allowCurrentTime: checked as boolean }))
-                        }
-                      />
-                      <Label htmlFor="allow_current_time">
-                        現在時刻・日付以降のみ予約可
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="open_all_slots"
-                        checked={webSettings.openAllSlots}
-                        onCheckedChange={(checked) =>
-                          setWebSettings(prev => ({ ...prev, openAllSlots: checked as boolean }))
-                        }
-                      />
-                      <Label htmlFor="open_all_slots">
-                        全空き枠開放
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="allow_staff_selection"
-                        checked={webSettings.allowStaffSelection}
-                        onCheckedChange={(checked) =>
-                          setWebSettings(prev => ({ ...prev, allowStaffSelection: checked as boolean }))
-                        }
-                      />
-                      <Label htmlFor="allow_staff_selection">
-                        担当者指定を許可
-                      </Label>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Web予約ページ設定 */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Web予約ページ設定</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="web_page_url">予約ページURL</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      id="web_page_url"
-                      value={typeof window !== 'undefined' ? `${window.location.origin}/web-booking` : '/web-booking'}
-                      readOnly
-                      className="flex-1 bg-gray-50"
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>基本設定</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="is_enabled"
+                      checked={webSettings.isEnabled}
+                      onCheckedChange={(checked) =>
+                        setWebSettings((prev) => ({
+                          ...prev,
+                          isEnabled: checked as boolean,
+                        }))
+                      }
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        const url = typeof window !== 'undefined' ? `${window.location.origin}/web-booking` : '/web-booking'
-                        navigator.clipboard.writeText(url)
-                        alert('URLをコピーしました')
-                      }}
-                      className="shrink-0"
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      コピー
-                    </Button>
+                    <Label htmlFor="is_enabled" className="font-medium">
+                      Web予約機能を有効にする
+                    </Label>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    患者がアクセスする予約ページのURLです。このURLを患者に共有してください。
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-              </div>
+
+                  {webSettings.isEnabled && (
+                    <>
+                      <div>
+                        <Label htmlFor="reservation_period">
+                          予約可能期間（日）
+                        </Label>
+                        <Input
+                          id="reservation_period"
+                          type="number"
+                          min="1"
+                          max="365"
+                          value={webSettings.reservationPeriod}
+                          onChange={(e) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              reservationPeriod: parseInt(e.target.value) || 30,
+                            }))
+                          }
+                          className="max-w-xs"
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="allow_current_time"
+                          checked={webSettings.allowCurrentTime}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              allowCurrentTime: checked as boolean,
+                            }))
+                          }
+                        />
+                        <Label htmlFor="allow_current_time">
+                          現在時刻・日付以降のみ予約可
+                        </Label>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="open_all_slots"
+                          checked={webSettings.openAllSlots}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              openAllSlots: checked as boolean,
+                            }))
+                          }
+                        />
+                        <Label htmlFor="open_all_slots">全空き枠開放</Label>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="allow_staff_selection"
+                          checked={webSettings.allowStaffSelection}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              allowStaffSelection: checked as boolean,
+                            }))
+                          }
+                        />
+                        <Label htmlFor="allow_staff_selection">
+                          担当者指定を許可
+                        </Label>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Web予約ページ設定 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Web予約ページ設定</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="web_page_url">予約ページURL</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        id="web_page_url"
+                        value={
+                          typeof window !== "undefined"
+                            ? `${window.location.origin}/web-booking`
+                            : "/web-booking"
+                        }
+                        readOnly
+                        className="flex-1 bg-gray-50"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const url =
+                            typeof window !== "undefined"
+                              ? `${window.location.origin}/web-booking`
+                              : "/web-booking";
+                          navigator.clipboard.writeText(url);
+                          alert("URLをコピーしました");
+                        }}
+                        className="shrink-0"
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        コピー
+                      </Button>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      患者がアクセスする予約ページのURLです。このURLを患者に共有してください。
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* フロー設定 */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 左側: フロー設定 */}
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>予約フロー設定</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {/* キャンセルポリシー設定 */}
-                        <div className="flex items-center space-x-3">
-                          <Checkbox
-                            id="flow_cancel_policy"
-                            checked={webSettings.showCancelPolicy}
-                            onCheckedChange={(checked) => 
-                              setWebSettings(prev => ({
-                                ...prev,
-                                showCancelPolicy: checked as boolean
-                              }))
-                            }
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <Label htmlFor="flow_cancel_policy" className="font-medium">
-                                キャンセルポリシー表示
-                              </Label>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleOpenCancelPolicyDialog}
-                                className="p-1 h-auto"
-                              >
-                                <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 初診/再診選択 */}
-                        <div className="flex items-center space-x-3">
-                          <Checkbox
-                            id="flow_initial"
-                            checked={webSettings.flow.initialSelection}
-                            onCheckedChange={(checked) =>
-                              setWebSettings(prev => ({
-                                ...prev,
-                                flow: { ...prev.flow, initialSelection: checked as boolean }
-                              }))
-                            }
-                          />
-                          <div className="flex-1">
-                            <Label htmlFor="flow_initial" className="font-medium">
-                              初診/再診選択
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 左側: フロー設定 */}
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>予約フロー設定</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* キャンセルポリシー設定 */}
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="flow_cancel_policy"
+                          checked={webSettings.showCancelPolicy}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              showCancelPolicy: checked as boolean,
+                            }))
+                          }
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <Label
+                              htmlFor="flow_cancel_policy"
+                              className="font-medium"
+                            >
+                              キャンセルポリシー表示
                             </Label>
-                          </div>
-                        </div>
-
-                        {/* 診療メニュー選択 */}
-                        <div className="flex items-center space-x-3">
-                          <Checkbox
-                            id="flow_menu"
-                            checked={webSettings.flow.menuSelection}
-                            onCheckedChange={(checked) =>
-                              setWebSettings(prev => ({
-                                ...prev,
-                                flow: { ...prev.flow, menuSelection: checked as boolean }
-                              }))
-                            }
-                          />
-                          <div className="flex-1">
-                            <Label htmlFor="flow_menu" className="font-medium">
-                              診療メニュー選択
-                            </Label>
-                          </div>
-                        </div>
-
-                        {/* カレンダー表示 */}
-                        <div className="flex items-center space-x-3">
-                          <Checkbox
-                            id="flow_calendar"
-                            checked={webSettings.flow.calendarDisplay}
-                            onCheckedChange={(checked) =>
-                              setWebSettings(prev => ({
-                                ...prev,
-                                flow: { ...prev.flow, calendarDisplay: checked as boolean }
-                              }))
-                            }
-                          />
-                          <div className="flex-1">
-                            <Label htmlFor="flow_calendar" className="font-medium">
-                              カレンダー表示
-                            </Label>
-                          </div>
-                        </div>
-
-                        {/* 患者情報入力 */}
-                        <div className="flex items-center space-x-3">
-                          <Checkbox
-                            id="flow_patient"
-                            checked={webSettings.flow.patientInfo}
-                            onCheckedChange={(checked) =>
-                              setWebSettings(prev => ({
-                                ...prev,
-                                flow: { ...prev.flow, patientInfo: checked as boolean }
-                              }))
-                            }
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <Label htmlFor="flow_patient" className="font-medium">
-                                患者情報入力
-                              </Label>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleOpenPatientInfoFieldsDialog}
-                                className="p-1 h-auto"
-                              >
-                                <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 確認・確定 */}
-                        <div className="flex items-center space-x-3">
-                          <Checkbox
-                            id="flow_confirmation"
-                            checked={webSettings.flow.confirmation}
-                            onCheckedChange={(checked) =>
-                              setWebSettings(prev => ({
-                                ...prev,
-                                flow: { ...prev.flow, confirmation: checked as boolean }
-                              }))
-                            }
-                          />
-                          <div className="flex-1">
-                            <Label htmlFor="flow_confirmation" className="font-medium">
-                              確認・確定
-                            </Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleOpenCancelPolicyDialog}
+                              className="p-1 h-auto"
+                            >
+                              <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
+                            </Button>
                           </div>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
 
-                {/* 右側: プレビュー */}
-                <div className="space-y-6">
-                  <Card className="h-[600px] flex flex-col">
-                    <CardHeader className="flex-shrink-0">
-                      <CardTitle>プレビュー</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto p-0">
-                      {/* 実際のWeb予約ページと全く同じプレビュー */}
-                      <div className="min-h-screen bg-gray-50 py-8">
-                        <div className="max-w-4xl mx-auto px-4">
-                          {/* ヘッダー */}
-                          <div className="text-center mb-8">
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2">Web予約</h1>
-                            <p className="text-gray-600">簡単にオンラインで予約できます</p>
+                      {/* 初診/再診選択 */}
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="flow_initial"
+                          checked={webSettings.flow.initialSelection}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              flow: {
+                                ...prev.flow,
+                                initialSelection: checked as boolean,
+                              },
+                            }))
+                          }
+                        />
+                        <div className="flex-1">
+                          <Label htmlFor="flow_initial" className="font-medium">
+                            初診/再診選択
+                          </Label>
+                        </div>
+                      </div>
+
+                      {/* 診療メニュー選択 */}
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="flow_menu"
+                          checked={webSettings.flow.menuSelection}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              flow: {
+                                ...prev.flow,
+                                menuSelection: checked as boolean,
+                              },
+                            }))
+                          }
+                        />
+                        <div className="flex-1">
+                          <Label htmlFor="flow_menu" className="font-medium">
+                            診療メニュー選択
+                          </Label>
+                        </div>
+                      </div>
+
+                      {/* カレンダー表示 */}
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="flow_calendar"
+                          checked={webSettings.flow.calendarDisplay}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              flow: {
+                                ...prev.flow,
+                                calendarDisplay: checked as boolean,
+                              },
+                            }))
+                          }
+                        />
+                        <div className="flex-1">
+                          <Label
+                            htmlFor="flow_calendar"
+                            className="font-medium"
+                          >
+                            カレンダー表示
+                          </Label>
+                        </div>
+                      </div>
+
+                      {/* 患者情報入力 */}
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="flow_patient"
+                          checked={webSettings.flow.patientInfo}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              flow: {
+                                ...prev.flow,
+                                patientInfo: checked as boolean,
+                              },
+                            }))
+                          }
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <Label
+                              htmlFor="flow_patient"
+                              className="font-medium"
+                            >
+                              患者情報入力
+                            </Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleOpenPatientInfoFieldsDialog}
+                              className="p-1 h-auto"
+                            >
+                              <Edit3 className="w-4 h-4 text-gray-500 hover:text-gray-700" />
+                            </Button>
                           </div>
+                        </div>
+                      </div>
 
-                          <div className="max-w-2xl mx-auto space-y-6">
-                            {/* キャンセルポリシー表示 */}
-                            {webSettings.showCancelPolicy && (
-                              <div className="animate-fadeIn">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle>医院からのメッセージ</CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                      <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-                                        {webSettings.cancelPolicyText}
+                      {/* 確認・確定 */}
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id="flow_confirmation"
+                          checked={webSettings.flow.confirmation}
+                          onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                              ...prev,
+                              flow: {
+                                ...prev.flow,
+                                confirmation: checked as boolean,
+                              },
+                            }))
+                          }
+                        />
+                        <div className="flex-1">
+                          <Label
+                            htmlFor="flow_confirmation"
+                            className="font-medium"
+                          >
+                            確認・確定
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 右側: プレビュー */}
+              <div className="space-y-6">
+                <Card className="h-[600px] flex flex-col">
+                  <CardHeader className="flex-shrink-0">
+                    <CardTitle>プレビュー</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-y-auto p-0">
+                    {/* 実際のWeb予約ページと全く同じプレビュー */}
+                    <div className="min-h-screen bg-gray-50 py-8">
+                      <div className="max-w-4xl mx-auto px-4">
+                        {/* ヘッダー */}
+                        <div className="text-center mb-8">
+                          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                            Web予約
+                          </h1>
+                          <p className="text-gray-600">
+                            簡単にオンラインで予約できます
+                          </p>
+                        </div>
+
+                        <div className="max-w-2xl mx-auto space-y-6">
+                          {/* キャンセルポリシー表示 */}
+                          {webSettings.showCancelPolicy && (
+                            <div className="animate-fadeIn">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle>医院からのメッセージ</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                      {webSettings.cancelPolicyText}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
+
+                          {/* ステップ1: 初診/再診選択 */}
+                          {webSettings.flow.initialSelection && (
+                            <div className="animate-fadeIn">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle>初診/再診の選択</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  <div className="space-y-3">
+                                    <button className="w-full p-4 border-2 border-blue-500 bg-blue-50 rounded-lg transition-colors">
+                                      <div className="text-left">
+                                        <h3 className="font-medium">初診</h3>
+                                        <p className="text-sm text-gray-600">
+                                          初めてご来院される方
+                                        </p>
                                       </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              </div>
-                            )}
-
-                            {/* ステップ1: 初診/再診選択 */}
-                            {webSettings.flow.initialSelection && (
-                              <div className="animate-fadeIn">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle>初診/再診の選択</CardTitle>
-                                  </CardHeader>
-                                  <CardContent className="space-y-4">
-                                    <div className="space-y-3">
-                                      <button
-                                        className="w-full p-4 border-2 border-blue-500 bg-blue-50 rounded-lg transition-colors"
-                                      >
-                                        <div className="text-left">
-                                          <h3 className="font-medium">初診</h3>
-                                          <p className="text-sm text-gray-600">初めてご来院される方</p>
-                                        </div>
-                                      </button>
-                                      <button
-                                        className="w-full p-4 border-2 border-gray-200 hover:border-blue-300 rounded-lg transition-colors"
-                                      >
-                                        <div className="text-left">
-                                          <h3 className="font-medium">再診</h3>
-                                          <p className="text-sm text-gray-600">過去にご来院されたことがある方</p>
-                                        </div>
-                                      </button>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              </div>
-                            )}
-
-                            {/* ステップ2: 診療メニュー選択 */}
-                            {webSettings.flow.menuSelection && (
-                              <div className="animate-fadeIn">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle>診療メニューの選択</CardTitle>
-                                  </CardHeader>
-                                  <CardContent className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      <button className="p-4 rounded-lg border-2 border-blue-500 bg-blue-50 shadow-md transition-all text-left">
-                                        <div>
-                                          <h3 className="font-medium text-gray-900 mb-1">
-                                            一般診療
-                                          </h3>
-                                          <p className="text-sm text-gray-600">
-                                            所要時間: 30分
-                                          </p>
-                                        </div>
-                                      </button>
-                                      <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
-                                        <div>
-                                          <h3 className="font-medium text-gray-900 mb-1">
-                                            矯正相談
-                                          </h3>
-                                          <p className="text-sm text-gray-600">
-                                            所要時間: 60分
-                                          </p>
-                                        </div>
-                                      </button>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              </div>
-                            )}
-
-                            {/* ステップ3: カレンダー表示 */}
-                            {webSettings.flow.calendarDisplay && (
-                              <div className="animate-fadeIn">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle>日時選択</CardTitle>
-                                    <p className="text-sm text-gray-600">
-                                      ⭕️をクリックして予約日時を選択してください
-                                    </p>
-                                  </CardHeader>
-                                  <CardContent className="space-y-4">
-                                    {/* 週ナビゲーション */}
-                                    <div className="flex items-center justify-between gap-2">
-                                      <Button variant="outline" size="sm" className="px-2 py-1 text-xs shrink-0">
-                                        <ChevronLeft className="w-3 h-3 mr-1" />
-                                        先週
-                                      </Button>
-                                      <div className="text-sm font-medium text-center flex-1">
-                                        01月15日 - 01月21日
+                                    </button>
+                                    <button className="w-full p-4 border-2 border-gray-200 hover:border-blue-300 rounded-lg transition-colors">
+                                      <div className="text-left">
+                                        <h3 className="font-medium">再診</h3>
+                                        <p className="text-sm text-gray-600">
+                                          過去にご来院されたことがある方
+                                        </p>
                                       </div>
-                                      <Button variant="outline" size="sm" className="px-2 py-1 text-xs shrink-0">
-                                        次週
-                                        <ChevronRight className="w-3 h-3 ml-1" />
-                                      </Button>
-                                    </div>
+                                    </button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
 
-                                    {/* 1週間分のカレンダー */}
-                                    <div className="-mx-2 sm:mx-0">
-                                      {/* ヘッダー（固定） */}
-                                      <div className="overflow-hidden">
-                                        <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
-                                          <colgroup>
-                                            <col style={{ width: '40px' }} className="sm:w-16" />
-                                            <col />
-                                            <col />
-                                            <col />
-                                            <col />
-                                            <col />
-                                            <col />
-                                          </colgroup>
-                                          <thead>
-                                            <tr>
-                                              <th className="border p-1 sm:p-2 bg-gray-50 font-medium">時間</th>
-                                              <th className="border p-1 bg-gray-50 font-medium">
-                                                <div className="text-[10px] sm:text-xs leading-tight">月</div>
-                                                <div className="text-[9px] sm:text-xs text-gray-600">01/15</div>
-                                              </th>
-                                              <th className="border p-1 bg-gray-50 font-medium">
-                                                <div className="text-[10px] sm:text-xs leading-tight">火</div>
-                                                <div className="text-[9px] sm:text-xs text-gray-600">01/16</div>
-                                              </th>
-                                              <th className="border p-1 bg-gray-50 font-medium">
-                                                <div className="text-[10px] sm:text-xs leading-tight">水</div>
-                                                <div className="text-[9px] sm:text-xs text-gray-600">01/17</div>
-                                              </th>
-                                              <th className="border p-1 bg-gray-50 font-medium">
-                                                <div className="text-[10px] sm:text-xs leading-tight">木</div>
-                                                <div className="text-[9px] sm:text-xs text-gray-600">01/18</div>
-                                              </th>
-                                              <th className="border p-1 bg-gray-50 font-medium">
-                                                <div className="text-[10px] sm:text-xs leading-tight">金</div>
-                                                <div className="text-[9px] sm:text-xs text-gray-600">01/19</div>
-                                              </th>
-                                              <th className="border p-1 bg-gray-50 font-medium">
-                                                <div className="text-[10px] sm:text-xs leading-tight">土</div>
-                                                <div className="text-[9px] sm:text-xs text-gray-600">01/20</div>
-                                              </th>
-                                              <th className="border p-1 bg-gray-50 font-medium">
-                                                <div className="text-[10px] sm:text-xs leading-tight">日</div>
-                                                <div className="text-[9px] sm:text-xs text-gray-600">01/21</div>
-                                              </th>
-                                            </tr>
-                                          </thead>
-                                        </table>
-                                      </div>
-
-                                      {/* ボディ（スクロール可能） */}
-                                      <div className="overflow-y-auto max-h-96 scrollbar-hide">
-                                        <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
-                                          <colgroup>
-                                            <col style={{ width: '40px' }} className="sm:w-16" />
-                                            <col />
-                                            <col />
-                                            <col />
-                                            <col />
-                                            <col />
-                                            <col />
-                                          </colgroup>
-                                          <tbody>
-                                            {/* 時間ごとの行を生成 */}
-                                            {['9:00', '10:00', '11:00', '14:00', '15:00', '16:00'].map(time => (
-                                              <tr key={time}>
-                                                <td className="border p-0.5 sm:p-1 text-[10px] sm:text-sm text-gray-600 text-center">{time}</td>
-                                                <td className="border p-0.5 sm:p-1">
-                                                  <button
-                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
-                                                  >
-                                                    ⭕️
-                                                  </button>
-                                                </td>
-                                                <td className="border p-0.5 sm:p-1">
-                                                  <button
-                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
-                                                  >
-                                                    ⭕️
-                                                  </button>
-                                                </td>
-                                                <td className="border p-0.5 sm:p-1">
-                                                  <button
-                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
-                                                  >
-                                                    ⭕️
-                                                  </button>
-                                                </td>
-                                                <td className="border p-0.5 sm:p-1">
-                                                  <button
-                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
-                                                  >
-                                                    ⭕️
-                                                  </button>
-                                                </td>
-                                                <td className="border p-0.5 sm:p-1">
-                                                  <button
-                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
-                                                  >
-                                                    ⭕️
-                                                  </button>
-                                                </td>
-                                                <td className="border p-0.5 sm:p-1">
-                                                  <button
-                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200"
-                                                  >
-                                                    ⭕️
-                                                  </button>
-                                                </td>
-                                                <td className="border p-0.5 sm:p-1">
-                                                  <button
-                                                    className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-red-100 text-red-800"
-                                                    disabled
-                                                  >
-                                                    ❌
-                                                  </button>
-                                                </td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              </div>
-                            )}
-
-                            {/* ステップ4: 患者情報入力 */}
-                            {webSettings.flow.patientInfo && (
-                              <div className="animate-fadeIn">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle>患者情報入力</CardTitle>
-                                  </CardHeader>
-                                  <CardContent className="space-y-4">
-                                    <div className={`grid gap-4 ${webSettings.patientInfoFields.phoneEnabled ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                          {/* ステップ2: 診療メニュー選択 */}
+                          {webSettings.flow.menuSelection && (
+                            <div className="animate-fadeIn">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle>診療メニューの選択</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <button className="p-4 rounded-lg border-2 border-blue-500 bg-blue-50 shadow-md transition-all text-left">
                                       <div>
-                                        <Label htmlFor="patientName">お名前 *</Label>
-                                        <Input
-                                          id="patientName"
-                                          placeholder="例: 田中太郎"
-                                          readOnly
-                                        />
+                                        <h3 className="font-medium text-gray-900 mb-1">
+                                          一般診療
+                                        </h3>
+                                        <p className="text-sm text-gray-600">
+                                          所要時間: 30分
+                                        </p>
                                       </div>
-                                      {webSettings.patientInfoFields.phoneEnabled && (
-                                        <div>
-                                          <Label htmlFor="patientPhone">
-                                            電話番号 {webSettings.patientInfoFields.phoneRequired ? '*' : ''}
-                                          </Label>
-                                          <Input
-                                            id="patientPhone"
-                                            placeholder="例: 03-1234-5678"
-                                            readOnly
+                                    </button>
+                                    <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
+                                      <div>
+                                        <h3 className="font-medium text-gray-900 mb-1">
+                                          矯正相談
+                                        </h3>
+                                        <p className="text-sm text-gray-600">
+                                          所要時間: 60分
+                                        </p>
+                                      </div>
+                                    </button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
+
+                          {/* ステップ3: カレンダー表示 */}
+                          {webSettings.flow.calendarDisplay && (
+                            <div className="animate-fadeIn">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle>日時選択</CardTitle>
+                                  <p className="text-sm text-gray-600">
+                                    ⭕️をクリックして予約日時を選択してください
+                                  </p>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  {/* 週ナビゲーション */}
+                                  <div className="flex items-center justify-between gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="px-2 py-1 text-xs shrink-0"
+                                    >
+                                      <ChevronLeft className="w-3 h-3 mr-1" />
+                                      先週
+                                    </Button>
+                                    <div className="text-sm font-medium text-center flex-1">
+                                      01月15日 - 01月21日
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="px-2 py-1 text-xs shrink-0"
+                                    >
+                                      次週
+                                      <ChevronRight className="w-3 h-3 ml-1" />
+                                    </Button>
+                                  </div>
+
+                                  {/* 1週間分のカレンダー */}
+                                  <div className="-mx-2 sm:mx-0">
+                                    {/* ヘッダー（固定） */}
+                                    <div className="overflow-hidden">
+                                      <table
+                                        className="w-full border-collapse text-xs sm:text-sm"
+                                        style={{ tableLayout: "fixed" }}
+                                      >
+                                        <colgroup>
+                                          <col
+                                            style={{ width: "40px" }}
+                                            className="sm:w-16"
                                           />
-                                        </div>
-                                      )}
+                                          <col />
+                                          <col />
+                                          <col />
+                                          <col />
+                                          <col />
+                                          <col />
+                                        </colgroup>
+                                        <thead>
+                                          <tr>
+                                            <th className="border p-1 sm:p-2 bg-gray-50 font-medium">
+                                              時間
+                                            </th>
+                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <div className="text-[10px] sm:text-xs leading-tight">
+                                                月
+                                              </div>
+                                              <div className="text-[9px] sm:text-xs text-gray-600">
+                                                01/15
+                                              </div>
+                                            </th>
+                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <div className="text-[10px] sm:text-xs leading-tight">
+                                                火
+                                              </div>
+                                              <div className="text-[9px] sm:text-xs text-gray-600">
+                                                01/16
+                                              </div>
+                                            </th>
+                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <div className="text-[10px] sm:text-xs leading-tight">
+                                                水
+                                              </div>
+                                              <div className="text-[9px] sm:text-xs text-gray-600">
+                                                01/17
+                                              </div>
+                                            </th>
+                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <div className="text-[10px] sm:text-xs leading-tight">
+                                                木
+                                              </div>
+                                              <div className="text-[9px] sm:text-xs text-gray-600">
+                                                01/18
+                                              </div>
+                                            </th>
+                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <div className="text-[10px] sm:text-xs leading-tight">
+                                                金
+                                              </div>
+                                              <div className="text-[9px] sm:text-xs text-gray-600">
+                                                01/19
+                                              </div>
+                                            </th>
+                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <div className="text-[10px] sm:text-xs leading-tight">
+                                                土
+                                              </div>
+                                              <div className="text-[9px] sm:text-xs text-gray-600">
+                                                01/20
+                                              </div>
+                                            </th>
+                                            <th className="border p-1 bg-gray-50 font-medium">
+                                              <div className="text-[10px] sm:text-xs leading-tight">
+                                                日
+                                              </div>
+                                              <div className="text-[9px] sm:text-xs text-gray-600">
+                                                01/21
+                                              </div>
+                                            </th>
+                                          </tr>
+                                        </thead>
+                                      </table>
                                     </div>
-                                    {webSettings.patientInfoFields.emailEnabled && (
+
+                                    {/* ボディ（スクロール可能） */}
+                                    <div className="overflow-y-auto max-h-96 scrollbar-hide">
+                                      <table
+                                        className="w-full border-collapse text-xs sm:text-sm"
+                                        style={{ tableLayout: "fixed" }}
+                                      >
+                                        <colgroup>
+                                          <col
+                                            style={{ width: "40px" }}
+                                            className="sm:w-16"
+                                          />
+                                          <col />
+                                          <col />
+                                          <col />
+                                          <col />
+                                          <col />
+                                          <col />
+                                        </colgroup>
+                                        <tbody>
+                                          {/* 時間ごとの行を生成 */}
+                                          {[
+                                            "9:00",
+                                            "10:00",
+                                            "11:00",
+                                            "14:00",
+                                            "15:00",
+                                            "16:00",
+                                          ].map((time) => (
+                                            <tr key={time}>
+                                              <td className="border p-0.5 sm:p-1 text-[10px] sm:text-sm text-gray-600 text-center">
+                                                {time}
+                                              </td>
+                                              <td className="border p-0.5 sm:p-1">
+                                                <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
+                                                  ⭕️
+                                                </button>
+                                              </td>
+                                              <td className="border p-0.5 sm:p-1">
+                                                <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
+                                                  ⭕️
+                                                </button>
+                                              </td>
+                                              <td className="border p-0.5 sm:p-1">
+                                                <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
+                                                  ⭕️
+                                                </button>
+                                              </td>
+                                              <td className="border p-0.5 sm:p-1">
+                                                <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
+                                                  ⭕️
+                                                </button>
+                                              </td>
+                                              <td className="border p-0.5 sm:p-1">
+                                                <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
+                                                  ⭕️
+                                                </button>
+                                              </td>
+                                              <td className="border p-0.5 sm:p-1">
+                                                <button className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-green-100 text-green-800 hover:bg-green-200">
+                                                  ⭕️
+                                                </button>
+                                              </td>
+                                              <td className="border p-0.5 sm:p-1">
+                                                <button
+                                                  className="w-full h-6 sm:h-10 flex items-center justify-center text-sm sm:text-lg font-bold rounded transition-colors bg-red-100 text-red-800"
+                                                  disabled
+                                                >
+                                                  ❌
+                                                </button>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
+
+                          {/* ステップ4: 患者情報入力 */}
+                          {webSettings.flow.patientInfo && (
+                            <div className="animate-fadeIn">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle>患者情報入力</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  <div
+                                    className={`grid gap-4 ${webSettings.patientInfoFields.phoneEnabled ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}
+                                  >
+                                    <div>
+                                      <Label htmlFor="patientName">
+                                        お名前 *
+                                      </Label>
+                                      <Input
+                                        id="patientName"
+                                        placeholder="例: 田中太郎"
+                                        readOnly
+                                      />
+                                    </div>
+                                    {webSettings.patientInfoFields
+                                      .phoneEnabled && (
                                       <div>
-                                        <Label htmlFor="patientEmail">
-                                          メールアドレス {webSettings.patientInfoFields.emailRequired ? '*' : ''}
+                                        <Label htmlFor="patientPhone">
+                                          電話番号{" "}
+                                          {webSettings.patientInfoFields
+                                            .phoneRequired
+                                            ? "*"
+                                            : ""}
                                         </Label>
                                         <Input
-                                          id="patientEmail"
-                                          type="email"
-                                          placeholder="例: tanaka@example.com"
+                                          id="patientPhone"
+                                          placeholder="例: 03-1234-5678"
                                           readOnly
                                         />
                                       </div>
                                     )}
+                                  </div>
+                                  {webSettings.patientInfoFields
+                                    .emailEnabled && (
                                     <div>
-                                      <Label htmlFor="patientRequest">ご要望・ご相談など（任意）</Label>
-                                      <textarea
-                                        id="patientRequest"
-                                        placeholder="ご要望やご相談がございましたらご記入ください"
-                                        className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                                      <Label htmlFor="patientEmail">
+                                        メールアドレス{" "}
+                                        {webSettings.patientInfoFields
+                                          .emailRequired
+                                          ? "*"
+                                          : ""}
+                                      </Label>
+                                      <Input
+                                        id="patientEmail"
+                                        type="email"
+                                        placeholder="例: tanaka@example.com"
                                         readOnly
                                       />
                                     </div>
-                                  </CardContent>
-                                </Card>
-                              </div>
-                            )}
+                                  )}
+                                  <div>
+                                    <Label htmlFor="patientRequest">
+                                      ご要望・ご相談など（任意）
+                                    </Label>
+                                    <textarea
+                                      id="patientRequest"
+                                      placeholder="ご要望やご相談がございましたらご記入ください"
+                                      className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                                      readOnly
+                                    />
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
 
-                            {/* ステップ5: 確認・確定 */}
-                            {webSettings.flow.confirmation && (
-                              <div className="animate-fadeIn">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle>予約内容確認</CardTitle>
-                                  </CardHeader>
-                                  <CardContent className="space-y-4">
-                                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                                      <div className="flex items-center space-x-2">
-                                        <Calendar className="w-4 h-4 text-gray-500" />
-                                        <span className="font-medium">予約日時:</span>
-                                        <span>2024-01-15 10:00</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <CheckCircle className="w-4 h-4 text-gray-500" />
-                                        <span className="font-medium">診療メニュー:</span>
-                                        <span>一般診療</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <Clock className="w-4 h-4 text-gray-500" />
-                                        <span className="font-medium">診療時間:</span>
-                                        <span>30分</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <User className="w-4 h-4 text-gray-500" />
-                                        <span className="font-medium">患者名:</span>
-                                        <span>田中太郎</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <Clock className="w-4 h-4 text-gray-500" />
-                                        <span className="font-medium">電話番号:</span>
-                                        <span>03-1234-5678</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <CheckCircle className="w-4 h-4 text-gray-500" />
-                                        <span className="font-medium">診療種別:</span>
-                                        <span>初診</span>
-                                      </div>
+                          {/* ステップ5: 確認・確定 */}
+                          {webSettings.flow.confirmation && (
+                            <div className="animate-fadeIn">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle>予約内容確認</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <Calendar className="w-4 h-4 text-gray-500" />
+                                      <span className="font-medium">
+                                        予約日時:
+                                      </span>
+                                      <span>2024-01-15 10:00</span>
                                     </div>
+                                    <div className="flex items-center space-x-2">
+                                      <CheckCircle className="w-4 h-4 text-gray-500" />
+                                      <span className="font-medium">
+                                        診療メニュー:
+                                      </span>
+                                      <span>一般診療</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Clock className="w-4 h-4 text-gray-500" />
+                                      <span className="font-medium">
+                                        診療時間:
+                                      </span>
+                                      <span>30分</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <User className="w-4 h-4 text-gray-500" />
+                                      <span className="font-medium">
+                                        患者名:
+                                      </span>
+                                      <span>田中太郎</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Clock className="w-4 h-4 text-gray-500" />
+                                      <span className="font-medium">
+                                        電話番号:
+                                      </span>
+                                      <span>03-1234-5678</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <CheckCircle className="w-4 h-4 text-gray-500" />
+                                      <span className="font-medium">
+                                        診療種別:
+                                      </span>
+                                      <span>初診</span>
+                                    </div>
+                                  </div>
 
-                                    <div className="flex justify-center">
-                                      <Button size="lg" className="w-full max-w-xs">
-                                        予約確定
-                                      </Button>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              </div>
-                            )}
-                          </div>
+                                  <div className="flex justify-center">
+                                    <Button
+                                      size="lg"
+                                      className="w-full max-w-xs"
+                                    >
+                                      予約確定
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
+            </div>
 
             {/* メニュー設定 */}
-              <div className="space-y-6">
-            {/* Web予約メニュー設定 */}
-            {webSettings.isEnabled ? (
-            <Card>
-              <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Web予約メニュー</CardTitle>
+            <div className="space-y-6">
+              {/* Web予約メニュー設定 */}
+              {webSettings.isEnabled ? (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Web予約メニュー</CardTitle>
+                      </div>
+                      <Button onClick={() => setIsAddWebMenuDialogOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        メニューを追加
+                      </Button>
                     </div>
-                    <Button onClick={() => setIsAddWebMenuDialogOpen(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      メニューを追加
-                    </Button>
-                  </div>
-              </CardHeader>
-              <CardContent>
-                  {webBookingMenus.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                      Web予約メニューが登録されていません。「メニューを追加」ボタンから追加してください。
-                  </p>
-                ) : (
-                    <div className="space-y-4">
-                      {webBookingMenus.map(menu => (
-                        <div key={menu.id} className="border rounded-lg p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 space-y-3">
-                          {/* メニュー名とカラー */}
-                              <div className="space-y-1">
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className="w-6 h-6 rounded"
-                                    style={{ backgroundColor: menu.treatment_menu_color || '#bfbfbf' }}
-                                  />
-                                  <h4 className="font-medium text-lg">{menu.display_name || menu.treatment_menu_name}</h4>
+                  </CardHeader>
+                  <CardContent>
+                    {webBookingMenus.length === 0 ? (
+                      <p className="text-sm text-gray-500">
+                        Web予約メニューが登録されていません。「メニューを追加」ボタンから追加してください。
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {webBookingMenus.map((menu) => (
+                          <div key={menu.id} className="border rounded-lg p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 space-y-3">
+                                {/* メニュー名とカラー */}
+                                <div className="space-y-1">
+                                  <div className="flex items-center space-x-3">
+                                    <div
+                                      className="w-6 h-6 rounded"
+                                      style={{
+                                        backgroundColor:
+                                          menu.treatment_menu_color ||
+                                          "#bfbfbf",
+                                      }}
+                                    />
+                                    <h4 className="font-medium text-lg">
+                                      {menu.display_name ||
+                                        menu.treatment_menu_name}
+                                    </h4>
+                                  </div>
+                                  {menu.display_name &&
+                                    menu.display_name !==
+                                      menu.treatment_menu_name && (
+                                      <p className="text-xs text-gray-500 ml-9">
+                                        元のメニュー: {menu.treatment_menu_name}
+                                      </p>
+                                    )}
                                 </div>
-                                {menu.display_name && menu.display_name !== menu.treatment_menu_name && (
-                                  <p className="text-xs text-gray-500 ml-9">
-                                    元のメニュー: {menu.treatment_menu_name}
-                                  </p>
-                                )}
-                              </div>
 
-                              {/* 診療時間 */}
-                              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <span className="font-medium">診療時間:</span>
-                                <span>{menu.duration}分</span>
-                              </div>
+                                {/* 診療時間 */}
+                                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                  <span className="font-medium">診療時間:</span>
+                                  <span>{menu.duration}分</span>
+                                </div>
 
-                              {/* ステップ情報 */}
-                              {menu.steps && menu.steps.length > 0 ? (
-                                <div className="space-y-2">
-                                  <span className="font-medium text-sm text-gray-700">処置ステップ:</span>
-                                  {menu.steps.map((step: any, index: number) => (
-                                    <div key={step.id} className="bg-gray-50 p-2 rounded text-sm">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium text-gray-700">
-                                          ステップ{index + 1}: {step.description || '未設定'}
-                                        </span>
-                                        <span className="text-xs text-gray-500">
-                                          {step.start_time}分～{step.end_time}分 ({step.type === 'serial' ? '順番' : '同時'})
-                                        </span>
-                                      </div>
-                                      <div className="flex flex-wrap gap-1">
-                                        {step.staff_assignments?.map((assignment: any) => {
-                                          const s = staff.find(st => st.id === assignment.staff_id)
-                                          return s ? (
-                                            <span key={assignment.staff_id} className="bg-white px-2 py-0.5 rounded text-xs border">
-                                              {s.name}
-                                              {step.type === 'serial' && ` (優先度: ${assignment.priority})`}
+                                {/* ステップ情報 */}
+                                {menu.steps && menu.steps.length > 0 ? (
+                                  <div className="space-y-2">
+                                    <span className="font-medium text-sm text-gray-700">
+                                      処置ステップ:
+                                    </span>
+                                    {menu.steps.map(
+                                      (step: any, index: number) => (
+                                        <div
+                                          key={step.id}
+                                          className="bg-gray-50 p-2 rounded text-sm"
+                                        >
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="font-medium text-gray-700">
+                                              ステップ{index + 1}:{" "}
+                                              {step.description || "未設定"}
                                             </span>
-                                          ) : null
-                                        })}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="text-sm text-gray-500">
-                                  ステップが設定されていません
-                                </div>
-                              )}
+                                            <span className="text-xs text-gray-500">
+                                              {step.start_time}分～
+                                              {step.end_time}分 (
+                                              {step.type === "serial"
+                                                ? "順番"
+                                                : "同時"}
+                                              )
+                                            </span>
+                                          </div>
+                                          <div className="flex flex-wrap gap-1">
+                                            {step.staff_assignments?.map(
+                                              (assignment: any) => {
+                                                const s = staff.find(
+                                                  (st) =>
+                                                    st.id ===
+                                                    assignment.staff_id,
+                                                );
+                                                return s ? (
+                                                  <span
+                                                    key={assignment.staff_id}
+                                                    className="bg-white px-2 py-0.5 rounded text-xs border"
+                                                  >
+                                                    {s.name}
+                                                    {step.type === "serial" &&
+                                                      ` (優先度: ${assignment.priority})`}
+                                                  </span>
+                                                ) : null;
+                                              },
+                                            )}
+                                          </div>
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-gray-500">
+                                    ステップが設定されていません
+                                  </div>
+                                )}
 
-                              {/* 受付可能な患者 */}
-                              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <span className="font-medium">受付:</span>
-                                <span>
-                                  {menu.allow_new_patient && menu.allow_returning && '初診・再診'}
-                                  {menu.allow_new_patient && !menu.allow_returning && '初診のみ'}
-                                  {!menu.allow_new_patient && menu.allow_returning && '再診のみ'}
-                                  {!menu.allow_new_patient && !menu.allow_returning && 'なし'}
-                                </span>
+                                {/* 受付可能な患者 */}
+                                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                  <span className="font-medium">受付:</span>
+                                  <span>
+                                    {menu.allow_new_patient &&
+                                      menu.allow_returning &&
+                                      "初診・再診"}
+                                    {menu.allow_new_patient &&
+                                      !menu.allow_returning &&
+                                      "初診のみ"}
+                                    {!menu.allow_new_patient &&
+                                      menu.allow_returning &&
+                                      "再診のみ"}
+                                    {!menu.allow_new_patient &&
+                                      !menu.allow_returning &&
+                                      "なし"}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
 
-                            {/* 編集・削除ボタン */}
-                            <div className="flex space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditWebMenu(menu)}
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveWebBookingMenu(menu.id)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              {/* 編集・削除ボタン */}
+                              <div className="flex space-x-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditWebMenu(menu)}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleRemoveWebBookingMenu(menu.id)
+                                  }
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ Web予約機能が無効になっています。基本設定タブで「Web予約機能を有効にする」をチェックしてください。
-                </p>
-              </div>
-            )}
-              </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️
+                    Web予約機能が無効になっています。基本設定タブで「Web予約機能を有効にする」をチェックしてください。
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Web予約メニュー追加ダイアログ */}
             <Modal
               isOpen={isAddWebMenuDialogOpen}
               onClose={() => {
-                setIsAddWebMenuDialogOpen(false)
+                setIsAddWebMenuDialogOpen(false);
                 setNewWebMenu({
-                  treatment_menu_id: '',
-                  treatment_menu_level2_id: '',
-                  treatment_menu_level3_id: '',
-                  display_name: '',
+                  treatment_menu_id: "",
+                  treatment_menu_level2_id: "",
+                  treatment_menu_level3_id: "",
+                  display_name: "",
                   duration: 30,
                   steps: [],
                   allow_new_patient: true,
-                  allow_returning: true
-                })
+                  allow_returning: true,
+                });
               }}
               title="Web予約メニューを追加"
               size="large"
@@ -4987,15 +5925,17 @@ export default function SettingsPage() {
                 <div className="space-y-3">
                   {/* メニュー1選択 */}
                   <div>
-                    <Label htmlFor="web_treatment_menu_level1">診療メニュー1</Label>
+                    <Label htmlFor="web_treatment_menu_level1">
+                      診療メニュー1
+                    </Label>
                     <Select
                       value={newWebMenu.treatment_menu_id}
                       onValueChange={(value) =>
-                        setNewWebMenu(prev => ({ 
-                          ...prev, 
+                        setNewWebMenu((prev) => ({
+                          ...prev,
                           treatment_menu_id: value,
-                          treatment_menu_level2_id: '',
-                          treatment_menu_level3_id: ''
+                          treatment_menu_level2_id: "",
+                          treatment_menu_level3_id: "",
                         }))
                       }
                     >
@@ -5003,117 +5943,161 @@ export default function SettingsPage() {
                         <SelectValue placeholder="メニュー1を選択" />
                       </SelectTrigger>
                       <SelectContent>
-                        {treatmentMenus.filter(m => m.level === 1).map(menu => (
-                          <SelectItem key={menu.id} value={menu.id}>
-                            <div className="flex items-center space-x-2">
-                              <div
-                                className="w-4 h-4 rounded"
-                              style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                            />
-                              <span>{menu.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
+                        {treatmentMenus
+                          .filter((m) => m.level === 1)
+                          .map((menu) => (
+                            <SelectItem key={menu.id} value={menu.id}>
+                              <div className="flex items-center space-x-2">
+                                <div
+                                  className="w-4 h-4 rounded"
+                                  style={{
+                                    backgroundColor: menu.color || "#bfbfbf",
+                                  }}
+                                />
+                                <span>{menu.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
-                          </div>
+                  </div>
 
                   {/* メニュー2選択（メニュー1が選択されている場合のみ表示） */}
-                  {newWebMenu.treatment_menu_id && (() => {
-                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_id)
-                    return childMenus.length > 0 ? (
-                      <div>
-                        <Label htmlFor="web_treatment_menu_level2">診療メニュー2（オプション）</Label>
-                        <Select
-                          value={newWebMenu.treatment_menu_level2_id || undefined}
-                          onValueChange={(value) =>
-                            setNewWebMenu(prev => ({ 
-                              ...prev, 
-                              treatment_menu_level2_id: value,
-                              treatment_menu_level3_id: ''
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="メニュー2を選択（任意）" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {childMenus.map(menu => (
-                              <SelectItem key={menu.id} value={menu.id}>
-                                <div className="flex items-center space-x-2">
-                                  <div
-                                    className="w-4 h-4 rounded"
-                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                                  />
-                                  <span>{menu.name}</span>
-                          </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ) : null
-                  })()}
+                  {newWebMenu.treatment_menu_id &&
+                    (() => {
+                      const childMenus = treatmentMenus.filter(
+                        (m) => m.parent_id === newWebMenu.treatment_menu_id,
+                      );
+                      return childMenus.length > 0 ? (
+                        <div>
+                          <Label htmlFor="web_treatment_menu_level2">
+                            診療メニュー2（オプション）
+                          </Label>
+                          <Select
+                            value={
+                              newWebMenu.treatment_menu_level2_id || undefined
+                            }
+                            onValueChange={(value) =>
+                              setNewWebMenu((prev) => ({
+                                ...prev,
+                                treatment_menu_level2_id: value,
+                                treatment_menu_level3_id: "",
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="メニュー2を選択（任意）" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {childMenus.map((menu) => (
+                                <SelectItem key={menu.id} value={menu.id}>
+                                  <div className="flex items-center space-x-2">
+                                    <div
+                                      className="w-4 h-4 rounded"
+                                      style={{
+                                        backgroundColor:
+                                          menu.color || "#bfbfbf",
+                                      }}
+                                    />
+                                    <span>{menu.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null;
+                    })()}
 
                   {/* メニュー3選択（メニュー2が選択されている場合のみ表示） */}
-                  {newWebMenu.treatment_menu_level2_id && (() => {
-                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_level2_id)
-                    return childMenus.length > 0 ? (
-                              <div>
-                        <Label htmlFor="web_treatment_menu_level3">サブメニュー（オプション）</Label>
-                        <Select
-                          value={newWebMenu.treatment_menu_level3_id || undefined}
-                          onValueChange={(value) =>
-                            setNewWebMenu(prev => ({ 
-                              ...prev, 
-                              treatment_menu_level3_id: value
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="サブメニューを選択（任意）" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {childMenus.map(menu => (
-                              <SelectItem key={menu.id} value={menu.id}>
-                                <div className="flex items-center space-x-2">
-                                  <div
-                                    className="w-4 h-4 rounded"
-                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                                  />
-                                  <span>{menu.name}</span>
-                                    </div>
-                              </SelectItem>
-                                  ))}
-                          </SelectContent>
-                        </Select>
-                                </div>
-                    ) : null
-                  })()}
-                              </div>
+                  {newWebMenu.treatment_menu_level2_id &&
+                    (() => {
+                      const childMenus = treatmentMenus.filter(
+                        (m) =>
+                          m.parent_id === newWebMenu.treatment_menu_level2_id,
+                      );
+                      return childMenus.length > 0 ? (
+                        <div>
+                          <Label htmlFor="web_treatment_menu_level3">
+                            サブメニュー（オプション）
+                          </Label>
+                          <Select
+                            value={
+                              newWebMenu.treatment_menu_level3_id || undefined
+                            }
+                            onValueChange={(value) =>
+                              setNewWebMenu((prev) => ({
+                                ...prev,
+                                treatment_menu_level3_id: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="サブメニューを選択（任意）" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {childMenus.map((menu) => (
+                                <SelectItem key={menu.id} value={menu.id}>
+                                  <div className="flex items-center space-x-2">
+                                    <div
+                                      className="w-4 h-4 rounded"
+                                      style={{
+                                        backgroundColor:
+                                          menu.color || "#bfbfbf",
+                                      }}
+                                    />
+                                    <span>{menu.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null;
+                    })()}
+                </div>
 
                 {/* Web予約時の表示名 */}
                 {newWebMenu.treatment_menu_id && (
-                              <div>
+                  <div>
                     <Label htmlFor="web_display_name">Web予約時の表示名</Label>
-                                <Input
+                    <Input
                       id="web_display_name"
                       value={newWebMenu.display_name}
-                                  onChange={(e) =>
-                        setNewWebMenu(prev => ({ ...prev, display_name: e.target.value }))
+                      onChange={(e) =>
+                        setNewWebMenu((prev) => ({
+                          ...prev,
+                          display_name: e.target.value,
+                        }))
                       }
                       placeholder={(() => {
-                        const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
-                        const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
-                        const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
-                        const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
-                        return menuNameParts.join(' > ') || '例: 初診検査'
+                        const level1Menu = treatmentMenus.find(
+                          (m) => m.id === newWebMenu.treatment_menu_id,
+                        );
+                        const level2Menu = newWebMenu.treatment_menu_level2_id
+                          ? treatmentMenus.find(
+                              (m) =>
+                                m.id === newWebMenu.treatment_menu_level2_id,
+                            )
+                          : null;
+                        const level3Menu = newWebMenu.treatment_menu_level3_id
+                          ? treatmentMenus.find(
+                              (m) =>
+                                m.id === newWebMenu.treatment_menu_level3_id,
+                            )
+                          : null;
+                        const menuNameParts = [
+                          level1Menu?.name,
+                          level2Menu?.name,
+                          level3Menu?.name,
+                        ].filter(Boolean);
+                        return menuNameParts.join(" > ") || "例: 初診検査";
                       })()}
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       空欄の場合は、選択した診療メニュー名が使用されます
-                                </p>
-                              </div>
+                    </p>
+                  </div>
                 )}
 
                 {/* 全体の診療時間表示 */}
@@ -5126,12 +6110,10 @@ export default function SettingsPage() {
                 {/* ステップ一覧 */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base font-semibold">処置ステップ</Label>
-                    <Button 
-                      onClick={handleAddStep}
-                      size="sm"
-                      variant="outline"
-                    >
+                    <Label className="text-base font-semibold">
+                      処置ステップ
+                    </Label>
+                    <Button onClick={handleAddStep} size="sm" variant="outline">
                       <Plus className="w-4 h-4 mr-1" />
                       ステップを追加
                     </Button>
@@ -5140,7 +6122,9 @@ export default function SettingsPage() {
                   {newWebMenu.steps.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
                       <p className="text-sm">ステップが登録されていません</p>
-                      <p className="text-xs mt-1">「ステップを追加」ボタンから処置ステップを追加してください</p>
+                      <p className="text-xs mt-1">
+                        「ステップを追加」ボタンから処置ステップを追加してください
+                      </p>
                     </div>
                   ) : (
                     newWebMenu.steps.map((step, index) => (
@@ -5148,7 +6132,9 @@ export default function SettingsPage() {
                         {/* ステップカード */}
                         <div className="border border-gray-300 rounded-lg p-4 bg-white">
                           <div className="flex items-start justify-between mb-3">
-                            <h4 className="font-semibold text-gray-900">ステップ {step.step_order}</h4>
+                            <h4 className="font-semibold text-gray-900">
+                              ステップ {step.step_order}
+                            </h4>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -5161,7 +6147,7 @@ export default function SettingsPage() {
 
                           {/* 時間設定 */}
                           <div className="grid grid-cols-3 gap-3 mb-3">
-                              <div>
+                            <div>
                               <Label className="text-xs">開始時間</Label>
                               <Input
                                 type="number"
@@ -5175,7 +6161,12 @@ export default function SettingsPage() {
                               <Input
                                 type="number"
                                 value={step.end_time}
-                                onChange={(e) => handleUpdateStepTime(step.id, parseInt(e.target.value) || step.start_time)}
+                                onChange={(e) =>
+                                  handleUpdateStepTime(
+                                    step.id,
+                                    parseInt(e.target.value) || step.start_time,
+                                  )
+                                }
                                 className="text-sm"
                                 min={step.start_time + 5}
                               />
@@ -5197,10 +6188,16 @@ export default function SettingsPage() {
                             <Input
                               value={step.description}
                               onChange={(e) => {
-                                const updatedSteps = newWebMenu.steps.map(s =>
-                                  s.id === step.id ? { ...s, description: e.target.value } : s
-                                )
-                                setNewWebMenu(prev => ({ ...prev, steps: updatedSteps }))
+                                const updatedSteps = newWebMenu.steps.map(
+                                  (s) =>
+                                    s.id === step.id
+                                      ? { ...s, description: e.target.value }
+                                      : s,
+                                );
+                                setNewWebMenu((prev) => ({
+                                  ...prev,
+                                  steps: updatedSteps,
+                                }));
                               }}
                               placeholder="例: 準備・検査"
                               className="text-sm"
@@ -5209,12 +6206,14 @@ export default function SettingsPage() {
 
                           {/* 配置タイプ */}
                           <div className="mb-3">
-                            <Label className="text-xs mb-2 block">配置タイプ</Label>
+                            <Label className="text-xs mb-2 block">
+                              配置タイプ
+                            </Label>
                             <div className="flex space-x-4">
                               <label className="flex items-center space-x-2 cursor-pointer">
                                 <input
                                   type="radio"
-                                  checked={step.type === 'serial'}
+                                  checked={step.type === "serial"}
                                   onChange={() => handleToggleStepType(step.id)}
                                   className="w-4 h-4"
                                 />
@@ -5223,7 +6222,7 @@ export default function SettingsPage() {
                               <label className="flex items-center space-x-2 cursor-pointer">
                                 <input
                                   type="radio"
-                                  checked={step.type === 'parallel'}
+                                  checked={step.type === "parallel"}
                                   onChange={() => handleToggleStepType(step.id)}
                                   className="w-4 h-4"
                                 />
@@ -5231,9 +6230,9 @@ export default function SettingsPage() {
                               </label>
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
-                              {step.type === 'serial' 
-                                ? '選択した担当者のいずれか1人が自動割り当てされます' 
-                                : '選択した全ての担当者が同時に必要です'}
+                              {step.type === "serial"
+                                ? "選択した担当者のいずれか1人が自動割り当てされます"
+                                : "選択した全ての担当者が同時に必要です"}
                             </p>
                           </div>
 
@@ -5242,15 +6241,23 @@ export default function SettingsPage() {
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
                               <div className="grid grid-cols-2 gap-2 mb-3">
-                                {staff.map(s => (
-                                  <label key={s.id} className="flex items-center space-x-2 cursor-pointer">
+                                {staff.map((s) => (
+                                  <label
+                                    key={s.id}
+                                    className="flex items-center space-x-2 cursor-pointer"
+                                  >
                                     <Checkbox
-                                      checked={step.staff_assignments.some(sa => sa.staff_id === s.id)}
+                                      checked={step.staff_assignments.some(
+                                        (sa) => sa.staff_id === s.id,
+                                      )}
                                       onCheckedChange={(checked) => {
                                         if (checked) {
-                                          handleAddStaffToStep(step.id, s.id)
+                                          handleAddStaffToStep(step.id, s.id);
                                         } else {
-                                          handleRemoveStaffFromStep(step.id, s.id)
+                                          handleRemoveStaffFromStep(
+                                            step.id,
+                                            s.id,
+                                          );
                                         }
                                       }}
                                     />
@@ -5260,39 +6267,66 @@ export default function SettingsPage() {
                               </div>
 
                               {/* 選択された担当者の優先順位 */}
-                              {step.staff_assignments.length > 0 && step.type === 'serial' && (
-                                <div className="border-t pt-3 mt-3">
-                                  <p className="text-xs font-medium text-gray-700 mb-2">優先順位（上から順に割り当て）</p>
-                                  <div className="space-y-1">
-                                    {step.staff_assignments.map((assignment, idx) => {
-                                      const staffMember = staff.find(s => s.id === assignment.staff_id)
-                                      return (
-                                        <div key={assignment.staff_id} className="flex items-center justify-between bg-white px-2 py-1 rounded">
-                                          <span className="text-sm">
-                                            {idx + 1}. {staffMember?.name}
-                                          </span>
-                                          <div className="flex space-x-1">
-                                            <button
-                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'up')}
-                                              disabled={idx === 0}
-                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                              {step.staff_assignments.length > 0 &&
+                                step.type === "serial" && (
+                                  <div className="border-t pt-3 mt-3">
+                                    <p className="text-xs font-medium text-gray-700 mb-2">
+                                      優先順位（上から順に割り当て）
+                                    </p>
+                                    <div className="space-y-1">
+                                      {step.staff_assignments.map(
+                                        (assignment, idx) => {
+                                          const staffMember = staff.find(
+                                            (s) => s.id === assignment.staff_id,
+                                          );
+                                          return (
+                                            <div
+                                              key={assignment.staff_id}
+                                              className="flex items-center justify-between bg-white px-2 py-1 rounded"
                                             >
-                                              <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
-                                            </button>
-                                            <button
-                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'down')}
-                                              disabled={idx === step.staff_assignments.length - 1}
-                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
-                                            >
-                                              <ChevronRight className="w-3 h-3 rotate-90" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
+                                              <span className="text-sm">
+                                                {idx + 1}. {staffMember?.name}
+                                              </span>
+                                              <div className="flex space-x-1">
+                                                <button
+                                                  onClick={() =>
+                                                    handleMoveStaffPriority(
+                                                      step.id,
+                                                      assignment.staff_id,
+                                                      "up",
+                                                    )
+                                                  }
+                                                  disabled={idx === 0}
+                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                                >
+                                                  <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    handleMoveStaffPriority(
+                                                      step.id,
+                                                      assignment.staff_id,
+                                                      "down",
+                                                    )
+                                                  }
+                                                  disabled={
+                                                    idx ===
+                                                    step.staff_assignments
+                                                      .length -
+                                                      1
+                                                  }
+                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                                >
+                                                  <ChevronRight className="w-3 h-3 rotate-90" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          );
+                                        },
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
                             </div>
                           </div>
                         </div>
@@ -5300,13 +6334,15 @@ export default function SettingsPage() {
                         {/* ステップ間の矢印 */}
                         {index < newWebMenu.steps.length - 1 && (
                           <div className="flex justify-center py-2">
-                            {step.type === 'serial' && newWebMenu.steps[index + 1].type === 'serial' && (
-                              <div className="text-gray-400">
-                                <ChevronRight className="w-5 h-5 rotate-90" />
-                                <p className="text-xs">順番</p>
-                              </div>
-                            )}
-                            {step.type === 'parallel' || newWebMenu.steps[index + 1].type === 'parallel' ? (
+                            {step.type === "serial" &&
+                              newWebMenu.steps[index + 1].type === "serial" && (
+                                <div className="text-gray-400">
+                                  <ChevronRight className="w-5 h-5 rotate-90" />
+                                  <p className="text-xs">順番</p>
+                                </div>
+                              )}
+                            {step.type === "parallel" ||
+                            newWebMenu.steps[index + 1].type === "parallel" ? (
                               <div className="text-gray-400">
                                 <div className="flex items-center">
                                   <ChevronRight className="w-5 h-5 rotate-90" />
@@ -5325,75 +6361,76 @@ export default function SettingsPage() {
                 {/* 受付可能な患者 */}
                 <div>
                   <Label className="mb-2 block">受付可能な患者</Label>
-                                <div className="space-y-2">
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
                         id="web_menu_allow_new"
                         checked={newWebMenu.allow_new_patient}
-                                      onCheckedChange={(checked) =>
-                          setNewWebMenu(prev => ({
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu((prev) => ({
                             ...prev,
-                            allow_new_patient: checked as boolean
+                            allow_new_patient: checked as boolean,
                           }))
-                                      }
-                                    />
+                        }
+                      />
                       <Label htmlFor="web_menu_allow_new">初診</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
                         id="web_menu_allow_returning"
                         checked={newWebMenu.allow_returning}
-                                      onCheckedChange={(checked) =>
-                          setNewWebMenu(prev => ({
+                        onCheckedChange={(checked) =>
+                          setNewWebMenu((prev) => ({
                             ...prev,
-                            allow_returning: checked as boolean
+                            allow_returning: checked as boolean,
                           }))
-                                      }
-                                    />
+                        }
+                      />
                       <Label htmlFor="web_menu_allow_returning">再診</Label>
-                                  </div>
-                                </div>
-                              </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* フッター */}
                 <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
-                  <Button variant="outline" onClick={() => {
-                    setIsAddWebMenuDialogOpen(false)
-                    setNewWebMenu({
-                      treatment_menu_id: '',
-                      treatment_menu_level2_id: '',
-                      treatment_menu_level3_id: '',
-                      display_name: '',
-                      duration: 30,
-                      steps: [],
-                      allow_new_patient: true,
-                      allow_returning: true
-                    })
-                  }}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddWebMenuDialogOpen(false);
+                      setNewWebMenu({
+                        treatment_menu_id: "",
+                        treatment_menu_level2_id: "",
+                        treatment_menu_level3_id: "",
+                        display_name: "",
+                        duration: 30,
+                        steps: [],
+                        allow_new_patient: true,
+                        allow_returning: true,
+                      });
+                    }}
+                  >
                     キャンセル
                   </Button>
-                  <Button onClick={handleAddWebBookingMenu}>
-                    追加
-                  </Button>
+                  <Button onClick={handleAddWebBookingMenu}>追加</Button>
                 </div>
-                        </div>
+              </div>
             </Modal>
 
             {/* Web予約メニュー編集ダイアログ */}
             <Modal
               isOpen={isEditWebMenuDialogOpen}
               onClose={() => {
-                setIsEditWebMenuDialogOpen(false)
-                setEditingWebMenu(null)
+                setIsEditWebMenuDialogOpen(false);
+                setEditingWebMenu(null);
                 setNewWebMenu({
-                  treatment_menu_id: '',
-                  treatment_menu_level2_id: '',
-                  treatment_menu_level3_id: '',
+                  treatment_menu_id: "",
+                  treatment_menu_level2_id: "",
+                  treatment_menu_level3_id: "",
                   duration: 30,
                   steps: [],
                   allow_new_patient: true,
-                  allow_returning: true
-                })
+                  allow_returning: true,
+                });
               }}
               title="Web予約メニューを編集"
               size="large"
@@ -5403,15 +6440,17 @@ export default function SettingsPage() {
                 <div className="space-y-3">
                   {/* メニュー1選択 */}
                   <div>
-                    <Label htmlFor="edit_web_treatment_menu_level1">診療メニュー1</Label>
+                    <Label htmlFor="edit_web_treatment_menu_level1">
+                      診療メニュー1
+                    </Label>
                     <Select
                       value={newWebMenu.treatment_menu_id}
                       onValueChange={(value) =>
-                        setNewWebMenu(prev => ({ 
-                          ...prev, 
+                        setNewWebMenu((prev) => ({
+                          ...prev,
                           treatment_menu_id: value,
-                          treatment_menu_level2_id: '',
-                          treatment_menu_level3_id: ''
+                          treatment_menu_level2_id: "",
+                          treatment_menu_level3_id: "",
                         }))
                       }
                     >
@@ -5419,135 +6458,179 @@ export default function SettingsPage() {
                         <SelectValue placeholder="メニュー1を選択" />
                       </SelectTrigger>
                       <SelectContent>
-                        {treatmentMenus.filter(m => m.level === 1).map(menu => (
-                          <SelectItem key={menu.id} value={menu.id}>
-                            <div className="flex items-center space-x-2">
-                              <div
-                                className="w-4 h-4 rounded"
-                                style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                              />
-                              <span>{menu.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
+                        {treatmentMenus
+                          .filter((m) => m.level === 1)
+                          .map((menu) => (
+                            <SelectItem key={menu.id} value={menu.id}>
+                              <div className="flex items-center space-x-2">
+                                <div
+                                  className="w-4 h-4 rounded"
+                                  style={{
+                                    backgroundColor: menu.color || "#bfbfbf",
+                                  }}
+                                />
+                                <span>{menu.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   {/* メニュー2選択 */}
-                  {newWebMenu.treatment_menu_id && (() => {
-                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_id)
-                    return childMenus.length > 0 ? (
-                      <div>
-                        <Label htmlFor="edit_web_treatment_menu_level2">診療メニュー2（オプション）</Label>
-                        <Select
-                          value={newWebMenu.treatment_menu_level2_id || undefined}
-                          onValueChange={(value) =>
-                            setNewWebMenu(prev => ({ 
-                              ...prev, 
-                              treatment_menu_level2_id: value,
-                              treatment_menu_level3_id: ''
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="メニュー2を選択（任意）" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {childMenus.map(menu => (
-                              <SelectItem key={menu.id} value={menu.id}>
-                                <div className="flex items-center space-x-2">
-                                  <div
-                                    className="w-4 h-4 rounded"
-                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                                  />
-                                  <span>{menu.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ) : null
-                  })()}
+                  {newWebMenu.treatment_menu_id &&
+                    (() => {
+                      const childMenus = treatmentMenus.filter(
+                        (m) => m.parent_id === newWebMenu.treatment_menu_id,
+                      );
+                      return childMenus.length > 0 ? (
+                        <div>
+                          <Label htmlFor="edit_web_treatment_menu_level2">
+                            診療メニュー2（オプション）
+                          </Label>
+                          <Select
+                            value={
+                              newWebMenu.treatment_menu_level2_id || undefined
+                            }
+                            onValueChange={(value) =>
+                              setNewWebMenu((prev) => ({
+                                ...prev,
+                                treatment_menu_level2_id: value,
+                                treatment_menu_level3_id: "",
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="メニュー2を選択（任意）" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {childMenus.map((menu) => (
+                                <SelectItem key={menu.id} value={menu.id}>
+                                  <div className="flex items-center space-x-2">
+                                    <div
+                                      className="w-4 h-4 rounded"
+                                      style={{
+                                        backgroundColor:
+                                          menu.color || "#bfbfbf",
+                                      }}
+                                    />
+                                    <span>{menu.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null;
+                    })()}
 
                   {/* メニュー3選択 */}
-                  {newWebMenu.treatment_menu_level2_id && (() => {
-                    const childMenus = treatmentMenus.filter(m => m.parent_id === newWebMenu.treatment_menu_level2_id)
-                    return childMenus.length > 0 ? (
-                      <div>
-                        <Label htmlFor="edit_web_treatment_menu_level3">サブメニュー（オプション）</Label>
-                        <Select
-                          value={newWebMenu.treatment_menu_level3_id || undefined}
-                          onValueChange={(value) =>
-                            setNewWebMenu(prev => ({ 
-                              ...prev, 
-                              treatment_menu_level3_id: value
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="サブメニューを選択（任意）" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {childMenus.map(menu => (
-                              <SelectItem key={menu.id} value={menu.id}>
-                                <div className="flex items-center space-x-2">
-                                  <div
-                                    className="w-4 h-4 rounded"
-                                    style={{ backgroundColor: menu.color || '#bfbfbf' }}
-                                  />
-                                  <span>{menu.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ) : null
-                  })()}
+                  {newWebMenu.treatment_menu_level2_id &&
+                    (() => {
+                      const childMenus = treatmentMenus.filter(
+                        (m) =>
+                          m.parent_id === newWebMenu.treatment_menu_level2_id,
+                      );
+                      return childMenus.length > 0 ? (
+                        <div>
+                          <Label htmlFor="edit_web_treatment_menu_level3">
+                            サブメニュー（オプション）
+                          </Label>
+                          <Select
+                            value={
+                              newWebMenu.treatment_menu_level3_id || undefined
+                            }
+                            onValueChange={(value) =>
+                              setNewWebMenu((prev) => ({
+                                ...prev,
+                                treatment_menu_level3_id: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="サブメニューを選択（任意）" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {childMenus.map((menu) => (
+                                <SelectItem key={menu.id} value={menu.id}>
+                                  <div className="flex items-center space-x-2">
+                                    <div
+                                      className="w-4 h-4 rounded"
+                                      style={{
+                                        backgroundColor:
+                                          menu.color || "#bfbfbf",
+                                      }}
+                                    />
+                                    <span>{menu.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null;
+                    })()}
                 </div>
 
                 {/* Web予約時の表示名 */}
                 {newWebMenu.treatment_menu_id && (
                   <div>
-                    <Label htmlFor="edit_web_display_name">Web予約時の表示名</Label>
+                    <Label htmlFor="edit_web_display_name">
+                      Web予約時の表示名
+                    </Label>
                     <Input
                       id="edit_web_display_name"
                       value={newWebMenu.display_name}
                       onChange={(e) =>
-                        setNewWebMenu(prev => ({ ...prev, display_name: e.target.value }))
+                        setNewWebMenu((prev) => ({
+                          ...prev,
+                          display_name: e.target.value,
+                        }))
                       }
                       placeholder={(() => {
-                        const level1Menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
-                        const level2Menu = newWebMenu.treatment_menu_level2_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level2_id) : null
-                        const level3Menu = newWebMenu.treatment_menu_level3_id ? treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_level3_id) : null
-                        const menuNameParts = [level1Menu?.name, level2Menu?.name, level3Menu?.name].filter(Boolean)
-                        return menuNameParts.join(' > ') || '例: 初診検査'
+                        const level1Menu = treatmentMenus.find(
+                          (m) => m.id === newWebMenu.treatment_menu_id,
+                        );
+                        const level2Menu = newWebMenu.treatment_menu_level2_id
+                          ? treatmentMenus.find(
+                              (m) =>
+                                m.id === newWebMenu.treatment_menu_level2_id,
+                            )
+                          : null;
+                        const level3Menu = newWebMenu.treatment_menu_level3_id
+                          ? treatmentMenus.find(
+                              (m) =>
+                                m.id === newWebMenu.treatment_menu_level3_id,
+                            )
+                          : null;
+                        const menuNameParts = [
+                          level1Menu?.name,
+                          level2Menu?.name,
+                          level3Menu?.name,
+                        ].filter(Boolean);
+                        return menuNameParts.join(" > ") || "例: 初診検査";
                       })()}
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       空欄の場合は、選択した診療メニュー名が使用されます
                     </p>
-                            </div>
-                          )}
+                  </div>
+                )}
 
                 {/* 全体の診療時間表示 */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm font-medium text-blue-900">
                     全体の診療時間: {newWebMenu.duration}分
                   </p>
-                        </div>
+                </div>
 
                 {/* ステップ一覧 */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base font-semibold">処置ステップ</Label>
-                    <Button 
-                      onClick={handleAddStep}
-                      size="sm"
-                      variant="outline"
-                    >
+                    <Label className="text-base font-semibold">
+                      処置ステップ
+                    </Label>
+                    <Button onClick={handleAddStep} size="sm" variant="outline">
                       <Plus className="w-4 h-4 mr-1" />
                       ステップを追加
                     </Button>
@@ -5556,7 +6639,9 @@ export default function SettingsPage() {
                   {newWebMenu.steps.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
                       <p className="text-sm">ステップが登録されていません</p>
-                      <p className="text-xs mt-1">「ステップを追加」ボタンから処置ステップを追加してください</p>
+                      <p className="text-xs mt-1">
+                        「ステップを追加」ボタンから処置ステップを追加してください
+                      </p>
                     </div>
                   ) : (
                     newWebMenu.steps.map((step, index) => (
@@ -5564,7 +6649,9 @@ export default function SettingsPage() {
                         {/* ステップカード */}
                         <div className="border border-gray-300 rounded-lg p-4 bg-white">
                           <div className="flex items-start justify-between mb-3">
-                            <h4 className="font-semibold text-gray-900">ステップ {step.step_order}</h4>
+                            <h4 className="font-semibold text-gray-900">
+                              ステップ {step.step_order}
+                            </h4>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -5591,7 +6678,12 @@ export default function SettingsPage() {
                               <Input
                                 type="number"
                                 value={step.end_time}
-                                onChange={(e) => handleUpdateStepTime(step.id, parseInt(e.target.value) || step.start_time)}
+                                onChange={(e) =>
+                                  handleUpdateStepTime(
+                                    step.id,
+                                    parseInt(e.target.value) || step.start_time,
+                                  )
+                                }
                                 className="text-sm"
                                 min={step.start_time + 5}
                               />
@@ -5613,10 +6705,16 @@ export default function SettingsPage() {
                             <Input
                               value={step.description}
                               onChange={(e) => {
-                                const updatedSteps = newWebMenu.steps.map(s =>
-                                  s.id === step.id ? { ...s, description: e.target.value } : s
-                                )
-                                setNewWebMenu(prev => ({ ...prev, steps: updatedSteps }))
+                                const updatedSteps = newWebMenu.steps.map(
+                                  (s) =>
+                                    s.id === step.id
+                                      ? { ...s, description: e.target.value }
+                                      : s,
+                                );
+                                setNewWebMenu((prev) => ({
+                                  ...prev,
+                                  steps: updatedSteps,
+                                }));
                               }}
                               placeholder="例: 準備・検査"
                               className="text-sm"
@@ -5625,12 +6723,14 @@ export default function SettingsPage() {
 
                           {/* 配置タイプ */}
                           <div className="mb-3">
-                            <Label className="text-xs mb-2 block">配置タイプ</Label>
+                            <Label className="text-xs mb-2 block">
+                              配置タイプ
+                            </Label>
                             <div className="flex space-x-4">
                               <label className="flex items-center space-x-2 cursor-pointer">
                                 <input
                                   type="radio"
-                                  checked={step.type === 'serial'}
+                                  checked={step.type === "serial"}
                                   onChange={() => handleToggleStepType(step.id)}
                                   className="w-4 h-4"
                                 />
@@ -5639,7 +6739,7 @@ export default function SettingsPage() {
                               <label className="flex items-center space-x-2 cursor-pointer">
                                 <input
                                   type="radio"
-                                  checked={step.type === 'parallel'}
+                                  checked={step.type === "parallel"}
                                   onChange={() => handleToggleStepType(step.id)}
                                   className="w-4 h-4"
                                 />
@@ -5647,9 +6747,9 @@ export default function SettingsPage() {
                               </label>
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
-                              {step.type === 'serial' 
-                                ? '選択した担当者のいずれか1人が自動割り当てされます' 
-                                : '選択した全ての担当者が同時に必要です'}
+                              {step.type === "serial"
+                                ? "選択した担当者のいずれか1人が自動割り当てされます"
+                                : "選択した全ての担当者が同時に必要です"}
                             </p>
                           </div>
 
@@ -5658,15 +6758,23 @@ export default function SettingsPage() {
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
                               <div className="grid grid-cols-2 gap-2 mb-3">
-                                {staff.map(s => (
-                                  <label key={s.id} className="flex items-center space-x-2 cursor-pointer">
+                                {staff.map((s) => (
+                                  <label
+                                    key={s.id}
+                                    className="flex items-center space-x-2 cursor-pointer"
+                                  >
                                     <Checkbox
-                                      checked={step.staff_assignments.some(sa => sa.staff_id === s.id)}
+                                      checked={step.staff_assignments.some(
+                                        (sa) => sa.staff_id === s.id,
+                                      )}
                                       onCheckedChange={(checked) => {
                                         if (checked) {
-                                          handleAddStaffToStep(step.id, s.id)
+                                          handleAddStaffToStep(step.id, s.id);
                                         } else {
-                                          handleRemoveStaffFromStep(step.id, s.id)
+                                          handleRemoveStaffFromStep(
+                                            step.id,
+                                            s.id,
+                                          );
                                         }
                                       }}
                                     />
@@ -5676,39 +6784,66 @@ export default function SettingsPage() {
                               </div>
 
                               {/* 選択された担当者の優先順位 */}
-                              {step.staff_assignments.length > 0 && step.type === 'serial' && (
-                                <div className="border-t pt-3 mt-3">
-                                  <p className="text-xs font-medium text-gray-700 mb-2">優先順位（上から順に割り当て）</p>
-                                  <div className="space-y-1">
-                                    {step.staff_assignments.map((assignment, idx) => {
-                                      const staffMember = staff.find(s => s.id === assignment.staff_id)
-                                      return (
-                                        <div key={assignment.staff_id} className="flex items-center justify-between bg-white px-2 py-1 rounded">
-                                          <span className="text-sm">
-                                            {idx + 1}. {staffMember?.name}
-                                          </span>
-                                          <div className="flex space-x-1">
-                                            <button
-                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'up')}
-                                              disabled={idx === 0}
-                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                              {step.staff_assignments.length > 0 &&
+                                step.type === "serial" && (
+                                  <div className="border-t pt-3 mt-3">
+                                    <p className="text-xs font-medium text-gray-700 mb-2">
+                                      優先順位（上から順に割り当て）
+                                    </p>
+                                    <div className="space-y-1">
+                                      {step.staff_assignments.map(
+                                        (assignment, idx) => {
+                                          const staffMember = staff.find(
+                                            (s) => s.id === assignment.staff_id,
+                                          );
+                                          return (
+                                            <div
+                                              key={assignment.staff_id}
+                                              className="flex items-center justify-between bg-white px-2 py-1 rounded"
                                             >
-                                              <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
-                                            </button>
-                                            <button
-                                              onClick={() => handleMoveStaffPriority(step.id, assignment.staff_id, 'down')}
-                                              disabled={idx === step.staff_assignments.length - 1}
-                                              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
-                                            >
-                                              <ChevronRight className="w-3 h-3 rotate-90" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
+                                              <span className="text-sm">
+                                                {idx + 1}. {staffMember?.name}
+                                              </span>
+                                              <div className="flex space-x-1">
+                                                <button
+                                                  onClick={() =>
+                                                    handleMoveStaffPriority(
+                                                      step.id,
+                                                      assignment.staff_id,
+                                                      "up",
+                                                    )
+                                                  }
+                                                  disabled={idx === 0}
+                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                                >
+                                                  <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    handleMoveStaffPriority(
+                                                      step.id,
+                                                      assignment.staff_id,
+                                                      "down",
+                                                    )
+                                                  }
+                                                  disabled={
+                                                    idx ===
+                                                    step.staff_assignments
+                                                      .length -
+                                                      1
+                                                  }
+                                                  className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+                                                >
+                                                  <ChevronRight className="w-3 h-3 rotate-90" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          );
+                                        },
+                                      )}
+                                    </div>
                                   </div>
-                    </div>
-                  )}
+                                )}
                             </div>
                           </div>
                         </div>
@@ -5716,13 +6851,15 @@ export default function SettingsPage() {
                         {/* ステップ間の矢印 */}
                         {index < newWebMenu.steps.length - 1 && (
                           <div className="flex justify-center py-2">
-                            {step.type === 'serial' && newWebMenu.steps[index + 1].type === 'serial' && (
-                              <div className="text-gray-400">
-                                <ChevronRight className="w-5 h-5 rotate-90" />
-                                <p className="text-xs">順番</p>
-                              </div>
-                            )}
-                            {step.type === 'parallel' || newWebMenu.steps[index + 1].type === 'parallel' ? (
+                            {step.type === "serial" &&
+                              newWebMenu.steps[index + 1].type === "serial" && (
+                                <div className="text-gray-400">
+                                  <ChevronRight className="w-5 h-5 rotate-90" />
+                                  <p className="text-xs">順番</p>
+                                </div>
+                              )}
+                            {step.type === "parallel" ||
+                            newWebMenu.steps[index + 1].type === "parallel" ? (
                               <div className="text-gray-400">
                                 <div className="flex items-center">
                                   <ChevronRight className="w-5 h-5 rotate-90" />
@@ -5747,9 +6884,9 @@ export default function SettingsPage() {
                         id="edit_web_menu_allow_new"
                         checked={newWebMenu.allow_new_patient}
                         onCheckedChange={(checked) =>
-                          setNewWebMenu(prev => ({
+                          setNewWebMenu((prev) => ({
                             ...prev,
-                            allow_new_patient: checked as boolean
+                            allow_new_patient: checked as boolean,
                           }))
                         }
                       />
@@ -5760,109 +6897,116 @@ export default function SettingsPage() {
                         id="edit_web_menu_allow_returning"
                         checked={newWebMenu.allow_returning}
                         onCheckedChange={(checked) =>
-                          setNewWebMenu(prev => ({
+                          setNewWebMenu((prev) => ({
                             ...prev,
-                            allow_returning: checked as boolean
+                            allow_returning: checked as boolean,
                           }))
                         }
                       />
-                      <Label htmlFor="edit_web_menu_allow_returning">再診</Label>
+                      <Label htmlFor="edit_web_menu_allow_returning">
+                        再診
+                      </Label>
                     </div>
                   </div>
                 </div>
 
                 {/* フッター */}
                 <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
-                  <Button variant="outline" onClick={() => {
-                    setIsEditWebMenuDialogOpen(false)
-                    setEditingWebMenu(null)
-                    setNewWebMenu({
-                      treatment_menu_id: '',
-                      treatment_menu_level2_id: '',
-                      treatment_menu_level3_id: '',
-                      display_name: '',
-                      duration: 30,
-                      steps: [],
-                      allow_new_patient: true,
-                      allow_returning: true
-                    })
-                  }}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditWebMenuDialogOpen(false);
+                      setEditingWebMenu(null);
+                      setNewWebMenu({
+                        treatment_menu_id: "",
+                        treatment_menu_level2_id: "",
+                        treatment_menu_level3_id: "",
+                        display_name: "",
+                        duration: 30,
+                        steps: [],
+                        allow_new_patient: true,
+                        allow_returning: true,
+                      });
+                    }}
+                  >
                     キャンセル
                   </Button>
-                  <Button onClick={handleSaveEditWebMenu}>
-                    保存
-                  </Button>
+                  <Button onClick={handleSaveEditWebMenu}>保存</Button>
                 </div>
               </div>
             </Modal>
           </div>
         )}
-        {selectedCategory === 'notification' && (
+        {selectedCategory === "notification" && (
           <div className="space-y-6">
             {/* サブタブナビゲーション */}
             <div className="bg-white rounded-lg border border-gray-200">
               <div className="border-b border-gray-200 px-6 py-4">
-                <h2 className="text-lg font-semibold text-gray-900">通知設定</h2>
-                <p className="text-sm text-gray-600 mt-1">患者様への通知管理を行います</p>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  通知設定
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  患者様への通知管理を行います
+                </p>
               </div>
               <div className="p-2">
                 <div className="flex gap-1 border-b border-gray-200">
                   <button
-                    onClick={() => setNotificationTab('connection')}
+                    onClick={() => setNotificationTab("connection")}
                     className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === 'connection'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      notificationTab === "connection"
+                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     接続設定
                   </button>
                   <button
-                    onClick={() => setNotificationTab('templates')}
+                    onClick={() => setNotificationTab("templates")}
                     className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === 'templates'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      notificationTab === "templates"
+                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     テンプレート
                   </button>
                   <button
-                    onClick={() => setNotificationTab('auto-reminder')}
+                    onClick={() => setNotificationTab("auto-reminder")}
                     className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === 'auto-reminder'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      notificationTab === "auto-reminder"
+                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     自動リマインド
                   </button>
                   <button
-                    onClick={() => setNotificationTab('schedules')}
+                    onClick={() => setNotificationTab("schedules")}
                     className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === 'schedules'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      notificationTab === "schedules"
+                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     スケジュール
                   </button>
                   <button
-                    onClick={() => setNotificationTab('failures')}
+                    onClick={() => setNotificationTab("failures")}
                     className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === 'failures'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      notificationTab === "failures"
+                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     送信失敗
                   </button>
                   <button
-                    onClick={() => setNotificationTab('rich-menu')}
+                    onClick={() => setNotificationTab("rich-menu")}
                     className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === 'rich-menu'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      notificationTab === "rich-menu"
+                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     リッチメニュー
@@ -5872,7 +7016,7 @@ export default function SettingsPage() {
             </div>
 
             {/* タブコンテンツ */}
-            {notificationTab === 'connection' && (
+            {notificationTab === "connection" && (
               <div className="space-y-6">
                 {/* メール設定 */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -5880,97 +7024,150 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <Mail className="w-6 h-6 text-blue-600" />
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">メール設定</h3>
-                        <p className="text-sm text-gray-600">SMTP経由でのメール送信設定</p>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          メール設定
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          SMTP経由でのメール送信設定
+                        </p>
                       </div>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={notificationSettings.email.enabled}
-                        onChange={(e) => setNotificationSettings({
-                          ...notificationSettings,
-                          email: { ...notificationSettings.email, enabled: e.target.checked }
-                        })}
+                        onChange={(e) =>
+                          setNotificationSettings({
+                            ...notificationSettings,
+                            email: {
+                              ...notificationSettings.email,
+                              enabled: e.target.checked,
+                            },
+                          })
+                        }
                         className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm font-medium text-gray-700">有効化</span>
+                      <span className="text-sm font-medium text-gray-700">
+                        有効化
+                      </span>
                     </label>
                   </div>
 
                   {notificationSettings.email.enabled && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTPホスト</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          SMTPホスト
+                        </label>
                         <input
                           type="text"
                           value={notificationSettings.email.smtp_host}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            email: { ...notificationSettings.email, smtp_host: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              email: {
+                                ...notificationSettings.email,
+                                smtp_host: e.target.value,
+                              },
+                            })
+                          }
                           placeholder="smtp.example.com"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTPポート</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          SMTPポート
+                        </label>
                         <input
                           type="number"
                           value={notificationSettings.email.smtp_port}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            email: { ...notificationSettings.email, smtp_port: parseInt(e.target.value) }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              email: {
+                                ...notificationSettings.email,
+                                smtp_port: parseInt(e.target.value),
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTPユーザー名</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          SMTPユーザー名
+                        </label>
                         <input
                           type="text"
                           value={notificationSettings.email.smtp_user}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            email: { ...notificationSettings.email, smtp_user: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              email: {
+                                ...notificationSettings.email,
+                                smtp_user: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTPパスワード</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          SMTPパスワード
+                        </label>
                         <input
                           type="password"
                           value={notificationSettings.email.smtp_password}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            email: { ...notificationSettings.email, smtp_password: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              email: {
+                                ...notificationSettings.email,
+                                smtp_password: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">送信元アドレス</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          送信元アドレス
+                        </label>
                         <input
                           type="email"
                           value={notificationSettings.email.from_address}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            email: { ...notificationSettings.email, from_address: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              email: {
+                                ...notificationSettings.email,
+                                from_address: e.target.value,
+                              },
+                            })
+                          }
                           placeholder="noreply@example.com"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">送信元名</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          送信元名
+                        </label>
                         <input
                           type="text"
                           value={notificationSettings.email.from_name}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            email: { ...notificationSettings.email, from_name: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              email: {
+                                ...notificationSettings.email,
+                                from_name: e.target.value,
+                              },
+                            })
+                          }
                           placeholder="〇〇クリニック"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
@@ -5985,34 +7182,52 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <MessageSquare className="w-6 h-6 text-green-600" />
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">SMS設定</h3>
-                        <p className="text-sm text-gray-600">SMS送信サービスの設定</p>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          SMS設定
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          SMS送信サービスの設定
+                        </p>
                       </div>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={notificationSettings.sms.enabled}
-                        onChange={(e) => setNotificationSettings({
-                          ...notificationSettings,
-                          sms: { ...notificationSettings.sms, enabled: e.target.checked }
-                        })}
+                        onChange={(e) =>
+                          setNotificationSettings({
+                            ...notificationSettings,
+                            sms: {
+                              ...notificationSettings.sms,
+                              enabled: e.target.checked,
+                            },
+                          })
+                        }
                         className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm font-medium text-gray-700">有効化</span>
+                      <span className="text-sm font-medium text-gray-700">
+                        有効化
+                      </span>
                     </label>
                   </div>
 
                   {notificationSettings.sms.enabled && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">プロバイダー</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          プロバイダー
+                        </label>
                         <select
                           value={notificationSettings.sms.provider}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            sms: { ...notificationSettings.sms, provider: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              sms: {
+                                ...notificationSettings.sms,
+                                provider: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="twilio">Twilio</option>
@@ -6020,38 +7235,59 @@ export default function SettingsPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">APIキー</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          APIキー
+                        </label>
                         <input
                           type="text"
                           value={notificationSettings.sms.api_key}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            sms: { ...notificationSettings.sms, api_key: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              sms: {
+                                ...notificationSettings.sms,
+                                api_key: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">APIシークレット</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          APIシークレット
+                        </label>
                         <input
                           type="password"
                           value={notificationSettings.sms.api_secret}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            sms: { ...notificationSettings.sms, api_secret: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              sms: {
+                                ...notificationSettings.sms,
+                                api_secret: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">送信元番号</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          送信元番号
+                        </label>
                         <input
                           type="text"
                           value={notificationSettings.sms.sender_number}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            sms: { ...notificationSettings.sms, sender_number: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              sms: {
+                                ...notificationSettings.sms,
+                                sender_number: e.target.value,
+                              },
+                            })
+                          }
                           placeholder="+81-90-1234-5678"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
@@ -6066,64 +7302,98 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <MessageCircle className="w-6 h-6 text-green-500" />
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">LINE公式アカウント設定</h3>
-                        <p className="text-sm text-gray-600">LINE Messaging APIの設定</p>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          LINE公式アカウント設定
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          LINE Messaging APIの設定
+                        </p>
                       </div>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={notificationSettings.line.enabled}
-                        onChange={(e) => setNotificationSettings({
-                          ...notificationSettings,
-                          line: { ...notificationSettings.line, enabled: e.target.checked }
-                        })}
+                        onChange={(e) =>
+                          setNotificationSettings({
+                            ...notificationSettings,
+                            line: {
+                              ...notificationSettings.line,
+                              enabled: e.target.checked,
+                            },
+                          })
+                        }
                         className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm font-medium text-gray-700">有効化</span>
+                      <span className="text-sm font-medium text-gray-700">
+                        有効化
+                      </span>
                     </label>
                   </div>
 
                   {notificationSettings.line.enabled && (
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">チャンネルID</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          チャンネルID
+                        </label>
                         <input
                           type="text"
                           value={notificationSettings.line.channel_id}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            line: { ...notificationSettings.line, channel_id: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              line: {
+                                ...notificationSettings.line,
+                                channel_id: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">チャンネルシークレット</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          チャンネルシークレット
+                        </label>
                         <input
                           type="password"
                           value={notificationSettings.line.channel_secret}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            line: { ...notificationSettings.line, channel_secret: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              line: {
+                                ...notificationSettings.line,
+                                channel_secret: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">チャンネルアクセストークン</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          チャンネルアクセストークン
+                        </label>
                         <input
                           type="password"
                           value={notificationSettings.line.channel_access_token}
-                          onChange={(e) => setNotificationSettings({
-                            ...notificationSettings,
-                            line: { ...notificationSettings.line, channel_access_token: e.target.value }
-                          })}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              line: {
+                                ...notificationSettings.line,
+                                channel_access_token: e.target.value,
+                              },
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL（本番環境用）</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Webhook URL（本番環境用）
+                        </label>
                         <div className="flex gap-2">
                           <input
                             type="text"
@@ -6134,8 +7404,10 @@ export default function SettingsPage() {
                           />
                           <Button
                             onClick={() => {
-                              navigator.clipboard.writeText(notificationSettings.line.webhook_url)
-                              alert('Webhook URLをコピーしました')
+                              navigator.clipboard.writeText(
+                                notificationSettings.line.webhook_url,
+                              );
+                              alert("Webhook URLをコピーしました");
                             }}
                             variant="outline"
                           >
@@ -6143,13 +7415,29 @@ export default function SettingsPage() {
                           </Button>
                         </div>
                         <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-xs text-yellow-800 font-medium mb-1">⚠️ 開発環境での注意</p>
+                          <p className="text-xs text-yellow-800 font-medium mb-1">
+                            ⚠️ 開発環境での注意
+                          </p>
                           <p className="text-xs text-yellow-700">
-                            LINE WebhookはHTTPSが必須です。ローカル開発環境（http://localhost）では動作しません。
+                            LINE
+                            WebhookはHTTPSが必須です。ローカル開発環境（http://localhost）では動作しません。
                             <br />
-                            開発時は <a href="https://ngrok.com" target="_blank" className="underline">ngrok</a> を使用してHTTPSトンネルを作成し、
+                            開発時は{" "}
+                            <a
+                              href="https://ngrok.com"
+                              target="_blank"
+                              className="underline"
+                            >
+                              ngrok
+                            </a>{" "}
+                            を使用してHTTPSトンネルを作成し、
                             <br />
-                            例: <code className="bg-yellow-100 px-1 rounded">https://xxxx.ngrok.io/api/line/webhook</code> のようなURLをLINE Developersコンソールに設定してください。
+                            例:{" "}
+                            <code className="bg-yellow-100 px-1 rounded">
+                              https://xxxx.ngrok.io/api/line/webhook
+                            </code>{" "}
+                            のようなURLをLINE
+                            Developersコンソールに設定してください。
                           </p>
                         </div>
                       </div>
@@ -6161,66 +7449,84 @@ export default function SettingsPage() {
                 <div className="flex justify-end">
                   <Button
                     onClick={async () => {
-                      console.log('保存ボタンクリック - 現在の設定:', notificationSettings)
-                      setSaving(true)
+                      console.log(
+                        "保存ボタンクリック - 現在の設定:",
+                        notificationSettings,
+                      );
+                      setSaving(true);
                       try {
                         const payload = {
                           clinic_id: DEMO_CLINIC_ID,
-                          settings: notificationSettings
-                        }
-                        console.log('送信データ:', payload)
+                          settings: notificationSettings,
+                        };
+                        console.log("送信データ:", payload);
 
-                        const response = await fetch('/api/notification-settings', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(payload)
-                        })
+                        const response = await fetch(
+                          "/api/notification-settings",
+                          {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload),
+                          },
+                        );
 
-                        console.log('レスポンスステータス:', response.status)
-                        const responseData = await response.json()
-                        console.log('レスポンスデータ:', responseData)
+                        console.log("レスポンスステータス:", response.status);
+                        const responseData = await response.json();
+                        console.log("レスポンスデータ:", responseData);
 
                         if (response.ok) {
-                          alert('接続設定を保存しました')
+                          alert("接続設定を保存しました");
                         } else {
-                          throw new Error(responseData.error || responseData.details || '保存に失敗しました')
+                          throw new Error(
+                            responseData.error ||
+                              responseData.details ||
+                              "保存に失敗しました",
+                          );
                         }
                       } catch (error) {
-                        console.error('保存エラー詳細:', error)
-                        alert(`保存に失敗しました\n\n${error instanceof Error ? error.message : '不明なエラー'}`)
+                        console.error("保存エラー詳細:", error);
+                        alert(
+                          `保存に失敗しました\n\n${error instanceof Error ? error.message : "不明なエラー"}`,
+                        );
                       } finally {
-                        setSaving(false)
+                        setSaving(false);
                       }
                     }}
                     disabled={saving}
                   >
                     <Save className="w-4 h-4 mr-2" />
-                    {saving ? '保存中...' : '保存'}
+                    {saving ? "保存中..." : "保存"}
                   </Button>
                 </div>
               </div>
             )}
 
-            {notificationTab === 'templates' && (
+            {notificationTab === "templates" && (
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex justify-between items-center mb-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">通知テンプレート</h3>
-                    <p className="text-sm text-gray-600 mt-1">メッセージテンプレートの管理</p>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      通知テンプレート
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      メッセージテンプレートの管理
+                    </p>
                   </div>
-                  <Button onClick={() => {
-                    setEditingTemplate(null)
-                    setTemplateForm({
-                      name: '',
-                      notification_type: 'appointment_reminder',
-                      line_message: '',
-                      email_subject: '',
-                      email_message: '',
-                      sms_message: ''
-                    })
-                    setActiveChannelTab('line')
-                    setShowTemplateModal(true)
-                  }}>
+                  <Button
+                    onClick={() => {
+                      setEditingTemplate(null);
+                      setTemplateForm({
+                        name: "",
+                        notification_type: "appointment_reminder",
+                        line_message: "",
+                        email_subject: "",
+                        email_message: "",
+                        sms_message: "",
+                      });
+                      setActiveChannelTab("line");
+                      setShowTemplateModal(true);
+                    }}
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     新規作成
                   </Button>
@@ -6231,81 +7537,112 @@ export default function SettingsPage() {
                   <div className="text-center py-12 text-gray-500">
                     <FileText className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                     <p>テンプレートがありません</p>
-                    <p className="text-sm mt-1">「新規作成」ボタンからテンプレートを作成してください</p>
+                    <p className="text-sm mt-1">
+                      「新規作成」ボタンからテンプレートを作成してください
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {templates.map((template) => (
-                      <div key={template.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-semibold text-gray-900">{template.name}</h4>
-                              <div className="flex gap-1">
-                                {template.line_message && (
-                                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">LINE</span>
-                                )}
-                                {template.email_message && (
-                                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">メール</span>
-                                )}
-                                {template.sms_message && (
-                                  <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700">SMS</span>
-                                )}
-                              </div>
-                              <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                                {template.notification_type === 'appointment_reminder' ? '予約リマインド' :
-                                 template.notification_type === 'periodic_checkup' ? '定期検診' :
-                                 template.notification_type === 'treatment_reminder' ? '治療リマインド' :
-                                 template.notification_type === 'appointment_change' ? '予約変更' : 'カスタム'}
-                              </span>
+                      <div
+                        key={template.id}
+                        className="border border-gray-200 rounded-lg p-2.5 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-medium text-gray-900">
+                              {template.name}
+                            </h4>
+                            <div className="flex gap-1">
+                              {template.line_message && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                                  LINE
+                                </span>
+                              )}
+                              {template.email_message && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                  メール
+                                </span>
+                              )}
+                              {template.sms_message && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                  SMS
+                                </span>
+                              )}
                             </div>
-                            <p className="text-sm text-gray-600 line-clamp-2">
-                              {template.line_message || template.email_message || template.sms_message || ''}
-                            </p>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                              {template.notification_type ===
+                              "appointment_reminder"
+                                ? "予約リマインド"
+                                : template.notification_type ===
+                                    "periodic_checkup"
+                                  ? "定期検診"
+                                  : template.notification_type ===
+                                      "treatment_reminder"
+                                    ? "治療リマインド"
+                                    : template.notification_type ===
+                                        "appointment_change"
+                                      ? "予約変更"
+                                      : "カスタム"}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-2 ml-4">
+                          <div className="flex items-center gap-1.5">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                setEditingTemplate(template)
+                                setEditingTemplate(template);
                                 setTemplateForm({
                                   name: template.name,
                                   notification_type: template.notification_type,
-                                  line_message: template.line_message || '',
-                                  email_subject: template.email_subject || '',
-                                  email_message: template.email_message || '',
-                                  sms_message: template.sms_message || ''
-                                })
-                                setActiveChannelTab('line')
-                                setShowTemplateModal(true)
+                                  line_message: template.line_message || "",
+                                  email_subject: template.email_subject || "",
+                                  email_message: template.email_message || "",
+                                  sms_message: template.sms_message || "",
+                                });
+                                setActiveChannelTab("line");
+                                setShowTemplateModal(true);
                               }}
+                              className="h-7 px-2"
                             >
-                              <Edit className="w-4 h-4" />
+                              <Edit className="w-3.5 h-3.5" />
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={async () => {
-                                if (confirm('このテンプレートを削除しますか?')) {
+                                if (
+                                  confirm("このテンプレートを削除しますか?")
+                                ) {
                                   try {
-                                    const response = await fetch(`/api/notification-templates?id=${template.id}`, {
-                                      method: 'DELETE'
-                                    })
+                                    const response = await fetch(
+                                      `/api/notification-templates?id=${template.id}`,
+                                      {
+                                        method: "DELETE",
+                                      },
+                                    );
 
                                     if (response.ok) {
-                                      setTemplates(templates.filter(t => t.id !== template.id))
+                                      setTemplates(
+                                        templates.filter(
+                                          (t) => t.id !== template.id,
+                                        ),
+                                      );
                                     } else {
-                                      alert('削除に失敗しました')
+                                      alert("削除に失敗しました");
                                     }
                                   } catch (error) {
-                                    console.error('テンプレート削除エラー:', error)
-                                    alert('削除に失敗しました')
+                                    console.error(
+                                      "テンプレート削除エラー:",
+                                      error,
+                                    );
+                                    alert("削除に失敗しました");
                                   }
                                 }
                               }}
+                              className="h-7 px-2"
                             >
-                              <Trash2 className="w-4 h-4 text-red-600" />
+                              <Trash2 className="w-3.5 h-3.5 text-red-600" />
                             </Button>
                           </div>
                         </div>
@@ -6316,161 +7653,16 @@ export default function SettingsPage() {
 
                 {/* テンプレート作成・編集モーダル */}
                 {showTemplateModal && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {editingTemplate ? 'テンプレート編集' : '新規テンプレート作成'}
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+                      {/* ヘッダー */}
+                      <div className="flex justify-between items-center px-6 py-3 border-b border-gray-200">
+                        <h3 className="text-base font-semibold text-gray-900">
+                          {editingTemplate
+                            ? "テンプレート編集"
+                            : "新規テンプレート作成"}
                         </h3>
-                        <button
-                          onClick={() => setShowTemplateModal(false)}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          <X className="w-6 h-6" />
-                        </button>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">テンプレート名</label>
-                          <input
-                            type="text"
-                            value={templateForm.name}
-                            onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
-                            placeholder="例：予約3日前リマインド"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">通知種類</label>
-                          <select
-                            value={templateForm.notification_type}
-                            onChange={(e) => setTemplateForm({ ...templateForm, notification_type: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            <option value="appointment_reminder">予約リマインド</option>
-                            <option value="periodic_checkup">定期検診</option>
-                            <option value="treatment_reminder">治療リマインド</option>
-                            <option value="appointment_change">予約変更</option>
-                            <option value="custom">カスタム</option>
-                          </select>
-                        </div>
-
-                        {/* チャネルタブ */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">送信チャンネル別メッセージ</label>
-                          <div className="border border-gray-300 rounded-lg">
-                            <div className="flex border-b border-gray-300">
-                              <button
-                                type="button"
-                                onClick={() => setActiveChannelTab('line')}
-                                className={`flex-1 px-4 py-2 text-sm font-medium ${
-                                  activeChannelTab === 'line'
-                                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                                    : 'text-gray-600 hover:bg-gray-50'
-                                }`}
-                              >
-                                LINE {templateForm.line_message && '✓'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setActiveChannelTab('email')}
-                                className={`flex-1 px-4 py-2 text-sm font-medium ${
-                                  activeChannelTab === 'email'
-                                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                                    : 'text-gray-600 hover:bg-gray-50'
-                                }`}
-                              >
-                                メール {templateForm.email_message && '✓'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setActiveChannelTab('sms')}
-                                className={`flex-1 px-4 py-2 text-sm font-medium ${
-                                  activeChannelTab === 'sms'
-                                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                                    : 'text-gray-600 hover:bg-gray-50'
-                                }`}
-                              >
-                                SMS {templateForm.sms_message && '✓'}
-                              </button>
-                            </div>
-
-                            <div className="p-4">
-                              {activeChannelTab === 'line' && (
-                                <div>
-                                  <textarea
-                                    value={templateForm.line_message}
-                                    onChange={(e) => setTemplateForm({ ...templateForm, line_message: e.target.value })}
-                                    rows={8}
-                                    placeholder="例：{{patient_name}}様&#10;&#10;{{clinic_name}}です。&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;日時：{{appointment_datetime}}&#10;&#10;よろしくお願いいたします。"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                                  />
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    変数: {`{{patient_name}}`}, {`{{clinic_name}}`}, {`{{appointment_date}}`}, {`{{appointment_datetime}}`} | 最大5000文字
-                                  </p>
-                                </div>
-                              )}
-
-                              {activeChannelTab === 'email' && (
-                                <div className="space-y-3">
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">件名</label>
-                                    <input
-                                      type="text"
-                                      value={templateForm.email_subject}
-                                      onChange={(e) => setTemplateForm({ ...templateForm, email_subject: e.target.value })}
-                                      placeholder="例：【〇〇クリニック】ご予約のお知らせ"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">本文</label>
-                                    <textarea
-                                      value={templateForm.email_message}
-                                      onChange={(e) => setTemplateForm({ ...templateForm, email_message: e.target.value })}
-                                      rows={10}
-                                      placeholder="例：{{patient_name}}様&#10;&#10;いつもありがとうございます。&#10;{{clinic_name}}です。&#10;&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;■ご予約内容&#10;日時：{{appointment_datetime}}&#10;治療内容：{{treatment_name}}&#10;&#10;よろしくお願いいたします。"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      変数: {`{{patient_name}}`}, {`{{clinic_name}}`}, {`{{appointment_date}}`}, {`{{appointment_datetime}}`}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-
-                              {activeChannelTab === 'sms' && (
-                                <div>
-                                  <textarea
-                                    value={templateForm.sms_message}
-                                    onChange={(e) => setTemplateForm({ ...templateForm, sms_message: e.target.value })}
-                                    rows={4}
-                                    placeholder="例：明日10時のご予約です。〇〇クリニック"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                                    maxLength={160}
-                                  />
-                                  <div className="flex justify-between items-center mt-1">
-                                    <p className="text-xs text-gray-500">
-                                      変数: {`{{patient_name}}`}, {`{{appointment_date}}`} | 70文字推奨
-                                    </p>
-                                    <p className={`text-xs font-medium ${
-                                      templateForm.sms_message.length > 70
-                                        ? 'text-orange-600'
-                                        : 'text-gray-600'
-                                    }`}>
-                                      {templateForm.sms_message.length}/160文字
-                                      {templateForm.sms_message.length > 70 && ' (課金2倍)'}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-end gap-2 pt-4 border-t">
+                        <div className="flex items-center gap-3">
                           <Button
                             variant="outline"
                             onClick={() => setShowTemplateModal(false)}
@@ -6480,74 +7672,938 @@ export default function SettingsPage() {
                           <Button
                             onClick={async () => {
                               // バリデーション
-                              if (!templateForm.line_message && !templateForm.email_message && !templateForm.sms_message) {
-                                alert('少なくとも1つのチャネルのメッセージを入力してください')
-                                return
+                              if (
+                                !templateForm.line_message &&
+                                !templateForm.email_message &&
+                                !templateForm.sms_message
+                              ) {
+                                alert(
+                                  "少なくとも1つのチャネルのメッセージを入力してください",
+                                );
+                                return;
                               }
 
-                              setSaving(true)
+                              setSaving(true);
                               try {
                                 if (editingTemplate) {
                                   // 更新
-                                  const response = await fetch('/api/notification-templates', {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      id: editingTemplate.id,
-                                      name: templateForm.name,
-                                      notification_type: templateForm.notification_type,
-                                      line_message: templateForm.line_message,
-                                      email_subject: templateForm.email_subject,
-                                      email_message: templateForm.email_message,
-                                      sms_message: templateForm.sms_message
-                                    })
-                                  })
+                                  const response = await fetch(
+                                    "/api/notification-templates",
+                                    {
+                                      method: "PUT",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({
+                                        id: editingTemplate.id,
+                                        name: templateForm.name,
+                                        notification_type:
+                                          templateForm.notification_type,
+                                        line_message: templateForm.line_message,
+                                        email_subject:
+                                          templateForm.email_subject,
+                                        email_message:
+                                          templateForm.email_message,
+                                        sms_message: templateForm.sms_message,
+                                      }),
+                                    },
+                                  );
 
                                   if (response.ok) {
-                                    const updated = await response.json()
-                                    setTemplates(templates.map(t =>
-                                      t.id === editingTemplate.id
-                                        ? { ...t, ...templateForm }
-                                        : t
-                                    ))
+                                    const updated = await response.json();
+                                    setTemplates(
+                                      templates.map((t) =>
+                                        t.id === editingTemplate.id
+                                          ? { ...t, ...templateForm }
+                                          : t,
+                                      ),
+                                    );
                                   }
                                 } else {
                                   // 新規作成
-                                  const response = await fetch('/api/notification-templates', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      clinic_id: DEMO_CLINIC_ID,
-                                      name: templateForm.name,
-                                      notification_type: templateForm.notification_type,
-                                      line_message: templateForm.line_message,
-                                      email_subject: templateForm.email_subject,
-                                      email_message: templateForm.email_message,
-                                      sms_message: templateForm.sms_message
-                                    })
-                                  })
+                                  const response = await fetch(
+                                    "/api/notification-templates",
+                                    {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({
+                                        clinic_id: DEMO_CLINIC_ID,
+                                        name: templateForm.name,
+                                        notification_type:
+                                          templateForm.notification_type,
+                                        line_message: templateForm.line_message,
+                                        email_subject:
+                                          templateForm.email_subject,
+                                        email_message:
+                                          templateForm.email_message,
+                                        sms_message: templateForm.sms_message,
+                                      }),
+                                    },
+                                  );
 
                                   if (response.ok) {
-                                    const created = await response.json()
-                                    setTemplates([...templates, {
-                                      id: created.id,
-                                      ...templateForm
-                                    }])
+                                    const created = await response.json();
+                                    setTemplates([
+                                      ...templates,
+                                      {
+                                        id: created.id,
+                                        ...templateForm,
+                                      },
+                                    ]);
                                   }
                                 }
-                                setShowTemplateModal(false)
+                                setShowTemplateModal(false);
                               } catch (error) {
-                                console.error('テンプレート保存エラー:', error)
-                                alert('保存に失敗しました')
+                                console.error("テンプレート保存エラー:", error);
+                                alert("保存に失敗しました");
                               } finally {
-                                setSaving(false)
+                                setSaving(false);
                               }
                             }}
                             disabled={saving}
                           >
                             <Save className="w-4 h-4 mr-2" />
-                            {saving ? '保存中...' : '保存'}
+                            {saving ? "保存中..." : "保存"}
                           </Button>
+                          <button
+                            onClick={() => setShowTemplateModal(false)}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-6 h-6" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 2カラムレイアウト */}
+                      <div className="flex-1 overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-6 p-6">
+                          {/* 左カラム: 基本情報とプレビュー */}
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  テンプレート名
+                                </label>
+                                <input
+                                  type="text"
+                                  value={templateForm.name}
+                                  onChange={(e) =>
+                                    setTemplateForm({
+                                      ...templateForm,
+                                      name: e.target.value,
+                                    })
+                                  }
+                                  placeholder="例：予約3日前リマインド"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  通知種類
+                                </label>
+                                <select
+                                  value={templateForm.notification_type}
+                                  onChange={(e) =>
+                                    setTemplateForm({
+                                      ...templateForm,
+                                      notification_type: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                  <option value="appointment_reminder">
+                                    予約リマインド
+                                  </option>
+                                  <option value="periodic_checkup">
+                                    定期検診
+                                  </option>
+                                  <option value="treatment_reminder">
+                                    治療リマインド
+                                  </option>
+                                  <option value="appointment_change">
+                                    予約変更
+                                  </option>
+                                  <option value="custom">カスタム</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* プレビュー */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                プレビュー
+                              </label>
+                              <div className="border border-gray-300 rounded-lg overflow-hidden min-h-[500px]">
+                                {activeChannelTab === "line" && (
+                                  <div className="h-full bg-[#B2C7D9] p-4">
+                                    {/* LINEトーク画面風 */}
+                                    <div className="flex items-start gap-2">
+                                      {/* アイコン */}
+                                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 text-sm font-bold text-gray-600">
+                                        🏥
+                                      </div>
+                                      {/* メッセージ吹き出し */}
+                                      <div className="flex-1">
+                                        <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm max-w-[85%]">
+                                          <div className="text-sm whitespace-pre-wrap break-words">
+                                            {templateForm.line_message
+                                              .replace(
+                                                /\{\{patient_name\}\}/g,
+                                                "山田太郎",
+                                              )
+                                              .replace(
+                                                /\{\{clinic_name\}\}/g,
+                                                clinicInfo.name ||
+                                                  "さくら歯科クリニック",
+                                              )
+                                              .replace(
+                                                /\{\{appointment_date\}\}/g,
+                                                "2025年10月10日",
+                                              )
+                                              .replace(
+                                                /\{\{appointment_datetime\}\}/g,
+                                                "2025年10月10日 14:00",
+                                              )
+                                              .replace(
+                                                /\{\{treatment_name\}\}/g,
+                                                "定期検診",
+                                              )
+                                              .replace(
+                                                /\{\{staff_name\}\}/g,
+                                                "田中先生",
+                                              ) ||
+                                              "（メッセージを入力するとプレビューが表示されます）"}
+                                          </div>
+                                        </div>
+                                        <div className="text-xs text-gray-600 mt-1 ml-2">
+                                          12:00
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                {activeChannelTab === "email" && (
+                                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                                    <div className="text-xs text-gray-500 mb-2">
+                                      メール
+                                    </div>
+                                    <div className="font-semibold mb-3 pb-2 border-b">
+                                      件名:{" "}
+                                      {templateForm.email_subject.replace(
+                                        /\{\{clinic_name\}\}/g,
+                                        clinicInfo.name ||
+                                          "さくら歯科クリニック",
+                                      ) || "（件名を入力してください）"}
+                                    </div>
+                                    <div className="text-sm whitespace-pre-wrap">
+                                      {templateForm.email_message
+                                        .replace(
+                                          /\{\{patient_name\}\}/g,
+                                          "山田太郎",
+                                        )
+                                        .replace(
+                                          /\{\{clinic_name\}\}/g,
+                                          clinicInfo.name ||
+                                            "さくら歯科クリニック",
+                                        )
+                                        .replace(
+                                          /\{\{appointment_date\}\}/g,
+                                          "2025年10月10日",
+                                        )
+                                        .replace(
+                                          /\{\{appointment_datetime\}\}/g,
+                                          "2025年10月10日 14:00",
+                                        )
+                                        .replace(
+                                          /\{\{treatment_name\}\}/g,
+                                          "定期検診",
+                                        )
+                                        .replace(
+                                          /\{\{staff_name\}\}/g,
+                                          "田中先生",
+                                        ) ||
+                                        "（本文を入力するとプレビューが表示されます）"}
+                                    </div>
+                                  </div>
+                                )}
+                                {activeChannelTab === "sms" && (
+                                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                                    <div className="text-xs text-gray-500 mb-2">
+                                      SMS メッセージ
+                                    </div>
+                                    <div className="text-sm whitespace-pre-wrap">
+                                      {templateForm.sms_message
+                                        .replace(
+                                          /\{\{patient_name\}\}/g,
+                                          "山田太郎",
+                                        )
+                                        .replace(
+                                          /\{\{clinic_name\}\}/g,
+                                          clinicInfo.name || "さくら歯科",
+                                        )
+                                        .replace(
+                                          /\{\{appointment_date\}\}/g,
+                                          "10/10",
+                                        )
+                                        .replace(
+                                          /\{\{appointment_time\}\}/g,
+                                          "14:00",
+                                        ) ||
+                                        "（メッセージを入力するとプレビューが表示されます）"}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 右カラム: チャネル別メッセージ */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              送信チャンネル別メッセージ
+                            </label>
+                            <div className="border border-gray-300 rounded-lg">
+                              <div className="flex border-b border-gray-300">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveChannelTab("line")}
+                                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                    activeChannelTab === "line"
+                                      ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                                      : "text-gray-600 hover:bg-gray-50"
+                                  }`}
+                                >
+                                  LINE {templateForm.line_message && "✓"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveChannelTab("email")}
+                                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                    activeChannelTab === "email"
+                                      ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                                      : "text-gray-600 hover:bg-gray-50"
+                                  }`}
+                                >
+                                  メール {templateForm.email_message && "✓"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveChannelTab("sms")}
+                                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                    activeChannelTab === "sms"
+                                      ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                                      : "text-gray-600 hover:bg-gray-50"
+                                  }`}
+                                >
+                                  SMS {templateForm.sms_message && "✓"}
+                                </button>
+                              </div>
+
+                              <div className="p-4">
+                                {activeChannelTab === "line" && (
+                                  <div>
+                                    <textarea
+                                      id="line-message-textarea"
+                                      value={templateForm.line_message}
+                                      onChange={(e) =>
+                                        setTemplateForm({
+                                          ...templateForm,
+                                          line_message: e.target.value,
+                                        })
+                                      }
+                                      rows={15}
+                                      placeholder="例：{{patient_name}}様&#10;&#10;{{clinic_name}}です。&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;日時：{{appointment_datetime}}&#10;&#10;よろしくお願いいたします。"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                    />
+                                    <div className="mt-2 space-y-2">
+                                      <div className="text-xs font-medium text-gray-700">
+                                        変数を挿入:
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "line-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.line_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.line_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              line_message:
+                                                textBefore +
+                                                "{{patient_name}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          患者名
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "line-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.line_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.line_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              line_message:
+                                                textBefore +
+                                                "{{clinic_name}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          クリニック名
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "line-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.line_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.line_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              line_message:
+                                                textBefore +
+                                                "{{appointment_date}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          予約日
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "line-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.line_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.line_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              line_message:
+                                                textBefore +
+                                                "{{appointment_datetime}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          予約日時
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "line-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.line_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.line_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              line_message:
+                                                textBefore +
+                                                "{{treatment_name}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          治療内容
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "line-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.line_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.line_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              line_message:
+                                                textBefore +
+                                                "{{staff_name}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          スタッフ名
+                                        </button>
+                                      </div>
+                                      <p className="text-xs text-gray-500">
+                                        最大5000文字
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {activeChannelTab === "email" && (
+                                  <div className="space-y-3">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        件名
+                                      </label>
+                                      <input
+                                        id="email-subject-input"
+                                        type="text"
+                                        value={templateForm.email_subject}
+                                        onChange={(e) =>
+                                          setTemplateForm({
+                                            ...templateForm,
+                                            email_subject: e.target.value,
+                                          })
+                                        }
+                                        placeholder="例：【〇〇クリニック】ご予約のお知らせ"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        本文
+                                      </label>
+                                      <textarea
+                                        id="email-message-textarea"
+                                        value={templateForm.email_message}
+                                        onChange={(e) =>
+                                          setTemplateForm({
+                                            ...templateForm,
+                                            email_message: e.target.value,
+                                          })
+                                        }
+                                        rows={16}
+                                        placeholder="例：{{patient_name}}様&#10;&#10;いつもありがとうございます。&#10;{{clinic_name}}です。&#10;&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;■ご予約内容&#10;日時：{{appointment_datetime}}&#10;治療内容：{{treatment_name}}&#10;&#10;よろしくお願いいたします。"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                      />
+                                      <div className="mt-2 space-y-2">
+                                        <div className="text-xs font-medium text-gray-700">
+                                          変数を挿入:
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const textarea =
+                                                document.getElementById(
+                                                  "email-message-textarea",
+                                                ) as HTMLTextAreaElement;
+                                              const cursorPos =
+                                                textarea.selectionStart;
+                                              const textBefore =
+                                                templateForm.email_message.substring(
+                                                  0,
+                                                  cursorPos,
+                                                );
+                                              const textAfter =
+                                                templateForm.email_message.substring(
+                                                  cursorPos,
+                                                );
+                                              setTemplateForm({
+                                                ...templateForm,
+                                                email_message:
+                                                  textBefore +
+                                                  "{{patient_name}}" +
+                                                  textAfter,
+                                              });
+                                            }}
+                                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                          >
+                                            患者名
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const textarea =
+                                                document.getElementById(
+                                                  "email-message-textarea",
+                                                ) as HTMLTextAreaElement;
+                                              const cursorPos =
+                                                textarea.selectionStart;
+                                              const textBefore =
+                                                templateForm.email_message.substring(
+                                                  0,
+                                                  cursorPos,
+                                                );
+                                              const textAfter =
+                                                templateForm.email_message.substring(
+                                                  cursorPos,
+                                                );
+                                              setTemplateForm({
+                                                ...templateForm,
+                                                email_message:
+                                                  textBefore +
+                                                  "{{clinic_name}}" +
+                                                  textAfter,
+                                              });
+                                            }}
+                                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                          >
+                                            クリニック名
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const textarea =
+                                                document.getElementById(
+                                                  "email-message-textarea",
+                                                ) as HTMLTextAreaElement;
+                                              const cursorPos =
+                                                textarea.selectionStart;
+                                              const textBefore =
+                                                templateForm.email_message.substring(
+                                                  0,
+                                                  cursorPos,
+                                                );
+                                              const textAfter =
+                                                templateForm.email_message.substring(
+                                                  cursorPos,
+                                                );
+                                              setTemplateForm({
+                                                ...templateForm,
+                                                email_message:
+                                                  textBefore +
+                                                  "{{appointment_date}}" +
+                                                  textAfter,
+                                              });
+                                            }}
+                                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                          >
+                                            予約日
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const textarea =
+                                                document.getElementById(
+                                                  "email-message-textarea",
+                                                ) as HTMLTextAreaElement;
+                                              const cursorPos =
+                                                textarea.selectionStart;
+                                              const textBefore =
+                                                templateForm.email_message.substring(
+                                                  0,
+                                                  cursorPos,
+                                                );
+                                              const textAfter =
+                                                templateForm.email_message.substring(
+                                                  cursorPos,
+                                                );
+                                              setTemplateForm({
+                                                ...templateForm,
+                                                email_message:
+                                                  textBefore +
+                                                  "{{appointment_datetime}}" +
+                                                  textAfter,
+                                              });
+                                            }}
+                                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                          >
+                                            予約日時
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const textarea =
+                                                document.getElementById(
+                                                  "email-message-textarea",
+                                                ) as HTMLTextAreaElement;
+                                              const cursorPos =
+                                                textarea.selectionStart;
+                                              const textBefore =
+                                                templateForm.email_message.substring(
+                                                  0,
+                                                  cursorPos,
+                                                );
+                                              const textAfter =
+                                                templateForm.email_message.substring(
+                                                  cursorPos,
+                                                );
+                                              setTemplateForm({
+                                                ...templateForm,
+                                                email_message:
+                                                  textBefore +
+                                                  "{{treatment_name}}" +
+                                                  textAfter,
+                                              });
+                                            }}
+                                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                          >
+                                            治療内容
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const textarea =
+                                                document.getElementById(
+                                                  "email-message-textarea",
+                                                ) as HTMLTextAreaElement;
+                                              const cursorPos =
+                                                textarea.selectionStart;
+                                              const textBefore =
+                                                templateForm.email_message.substring(
+                                                  0,
+                                                  cursorPos,
+                                                );
+                                              const textAfter =
+                                                templateForm.email_message.substring(
+                                                  cursorPos,
+                                                );
+                                              setTemplateForm({
+                                                ...templateForm,
+                                                email_message:
+                                                  textBefore +
+                                                  "{{staff_name}}" +
+                                                  textAfter,
+                                              });
+                                            }}
+                                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                          >
+                                            スタッフ名
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {activeChannelTab === "sms" && (
+                                  <div>
+                                    <textarea
+                                      id="sms-message-textarea"
+                                      value={templateForm.sms_message}
+                                      onChange={(e) =>
+                                        setTemplateForm({
+                                          ...templateForm,
+                                          sms_message: e.target.value,
+                                        })
+                                      }
+                                      rows={8}
+                                      placeholder="例：明日10時のご予約です。〇〇クリニック"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                      maxLength={160}
+                                    />
+                                    <div className="mt-2 space-y-2">
+                                      <div className="text-xs font-medium text-gray-700">
+                                        変数を挿入:
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "sms-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.sms_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.sms_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              sms_message:
+                                                textBefore +
+                                                "{{patient_name}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          患者名
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "sms-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.sms_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.sms_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              sms_message:
+                                                textBefore +
+                                                "{{clinic_name}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          クリニック名
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "sms-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.sms_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.sms_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              sms_message:
+                                                textBefore +
+                                                "{{appointment_date}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          予約日
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const textarea =
+                                              document.getElementById(
+                                                "sms-message-textarea",
+                                              ) as HTMLTextAreaElement;
+                                            const cursorPos =
+                                              textarea.selectionStart;
+                                            const textBefore =
+                                              templateForm.sms_message.substring(
+                                                0,
+                                                cursorPos,
+                                              );
+                                            const textAfter =
+                                              templateForm.sms_message.substring(
+                                                cursorPos,
+                                              );
+                                            setTemplateForm({
+                                              ...templateForm,
+                                              sms_message:
+                                                textBefore +
+                                                "{{appointment_time}}" +
+                                                textAfter,
+                                            });
+                                          }}
+                                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                          予約時刻
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2">
+                                      <p className="text-xs text-gray-500">
+                                        70文字推奨
+                                      </p>
+                                      <p
+                                        className={`text-xs font-medium ${
+                                          templateForm.sms_message.length > 70
+                                            ? "text-orange-600"
+                                            : "text-gray-600"
+                                        }`}
+                                      >
+                                        {templateForm.sms_message.length}
+                                        /160文字
+                                        {templateForm.sms_message.length > 70 &&
+                                          " (課金2倍)"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -6556,21 +8612,32 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {notificationTab === 'auto-reminder' && (
+            {notificationTab === "auto-reminder" && (
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">自動リマインドルール</h3>
-                    <p className="text-sm text-gray-600 mt-1">段階的な自動通知の設定（3ヶ月→3ヶ月→6ヶ月→停止）</p>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      自動リマインドルール
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      段階的な自動通知の設定（3ヶ月→3ヶ月→6ヶ月→停止）
+                    </p>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={autoReminderRule.enabled}
-                      onChange={(e) => setAutoReminderRule({ ...autoReminderRule, enabled: e.target.checked })}
+                      onChange={(e) =>
+                        setAutoReminderRule({
+                          ...autoReminderRule,
+                          enabled: e.target.checked,
+                        })
+                      }
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm font-medium text-gray-700">有効化</span>
+                    <span className="text-sm font-medium text-gray-700">
+                      有効化
+                    </span>
                   </label>
                 </div>
 
@@ -6592,14 +8659,20 @@ export default function SettingsPage() {
                               <input
                                 type="number"
                                 value={autoReminderRule.first_interval_months}
-                                onChange={(e) => setAutoReminderRule({
-                                  ...autoReminderRule,
-                                  first_interval_months: parseInt(e.target.value)
-                                })}
+                                onChange={(e) =>
+                                  setAutoReminderRule({
+                                    ...autoReminderRule,
+                                    first_interval_months: parseInt(
+                                      e.target.value,
+                                    ),
+                                  })
+                                }
                                 min="1"
                                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
-                              <span className="text-sm text-gray-600">ヶ月後</span>
+                              <span className="text-sm text-gray-600">
+                                ヶ月後
+                              </span>
                             </div>
                           </div>
                           <ArrowRight className="w-5 h-5 text-gray-400 mt-6" />
@@ -6611,14 +8684,20 @@ export default function SettingsPage() {
                               <input
                                 type="number"
                                 value={autoReminderRule.second_interval_months}
-                                onChange={(e) => setAutoReminderRule({
-                                  ...autoReminderRule,
-                                  second_interval_months: parseInt(e.target.value)
-                                })}
+                                onChange={(e) =>
+                                  setAutoReminderRule({
+                                    ...autoReminderRule,
+                                    second_interval_months: parseInt(
+                                      e.target.value,
+                                    ),
+                                  })
+                                }
                                 min="1"
                                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
-                              <span className="text-sm text-gray-600">ヶ月後</span>
+                              <span className="text-sm text-gray-600">
+                                ヶ月後
+                              </span>
                             </div>
                           </div>
                           <ArrowRight className="w-5 h-5 text-gray-400 mt-6" />
@@ -6630,14 +8709,20 @@ export default function SettingsPage() {
                               <input
                                 type="number"
                                 value={autoReminderRule.third_interval_months}
-                                onChange={(e) => setAutoReminderRule({
-                                  ...autoReminderRule,
-                                  third_interval_months: parseInt(e.target.value)
-                                })}
+                                onChange={(e) =>
+                                  setAutoReminderRule({
+                                    ...autoReminderRule,
+                                    third_interval_months: parseInt(
+                                      e.target.value,
+                                    ),
+                                  })
+                                }
                                 min="1"
                                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
-                              <span className="text-sm text-gray-600">ヶ月後</span>
+                              <span className="text-sm text-gray-600">
+                                ヶ月後
+                              </span>
                             </div>
                           </div>
                           <ArrowRight className="w-5 h-5 text-gray-400 mt-6" />
@@ -6646,7 +8731,9 @@ export default function SettingsPage() {
                               4回目以降
                             </label>
                             <div className="px-3 py-2 bg-gray-100 rounded-lg text-center">
-                              <span className="text-sm font-medium text-gray-600">停止</span>
+                              <span className="text-sm font-medium text-gray-600">
+                                停止
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -6655,11 +8742,19 @@ export default function SettingsPage() {
                           <div className="flex items-start gap-2">
                             <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                             <div className="text-sm text-gray-600">
-                              <p className="font-medium text-gray-900 mb-1">自動リマインドの流れ</p>
+                              <p className="font-medium text-gray-900 mb-1">
+                                自動リマインドの流れ
+                              </p>
                               <ul className="space-y-1 list-disc list-inside">
-                                <li>最終来院日から設定した間隔で自動的に通知を送信</li>
-                                <li>患者様が予約を入れた場合、自動的にリマインドをキャンセル</li>
-                                <li>3回目の通知後、それ以降の自動送信は停止します</li>
+                                <li>
+                                  最終来院日から設定した間隔で自動的に通知を送信
+                                </li>
+                                <li>
+                                  患者様が予約を入れた場合、自動的にリマインドをキャンセル
+                                </li>
+                                <li>
+                                  3回目の通知後、それ以降の自動送信は停止します
+                                </li>
                               </ul>
                             </div>
                           </div>
@@ -6670,10 +8765,17 @@ export default function SettingsPage() {
                     {/* テンプレート・チャンネル設定 */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">送信チャンネル</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          送信チャンネル
+                        </label>
                         <select
                           value={autoReminderRule.channel}
-                          onChange={(e) => setAutoReminderRule({ ...autoReminderRule, channel: e.target.value })}
+                          onChange={(e) =>
+                            setAutoReminderRule({
+                              ...autoReminderRule,
+                              channel: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="line">LINE</option>
@@ -6682,22 +8784,40 @@ export default function SettingsPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">使用テンプレート</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          使用テンプレート
+                        </label>
                         <select
                           value={autoReminderRule.template_id}
-                          onChange={(e) => setAutoReminderRule({ ...autoReminderRule, template_id: e.target.value })}
+                          onChange={(e) =>
+                            setAutoReminderRule({
+                              ...autoReminderRule,
+                              template_id: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="">テンプレートを選択</option>
                           {templates
-                            .filter(t => t.channel === autoReminderRule.channel && t.notification_type === 'periodic_checkup')
-                            .map(t => (
-                              <option key={t.id} value={t.id}>{t.name}</option>
+                            .filter(
+                              (t) =>
+                                t.channel === autoReminderRule.channel &&
+                                t.notification_type === "periodic_checkup",
+                            )
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
                             ))}
                         </select>
-                        {templates.filter(t => t.channel === autoReminderRule.channel && t.notification_type === 'periodic_checkup').length === 0 && (
+                        {templates.filter(
+                          (t) =>
+                            t.channel === autoReminderRule.channel &&
+                            t.notification_type === "periodic_checkup",
+                        ).length === 0 && (
                           <p className="text-xs text-orange-600 mt-1">
-                            ※ 先にテンプレートタブで「定期検診」タイプのテンプレートを作成してください
+                            ※
+                            先にテンプレートタブで「定期検診」タイプのテンプレートを作成してください
                           </p>
                         )}
                       </div>
@@ -6707,21 +8827,23 @@ export default function SettingsPage() {
                     <div className="flex justify-end pt-4 border-t">
                       <Button
                         onClick={async () => {
-                          setSaving(true)
+                          setSaving(true);
                           try {
                             // TODO: API呼び出しで保存
-                            await new Promise(resolve => setTimeout(resolve, 1000))
-                            alert('自動リマインドルールを保存しました')
+                            await new Promise((resolve) =>
+                              setTimeout(resolve, 1000),
+                            );
+                            alert("自動リマインドルールを保存しました");
                           } catch (error) {
-                            alert('保存に失敗しました')
+                            alert("保存に失敗しました");
                           } finally {
-                            setSaving(false)
+                            setSaving(false);
                           }
                         }}
                         disabled={saving}
                       >
                         <Save className="w-4 h-4 mr-2" />
-                        {saving ? '保存中...' : '保存'}
+                        {saving ? "保存中..." : "保存"}
                       </Button>
                     </div>
                   </div>
@@ -6731,26 +8853,39 @@ export default function SettingsPage() {
                   <div className="text-center py-12 text-gray-500">
                     <Bell className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                     <p>自動リマインドが無効になっています</p>
-                    <p className="text-sm mt-1">右上のスイッチをONにして設定を開始してください</p>
+                    <p className="text-sm mt-1">
+                      右上のスイッチをONにして設定を開始してください
+                    </p>
                   </div>
                 )}
               </div>
             )}
 
-            {notificationTab === 'schedules' && (
+            {notificationTab === "schedules" && (
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900">通知スケジュール</h3>
-                  <p className="text-sm text-gray-600 mt-1">患者別の通知スケジュール一覧</p>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    通知スケジュール
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    患者別の通知スケジュール一覧
+                  </p>
                 </div>
 
                 {/* フィルター */}
                 <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      ステータス
+                    </label>
                     <select
                       value={scheduleFilter.status}
-                      onChange={(e) => setScheduleFilter({ ...scheduleFilter, status: e.target.value })}
+                      onChange={(e) =>
+                        setScheduleFilter({
+                          ...scheduleFilter,
+                          status: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="all">すべて</option>
@@ -6761,24 +8896,40 @@ export default function SettingsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">通知種類</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      通知種類
+                    </label>
                     <select
                       value={scheduleFilter.type}
-                      onChange={(e) => setScheduleFilter({ ...scheduleFilter, type: e.target.value })}
+                      onChange={(e) =>
+                        setScheduleFilter({
+                          ...scheduleFilter,
+                          type: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="all">すべて</option>
-                      <option value="appointment_reminder">予約リマインド</option>
+                      <option value="appointment_reminder">
+                        予約リマインド
+                      </option>
                       <option value="periodic_checkup">定期検診</option>
                       <option value="treatment_reminder">治療リマインド</option>
                       <option value="appointment_change">予約変更</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">チャンネル</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      チャンネル
+                    </label>
                     <select
                       value={scheduleFilter.channel}
-                      onChange={(e) => setScheduleFilter({ ...scheduleFilter, channel: e.target.value })}
+                      onChange={(e) =>
+                        setScheduleFilter({
+                          ...scheduleFilter,
+                          channel: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="all">すべて</option>
@@ -6794,7 +8945,9 @@ export default function SettingsPage() {
                   <div className="text-center py-12 text-gray-500">
                     <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                     <p>通知スケジュールがありません</p>
-                    <p className="text-sm mt-1">予約や自動リマインドから通知が登録されると表示されます</p>
+                    <p className="text-sm mt-1">
+                      予約や自動リマインドから通知が登録されると表示されます
+                    </p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -6823,24 +8976,51 @@ export default function SettingsPage() {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {notificationSchedules
-                          .filter(s => scheduleFilter.status === 'all' || s.status === scheduleFilter.status)
-                          .filter(s => scheduleFilter.type === 'all' || s.notification_type === scheduleFilter.type)
-                          .filter(s => scheduleFilter.channel === 'all' || s.channel === scheduleFilter.channel)
+                          .filter(
+                            (s) =>
+                              scheduleFilter.status === "all" ||
+                              s.status === scheduleFilter.status,
+                          )
+                          .filter(
+                            (s) =>
+                              scheduleFilter.type === "all" ||
+                              s.notification_type === scheduleFilter.type,
+                          )
+                          .filter(
+                            (s) =>
+                              scheduleFilter.channel === "all" ||
+                              s.channel === scheduleFilter.channel,
+                          )
                           .map((schedule) => (
                             <tr key={schedule.id} className="hover:bg-gray-50">
                               <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{schedule.patient_name}</div>
-                                <div className="text-xs text-gray-500">ID: {schedule.patient_id.slice(0, 8)}</div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {schedule.patient_name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  ID: {schedule.patient_id.slice(0, 8)}
+                                </div>
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{schedule.send_datetime}</div>
+                                <div className="text-sm text-gray-900">
+                                  {schedule.send_datetime}
+                                </div>
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap">
                                 <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                                  {schedule.notification_type === 'appointment_reminder' ? '予約リマインド' :
-                                   schedule.notification_type === 'periodic_checkup' ? '定期検診' :
-                                   schedule.notification_type === 'treatment_reminder' ? '治療リマインド' :
-                                   schedule.notification_type === 'appointment_change' ? '予約変更' : 'カスタム'}
+                                  {schedule.notification_type ===
+                                  "appointment_reminder"
+                                    ? "予約リマインド"
+                                    : schedule.notification_type ===
+                                        "periodic_checkup"
+                                      ? "定期検診"
+                                      : schedule.notification_type ===
+                                          "treatment_reminder"
+                                        ? "治療リマインド"
+                                        : schedule.notification_type ===
+                                            "appointment_change"
+                                          ? "予約変更"
+                                          : "カスタム"}
                                 </span>
                                 {schedule.is_auto_reminder && (
                                   <span className="ml-1 text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
@@ -6849,34 +9029,57 @@ export default function SettingsPage() {
                                 )}
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap">
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                  schedule.channel === 'line' ? 'bg-green-100 text-green-700' :
-                                  schedule.channel === 'email' ? 'bg-blue-100 text-blue-700' :
-                                  'bg-purple-100 text-purple-700'
-                                }`}>
-                                  {schedule.channel === 'line' ? 'LINE' : schedule.channel === 'email' ? 'メール' : 'SMS'}
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    schedule.channel === "line"
+                                      ? "bg-green-100 text-green-700"
+                                      : schedule.channel === "email"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-purple-100 text-purple-700"
+                                  }`}
+                                >
+                                  {schedule.channel === "line"
+                                    ? "LINE"
+                                    : schedule.channel === "email"
+                                      ? "メール"
+                                      : "SMS"}
                                 </span>
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap">
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                  schedule.status === 'scheduled' ? 'bg-yellow-100 text-yellow-700' :
-                                  schedule.status === 'sent' ? 'bg-green-100 text-green-700' :
-                                  schedule.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {schedule.status === 'scheduled' ? '送信予定' :
-                                   schedule.status === 'sent' ? '送信済み' :
-                                   schedule.status === 'failed' ? '送信失敗' : 'キャンセル'}
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    schedule.status === "scheduled"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : schedule.status === "sent"
+                                        ? "bg-green-100 text-green-700"
+                                        : schedule.status === "failed"
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-gray-100 text-gray-700"
+                                  }`}
+                                >
+                                  {schedule.status === "scheduled"
+                                    ? "送信予定"
+                                    : schedule.status === "sent"
+                                      ? "送信済み"
+                                      : schedule.status === "failed"
+                                        ? "送信失敗"
+                                        : "キャンセル"}
                                 </span>
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                {schedule.status === 'scheduled' && (
+                                {schedule.status === "scheduled" && (
                                   <button
                                     onClick={() => {
-                                      if (confirm('この通知をキャンセルしますか?')) {
-                                        setNotificationSchedules(notificationSchedules.map(s =>
-                                          s.id === schedule.id ? { ...s, status: 'cancelled' } : s
-                                        ))
+                                      if (
+                                        confirm("この通知をキャンセルしますか?")
+                                      ) {
+                                        setNotificationSchedules(
+                                          notificationSchedules.map((s) =>
+                                            s.id === schedule.id
+                                              ? { ...s, status: "cancelled" }
+                                              : s,
+                                          ),
+                                        );
                                       }
                                     }}
                                     className="text-red-600 hover:text-red-900"
@@ -6884,13 +9087,17 @@ export default function SettingsPage() {
                                     キャンセル
                                   </button>
                                 )}
-                                {schedule.status === 'failed' && (
+                                {schedule.status === "failed" && (
                                   <button
                                     onClick={() => {
-                                      setNotificationSchedules(notificationSchedules.map(s =>
-                                        s.id === schedule.id ? { ...s, status: 'scheduled' } : s
-                                      ))
-                                      alert('再送信を予定しました')
+                                      setNotificationSchedules(
+                                        notificationSchedules.map((s) =>
+                                          s.id === schedule.id
+                                            ? { ...s, status: "scheduled" }
+                                            : s,
+                                        ),
+                                      );
+                                      alert("再送信を予定しました");
                                     }}
                                     className="text-blue-600 hover:text-blue-900"
                                   >
@@ -6907,18 +9114,24 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {notificationTab === 'failures' && (
+            {notificationTab === "failures" && (
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900">送信失敗管理</h3>
-                  <p className="text-sm text-gray-600 mt-1">エラーログと再送信</p>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    送信失敗管理
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    エラーログと再送信
+                  </p>
                 </div>
 
                 {notificationFailures.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
                     <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
                     <p>送信失敗はありません</p>
-                    <p className="text-sm mt-1">すべての通知が正常に送信されています</p>
+                    <p className="text-sm mt-1">
+                      すべての通知が正常に送信されています
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -6927,26 +9140,42 @@ export default function SettingsPage() {
                       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-1">
                           <AlertCircle className="w-5 h-5 text-red-600" />
-                          <span className="text-sm font-medium text-gray-700">送信失敗数</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            送信失敗数
+                          </span>
                         </div>
-                        <p className="text-2xl font-bold text-red-600">{notificationFailures.length}</p>
+                        <p className="text-2xl font-bold text-red-600">
+                          {notificationFailures.length}
+                        </p>
                       </div>
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-1">
                           <Clock className="w-5 h-5 text-yellow-600" />
-                          <span className="text-sm font-medium text-gray-700">再送待ち</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            再送待ち
+                          </span>
                         </div>
                         <p className="text-2xl font-bold text-yellow-600">
-                          {notificationFailures.filter(f => f.retry_scheduled).length}
+                          {
+                            notificationFailures.filter(
+                              (f) => f.retry_scheduled,
+                            ).length
+                          }
                         </p>
                       </div>
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-1">
                           <RefreshCw className="w-5 h-5 text-blue-600" />
-                          <span className="text-sm font-medium text-gray-700">代替送信設定</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            代替送信設定
+                          </span>
                         </div>
                         <p className="text-2xl font-bold text-blue-600">
-                          {notificationFailures.filter(f => f.fallback_enabled).length}
+                          {
+                            notificationFailures.filter(
+                              (f) => f.fallback_enabled,
+                            ).length
+                          }
                         </p>
                       </div>
                     </div>
@@ -6954,28 +9183,61 @@ export default function SettingsPage() {
                     {/* 失敗ログ一覧 */}
                     <div className="space-y-3">
                       {notificationFailures.map((failure) => (
-                        <div key={failure.id} className="border border-red-200 rounded-lg p-4 bg-red-50">
+                        <div
+                          key={failure.id}
+                          className="border border-red-200 rounded-lg p-4 bg-red-50"
+                        >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
                                 <AlertCircle className="w-5 h-5 text-red-600" />
-                                <h4 className="font-semibold text-gray-900">{failure.patient_name}</h4>
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                  failure.channel === 'line' ? 'bg-green-100 text-green-700' :
-                                  failure.channel === 'email' ? 'bg-blue-100 text-blue-700' :
-                                  'bg-purple-100 text-purple-700'
-                                }`}>
-                                  {failure.channel === 'line' ? 'LINE' : failure.channel === 'email' ? 'メール' : 'SMS'}
+                                <h4 className="font-semibold text-gray-900">
+                                  {failure.patient_name}
+                                </h4>
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    failure.channel === "line"
+                                      ? "bg-green-100 text-green-700"
+                                      : failure.channel === "email"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-purple-100 text-purple-700"
+                                  }`}
+                                >
+                                  {failure.channel === "line"
+                                    ? "LINE"
+                                    : failure.channel === "email"
+                                      ? "メール"
+                                      : "SMS"}
                                 </span>
                               </div>
                               <div className="text-sm text-gray-700 mb-2">
-                                <p className="mb-1"><span className="font-medium">失敗日時：</span>{failure.failed_at}</p>
-                                <p className="mb-1"><span className="font-medium">通知種類：</span>
-                                  {failure.notification_type === 'appointment_reminder' ? '予約リマインド' :
-                                   failure.notification_type === 'periodic_checkup' ? '定期検診' :
-                                   failure.notification_type === 'treatment_reminder' ? '治療リマインド' : 'その他'}
+                                <p className="mb-1">
+                                  <span className="font-medium">
+                                    失敗日時：
+                                  </span>
+                                  {failure.failed_at}
                                 </p>
-                                <p><span className="font-medium">エラー内容：</span>{failure.error_message}</p>
+                                <p className="mb-1">
+                                  <span className="font-medium">
+                                    通知種類：
+                                  </span>
+                                  {failure.notification_type ===
+                                  "appointment_reminder"
+                                    ? "予約リマインド"
+                                    : failure.notification_type ===
+                                        "periodic_checkup"
+                                      ? "定期検診"
+                                      : failure.notification_type ===
+                                          "treatment_reminder"
+                                        ? "治療リマインド"
+                                        : "その他"}
+                                </p>
+                                <p>
+                                  <span className="font-medium">
+                                    エラー内容：
+                                  </span>
+                                  {failure.error_message}
+                                </p>
                               </div>
                               {failure.retry_count > 0 && (
                                 <p className="text-xs text-orange-600">
@@ -6987,9 +9249,13 @@ export default function SettingsPage() {
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  if (confirm('この通知を再送信しますか?')) {
-                                    setNotificationFailures(notificationFailures.filter(f => f.id !== failure.id))
-                                    alert('再送信を予定しました')
+                                  if (confirm("この通知を再送信しますか?")) {
+                                    setNotificationFailures(
+                                      notificationFailures.filter(
+                                        (f) => f.id !== failure.id,
+                                      ),
+                                    );
+                                    alert("再送信を予定しました");
                                   }
                                 }}
                               >
@@ -7001,9 +9267,19 @@ export default function SettingsPage() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    if (confirm(`${failure.fallback_channel}で代替送信しますか?`)) {
-                                      setNotificationFailures(notificationFailures.filter(f => f.id !== failure.id))
-                                      alert(`${failure.fallback_channel}での送信を予定しました`)
+                                    if (
+                                      confirm(
+                                        `${failure.fallback_channel}で代替送信しますか?`,
+                                      )
+                                    ) {
+                                      setNotificationFailures(
+                                        notificationFailures.filter(
+                                          (f) => f.id !== failure.id,
+                                        ),
+                                      );
+                                      alert(
+                                        `${failure.fallback_channel}での送信を予定しました`,
+                                      );
                                     }
                                   }}
                                 >
@@ -7015,8 +9291,14 @@ export default function SettingsPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  if (confirm('このエラーログを削除しますか?')) {
-                                    setNotificationFailures(notificationFailures.filter(f => f.id !== failure.id))
+                                  if (
+                                    confirm("このエラーログを削除しますか?")
+                                  ) {
+                                    setNotificationFailures(
+                                      notificationFailures.filter(
+                                        (f) => f.id !== failure.id,
+                                      ),
+                                    );
                                   }
                                 }}
                               >
@@ -7028,24 +9310,38 @@ export default function SettingsPage() {
                           {/* 代替送信設定 */}
                           {!failure.fallback_channel && (
                             <div className="mt-3 pt-3 border-t border-red-300">
-                              <p className="text-xs text-gray-600 mb-2">代替送信チャンネルを選択：</p>
+                              <p className="text-xs text-gray-600 mb-2">
+                                代替送信チャンネルを選択：
+                              </p>
                               <div className="flex gap-2">
-                                {['line', 'email', 'sms'].filter(ch => ch !== failure.channel).map(channel => (
-                                  <Button
-                                    key={channel}
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setNotificationFailures(notificationFailures.map(f =>
-                                        f.id === failure.id
-                                          ? { ...f, fallback_channel: channel, fallback_enabled: true }
-                                          : f
-                                      ))
-                                    }}
-                                  >
-                                    {channel === 'line' ? 'LINE' : channel === 'email' ? 'メール' : 'SMS'}
-                                  </Button>
-                                ))}
+                                {["line", "email", "sms"]
+                                  .filter((ch) => ch !== failure.channel)
+                                  .map((channel) => (
+                                    <Button
+                                      key={channel}
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setNotificationFailures(
+                                          notificationFailures.map((f) =>
+                                            f.id === failure.id
+                                              ? {
+                                                  ...f,
+                                                  fallback_channel: channel,
+                                                  fallback_enabled: true,
+                                                }
+                                              : f,
+                                          ),
+                                        );
+                                      }}
+                                    >
+                                      {channel === "line"
+                                        ? "LINE"
+                                        : channel === "email"
+                                          ? "メール"
+                                          : "SMS"}
+                                    </Button>
+                                  ))}
                               </div>
                             </div>
                           )}
@@ -7058,8 +9354,8 @@ export default function SettingsPage() {
                       <Button
                         variant="outline"
                         onClick={() => {
-                          if (confirm('すべてのエラーログを削除しますか?')) {
-                            setNotificationFailures([])
+                          if (confirm("すべてのエラーログを削除しますか?")) {
+                            setNotificationFailures([]);
                           }
                         }}
                       >
@@ -7068,9 +9364,9 @@ export default function SettingsPage() {
                       </Button>
                       <Button
                         onClick={() => {
-                          if (confirm('失敗した通知をすべて再送信しますか?')) {
-                            setNotificationFailures([])
-                            alert('すべての通知を再送信予定に設定しました')
+                          if (confirm("失敗した通知をすべて再送信しますか?")) {
+                            setNotificationFailures([]);
+                            alert("すべての通知を再送信予定に設定しました");
                           }
                         }}
                       >
@@ -7084,7 +9380,7 @@ export default function SettingsPage() {
             )}
 
             {/* リッチメニュータブ */}
-            {notificationTab === 'rich-menu' && (
+            {notificationTab === "rich-menu" && (
               <div className="grid grid-cols-2 gap-6">
                 {/* 左側: 設定エリア */}
                 <div className="space-y-6">
@@ -7092,35 +9388,57 @@ export default function SettingsPage() {
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        <svg
+                          className="w-6 h-6 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                          />
                         </svg>
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">推奨リッチメニュー構成</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          推奨リッチメニュー構成
+                        </h3>
                         <p className="text-sm text-gray-700 mb-3">
                           歯科クリニックに最適な5つの機能を厳選しました
                         </p>
                         <div className="grid grid-cols-5 gap-2 text-xs">
                           <div className="bg-white rounded p-2 text-center border border-blue-100">
                             <div className="text-lg mb-1">📱</div>
-                            <div className="font-medium text-gray-700">QRコード</div>
+                            <div className="font-medium text-gray-700">
+                              QRコード
+                            </div>
                           </div>
                           <div className="bg-white rounded p-2 text-center border border-blue-100">
                             <div className="text-lg mb-1">📅</div>
-                            <div className="font-medium text-gray-700">予約確認</div>
+                            <div className="font-medium text-gray-700">
+                              予約確認
+                            </div>
                           </div>
                           <div className="bg-white rounded p-2 text-center border border-blue-100">
                             <div className="text-lg mb-1">👨‍👩‍👧</div>
-                            <div className="font-medium text-gray-700">家族登録</div>
+                            <div className="font-medium text-gray-700">
+                              家族登録
+                            </div>
                           </div>
                           <div className="bg-white rounded p-2 text-center border border-blue-100">
                             <div className="text-lg mb-1">🌐</div>
-                            <div className="font-medium text-gray-700">Webサイト</div>
+                            <div className="font-medium text-gray-700">
+                              Webサイト
+                            </div>
                           </div>
                           <div className="bg-white rounded p-2 text-center border border-blue-100">
                             <div className="text-lg mb-1">💬</div>
-                            <div className="font-medium text-gray-700">お問合せ</div>
+                            <div className="font-medium text-gray-700">
+                              お問合せ
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -7129,78 +9447,105 @@ export default function SettingsPage() {
 
                   {/* ボタン設定 */}
                   <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">ボタン設定</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      ボタン設定
+                    </h3>
                     <div className="space-y-3">
                       {richMenuButtons.map((button, index) => (
-                        <div key={button.id} className="border border-gray-200 rounded-lg p-4">
+                        <div
+                          key={button.id}
+                          className="border border-gray-200 rounded-lg p-4"
+                        >
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
                               <span className="flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-full font-bold text-sm">
                                 {index + 1}
                               </span>
                               <div>
-                                <p className="font-medium text-gray-900">{button.label}</p>
-                                <p className="text-xs text-gray-500">{button.url}</p>
+                                <p className="font-medium text-gray-900">
+                                  {button.label}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {button.url}
+                                </p>
                               </div>
                             </div>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setEditingButton(editingButton === button.id ? null : button.id)}
+                              onClick={() =>
+                                setEditingButton(
+                                  editingButton === button.id
+                                    ? null
+                                    : button.id,
+                                )
+                              }
                             >
-                              {editingButton === button.id ? '閉じる' : '編集'}
+                              {editingButton === button.id ? "閉じる" : "編集"}
                             </Button>
                           </div>
 
                           {editingButton === button.id && (
                             <div className="space-y-3 pt-3 border-t">
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">ボタンラベル</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  ボタンラベル
+                                </label>
                                 <input
                                   type="text"
                                   value={button.label}
                                   onChange={(e) => {
-                                    const newButtons = [...richMenuButtons]
-                                    newButtons[index].label = e.target.value
-                                    setRichMenuButtons(newButtons)
+                                    const newButtons = [...richMenuButtons];
+                                    newButtons[index].label = e.target.value;
+                                    setRichMenuButtons(newButtons);
                                   }}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                   placeholder="例: 予約"
                                 />
                               </div>
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">アクションタイプ</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  アクションタイプ
+                                </label>
                                 <select
                                   value={button.action}
                                   onChange={(e) => {
-                                    const newButtons = [...richMenuButtons]
-                                    newButtons[index].action = e.target.value
-                                    setRichMenuButtons(newButtons)
+                                    const newButtons = [...richMenuButtons];
+                                    newButtons[index].action = e.target.value;
+                                    setRichMenuButtons(newButtons);
                                   }}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
                                   <option value="url">URL</option>
-                                  <option value="message">メッセージ送信</option>
+                                  <option value="message">
+                                    メッセージ送信
+                                  </option>
                                   <option value="postback">Postback</option>
                                 </select>
                               </div>
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                  {button.action === 'url' ? 'URL' : button.action === 'message' ? 'メッセージ' : 'データ'}
+                                  {button.action === "url"
+                                    ? "URL"
+                                    : button.action === "message"
+                                      ? "メッセージ"
+                                      : "データ"}
                                 </label>
                                 <input
                                   type="text"
                                   value={button.url}
                                   onChange={(e) => {
-                                    const newButtons = [...richMenuButtons]
-                                    newButtons[index].url = e.target.value
-                                    setRichMenuButtons(newButtons)
+                                    const newButtons = [...richMenuButtons];
+                                    newButtons[index].url = e.target.value;
+                                    setRichMenuButtons(newButtons);
                                   }}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                   placeholder={
-                                    button.action === 'url' ? 'https://your-domain.com/booking' :
-                                    button.action === 'message' ? '予約したいです' :
-                                    'action=booking'
+                                    button.action === "url"
+                                      ? "https://your-domain.com/booking"
+                                      : button.action === "message"
+                                        ? "予約したいです"
+                                        : "action=booking"
                                   }
                                 />
                               </div>
@@ -7217,108 +9562,176 @@ export default function SettingsPage() {
                       variant="outline"
                       onClick={() => {
                         // デフォルト設定にリセット
-                        setRichMenuLayout('fixed')
+                        setRichMenuLayout("fixed");
                         setRichMenuButtons([
-                          { id: 1, label: 'QRコード', action: 'url', url: '/qr-checkin', icon: 'qr' },
-                          { id: 2, label: '予約確認', action: 'url', url: '/booking', icon: 'calendar' },
-                          { id: 3, label: '家族登録', action: 'url', url: '/family', icon: 'users' },
-                          { id: 4, label: 'Webサイト', action: 'url', url: 'https://clinic-website.com', icon: 'web' },
-                          { id: 5, label: 'お問合せ', action: 'message', url: 'お問い合わせ', icon: 'chat' }
-                        ])
-                        alert('デフォルト設定にリセットしました')
+                          {
+                            id: 1,
+                            label: "QRコード",
+                            action: "url",
+                            url: "/qr-checkin",
+                            icon: "qr",
+                          },
+                          {
+                            id: 2,
+                            label: "予約確認",
+                            action: "url",
+                            url: "/booking",
+                            icon: "calendar",
+                          },
+                          {
+                            id: 3,
+                            label: "家族登録",
+                            action: "url",
+                            url: "/family",
+                            icon: "users",
+                          },
+                          {
+                            id: 4,
+                            label: "Webサイト",
+                            action: "url",
+                            url: "https://clinic-website.com",
+                            icon: "web",
+                          },
+                          {
+                            id: 5,
+                            label: "お問合せ",
+                            action: "message",
+                            url: "お問い合わせ",
+                            icon: "chat",
+                          },
+                        ]);
+                        alert("デフォルト設定にリセットしました");
                       }}
                     >
                       リセット
                     </Button>
                     <Button
                       onClick={async () => {
-                        setSaving(true)
+                        setSaving(true);
                         try {
                           const richMenuConfig = {
                             layout: richMenuLayout,
-                            buttons: richMenuButtons
-                          }
+                            buttons: richMenuButtons,
+                          };
 
                           // LocalStorageに保存（デモ用）
-                          localStorage.setItem('rich_menu_config', JSON.stringify(richMenuConfig))
+                          localStorage.setItem(
+                            "rich_menu_config",
+                            JSON.stringify(richMenuConfig),
+                          );
 
-                          alert('リッチメニュー設定を保存しました！')
+                          alert("リッチメニュー設定を保存しました！");
                         } catch (error) {
-                          console.error('保存エラー:', error)
-                          alert('保存に失敗しました')
+                          console.error("保存エラー:", error);
+                          alert("保存に失敗しました");
                         } finally {
-                          setSaving(false)
+                          setSaving(false);
                         }
                       }}
                       disabled={saving}
                     >
                       <Save className="w-4 h-4 mr-2" />
-                      {saving ? '保存中...' : '保存'}
+                      {saving ? "保存中..." : "保存"}
                     </Button>
                     <Button
                       onClick={async () => {
                         if (!notificationSettings.line.channel_access_token) {
-                          alert('LINE設定のChannel Access Tokenを入力してください')
-                          return
+                          alert(
+                            "LINE設定のChannel Access Tokenを入力してください",
+                          );
+                          return;
                         }
 
-                        setSaving(true)
+                        setSaving(true);
                         try {
-                          console.log('LINEリッチメニュー反映開始...')
-                          console.log('Channel Access Token:', notificationSettings.line.channel_access_token?.substring(0, 20) + '...')
+                          console.log("LINEリッチメニュー反映開始...");
+                          console.log(
+                            "Channel Access Token:",
+                            notificationSettings.line.channel_access_token?.substring(
+                              0,
+                              20,
+                            ) + "...",
+                          );
 
                           // 相対パスを絶対URLに変換
-                          const baseUrl = window.location.origin
-                          const buttonsWithFullUrl = richMenuButtons.map(btn => ({
-                            ...btn,
-                            url: btn.action === 'url' && btn.url.startsWith('/')
-                              ? `${baseUrl}${btn.url}`
-                              : btn.url
-                          }))
+                          const baseUrl = window.location.origin;
+                          const buttonsWithFullUrl = richMenuButtons.map(
+                            (btn) => ({
+                              ...btn,
+                              url:
+                                btn.action === "url" && btn.url.startsWith("/")
+                                  ? `${baseUrl}${btn.url}`
+                                  : btn.url,
+                            }),
+                          );
 
-                          console.log('Buttons (with full URLs):', buttonsWithFullUrl)
+                          console.log(
+                            "Buttons (with full URLs):",
+                            buttonsWithFullUrl,
+                          );
 
-                          const response = await fetch('/api/line/richmenu', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                          const response = await fetch("/api/line/richmenu", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                              channelAccessToken: notificationSettings.line.channel_access_token,
-                              buttons: buttonsWithFullUrl
-                            })
-                          })
+                              channelAccessToken:
+                                notificationSettings.line.channel_access_token,
+                              buttons: buttonsWithFullUrl,
+                            }),
+                          });
 
-                          console.log('Response status:', response.status)
-                          const result = await response.json()
-                          console.log('Response result:', result)
+                          console.log("Response status:", response.status);
+                          const result = await response.json();
+                          console.log("Response result:", result);
 
                           if (response.ok) {
-                            alert('✅ ' + result.message)
+                            alert("✅ " + result.message);
                           } else {
-                            console.error('エラー詳細:', result)
-                            alert('❌ エラー: ' + result.error + '\n詳細: ' + (result.details || 'なし'))
+                            console.error("エラー詳細:", result);
+                            alert(
+                              "❌ エラー: " +
+                                result.error +
+                                "\n詳細: " +
+                                (result.details || "なし"),
+                            );
                           }
                         } catch (error) {
-                          console.error('LINEリッチメニュー反映エラー:', error)
-                          alert('❌ LINEへの反映に失敗しました\n\nエラー: ' + (error instanceof Error ? error.message : String(error)) + '\n\nブラウザのコンソール(F12)で詳細を確認してください')
+                          console.error("LINEリッチメニュー反映エラー:", error);
+                          alert(
+                            "❌ LINEへの反映に失敗しました\n\nエラー: " +
+                              (error instanceof Error
+                                ? error.message
+                                : String(error)) +
+                              "\n\nブラウザのコンソール(F12)で詳細を確認してください",
+                          );
                         } finally {
-                          setSaving(false)
+                          setSaving(false);
                         }
                       }}
-                      disabled={saving || !notificationSettings.line.channel_access_token}
+                      disabled={
+                        saving ||
+                        !notificationSettings.line.channel_access_token
+                      }
                       className="bg-[#00B900] hover:bg-[#00A000] text-white"
                     >
-                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"/>
-                        <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z"/>
+                      <svg
+                        className="w-4 h-4 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z" />
+                        <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z" />
                       </svg>
-                      {saving ? 'LINEに反映中...' : 'LINEに反映'}
+                      {saving ? "LINEに反映中..." : "LINEに反映"}
                     </Button>
                   </div>
                 </div>
 
                 {/* 右側: プレビューエリア */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6 sticky top-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">プレビュー</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    プレビュー
+                  </h3>
 
                   {/* スマホプレビュー */}
                   <div className="flex justify-center">
@@ -7330,12 +9743,20 @@ export default function SettingsPage() {
                         <div className="bg-[#00B900] px-3 py-2 flex items-center justify-between flex-shrink-0">
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                              <span className="text-[10px] font-bold text-[#00B900]">🦷</span>
+                              <span className="text-[10px] font-bold text-[#00B900]">
+                                🦷
+                              </span>
                             </div>
-                            <span className="text-white font-medium text-xs">デモクリニック</span>
+                            <span className="text-white font-medium text-xs">
+                              デモクリニック
+                            </span>
                           </div>
                           <div className="flex gap-2">
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <svg
+                              className="w-4 h-4 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
                               <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                               <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                             </svg>
@@ -7347,12 +9768,16 @@ export default function SettingsPage() {
                           <div className="space-y-2">
                             <div className="flex justify-start">
                               <div className="bg-white rounded-xl rounded-tl-sm px-3 py-1.5 max-w-[70%] shadow-sm">
-                                <p className="text-[10px] text-gray-800">こんにちは！ご予約ありがとうございます。</p>
+                                <p className="text-[10px] text-gray-800">
+                                  こんにちは！ご予約ありがとうございます。
+                                </p>
                               </div>
                             </div>
                             <div className="flex justify-end">
                               <div className="bg-[#00B900] rounded-xl rounded-tr-sm px-3 py-1.5 max-w-[70%] shadow-sm">
-                                <p className="text-[10px] text-white">よろしくお願いします</p>
+                                <p className="text-[10px] text-white">
+                                  よろしくお願いします
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -7363,25 +9788,45 @@ export default function SettingsPage() {
                           <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
                             {/* 1段目: QRコード、予約確認、Webサイト */}
                             <button className="h-[90px] bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border-blue-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">📱</div>
-                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">QRコード</span>
+                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
+                                📱
+                              </div>
+                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                QRコード
+                              </span>
                             </button>
                             <button className="h-[90px] bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 border-green-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">📅</div>
-                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">予約確認</span>
+                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
+                                📅
+                              </div>
+                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                予約確認
+                              </span>
                             </button>
                             <button className="h-[90px] bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-orange-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">🌐</div>
-                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">Webサイト</span>
+                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
+                                🌐
+                              </div>
+                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                Webサイト
+                              </span>
                             </button>
                             {/* 2段目: 家族登録、お問合せ（2枠分） */}
                             <button className="h-[90px] bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border-purple-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">👥</div>
-                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">家族登録</span>
+                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
+                                👥
+                              </div>
+                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                家族登録
+                              </span>
                             </button>
                             <button className="col-span-2 h-[90px] bg-gradient-to-br from-pink-50 to-pink-100 hover:from-pink-100 hover:to-pink-200 border-pink-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">💬</div>
-                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">お問合せ</span>
+                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
+                                💬
+                              </div>
+                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                お問合せ
+                              </span>
                             </button>
                           </div>
                         </div>
@@ -7393,23 +9838,34 @@ export default function SettingsPage() {
             )}
           </div>
         )}
-        {selectedCategory === 'master' && renderMasterSettings()}
-        {selectedCategory === 'subkarte' && (
+        {selectedCategory === "master" && renderMasterSettings()}
+        {selectedCategory === "subkarte" && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">デフォルトテキスト管理</h2>
-              
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                デフォルトテキスト管理
+              </h2>
+
               <div className="space-y-4">
                 {defaultTexts.map((text) => (
-                  <div key={text.id} className="border border-gray-200 rounded-lg p-4">
+                  <div
+                    key={text.id}
+                    className="border border-gray-200 rounded-lg p-4"
+                  >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{text.title}</h3>
+                        <h3 className="font-medium text-gray-900">
+                          {text.title}
+                        </h3>
                         <p className="text-sm text-gray-500 mt-1">
-                          作成日: {new Date(text.createdAt).toLocaleDateString('ja-JP')}
+                          作成日:{" "}
+                          {new Date(text.createdAt).toLocaleDateString("ja-JP")}
                           {text.updatedAt !== text.createdAt && (
                             <span className="ml-2">
-                              更新日: {new Date(text.updatedAt).toLocaleDateString('ja-JP')}
+                              更新日:{" "}
+                              {new Date(text.updatedAt).toLocaleDateString(
+                                "ja-JP",
+                              )}
                             </span>
                           )}
                         </p>
@@ -7455,8 +9911,8 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <div className="h-screen bg-gray-50">
@@ -7471,31 +9927,34 @@ export default function SettingsPage() {
             </h1>
           </div>
 
-
           {/* メニュー項目 */}
           <div className="flex-1 overflow-y-auto">
             <nav className="p-2">
               {settingCategories.map((category) => {
-                const Icon = category.icon
-                const isActive = selectedCategory === category.id
-                
+                const Icon = category.icon;
+                const isActive = selectedCategory === category.id;
+
                 return (
                   <button
                     key={category.id}
                     onClick={() => handleCategoryClick(category.id)}
                     className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors rounded-lg ${
-                      isActive 
-                        ? 'bg-blue-50 text-blue-600' 
-                        : 'hover:bg-gray-50 text-gray-700'
+                      isActive
+                        ? "bg-blue-50 text-blue-600"
+                        : "hover:bg-gray-50 text-gray-700"
                     }`}
                   >
                     <div className="flex items-center">
-                      <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+                      <Icon
+                        className={`w-5 h-5 mr-3 ${isActive ? "text-blue-600" : "text-gray-500"}`}
+                      />
                       <span className="font-medium">{category.name}</span>
                     </div>
-                    <ChevronRight className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <ChevronRight
+                      className={`w-4 h-4 ${isActive ? "text-blue-600" : "text-gray-400"}`}
+                    />
                   </button>
-                )
+                );
               })}
             </nav>
           </div>
@@ -7512,19 +9971,21 @@ export default function SettingsPage() {
         <QuestionnaireEditModal
           isOpen={showQuestionnaireModal && !!selectedQuestionnaire}
           onClose={() => {
-            setShowQuestionnaireModal(false)
-            setSelectedQuestionnaire(null)
+            setShowQuestionnaireModal(false);
+            setSelectedQuestionnaire(null);
           }}
           questionnaireId={selectedQuestionnaire.id}
           clinicId={DEMO_CLINIC_ID}
           onSave={(updatedQuestionnaire) => {
-            console.log('問診票を保存しました:', updatedQuestionnaire)
+            console.log("問診票を保存しました:", updatedQuestionnaire);
             // リストを更新
-            setQuestionnaires(prev => 
-              prev.map(q => q.id === updatedQuestionnaire.id ? updatedQuestionnaire : q)
-            )
-            setShowQuestionnaireModal(false)
-            setSelectedQuestionnaire(null)
+            setQuestionnaires((prev) =>
+              prev.map((q) =>
+                q.id === updatedQuestionnaire.id ? updatedQuestionnaire : q,
+              ),
+            );
+            setShowQuestionnaireModal(false);
+            setSelectedQuestionnaire(null);
           }}
         />
       )}
@@ -7535,20 +9996,22 @@ export default function SettingsPage() {
           <div className="bg-white rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
-                {editingDefaultText ? 'デフォルトテキスト編集' : 'デフォルトテキスト追加'}
+                {editingDefaultText
+                  ? "デフォルトテキスト編集"
+                  : "デフォルトテキスト追加"}
               </h3>
               <button
                 onClick={() => {
-                  setShowAddDefaultTextModal(false)
-                  setEditingDefaultText(null)
-                  setNewDefaultText({ title: '', content: '' })
+                  setShowAddDefaultTextModal(false);
+                  setEditingDefaultText(null);
+                  setNewDefaultText({ title: "", content: "" });
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -7556,38 +10019,52 @@ export default function SettingsPage() {
                 </label>
                 <Input
                   value={newDefaultText.title}
-                  onChange={(e) => setNewDefaultText({ ...newDefaultText, title: e.target.value })}
+                  onChange={(e) =>
+                    setNewDefaultText({
+                      ...newDefaultText,
+                      title: e.target.value,
+                    })
+                  }
                   placeholder="デフォルトテキストのタイトル"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   内容
                 </label>
                 <textarea
                   value={newDefaultText.content}
-                  onChange={(e) => setNewDefaultText({ ...newDefaultText, content: e.target.value })}
+                  onChange={(e) =>
+                    setNewDefaultText({
+                      ...newDefaultText,
+                      content: e.target.value,
+                    })
+                  }
                   placeholder="デフォルトテキストの内容"
                   rows={6}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
-            
+
             <div className="flex justify-end space-x-2 mt-6">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
-                  setShowAddDefaultTextModal(false)
-                  setEditingDefaultText(null)
-                  setNewDefaultText({ title: '', content: '' })
+                  setShowAddDefaultTextModal(false);
+                  setEditingDefaultText(null);
+                  setNewDefaultText({ title: "", content: "" });
                 }}
               >
                 キャンセル
               </Button>
-              <Button 
-                onClick={editingDefaultText ? handleEditDefaultTextSave : handleAddDefaultText}
+              <Button
+                onClick={
+                  editingDefaultText
+                    ? handleEditDefaultTextSave
+                    : handleAddDefaultText
+                }
               >
                 <Save className="w-4 h-4 mr-2" />
                 保存
@@ -7606,7 +10083,9 @@ export default function SettingsPage() {
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="cancel_policy_text">キャンセルポリシーテキスト</Label>
+            <Label htmlFor="cancel_policy_text">
+              キャンセルポリシーテキスト
+            </Label>
             <Textarea
               id="cancel_policy_text"
               value={tempCancelPolicyText}
@@ -7625,9 +10104,7 @@ export default function SettingsPage() {
             <Button variant="outline" onClick={handleCancelPolicyDialogClose}>
               キャンセル
             </Button>
-            <Button onClick={handleSaveCancelPolicy}>
-              保存
-            </Button>
+            <Button onClick={handleSaveCancelPolicy}>保存</Button>
           </div>
         </div>
       </Modal>
@@ -7647,16 +10124,19 @@ export default function SettingsPage() {
                 id="modal_phone_enabled"
                 checked={tempPatientInfoFields.phoneEnabled}
                 onCheckedChange={(checked) =>
-                  setTempPatientInfoFields(prev => ({
+                  setTempPatientInfoFields((prev) => ({
                     ...prev,
                     phoneEnabled: checked as boolean,
                     // 電話番号を無効にする場合は必須も無効にする
-                    phoneRequired: checked ? prev.phoneRequired : false
+                    phoneRequired: checked ? prev.phoneRequired : false,
                   }))
                 }
               />
               <div>
-                <Label htmlFor="modal_phone_enabled" className="font-medium text-base">
+                <Label
+                  htmlFor="modal_phone_enabled"
+                  className="font-medium text-base"
+                >
                   電話番号
                 </Label>
                 <p className="text-sm text-gray-500">
@@ -7665,7 +10145,10 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Label htmlFor="modal_phone_required" className="text-sm font-medium text-gray-600">
+              <Label
+                htmlFor="modal_phone_required"
+                className="text-sm font-medium text-gray-600"
+              >
                 必須
               </Label>
               <Checkbox
@@ -7673,9 +10156,9 @@ export default function SettingsPage() {
                 checked={tempPatientInfoFields.phoneRequired}
                 disabled={!tempPatientInfoFields.phoneEnabled}
                 onCheckedChange={(checked) =>
-                  setTempPatientInfoFields(prev => ({
+                  setTempPatientInfoFields((prev) => ({
                     ...prev,
-                    phoneRequired: checked as boolean
+                    phoneRequired: checked as boolean,
                   }))
                 }
               />
@@ -7689,16 +10172,19 @@ export default function SettingsPage() {
                 id="modal_email_enabled"
                 checked={tempPatientInfoFields.emailEnabled}
                 onCheckedChange={(checked) =>
-                  setTempPatientInfoFields(prev => ({
+                  setTempPatientInfoFields((prev) => ({
                     ...prev,
                     emailEnabled: checked as boolean,
                     // メールアドレスを無効にする場合は必須も無効にする
-                    emailRequired: checked ? prev.emailRequired : false
+                    emailRequired: checked ? prev.emailRequired : false,
                   }))
                 }
               />
               <div>
-                <Label htmlFor="modal_email_enabled" className="font-medium text-base">
+                <Label
+                  htmlFor="modal_email_enabled"
+                  className="font-medium text-base"
+                >
                   メールアドレス
                 </Label>
                 <p className="text-sm text-gray-500">
@@ -7707,7 +10193,10 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Label htmlFor="modal_email_required" className="text-sm font-medium text-gray-600">
+              <Label
+                htmlFor="modal_email_required"
+                className="text-sm font-medium text-gray-600"
+              >
                 必須
               </Label>
               <Checkbox
@@ -7715,9 +10204,9 @@ export default function SettingsPage() {
                 checked={tempPatientInfoFields.emailRequired}
                 disabled={!tempPatientInfoFields.emailEnabled}
                 onCheckedChange={(checked) =>
-                  setTempPatientInfoFields(prev => ({
+                  setTempPatientInfoFields((prev) => ({
                     ...prev,
-                    emailRequired: checked as boolean
+                    emailRequired: checked as boolean,
                   }))
                 }
               />
@@ -7729,7 +10218,9 @@ export default function SettingsPage() {
             <h4 className="font-medium mb-3">プレビュー</h4>
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
               <div>
-                <Label className="block text-sm font-medium text-gray-700 mb-1">お名前 *</Label>
+                <Label className="block text-sm font-medium text-gray-700 mb-1">
+                  お名前 *
+                </Label>
                 <div className="w-full h-8 border border-gray-300 rounded px-3 bg-gray-50 flex items-center text-gray-500 text-sm">
                   例: 田中太郎
                 </div>
@@ -7737,7 +10228,7 @@ export default function SettingsPage() {
               {tempPatientInfoFields.phoneEnabled && (
                 <div>
                   <Label className="block text-sm font-medium text-gray-700 mb-1">
-                    電話番号 {tempPatientInfoFields.phoneRequired ? '*' : ''}
+                    電話番号 {tempPatientInfoFields.phoneRequired ? "*" : ""}
                   </Label>
                   <div className="w-full h-8 border border-gray-300 rounded px-3 bg-gray-50 flex items-center text-gray-500 text-sm">
                     例: 03-1234-5678
@@ -7747,7 +10238,8 @@ export default function SettingsPage() {
               {tempPatientInfoFields.emailEnabled && (
                 <div>
                   <Label className="block text-sm font-medium text-gray-700 mb-1">
-                    メールアドレス {tempPatientInfoFields.emailRequired ? '*' : ''}
+                    メールアドレス{" "}
+                    {tempPatientInfoFields.emailRequired ? "*" : ""}
                   </Label>
                   <div className="w-full h-8 border border-gray-300 rounded px-3 bg-gray-50 flex items-center text-gray-500 text-sm">
                     例: tanaka@example.com
@@ -7759,15 +10251,16 @@ export default function SettingsPage() {
 
           {/* フッター */}
           <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
-            <Button variant="outline" onClick={handlePatientInfoFieldsDialogClose}>
+            <Button
+              variant="outline"
+              onClick={handlePatientInfoFieldsDialogClose}
+            >
               キャンセル
             </Button>
-            <Button onClick={handleSavePatientInfoFields}>
-              保存
-            </Button>
+            <Button onClick={handleSavePatientInfoFields}>保存</Button>
           </div>
         </div>
       </Modal>
     </div>
-  )
+  );
 }
