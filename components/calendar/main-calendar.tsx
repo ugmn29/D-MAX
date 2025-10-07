@@ -1634,28 +1634,22 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             const isOutside = isHoliday ? false : isOutsideBusinessHours(slot.time)
             const isBreak = isBreakTime(slot.time)
             const isHourBoundary = slot.minute === 0
-            const isDropTarget = isDragging && dropTargetTime === slot.time
-            const isDropTargetInvalid = isDropTarget && !isDropTargetValid
-            // 行全体のホバーを無効化（セル単位のホバーのみ有効）
+            // 行全体のハイライトを無効化（セル単位のハイライトのみ有効）
             const isHovered = false
             
             return (
               <div
                 key={index}
                 className={`h-10 flex ${
-                  isDropTargetInvalid
-                    ? 'bg-red-200 border-red-400 border-2' // 重複するドロップ先のハイライト（赤）
-                    : isDropTarget
-                      ? 'bg-green-200 border-green-400 border-2' // 有効なドロップ先のハイライト（緑）
-                      : isHovered
-                        ? 'bg-blue-50 border-blue-200 border' // ホバー時の薄い青
-                        : isHoliday
-                          ? 'bg-gray-50' // 休診日は薄いグレー
-                          : isOutside 
-                            ? 'bg-gray-100' // 診療時間外はグレー
-                            : isBreak 
-                              ? 'bg-gray-200 cursor-pointer' 
-                              : 'bg-white'
+                  isHovered
+                    ? 'bg-blue-50 border-blue-200 border' // ホバー時の薄い青
+                    : isHoliday
+                      ? 'bg-gray-50' // 休診日は薄いグレー
+                      : isOutside 
+                        ? 'bg-gray-100' // 診療時間外はグレー
+                        : isBreak 
+                          ? 'bg-gray-200 cursor-pointer' 
+                          : 'bg-white'
                 }`}
                 style={{
                   borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB',
@@ -1751,7 +1745,20 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     const isDropTargetColumn = isDragging && dropTargetTime === slot.time && (() => {
                       if (!dragCurrentPosition) return false
                       const dropTarget = calculateDropTarget(dragCurrentPosition.x, dragCurrentPosition.y)
-                      return dropTarget.staffIndex === columnIndex
+                      const isTarget = dropTarget.staffIndex === columnIndex
+                      
+                      // デバッグログ
+                      if (isDragging && dropTargetTime === slot.time) {
+                        console.log('ドロップ先セル判定:', {
+                          slotTime: slot.time,
+                          columnIndex,
+                          dropTargetStaffIndex: dropTarget.staffIndex,
+                          isTarget,
+                          dragCurrentPosition
+                        })
+                      }
+                      
+                      return isTarget
                     })()
                     const isDropTargetColumnInvalid = isDropTargetColumn && !isDropTargetValid
                     
