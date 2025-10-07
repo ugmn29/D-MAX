@@ -1807,7 +1807,10 @@ export function AppointmentEditModal({
                   </button>
                   {selectedStaff.length > 0 && (
                     <div className="text-gray-600 font-medium">
-                      : {selectedStaff[0].name}
+                      : {selectedStaff.length === 1 
+                        ? selectedStaff[0].name 
+                        : `${selectedStaff.length}人選択済み (${selectedStaff.map(s => s.name).join(', ')})`
+                      }
                     </div>
                   )}
                 </div>
@@ -1977,8 +1980,21 @@ export function AppointmentEditModal({
               
               <div className="space-y-4">
                 {(() => {
-                  // スタッフを役職ごとにグループ化
-                  const groupedStaff = staff.reduce((groups, member) => {
+                  // 出勤しているスタッフのみをフィルタリング
+                  const workingStaffIds = workingStaff.map(ws => ws.staff.id)
+                  const availableStaff = staff.filter(member => workingStaffIds.includes(member.id))
+                  
+                  if (availableStaff.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>出勤しているスタッフがいません</p>
+                        <p className="text-sm mt-1">選択可能なスタッフがありません</p>
+                      </div>
+                    )
+                  }
+
+                  // 出勤しているスタッフを役職ごとにグループ化
+                  const groupedStaff = availableStaff.reduce((groups, member) => {
                     const positionName = typeof member.position === 'object' 
                       ? member.position?.name || '未設定' 
                       : member.position || '未設定'
@@ -1988,7 +2004,7 @@ export function AppointmentEditModal({
                     }
                     groups[positionName].push(member)
                     return groups
-                  }, {} as Record<string, typeof staff>)
+                  }, {} as Record<string, typeof availableStaff>)
 
                   return Object.entries(groupedStaff).map(([positionName, members]) => (
                     <div key={positionName} className="space-y-2">
