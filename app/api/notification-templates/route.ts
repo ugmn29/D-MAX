@@ -34,21 +34,45 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { clinic_id, name, notification_type, channel, subject, message } = body
+    const {
+      clinic_id,
+      name,
+      notification_type,
+      line_message,
+      email_subject,
+      email_message,
+      sms_message
+    } = body
 
-    if (!clinic_id || !name || !notification_type || !message) {
+    if (!clinic_id || !name || !notification_type) {
       return NextResponse.json(
-        { error: 'clinic_id, name, notification_type, and message are required' },
+        { error: 'clinic_id, name, and notification_type are required' },
         { status: 400 }
       )
+    }
+
+    // 少なくとも1つのチャネルのメッセージが必要
+    if (!line_message && !email_message && !sms_message) {
+      return NextResponse.json(
+        { error: 'At least one channel message is required' },
+        { status: 400 }
+      )
+    }
+
+    // SMS文字数チェック（警告のみ）
+    if (sms_message && sms_message.length > 70) {
+      console.warn(`SMS message is ${sms_message.length} characters. Recommended: 70 characters or less.`)
     }
 
     const template = await createNotificationTemplate({
       clinic_id,
       name,
       notification_type,
-      message_template: message,
-      // チャンネルと件名は追加フィールドとして保存
+      message_template: line_message || email_message || sms_message || '',  // 後方互換性用
+      line_message,
+      email_subject,
+      email_message,
+      sms_message,
       default_timing_value: null,
       default_timing_unit: null,
       default_web_booking_menu_ids: null,
@@ -69,19 +93,36 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, name, notification_type, message } = body
+    const {
+      id,
+      name,
+      notification_type,
+      line_message,
+      email_subject,
+      email_message,
+      sms_message
+    } = body
 
-    if (!id || !name || !notification_type || !message) {
+    if (!id || !name || !notification_type) {
       return NextResponse.json(
-        { error: 'id, name, notification_type, and message are required' },
+        { error: 'id, name, and notification_type are required' },
         { status: 400 }
       )
+    }
+
+    // SMS文字数チェック（警告のみ）
+    if (sms_message && sms_message.length > 70) {
+      console.warn(`SMS message is ${sms_message.length} characters. Recommended: 70 characters or less.`)
     }
 
     const template = await updateNotificationTemplate(id, {
       name,
       notification_type,
-      message_template: message
+      message_template: line_message || email_message || sms_message || '',  // 後方互換性用
+      line_message,
+      email_subject,
+      email_message,
+      sms_message
     })
 
     return NextResponse.json(template)

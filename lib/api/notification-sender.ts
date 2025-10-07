@@ -3,6 +3,31 @@ import { getNotificationSettings } from './notification-settings'
 import { PatientNotificationSchedule } from '@/types/notification'
 
 /**
+ * テンプレートからチャネル別のメッセージを取得
+ */
+export function getMessageForChannel(
+  template: any,
+  channel: 'line' | 'email' | 'sms'
+): { message: string; subject?: string } {
+  if (channel === 'line') {
+    return {
+      message: template.line_message || template.message_template || ''
+    }
+  } else if (channel === 'email') {
+    return {
+      subject: template.email_subject || '通知',
+      message: template.email_message || template.message_template || ''
+    }
+  } else if (channel === 'sms') {
+    return {
+      message: template.sms_message || template.message_template?.substring(0, 160) || ''
+    }
+  }
+
+  return { message: template.message_template || '' }
+}
+
+/**
  * LINE メッセージを送信
  */
 async function sendLineNotification(

@@ -78,7 +78,11 @@ export interface NotificationTemplate {
   clinic_id: string
   name: string
   notification_type: NotificationType
-  message_template: string
+  message_template: string  // 汎用メッセージ（後方互換性用）
+  line_message: string | null  // LINE用メッセージ
+  email_subject: string | null  // メール件名
+  email_message: string | null  // メール本文
+  sms_message: string | null  // SMS用メッセージ（70文字推奨）
   default_timing_value: number | null
   default_timing_unit: TimingUnit | null
   default_web_booking_menu_ids: string[] | null
@@ -93,6 +97,10 @@ export interface NotificationTemplateInsert {
   name: string
   notification_type: NotificationType
   message_template: string
+  line_message?: string | null
+  email_subject?: string | null
+  email_message?: string | null
+  sms_message?: string | null
   default_timing_value?: number | null
   default_timing_unit?: TimingUnit | null
   default_web_booking_menu_ids?: string[] | null
@@ -105,6 +113,10 @@ export interface NotificationTemplateUpdate {
   name?: string
   notification_type?: NotificationType
   message_template?: string
+  line_message?: string | null
+  email_subject?: string | null
+  email_message?: string | null
+  sms_message?: string | null
   default_timing_value?: number | null
   default_timing_unit?: TimingUnit | null
   default_web_booking_menu_ids?: string[] | null

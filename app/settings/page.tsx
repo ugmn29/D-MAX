@@ -7797,9 +7797,9 @@ export default function SettingsPage() {
 
                       {/* 2カラムレイアウト */}
                       <div className="flex-1 overflow-y-auto">
-                        <div className="grid grid-cols-2 gap-6 p-6">
-                          {/* 左カラム: プレビュー */}
-                        <div>
+                        <div className="grid grid-cols-5 gap-6 p-6">
+                          {/* 左カラム: プレビュー (2/5) */}
+                        <div className="col-span-2">
                               <label className="block text-sm font-medium text-gray-700 mb-2">
                                 プレビュー
                               </label>
@@ -7924,11 +7924,10 @@ export default function SettingsPage() {
                                   </div>
                                 )}
                               </div>
-                            </div>
                           </div>
 
-                          {/* 右カラム: チャネル別メッセージ */}
-                          <div>
+                          {/* 右カラム: チャネル別メッセージ (3/5) */}
+                          <div className="col-span-3">
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               送信チャンネル別メッセージ
                             </label>
@@ -8570,6 +8569,7 @@ export default function SettingsPage() {
                               )}
                             </div>
                           </div>
+                        </div>
                         </div>
                       </div>
                     </div>
@@ -9877,7 +9877,7 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
-    );
+  );
   };
 
   return (
