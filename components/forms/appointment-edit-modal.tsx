@@ -1975,25 +1975,49 @@ export function AppointmentEditModal({
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">担当者選択</h3>
               
-              <div className="space-y-2">
-                {staff.map((member) => (
-                  <div key={member.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={member.id}
-                      checked={selectedStaff.some(s => s.id === member.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedStaff(prev => [...prev, member])
-                        } else {
-                          setSelectedStaff(prev => prev.filter(s => s.id !== member.id))
-                        }
-                      }}
-                    />
-                    <Label htmlFor={member.id} className="flex-1">
-                      {member.name} ({typeof member.position === 'object' ? member.position?.name || '未設定' : member.position || '未設定'})
-                    </Label>
-                  </div>
-                ))}
+              <div className="space-y-4">
+                {(() => {
+                  // スタッフを役職ごとにグループ化
+                  const groupedStaff = staff.reduce((groups, member) => {
+                    const positionName = typeof member.position === 'object' 
+                      ? member.position?.name || '未設定' 
+                      : member.position || '未設定'
+                    
+                    if (!groups[positionName]) {
+                      groups[positionName] = []
+                    }
+                    groups[positionName].push(member)
+                    return groups
+                  }, {} as Record<string, typeof staff>)
+
+                  return Object.entries(groupedStaff).map(([positionName, members]) => (
+                    <div key={positionName} className="space-y-2">
+                      <div className="text-sm font-medium text-gray-700 border-b border-gray-200 pb-1">
+                        {positionName}
+                      </div>
+                      <div className="space-y-2 ml-2">
+                        {members.map((member) => (
+                          <div key={member.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={member.id}
+                              checked={selectedStaff.some(s => s.id === member.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedStaff(prev => [...prev, member])
+                                } else {
+                                  setSelectedStaff(prev => prev.filter(s => s.id !== member.id))
+                                }
+                              }}
+                            />
+                            <Label htmlFor={member.id} className="flex-1">
+                              {member.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
 
               <div className="flex justify-end mt-6">
