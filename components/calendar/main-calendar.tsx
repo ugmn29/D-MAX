@@ -1075,17 +1075,49 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       const startMinutes = timeToMinutes(startTime)
       const endMinutes = timeToMinutes(endTime)
       
-      // スタッフのインデックスを取得（staff1_id, staff2_id, staff3_idのいずれかで検索）
-      let staffIndex = workingStaff.findIndex(staff => 
-        staff.staff.id === appointment.staff1_id ||
-        staff.staff.id === appointment.staff2_id ||
-        staff.staff.id === appointment.staff3_id
-      )
+      // 表示モードに応じて列インデックスを計算
+      let staffIndex = 0
       
-      // スタッフが見つからない場合は最初のスタッフを使用
-      if (staffIndex === -1) {
-        staffIndex = 0
-        console.log('スタッフが見つからないため、最初のスタッフを使用:', staffIndex)
+      if (displayMode === 'units') {
+        // ユニット表示モードの場合、予約のユニットIDに基づいて列インデックスを取得
+        staffIndex = units.findIndex(unit => unit.id === appointment.unit_id)
+        if (staffIndex === -1) {
+          // ユニットが見つからない場合は最初のユニットを使用
+          staffIndex = 0
+          console.log('ユニットが見つからないため、最初のユニットを使用:', staffIndex)
+        }
+      } else if (displayMode === 'both') {
+        // 両方表示モードの場合、スタッフとユニットの組み合わせで列インデックスを取得
+        // まずスタッフを特定
+        const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
+        const workingStaffIndex = workingStaff.findIndex(staff => staff.staff.id === staffId)
+        
+        if (workingStaffIndex !== -1) {
+          // スタッフのユニットIDを取得
+          const staffUnitId = appointment.unit_id
+          // スタッフのユニットインデックスを取得
+          const unitIndex = units.findIndex(unit => unit.id === staffUnitId)
+          
+          if (unitIndex !== -1) {
+            // 列インデックス = (スタッフインデックス * ユニット数) + ユニットインデックス
+            staffIndex = workingStaffIndex * units.length + unitIndex
+          } else {
+            staffIndex = workingStaffIndex * units.length
+          }
+        }
+      } else {
+        // スタッフ表示モード（デフォルト）
+        staffIndex = workingStaff.findIndex(staff => 
+          staff.staff.id === appointment.staff1_id ||
+          staff.staff.id === appointment.staff2_id ||
+          staff.staff.id === appointment.staff3_id
+        )
+        
+        // スタッフが見つからない場合は最初のスタッフを使用
+        if (staffIndex === -1) {
+          staffIndex = 0
+          console.log('スタッフが見つからないため、最初のスタッフを使用:', staffIndex)
+        }
       }
       
       // 診療時間の開始時間を取得
@@ -1135,20 +1167,45 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     console.log('予約ブロック詳細:', blocks)
     
     return blocks
-  }, [appointments, workingStaff, timeSlotMinutes])
+  }, [appointments, workingStaff, timeSlotMinutes, displayMode, units, businessHours, cellHeight])
 
   // 列の幅を計算するヘルパー関数
   const getColumnWidth = () => {
-    if (workingStaff.length === 0) return '100%'
-    return `${100 / workingStaff.length}%`
+    if (displayMode === 'units') {
+      // ユニット表示モードの場合
+      if (units.length === 0) return '100%'
+      return `${100 / units.length}%`
+    } else if (displayMode === 'both') {
+      // 両方表示モードの場合
+      const totalColumns = workingStaff.length * units.length
+      if (totalColumns === 0) return '100%'
+      return `${100 / totalColumns}%`
+    } else {
+      // スタッフ表示モード（デフォルト）
+      if (workingStaff.length === 0) return '100%'
+      return `${100 / workingStaff.length}%`
+    }
   }
 
   // 列の最小幅を計算するヘルパー関数
   const getColumnMinWidth = () => {
-    // スタッフ数に応じて最小幅を調整
-    if (workingStaff.length <= 2) return '200px'
-    if (workingStaff.length <= 4) return '150px'
-    return '120px'
+    if (displayMode === 'units') {
+      // ユニット表示モードの場合
+      if (units.length <= 2) return '200px'
+      if (units.length <= 4) return '150px'
+      return '120px'
+    } else if (displayMode === 'both') {
+      // 両方表示モードの場合
+      const totalColumns = workingStaff.length * units.length
+      if (totalColumns <= 3) return '200px'
+      if (totalColumns <= 6) return '150px'
+      return '120px'
+    } else {
+      // スタッフ表示モード（デフォルト）
+      if (workingStaff.length <= 2) return '200px'
+      if (workingStaff.length <= 4) return '150px'
+      return '120px'
+    }
   }
 
 
