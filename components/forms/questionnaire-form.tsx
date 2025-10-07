@@ -31,6 +31,7 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
   const [questions, setQuestions] = useState<QuestionnaireQuestion[]>([])
   const [formData, setFormData] = useState<FormData>({})
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [showErrors, setShowErrors] = useState(false) // エラー表示フラグ
 
   // データ読み込み
   useEffect(() => {
@@ -73,23 +74,6 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
 
     loadQuestionnaire()
   }, [clinicId, questionnaireId])
-
-  // フォームデータ変更時にリアルタイムでバリデーション
-  useEffect(() => {
-    if (questions.length > 0 && Object.keys(formData).length > 0) {
-      // 初回レンダリング時は実行しない（全てが空でエラーになるため）
-      const hasAnyValue = Object.values(formData).some(value => {
-        if (Array.isArray(value)) {
-          return value.length > 0
-        }
-        return value !== '' && value !== null && value !== undefined
-      })
-      
-      if (hasAnyValue) {
-        validateForm()
-      }
-    }
-  }, [formData, questions])
 
   // 質問をsort_order順でソート
   const sortedQuestions = [...questions].sort((a, b) => a.sort_order - b.sort_order)
@@ -170,15 +154,6 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
       [questionId]: formattedPostalCode
     }))
     
-    // エラーをクリア
-    if (errors[questionId]) {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors[questionId]
-        return newErrors
-      })
-    }
-    
     // 郵便番号が7桁の場合、住所を自動取得（開発環境では無効化）
     if (validatePostalCode(formattedPostalCode)) {
       try {
@@ -210,15 +185,6 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
       ...prev,
       [questionId]: value
     }))
-    
-    // エラーをクリア
-    if (errors[questionId]) {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors[questionId]
-        return newErrors
-      })
-    }
   }
 
   // チェックボックスの値を更新
@@ -273,8 +239,12 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
     console.log('問診票送信開始')
     console.log('フォームデータ:', formData)
     
+    // バリデーションを実行
     if (!validateForm()) {
       console.log('バリデーション失敗')
+      setShowErrors(true) // エラー表示を有効化
+      // ページトップにスクロール
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
     console.log('バリデーション成功')
@@ -477,9 +447,9 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
 
   return (
     <div className="space-y-6">
-      {/* エラーサマリー */}
-      {hasErrors && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+      {/* エラーサマリー（送信ボタンを押した後のみ表示、sticky） */}
+      {showErrors && hasErrors && (
+        <div className="sticky top-0 z-50 bg-red-50 border-l-4 border-red-500 p-4 rounded shadow-lg">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -522,8 +492,7 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
               console.log('送信ボタンクリック')
               handleSave()
             }} 
-            disabled={saving || hasErrors}
-            className={hasErrors ? 'opacity-50 cursor-not-allowed' : ''}
+            disabled={saving}
           >
             {saving ? '送信中...' : '送信'}
           </Button>
@@ -567,8 +536,7 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
               console.log('送信ボタンクリック')
               handleSave()
             }} 
-            disabled={saving || hasErrors}
-            className={hasErrors ? 'opacity-50 cursor-not-allowed' : ''}
+            disabled={saving}
           >
             {saving ? '送信中...' : '送信'}
           </Button>
