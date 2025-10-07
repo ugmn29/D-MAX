@@ -1799,13 +1799,59 @@ export function AppointmentEditModal({
                     メニュー
                   </button>
                   <div className="text-gray-600 font-medium">
-                    : {selectedMenu1?.name || selectedMenu2?.name || selectedMenu3?.name || '未選択'}
-                    {selectedMenu2 && (
-                      <span className="ml-1">/{selectedMenu2.name}</span>
-                    )}
-                    {selectedMenu3 && (
-                      <span className="ml-1">/{selectedMenu3.name}</span>
-                    )}
+                    : {(() => {
+                      // appointmentDataの状態を優先して表示
+                      const menu1 = treatmentMenus.find(m => m.id === appointmentData.menu1_id)
+                      const menu2 = treatmentMenus.find(m => m.id === appointmentData.menu2_id)
+                      const menu3 = treatmentMenus.find(m => m.id === appointmentData.menu3_id)
+                      
+                      console.log('診療メニュー表示更新:', {
+                        appointmentData: {
+                          menu1_id: appointmentData.menu1_id,
+                          menu2_id: appointmentData.menu2_id,
+                          menu3_id: appointmentData.menu3_id
+                        },
+                        foundMenus: { menu1, menu2, menu3 },
+                        selectedMenus: { selectedMenu1, selectedMenu2, selectedMenu3 }
+                      })
+                      
+                      if (menu3) return menu3.name
+                      if (menu2) return menu2.name
+                      if (menu1) return menu1.name
+                      
+                      // フォールバック: selectedMenuの状態を使用
+                      return selectedMenu1?.name || selectedMenu2?.name || selectedMenu3?.name || '未選択'
+                    })()}
+                    {(() => {
+                      const menu2 = treatmentMenus.find(m => m.id === appointmentData.menu2_id)
+                      const menu3 = treatmentMenus.find(m => m.id === appointmentData.menu3_id)
+                      
+                      if (menu3 && menu2) {
+                        return <span className="ml-1">/{menu2.name}</span>
+                      }
+                      if (menu2) {
+                        return <span className="ml-1">/{menu2.name}</span>
+                      }
+                      
+                      // フォールバック: selectedMenuの状態を使用
+                      if (selectedMenu2) {
+                        return <span className="ml-1">/{selectedMenu2.name}</span>
+                      }
+                      return null
+                    })()}
+                    {(() => {
+                      const menu3 = treatmentMenus.find(m => m.id === appointmentData.menu3_id)
+                      
+                      if (menu3) {
+                        return <span className="ml-1">/{menu3.name}</span>
+                      }
+                      
+                      // フォールバック: selectedMenuの状態を使用
+                      if (selectedMenu3) {
+                        return <span className="ml-1">/{selectedMenu3.name}</span>
+                      }
+                      return null
+                    })()}
                   </div>
                 </div>
 
@@ -1931,39 +1977,54 @@ export function AppointmentEditModal({
                   selectedMenu2={selectedMenu2}
                   selectedMenu3={selectedMenu3}
                   onMenu1Select={(menu) => {
+                    console.log('診療メニュー1選択:', menu)
                     setSelectedMenu1(menu)
                     setSelectedMenu2(null)
                     setSelectedMenu3(null)
-                    setAppointmentData(prev => ({
-                      ...prev,
-                      menu1_id: menu.id,
-                      menu2_id: '',
-                      menu3_id: ''
-                    }))
+                    setAppointmentData(prev => {
+                      const newData = {
+                        ...prev,
+                        menu1_id: menu.id,
+                        menu2_id: '',
+                        menu3_id: ''
+                      }
+                      console.log('診療メニュー1選択後のappointmentData:', newData)
+                      return newData
+                    })
                     // 診療メニュー1を選択した場合は、サブメニューが表示されるまで少し待ってからモーダルを閉じる
                     setTimeout(() => {
                       setShowMenuModal(false)
                     }, 500)
                   }}
                   onMenu2Select={(menu) => {
+                    console.log('診療メニュー2選択:', menu)
                     setSelectedMenu2(menu)
                     setSelectedMenu3(null)
-                    setAppointmentData(prev => ({
-                      ...prev,
-                      menu2_id: menu.id,
-                      menu3_id: ''
-                    }))
+                    setAppointmentData(prev => {
+                      const newData = {
+                        ...prev,
+                        menu2_id: menu.id,
+                        menu3_id: ''
+                      }
+                      console.log('診療メニュー2選択後のappointmentData:', newData)
+                      return newData
+                    })
                     // 診療メニュー2を選択した場合はモーダルを閉じる
                     setTimeout(() => {
                       setShowMenuModal(false)
                     }, 300)
                   }}
                   onMenu3Select={(menu) => {
+                    console.log('診療メニュー3選択:', menu)
                     setSelectedMenu3(menu)
-                    setAppointmentData(prev => ({
-                      ...prev,
-                      menu3_id: menu.id
-                    }))
+                    setAppointmentData(prev => {
+                      const newData = {
+                        ...prev,
+                        menu3_id: menu.id
+                      }
+                      console.log('診療メニュー3選択後のappointmentData:', newData)
+                      return newData
+                    })
                     // 診療メニュー3を選択した場合はモーダルを閉じる
                     setTimeout(() => {
                       setShowMenuModal(false)
