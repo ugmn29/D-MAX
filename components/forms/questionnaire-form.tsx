@@ -74,6 +74,23 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
     loadQuestionnaire()
   }, [clinicId, questionnaireId])
 
+  // フォームデータ変更時にリアルタイムでバリデーション
+  useEffect(() => {
+    if (questions.length > 0 && Object.keys(formData).length > 0) {
+      // 初回レンダリング時は実行しない（全てが空でエラーになるため）
+      const hasAnyValue = Object.values(formData).some(value => {
+        if (Array.isArray(value)) {
+          return value.length > 0
+        }
+        return value !== '' && value !== null && value !== undefined
+      })
+      
+      if (hasAnyValue) {
+        validateForm()
+      }
+    }
+  }, [formData, questions])
+
   // 質問をsort_order順でソート
   const sortedQuestions = [...questions].sort((a, b) => a.sort_order - b.sort_order)
 
@@ -239,7 +256,7 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
         
         if (!value || (Array.isArray(value) && value.length === 0)) {
           console.log(`質問 ${question.id} でバリデーションエラー`)
-          newErrors[question.id] = 'この項目は必須です'
+          newErrors[question.id] = question.question_text
         } else {
           console.log(`質問 ${question.id} は正常`)
         }
@@ -455,8 +472,35 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
     )
   }
 
+  // エラーがあるかどうかをチェック
+  const hasErrors = Object.keys(errors).length > 0
+
   return (
     <div className="space-y-6">
+      {/* エラーサマリー */}
+      {hasErrors && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-red-800">入力に不備があります</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p className="mb-2">以下の項目を入力してください：</p>
+                <ul className="list-disc list-inside space-y-1">
+                  {Object.values(errors).map((errorMsg, index) => (
+                    <li key={index}>{errorMsg}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ヘッダー */}
       <div className="flex justify-between items-center">
         <div>
@@ -473,10 +517,14 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
               キャンセル
             </Button>
           )}
-          <Button onClick={() => {
-            console.log('送信ボタンクリック')
-            handleSave()
-          }} disabled={saving}>
+          <Button 
+            onClick={() => {
+              console.log('送信ボタンクリック')
+              handleSave()
+            }} 
+            disabled={saving || hasErrors}
+            className={hasErrors ? 'opacity-50 cursor-not-allowed' : ''}
+          >
             {saving ? '送信中...' : '送信'}
           </Button>
         </div>
@@ -514,10 +562,14 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
               キャンセル
             </Button>
           )}
-          <Button onClick={() => {
-            console.log('送信ボタンクリック')
-            handleSave()
-          }} disabled={saving}>
+          <Button 
+            onClick={() => {
+              console.log('送信ボタンクリック')
+              handleSave()
+            }} 
+            disabled={saving || hasErrors}
+            className={hasErrors ? 'opacity-50 cursor-not-allowed' : ''}
+          >
             {saving ? '送信中...' : '送信'}
           </Button>
         </div>
