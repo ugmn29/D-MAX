@@ -1084,10 +1084,14 @@ export function AppointmentEditModal({
           
           setSelectedPatient(patientToUse)
           setShowNewPatientForm(false)
+        } else if (selectedPatient) {
+          // 既存の患者が選択されている場合
+          patientToUse = selectedPatient
         }
         
+        // 患者が選択されていない場合はエラー
         if (!patientToUse) {
-          alert('患者を選択してください')
+          alert('患者を選択するか、新規患者を登録してください')
           return
         }
       }
