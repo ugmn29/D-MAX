@@ -1067,8 +1067,9 @@ export function AppointmentEditModal({
       if (!editingAppointment) {
         // 新規患者フォームが表示されている場合は、まず患者を作成
         if (showNewPatientForm) {
-          if (!newPatientData.last_name || !newPatientData.first_name || !newPatientData.phone) {
-            alert('患者情報を入力してください')
+          // 名前と電話番号の必須チェック（first_nameは任意）
+          if (!newPatientData.last_name || !newPatientData.phone) {
+            alert('患者の名前と電話番号を入力してください')
             return
           }
           
@@ -1504,18 +1505,28 @@ export function AppointmentEditModal({
                       <div className="space-y-3">
                         {/* 1行目: 名前 */}
                         <Input
-                          placeholder="名前"
-                          value={`${newPatientData.last_name} ${newPatientData.first_name}`.trim()}
+                          placeholder="名前（例：福永 真大 または ふくなが）"
+                          value={`${newPatientData.last_name}${newPatientData.first_name ? ' ' + newPatientData.first_name : ''}`.trim()}
                           onChange={(e) => {
-                            const fullName = e.target.value
-                            const nameParts = fullName.split(' ')
-                            const lastName = nameParts[0] || ''
-                            const firstName = nameParts.slice(1).join(' ') || ''
-                            setNewPatientData(prev => ({ 
-                              ...prev, 
-                              last_name: lastName,
-                              first_name: firstName
-                            }))
+                            const fullName = e.target.value.trim()
+                            if (fullName.includes(' ')) {
+                              // スペースがある場合は分割
+                              const nameParts = fullName.split(/\s+/)
+                              const lastName = nameParts[0] || ''
+                              const firstName = nameParts.slice(1).join(' ') || ''
+                              setNewPatientData(prev => ({ 
+                                ...prev, 
+                                last_name: lastName,
+                                first_name: firstName
+                              }))
+                            } else {
+                              // スペースがない場合は全体をlast_nameとして扱う
+                              setNewPatientData(prev => ({ 
+                                ...prev, 
+                                last_name: fullName,
+                                first_name: ''
+                              }))
+                            }
                           }}
                           className="text-sm h-10"
                         />
