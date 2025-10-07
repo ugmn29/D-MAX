@@ -73,6 +73,14 @@ export default function HomePage() {
               setTimeSlotMinutes(numericTimeSlotMinutes)
             }
           }
+          if (updateData.cellHeight) {
+            const numericCellHeight = Number(updateData.cellHeight)
+            console.log('メインページ: localStorageからcellHeight変更を検知:', numericCellHeight)
+            if (numericCellHeight !== cellHeight) {
+              console.log('メインページ: cellHeightを更新:', cellHeight, '→', numericCellHeight)
+              setCellHeight(numericCellHeight)
+            }
+          }
         } catch (error) {
           console.error('設定更新データの解析エラー:', error)
         }
@@ -88,6 +96,14 @@ export default function HomePage() {
           setTimeSlotMinutes(numericTimeSlotMinutes)
         }
       }
+      if (e.detail?.cellHeight) {
+        const numericCellHeight = Number(e.detail.cellHeight)
+        console.log('メインページ: カスタムイベントからcellHeight変更を検知:', numericCellHeight)
+        if (numericCellHeight !== cellHeight) {
+          console.log('メインページ: cellHeightを更新:', cellHeight, '→', numericCellHeight)
+          setCellHeight(numericCellHeight)
+        }
+      }
     }
 
     const handlePostMessage = (e: MessageEvent) => {
@@ -97,6 +113,14 @@ export default function HomePage() {
         if (numericTimeSlotMinutes !== timeSlotMinutes) {
           console.log('メインページ: timeSlotMinutesを更新:', timeSlotMinutes, '→', numericTimeSlotMinutes)
           setTimeSlotMinutes(numericTimeSlotMinutes)
+        }
+      }
+      if (e.data?.data?.cellHeight) {
+        const numericCellHeight = Number(e.data.data.cellHeight)
+        console.log('メインページ: postMessageからcellHeight変更を検知:', numericCellHeight)
+        if (numericCellHeight !== cellHeight) {
+          console.log('メインページ: cellHeightを更新:', cellHeight, '→', numericCellHeight)
+          setCellHeight(numericCellHeight)
         }
       }
     }
@@ -124,9 +148,19 @@ export default function HomePage() {
       const numericTimeSlotMinutes = settings.time_slot_minutes ? Number(settings.time_slot_minutes) : 15
       console.log('メインページ: 最終的な時間設定値:', numericTimeSlotMinutes)
 
+      // cell_heightとtimeSlotMinutesの整合性をチェックして自動調整
+      let finalCellHeight = settings.cell_height || 40
+      if (numericTimeSlotMinutes === 15 && finalCellHeight < 40) {
+        console.warn(`メインページ: セル高さ（${finalCellHeight}px）が15分スロットに対して低すぎるため、40pxに自動調整します`)
+        finalCellHeight = 40
+      } else if (numericTimeSlotMinutes === 30 && finalCellHeight < 60) {
+        console.warn(`メインページ: セル高さ（${finalCellHeight}px）が30分スロットに対して低すぎるため、60pxに自動調整します`)
+        finalCellHeight = 60
+      }
+
       setTimeSlotMinutes(numericTimeSlotMinutes)
       setDisplayItems(settings.display_items || [])
-      setCellHeight(settings.cell_height || 40)
+      setCellHeight(finalCellHeight)
       setSettingsLoaded(true)
 
       console.log('メインページ: 設定読み込み完了')

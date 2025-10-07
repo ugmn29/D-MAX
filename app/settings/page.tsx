@@ -260,10 +260,12 @@ export default function SettingsPage() {
   const [templateForm, setTemplateForm] = useState({
     name: '',
     notification_type: 'appointment_reminder',
-    channel: 'line',
-    subject: '',
-    message: ''
+    line_message: '',
+    email_subject: '',
+    email_message: '',
+    sms_message: ''
   })
+  const [activeChannelTab, setActiveChannelTab] = useState<'line' | 'email' | 'sms'>('line')
 
   // 自動リマインドルールの状態
   const [autoReminderRule, setAutoReminderRule] = useState({
@@ -845,9 +847,10 @@ export default function SettingsPage() {
               id: t.id,
               name: t.name,
               notification_type: t.notification_type,
-              channel: 'line', // デフォルト
-              subject: '',
-              message: t.message_template
+              line_message: t.line_message || '',
+              email_subject: t.email_subject || '',
+              email_message: t.email_message || '',
+              sms_message: t.sms_message || ''
             })))
           }
         } catch (error) {
@@ -928,9 +931,24 @@ export default function SettingsPage() {
           setDisplayItems(settings.display_items)
         }
 
-        if (settings.cell_height) {
-          setCellHeight(settings.cell_height)
+        // cell_heightとtimeSlotMinutesの整合性をチェック
+        let finalCellHeight = settings.cell_height || 40
+        const currentTimeSlotMinutes = settings.time_slot_minutes || 15
+        
+        // 整合性チェック: 15分スロットの場合は40px以上を推奨
+        if (currentTimeSlotMinutes === 15 && finalCellHeight < 40) {
+          console.warn(`セル高さ（${finalCellHeight}px）が15分スロットに対して低すぎるため、40pxに自動調整します`)
+          finalCellHeight = 40
+          // 自動修正した値を保存
+          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 40)
+        } else if (currentTimeSlotMinutes === 30 && finalCellHeight < 60) {
+          console.warn(`セル高さ（${finalCellHeight}px）が30分スロットに対して低すぎるため、60pxに自動調整します`)
+          finalCellHeight = 60
+          // 自動修正した値を保存
+          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 60)
         }
+        
+        setCellHeight(finalCellHeight)
 
 
         // Web予約設定を読み込み
@@ -1066,17 +1084,35 @@ export default function SettingsPage() {
         await setClinicSetting(DEMO_CLINIC_ID, 'time_slot_minutes', numericTimeSlotMinutes)
         console.log('設定ページ: time_slot_minutes保存完了')
 
+        // timeSlotMinutesに応じてcell_heightを自動調整
+        let recommendedCellHeight = cellHeight
+        if (numericTimeSlotMinutes === 15 && cellHeight < 40) {
+          recommendedCellHeight = 40
+          setCellHeight(40)
+          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 40)
+          console.log('設定ページ: セルの高さを15分スロットに合わせて40pxに自動調整しました')
+        } else if (numericTimeSlotMinutes === 30 && cellHeight < 60) {
+          recommendedCellHeight = 60
+          setCellHeight(60)
+          await setClinicSetting(DEMO_CLINIC_ID, 'cell_height', 60)
+          console.log('設定ページ: セルの高さを30分スロットに合わせて60pxに自動調整しました')
+        }
+
         // メインページに設定変更を通知
         const updateData = {
           timestamp: Date.now(),
-          timeSlotMinutes: numericTimeSlotMinutes
+          timeSlotMinutes: numericTimeSlotMinutes,
+          cellHeight: recommendedCellHeight
         }
         window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
         console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
 
         // カスタムイベントを発火
         const customEvent = new CustomEvent('clinicSettingsUpdated', {
-          detail: { timeSlotMinutes: numericTimeSlotMinutes }
+          detail: { 
+            timeSlotMinutes: numericTimeSlotMinutes,
+            cellHeight: recommendedCellHeight
+          }
         })
         window.dispatchEvent(customEvent)
         console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
@@ -6177,10 +6213,12 @@ export default function SettingsPage() {
                     setTemplateForm({
                       name: '',
                       notification_type: 'appointment_reminder',
-                      channel: 'line',
-                      subject: '',
-                      message: ''
+                      line_message: '',
+                      email_subject: '',
+                      email_message: '',
+                      sms_message: ''
                     })
+                    setActiveChannelTab('line')
                     setShowTemplateModal(true)
                   }}>
                     <Plus className="w-4 h-4 mr-2" />
@@ -6203,13 +6241,17 @@ export default function SettingsPage() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <h4 className="font-semibold text-gray-900">{template.name}</h4>
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                template.channel === 'line' ? 'bg-green-100 text-green-700' :
-                                template.channel === 'email' ? 'bg-blue-100 text-blue-700' :
-                                'bg-purple-100 text-purple-700'
-                              }`}>
-                                {template.channel === 'line' ? 'LINE' : template.channel === 'email' ? 'メール' : 'SMS'}
-                              </span>
+                              <div className="flex gap-1">
+                                {template.line_message && (
+                                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">LINE</span>
+                                )}
+                                {template.email_message && (
+                                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">メール</span>
+                                )}
+                                {template.sms_message && (
+                                  <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700">SMS</span>
+                                )}
+                              </div>
                               <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
                                 {template.notification_type === 'appointment_reminder' ? '予約リマインド' :
                                  template.notification_type === 'periodic_checkup' ? '定期検診' :
@@ -6217,10 +6259,9 @@ export default function SettingsPage() {
                                  template.notification_type === 'appointment_change' ? '予約変更' : 'カスタム'}
                               </span>
                             </div>
-                            {template.subject && (
-                              <p className="text-sm font-medium text-gray-700 mb-1">{template.subject}</p>
-                            )}
-                            <p className="text-sm text-gray-600 line-clamp-2">{template.message}</p>
+                            <p className="text-sm text-gray-600 line-clamp-2">
+                              {template.line_message || template.email_message || template.sms_message || ''}
+                            </p>
                           </div>
                           <div className="flex items-center gap-2 ml-4">
                             <Button
@@ -6231,10 +6272,12 @@ export default function SettingsPage() {
                                 setTemplateForm({
                                   name: template.name,
                                   notification_type: template.notification_type,
-                                  channel: template.channel,
-                                  subject: template.subject || '',
-                                  message: template.message
+                                  line_message: template.line_message || '',
+                                  email_subject: template.email_subject || '',
+                                  email_message: template.email_message || '',
+                                  sms_message: template.sms_message || ''
                                 })
+                                setActiveChannelTab('line')
                                 setShowTemplateModal(true)
                               }}
                             >
@@ -6299,58 +6342,132 @@ export default function SettingsPage() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">通知種類</label>
-                            <select
-                              value={templateForm.notification_type}
-                              onChange={(e) => setTemplateForm({ ...templateForm, notification_type: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                              <option value="appointment_reminder">予約リマインド</option>
-                              <option value="periodic_checkup">定期検診</option>
-                              <option value="treatment_reminder">治療リマインド</option>
-                              <option value="appointment_change">予約変更</option>
-                              <option value="custom">カスタム</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">送信チャンネル</label>
-                            <select
-                              value={templateForm.channel}
-                              onChange={(e) => setTemplateForm({ ...templateForm, channel: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                              <option value="line">LINE</option>
-                              <option value="email">メール</option>
-                              <option value="sms">SMS</option>
-                            </select>
-                          </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">通知種類</label>
+                          <select
+                            value={templateForm.notification_type}
+                            onChange={(e) => setTemplateForm({ ...templateForm, notification_type: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="appointment_reminder">予約リマインド</option>
+                            <option value="periodic_checkup">定期検診</option>
+                            <option value="treatment_reminder">治療リマインド</option>
+                            <option value="appointment_change">予約変更</option>
+                            <option value="custom">カスタム</option>
+                          </select>
                         </div>
 
-                        {templateForm.channel === 'email' && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">件名</label>
-                            <input
-                              type="text"
-                              value={templateForm.subject}
-                              onChange={(e) => setTemplateForm({ ...templateForm, subject: e.target.value })}
-                              placeholder="例：【〇〇クリニック】ご予約のお知らせ"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                          </div>
-                        )}
-
+                        {/* チャネルタブ */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">メッセージ</label>
-                          <textarea
-                            value={templateForm.message}
-                            onChange={(e) => setTemplateForm({ ...templateForm, message: e.target.value })}
-                            rows={8}
-                            placeholder="例：{{patient_name}}様&#10;&#10;{{clinic_name}}です。&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;日時：{{appointment_datetime}}&#10;&#10;よろしくお願いいたします。"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">変数を使用できます：{`{{patient_name}}`}, {`{{clinic_name}}`}, {`{{appointment_date}}`}, {`{{appointment_datetime}}`}</p>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">送信チャンネル別メッセージ</label>
+                          <div className="border border-gray-300 rounded-lg">
+                            <div className="flex border-b border-gray-300">
+                              <button
+                                type="button"
+                                onClick={() => setActiveChannelTab('line')}
+                                className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                  activeChannelTab === 'line'
+                                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                LINE {templateForm.line_message && '✓'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActiveChannelTab('email')}
+                                className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                  activeChannelTab === 'email'
+                                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                メール {templateForm.email_message && '✓'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActiveChannelTab('sms')}
+                                className={`flex-1 px-4 py-2 text-sm font-medium ${
+                                  activeChannelTab === 'sms'
+                                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                SMS {templateForm.sms_message && '✓'}
+                              </button>
+                            </div>
+
+                            <div className="p-4">
+                              {activeChannelTab === 'line' && (
+                                <div>
+                                  <textarea
+                                    value={templateForm.line_message}
+                                    onChange={(e) => setTemplateForm({ ...templateForm, line_message: e.target.value })}
+                                    rows={8}
+                                    placeholder="例：{{patient_name}}様&#10;&#10;{{clinic_name}}です。&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;日時：{{appointment_datetime}}&#10;&#10;よろしくお願いいたします。"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                  />
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    変数: {`{{patient_name}}`}, {`{{clinic_name}}`}, {`{{appointment_date}}`}, {`{{appointment_datetime}}`} | 最大5000文字
+                                  </p>
+                                </div>
+                              )}
+
+                              {activeChannelTab === 'email' && (
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">件名</label>
+                                    <input
+                                      type="text"
+                                      value={templateForm.email_subject}
+                                      onChange={(e) => setTemplateForm({ ...templateForm, email_subject: e.target.value })}
+                                      placeholder="例：【〇〇クリニック】ご予約のお知らせ"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">本文</label>
+                                    <textarea
+                                      value={templateForm.email_message}
+                                      onChange={(e) => setTemplateForm({ ...templateForm, email_message: e.target.value })}
+                                      rows={10}
+                                      placeholder="例：{{patient_name}}様&#10;&#10;いつもありがとうございます。&#10;{{clinic_name}}です。&#10;&#10;{{appointment_date}}のご予約のお知らせです。&#10;&#10;■ご予約内容&#10;日時：{{appointment_datetime}}&#10;治療内容：{{treatment_name}}&#10;&#10;よろしくお願いいたします。"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      変数: {`{{patient_name}}`}, {`{{clinic_name}}`}, {`{{appointment_date}}`}, {`{{appointment_datetime}}`}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {activeChannelTab === 'sms' && (
+                                <div>
+                                  <textarea
+                                    value={templateForm.sms_message}
+                                    onChange={(e) => setTemplateForm({ ...templateForm, sms_message: e.target.value })}
+                                    rows={4}
+                                    placeholder="例：明日10時のご予約です。〇〇クリニック"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                                    maxLength={160}
+                                  />
+                                  <div className="flex justify-between items-center mt-1">
+                                    <p className="text-xs text-gray-500">
+                                      変数: {`{{patient_name}}`}, {`{{appointment_date}}`} | 70文字推奨
+                                    </p>
+                                    <p className={`text-xs font-medium ${
+                                      templateForm.sms_message.length > 70
+                                        ? 'text-orange-600'
+                                        : 'text-gray-600'
+                                    }`}>
+                                      {templateForm.sms_message.length}/160文字
+                                      {templateForm.sms_message.length > 70 && ' (課金2倍)'}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
                         <div className="flex justify-end gap-2 pt-4 border-t">
@@ -6362,6 +6479,12 @@ export default function SettingsPage() {
                           </Button>
                           <Button
                             onClick={async () => {
+                              // バリデーション
+                              if (!templateForm.line_message && !templateForm.email_message && !templateForm.sms_message) {
+                                alert('少なくとも1つのチャネルのメッセージを入力してください')
+                                return
+                              }
+
                               setSaving(true)
                               try {
                                 if (editingTemplate) {
@@ -6373,7 +6496,10 @@ export default function SettingsPage() {
                                       id: editingTemplate.id,
                                       name: templateForm.name,
                                       notification_type: templateForm.notification_type,
-                                      message: templateForm.message
+                                      line_message: templateForm.line_message,
+                                      email_subject: templateForm.email_subject,
+                                      email_message: templateForm.email_message,
+                                      sms_message: templateForm.sms_message
                                     })
                                   })
 
@@ -6394,9 +6520,10 @@ export default function SettingsPage() {
                                       clinic_id: DEMO_CLINIC_ID,
                                       name: templateForm.name,
                                       notification_type: templateForm.notification_type,
-                                      channel: templateForm.channel,
-                                      subject: templateForm.subject,
-                                      message: templateForm.message
+                                      line_message: templateForm.line_message,
+                                      email_subject: templateForm.email_subject,
+                                      email_message: templateForm.email_message,
+                                      sms_message: templateForm.sms_message
                                     })
                                   })
 
