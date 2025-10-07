@@ -1990,7 +1990,7 @@ export function AppointmentEditModal({
                       }}
                     />
                     <Label htmlFor={member.id} className="flex-1">
-                      {member.name} ({member.position})
+                      {member.name} ({typeof member.position === 'object' ? member.position?.name || '未設定' : member.position || '未設定'})
                     </Label>
                   </div>
                 ))}
