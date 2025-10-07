@@ -393,6 +393,42 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     return hasConflict
   }
 
+  // 予約の現在位置を計算する関数
+  const calculateAppointmentPosition = (appointment: Appointment) => {
+    let staffIndex = 0
+    let unitIndex = 0
+    
+    if (displayMode === 'staff') {
+      // スタッフ表示モードの場合
+      staffIndex = workingStaff.findIndex(staff => 
+        staff.staff.id === appointment.staff1_id ||
+        staff.staff.id === appointment.staff2_id ||
+        staff.staff.id === appointment.staff3_id
+      )
+      if (staffIndex === -1) staffIndex = 0
+    } else if (displayMode === 'units') {
+      // ユニット表示モードの場合
+      unitIndex = units.findIndex(unit => unit.id === appointment.unit_id)
+      if (unitIndex === -1) unitIndex = 0
+    } else if (displayMode === 'both') {
+      // 両方表示モードの場合
+      const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
+      const workingStaffIndex = workingStaff.findIndex(staff => staff.staff.id === staffId)
+      
+      if (workingStaffIndex !== -1) {
+        // スタッフ列の場合
+        staffIndex = workingStaffIndex
+      } else {
+        // ユニット列の場合
+        unitIndex = units.findIndex(unit => unit.id === appointment.unit_id)
+        if (unitIndex === -1) unitIndex = 0
+        staffIndex = workingStaff.length + unitIndex
+      }
+    }
+    
+    return { staffIndex, unitIndex }
+  }
+
   // 予約を移動（1枠ごとに制限、スタッフ間移動対応）
   const moveAppointment = async (appointment: Appointment, newStartTime: string, newStaffIndex: number | null = null) => {
     try {
@@ -2006,8 +2042,35 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   console.log('予約セルクリック:', block.appointment)
                   console.log('選択された時間スロット:', block.appointment.start_time)
                   console.log('選択されたスタッフインデックス:', block.staffIndex)
+                  console.log('表示モード:', displayMode)
+                  
                   setSelectedTimeSlot(block.appointment.start_time)
-                  setSelectedStaffIndex(block.staffIndex)
+                  
+                  // 予約の現在位置を計算して設定
+                  const { staffIndex: calculatedStaffIndex, unitIndex: calculatedUnitIndex } = calculateAppointmentPosition(block.appointment)
+                  
+                  // 表示モードに応じてスタッフインデックスとユニットインデックスを設定
+                  if (displayMode === 'units') {
+                    // ユニット表示モードの場合
+                    setSelectedStaffIndex(undefined)
+                    setSelectedUnitIndex(calculatedUnitIndex)
+                  } else if (displayMode === 'staff') {
+                    // スタッフ表示モードの場合
+                    setSelectedStaffIndex(calculatedStaffIndex)
+                    setSelectedUnitIndex(undefined)
+                  } else if (displayMode === 'both') {
+                    // 両方表示モードの場合
+                    if (calculatedStaffIndex < workingStaff.length) {
+                      // スタッフ列の場合
+                      setSelectedStaffIndex(calculatedStaffIndex)
+                      setSelectedUnitIndex(undefined)
+                    } else {
+                      // ユニット列の場合
+                      setSelectedStaffIndex(undefined)
+                      setSelectedUnitIndex(calculatedStaffIndex - workingStaff.length)
+                    }
+                  }
+                  
                   setEditingAppointment(block.appointment)
                   setShowAppointmentModal(true)
                   console.log('モーダル表示フラグ設定完了')
