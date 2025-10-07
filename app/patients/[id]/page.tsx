@@ -55,9 +55,9 @@ export default function PatientDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="space-y-6 p-6">
-        {/* ヘッダー */}
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+      {/* ヘッダー（固定） */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
@@ -76,8 +76,10 @@ export default function PatientDetailPage() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* タブ構成 */}
+      {/* タブ構成（スクロール可能） */}
+      <div className="flex-1 overflow-hidden">
         <PatientDetailTabs patientId={patientId} />
       </div>
     </div>

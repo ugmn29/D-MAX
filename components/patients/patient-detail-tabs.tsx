@@ -83,10 +83,10 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* タブナビゲーション */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* タブナビゲーション（固定） */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6">
+        <nav className="flex space-x-8 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
@@ -95,7 +95,7 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
                 onClick={() => tab.available && setActiveTab(tab.id)}
                 disabled={!tab.available}
                 className={`
-                  flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap
+                  flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
                   ${activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : tab.available
@@ -112,12 +112,16 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
         </nav>
       </div>
 
-      {/* タブコンテンツ */}
-      <Card>
-        <CardContent className="p-6">
-          {renderTabContent()}
-        </CardContent>
-      </Card>
+      {/* タブコンテンツ（スクロール可能） */}
+      <div className="flex-1 overflow-y-auto bg-gray-50">
+        <div className="p-6">
+          <Card>
+            <CardContent className="p-6">
+              {renderTabContent()}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
