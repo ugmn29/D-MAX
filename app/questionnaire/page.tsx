@@ -71,17 +71,6 @@ export default function QuestionnairePage() {
                     必要に応じてご連絡いたします。
                   </p>
                 </div>
-                
-                <Button 
-                  onClick={() => {
-                    setShowThankYouMessage(false)
-                    setSelectedQuestionnaire(null)
-                    setSubmittedResponseId(null)
-                  }}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                >
-                  新しい問診票を開始
-                </Button>
               </div>
             </CardContent>
           </Card>
