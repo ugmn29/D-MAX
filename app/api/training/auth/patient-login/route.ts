@@ -55,6 +55,18 @@ export async function POST(request: NextRequest) {
 
     console.log('Patient fetch result:', { patient: !!patient, error: fetchError })
 
+    // モック患者対応: データベースにない場合、患者IDをモック形式と仮定
+    if (fetchError && fetchError.code === 'PGRST116') {
+      console.log('Patient not found in database - returning mock mode error')
+      return NextResponse.json(
+        {
+          success: false,
+          error: '患者情報が見つかりません。本登録済みの患者のみログイン可能です。'
+        },
+        { status: 404 }
+      )
+    }
+
     if (fetchError || !patient) {
       console.log('Patient not found:', fetchError)
       return NextResponse.json(

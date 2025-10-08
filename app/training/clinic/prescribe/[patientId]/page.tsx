@@ -195,49 +195,120 @@ export default function PrescribePage() {
     setIsSaving(true)
 
     try {
+      console.log('保存開始:', { patientId, menuName, trainingCount: selectedTrainings.length })
+
+      // モック患者ID（UUID形式でない）の場合はモックモードで保存
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)
+
+      if (!isUUID) {
+        console.log('モックモード: 患者IDがUUID形式ではないため、モックモードで保存します')
+
+        // モックモードの保存処理
+        const menuId = `menu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        const mockMenu = {
+          id: menuId,
+          patient_id: patientId,
+          clinic_id: DEMO_CLINIC_ID,
+          menu_name: menuName,
+          is_active: true,
+          prescribed_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+
+        const mockMenuTrainings = selectedTrainings.map((t, index) => ({
+          id: `mt_${Date.now()}_${index}`,
+          menu_id: menuId,
+          training_id: t.id,
+          sort_order: index + 1,
+          action_seconds: t.action_seconds,
+          rest_seconds: t.rest_seconds,
+          sets: t.sets,
+          auto_progress: false,
+          created_at: new Date().toISOString()
+        }))
+
+        // localStorageに保存
+        const existingMenus = JSON.parse(localStorage.getItem('mock_training_menus') || '[]')
+        const existingMenuTrainings = JSON.parse(localStorage.getItem('mock_menu_trainings') || '[]')
+
+        // 既存の患者のメニューを無効化
+        const updatedMenus = existingMenus.map((m: any) =>
+          m.patient_id === patientId ? { ...m, is_active: false } : m
+        )
+
+        localStorage.setItem('mock_training_menus', JSON.stringify([...updatedMenus, mockMenu]))
+        localStorage.setItem('mock_menu_trainings', JSON.stringify([...existingMenuTrainings, ...mockMenuTrainings]))
+
+        console.log('モックモード: 保存完了')
+        alert('トレーニングメニューを保存しました（モックモード）')
+        router.push('/training/clinic/patients')
+        return
+      }
+
       // 既存のメニューを無効化
-      await supabase
+      console.log('既存メニューを無効化中...')
+      const { error: updateError } = await supabase
         .from('training_menus')
         .update({ is_active: false })
         .eq('patient_id', patientId)
         .eq('is_active', true)
 
+      if (updateError) {
+        console.error('既存メニュー無効化エラー:', updateError)
+        throw updateError
+      }
+
       // 新しいメニューを作成
+      console.log('新しいメニューを作成中...')
       const { data: menuData, error: menuError } = await supabase
         .from('training_menus')
         .insert({
           patient_id: patientId,
-          clinic_id: '11111111-1111-1111-1111-111111111111', // DEMO_CLINIC_ID
+          clinic_id: DEMO_CLINIC_ID,
           menu_name: menuName,
           is_active: true
         })
         .select()
         .single()
 
-      if (menuError) throw menuError
+      if (menuError) {
+        console.error('メニュー作成エラー:', menuError)
+        throw menuError
+      }
+
+      console.log('メニュー作成成功:', menuData)
 
       // トレーニングを追加
-      const menuTrainings = selectedTrainings.map(t => ({
+      const menuTrainings = selectedTrainings.map((t, index) => ({
         menu_id: menuData.id,
         training_id: t.id,
-        sort_order: t.sort_order,
+        sort_order: index + 1,
         action_seconds: t.action_seconds,
         rest_seconds: t.rest_seconds,
         sets: t.sets,
         auto_progress: false
       }))
 
+      console.log('トレーニングを追加中:', menuTrainings)
       const { error: trainingsError } = await supabase
         .from('menu_trainings')
         .insert(menuTrainings)
 
-      if (trainingsError) throw trainingsError
+      if (trainingsError) {
+        console.error('トレーニング追加エラー:', trainingsError)
+        throw trainingsError
+      }
+
+      console.log('保存完了')
 
       alert('トレーニングメニューを保存しました')
       router.push('/training/clinic/patients')
-    } catch (error) {
+    } catch (error: any) {
       console.error('保存エラー:', error)
-      alert('保存に失敗しました')
+      console.error('エラー詳細:', JSON.stringify(error, null, 2))
+      const errorMessage = error?.message || error?.error_description || '保存に失敗しました'
+      alert(`保存に失敗しました: ${errorMessage}`)
     } finally {
       setIsSaving(false)
     }

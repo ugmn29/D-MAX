@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { getClinicId } from '@/lib/utils/get-clinic'
 
 export default function PatientLoginPage() {
   const router = useRouter()
@@ -9,6 +10,29 @@ export default function PatientLoginPage() {
   const [credential, setCredential] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [clinicName, setClinicName] = useState('トレーニング')
+  const [clinicId, setClinicId] = useState('')
+
+  useEffect(() => {
+    // 医院情報を取得
+    const loadClinicInfo = async () => {
+      const id = getClinicId()
+      setClinicId(id)
+
+      try {
+        const response = await fetch(`/api/clinic/info?clinicId=${id}`)
+        const data = await response.json()
+
+        if (data.success && data.clinic) {
+          setClinicName(data.clinic.name || 'トレーニング')
+        }
+      } catch (error) {
+        console.error('医院情報取得エラー:', error)
+      }
+    }
+
+    loadClinicInfo()
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,7 +44,7 @@ export default function PatientLoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clinicId: '11111111-1111-1111-1111-111111111111', // テストクリニックID
+          clinicId: clinicId,
           patientNumber: parseInt(patientNumber),
           credential,
           deviceId: getDeviceId()
@@ -71,9 +95,9 @@ export default function PatientLoginPage() {
           {/* ロゴ・タイトル */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              トレーニング
+              {clinicName}
             </h1>
-            <p className="text-gray-600">患者ログイン</p>
+            <p className="text-gray-600">トレーニング - 患者ログイン</p>
           </div>
 
           {/* エラーメッセージ */}

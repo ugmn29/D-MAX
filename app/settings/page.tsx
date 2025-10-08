@@ -17,6 +17,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Modal } from "@/components/ui/modal";
 import { Textarea } from "@/components/ui/textarea";
+import { getPatients, getPatientLinkStatus, linkPatientToQuestionnaire, unlinkPatientFromQuestionnaire } from "@/lib/api/patients";
+import { 
+  getQuestionnaires, 
+  createQuestionnaire, 
+  updateQuestionnaire, 
+  deleteQuestionnaire,
+  Questionnaire,
+  QuestionnaireQuestion
+} from "@/lib/api/questionnaires";
 import { ShiftPatterns } from "@/components/shift/shift-patterns";
 import { ShiftTable } from "@/components/shift/shift-table";
 import {
@@ -99,14 +108,6 @@ import {
   updateTreatmentMenu,
   deleteTreatmentMenu,
 } from "@/lib/api/treatment";
-import {
-  getQuestionnaires,
-  createQuestionnaire,
-  updateQuestionnaire,
-  deleteQuestionnaire,
-  Questionnaire,
-  QuestionnaireQuestion,
-} from "@/lib/api/questionnaires";
 import { QuestionnaireEditModal } from "@/components/forms/questionnaire-edit-modal";
 import { 
   getUnits, 
@@ -324,8 +325,20 @@ export default function SettingsPage() {
   const [selectedClinicTab, setSelectedClinicTab] = useState("info");
   const [selectedShiftTab, setSelectedShiftTab] = useState("table");
   const [notificationTab, setNotificationTab] = useState("connection");
+  const [questionnaireTab, setQuestionnaireTab] = useState("list");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // 連携状況管理の状態
+  const [linkStatusData, setLinkStatusData] = useState({
+    unlinkedPatients: [],
+    linkedPatients: []
+  });
+  const [linkStatusFilters, setLinkStatusFilters] = useState({
+    searchName: '',
+    linkStatus: '',
+    questionnaireId: ''
+  });
 
   // 通知設定の状態
   const [notificationSettings, setNotificationSettings] = useState({
@@ -934,6 +947,51 @@ export default function SettingsPage() {
       saveDefaultTexts(updatedTexts);
     }
   };
+
+  // 連携状況データを取得
+  const loadLinkStatusData = async () => {
+    try {
+      const data = await getPatientLinkStatus(DEMO_CLINIC_ID);
+      setLinkStatusData(data);
+    } catch (error) {
+      console.error('連携状況データ取得エラー:', error);
+    }
+  };
+
+  // 患者を連携（本登録）
+  const handleLinkPatient = async (patientId: string) => {
+    if (!confirm('この患者を本登録に変更しますか？')) return;
+    
+    try {
+      await linkPatientToQuestionnaire(patientId);
+      alert('患者を本登録に変更しました');
+      loadLinkStatusData(); // データを再取得
+    } catch (error) {
+      console.error('患者連携エラー:', error);
+      alert('患者の連携に失敗しました');
+    }
+  };
+
+  // 患者の連携を解除（仮登録に戻す）
+  const handleUnlinkPatient = async (patientId: string) => {
+    if (!confirm('この患者を仮登録に戻しますか？\n過去の問診データは保持されます。')) return;
+    
+    try {
+      await unlinkPatientFromQuestionnaire(patientId);
+      alert('患者を仮登録に戻しました');
+      loadLinkStatusData(); // データを再取得
+    } catch (error) {
+      console.error('患者連携解除エラー:', error);
+      alert('患者の連携解除に失敗しました');
+    }
+  };
+
+  // 連携状況データの読み込み
+  useEffect(() => {
+    if (selectedCategory === "questionnaire" && questionnaireTab === "link-status") {
+      loadLinkStatusData();
+    }
+  }, [selectedCategory, questionnaireTab]);
 
   // 問診票データの読み込み
   useEffect(() => {
@@ -4298,13 +4356,38 @@ export default function SettingsPage() {
   const renderQuestionnaireSettings = () => {
     return (
       <div className="p-6">
-        {/* 問診票一覧 */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                問診票一覧
-              </h3>
+        {/* サブタブナビゲーション */}
+        <div className="flex gap-1 border-b border-gray-200 mb-6">
+          <button
+            onClick={() => setQuestionnaireTab("list")}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              questionnaireTab === "list"
+                ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            一覧
+          </button>
+          <button
+            onClick={() => setQuestionnaireTab("link-status")}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              questionnaireTab === "link-status"
+                ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            連携状況
+          </button>
+        </div>
+
+        {/* タブコンテンツ */}
+        {questionnaireTab === "list" && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  問診票一覧
+                </h3>
               <Button
                 onClick={() => setShowQuestionnaireModal(true)}
                 className="bg-blue-600 hover:bg-blue-700"
@@ -4327,11 +4410,11 @@ export default function SettingsPage() {
                 {questionnaires.map((questionnaire) => (
                   <div
                     key={questionnaire.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    className="border border-gray-200 rounded-lg p-2 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-center">
                       <div className="flex-1">
-                        <div className="flex items-center mb-2">
+                        <div className="flex items-center">
                           <h4 className="text-lg font-medium text-gray-900 mr-3">
                             {questionnaire.name}
                           </h4>
@@ -4345,39 +4428,21 @@ export default function SettingsPage() {
                             {questionnaire.is_active ? "有効" : "無効"}
                           </span>
                         </div>
-                        {questionnaire.description && (
-                          <p className="text-gray-600 text-sm mb-3">
-                            {questionnaire.description}
-                          </p>
-                        )}
-                        <div className="flex items-center text-sm text-gray-500">
-                          <span>
-                            質問数: {questionnaire.questions.length}件
-                          </span>
-                          <span className="mx-2">•</span>
-                          <span>
-                            作成日:{" "}
-                            {new Date(
-                              questionnaire.created_at,
-                            ).toLocaleDateString("ja-JP")}
-                          </span>
-                        </div>
                       </div>
                       <div className="flex space-x-2 ml-4">
                         <Button
                           variant="outline"
-                          size="sm"
+                          size="icon"
                           onClick={() => {
                             setSelectedQuestionnaire(questionnaire);
                             setShowQuestionnaireModal(true);
                           }}
                         >
-                          <Edit className="w-4 h-4 mr-1" />
-                          編集
+                          <Edit className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="outline"
-                          size="sm"
+                          size="icon"
                           onClick={() => {
                             if (confirm("この問診票を削除しますか？")) {
                               handleDeleteQuestionnaire(questionnaire.id);
@@ -4385,8 +4450,7 @@ export default function SettingsPage() {
                           }}
                           className="text-red-600 hover:text-red-700"
                         >
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          削除
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
@@ -4396,6 +4460,165 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+        )}
+
+        {/* 連携状況タブ */}
+        {questionnaireTab === "link-status" && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  連携状況
+                </h3>
+              </div>
+              
+              {/* フィルタ・検索 */}
+              <div className="mb-6 space-y-4">
+                <div className="flex gap-4 items-center">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      placeholder="患者名で検索..."
+                      value={linkStatusFilters.searchName}
+                      onChange={(e) => setLinkStatusFilters({
+                        ...linkStatusFilters,
+                        searchName: e.target.value
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <select 
+                    value={linkStatusFilters.linkStatus}
+                    onChange={(e) => setLinkStatusFilters({
+                      ...linkStatusFilters,
+                      linkStatus: e.target.value
+                    })}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">連携状態</option>
+                    <option value="unlinked">未連携</option>
+                    <option value="linked">連携済み</option>
+                  </select>
+                  <select 
+                    value={linkStatusFilters.questionnaireId}
+                    onChange={(e) => setLinkStatusFilters({
+                      ...linkStatusFilters,
+                      questionnaireId: e.target.value
+                    })}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">問診表</option>
+                    {questionnaires.map((q) => (
+                      <option key={q.id} value={q.id}>{q.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 患者一覧（未連携） */}
+              <div className="mb-6">
+                <h4 className="text-md font-medium text-gray-900 mb-3">
+                  未連携患者 ({linkStatusData.unlinkedPatients.length}件)
+                </h4>
+                <div className="space-y-3">
+                  {linkStatusData.unlinkedPatients.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>未連携の患者はありません</p>
+                    </div>
+                  ) : (
+                    linkStatusData.unlinkedPatients.map((patient: any) => (
+                      <div key={patient.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <div className="flex items-center">
+                              <h5 className="text-md font-medium text-gray-900 mr-3">
+                                {patient.last_name} {patient.first_name}
+                              </h5>
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                未連携
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {patient.questionnaire_responses && patient.questionnaire_responses.length > 0 ? (
+                                <>
+                                  {patient.questionnaire_responses[0].questionnaires?.name} - 
+                                  回答完了: {new Date(patient.questionnaire_responses[0].completed_at).toLocaleDateString('ja-JP')}
+                                </>
+                              ) : (
+                                '問診表未回答'
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex space-x-2 ml-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleLinkPatient(patient.id)}
+                              className="bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                              連携
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* 患者一覧（連携済み） */}
+              <div>
+                <h4 className="text-md font-medium text-gray-900 mb-3">
+                  連携済み患者 ({linkStatusData.linkedPatients.length}件)
+                </h4>
+                <div className="space-y-3">
+                  {linkStatusData.linkedPatients.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>連携済みの患者はありません</p>
+                    </div>
+                  ) : (
+                    linkStatusData.linkedPatients.map((patient: any) => (
+                      <div key={patient.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <div className="flex items-center">
+                              <h5 className="text-md font-medium text-gray-900 mr-3">
+                                {patient.last_name} {patient.first_name}
+                              </h5>
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                連携済み
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {patient.questionnaire_responses && patient.questionnaire_responses.length > 0 ? (
+                                <>
+                                  {patient.questionnaire_responses[0].questionnaires?.name} - 
+                                  連携日時: {new Date(patient.registered_at || patient.updated_at).toLocaleDateString('ja-JP')}
+                                </>
+                              ) : (
+                                `連携日時: ${new Date(patient.registered_at || patient.updated_at).toLocaleDateString('ja-JP')}`
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex space-x-2 ml-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUnlinkPatient(patient.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              解除
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -6874,79 +7097,67 @@ export default function SettingsPage() {
         {selectedCategory === "notification" && (
           <div className="space-y-6">
             {/* サブタブナビゲーション */}
-            <div className="bg-white rounded-lg border border-gray-200">
-              <div className="border-b border-gray-200 px-6 py-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  通知設定
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  患者様への通知管理を行います
-                </p>
-              </div>
-              <div className="p-2">
-                <div className="flex gap-1 border-b border-gray-200">
-                  <button
-                    onClick={() => setNotificationTab("connection")}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === "connection"
-                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    接続設定
-                  </button>
-                  <button
-                    onClick={() => setNotificationTab("templates")}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === "templates"
-                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    テンプレート
-                  </button>
-                  <button
-                    onClick={() => setNotificationTab("auto-reminder")}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === "auto-reminder"
-                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    自動リマインド
-                  </button>
-                  <button
-                    onClick={() => setNotificationTab("schedules")}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === "schedules"
-                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    スケジュール
-                  </button>
-                  <button
-                    onClick={() => setNotificationTab("failures")}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === "failures"
-                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    送信失敗
-                  </button>
-                  <button
-                    onClick={() => setNotificationTab("rich-menu")}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                      notificationTab === "rich-menu"
-                        ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    リッチメニュー
-                  </button>
-                </div>
-              </div>
+            <div className="flex gap-1 border-b border-gray-200">
+              <button
+                onClick={() => setNotificationTab("connection")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  notificationTab === "connection"
+                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                接続設定
+              </button>
+              <button
+                onClick={() => setNotificationTab("templates")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  notificationTab === "templates"
+                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                テンプレート
+              </button>
+              <button
+                onClick={() => setNotificationTab("auto-reminder")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  notificationTab === "auto-reminder"
+                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                自動リマインド
+              </button>
+              <button
+                onClick={() => setNotificationTab("schedules")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  notificationTab === "schedules"
+                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                スケジュール
+              </button>
+              <button
+                onClick={() => setNotificationTab("failures")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  notificationTab === "failures"
+                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                送信失敗
+              </button>
+              <button
+                onClick={() => setNotificationTab("rich-menu")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  notificationTab === "rich-menu"
+                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                リッチメニュー
+              </button>
             </div>
 
             {/* タブコンテンツ */}

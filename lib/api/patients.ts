@@ -8,12 +8,34 @@ import { MOCK_MODE } from '@/lib/utils/mock-mode'
  * 全患者を取得
  */
 export async function getPatients(clinicId: string): Promise<Patient[]> {
-  // MOCK_MODEの場合はlocalStorageから取得
+  // MOCK_MODEの場合はlocalStorageとデータベースの両方から取得
   if (MOCK_MODE) {
     try {
       const { getMockPatients } = await import('@/lib/utils/mock-mode')
       const mockPatients = getMockPatients()
-      console.log('MOCK_MODE: 患者データを取得:', mockPatients)
+      console.log('MOCK_MODE: localStorageから患者データを取得:', mockPatients.length, '件')
+
+      // データベースからも患者を取得
+      const client = getSupabaseClient()
+      const { data: dbPatients, error } = await client
+        .from('patients')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .order('patient_number', { ascending: true })
+
+      if (!error && dbPatients) {
+        console.log('MOCK_MODE: データベースから患者データを取得:', dbPatients.length, '件')
+        // モック患者とデータベース患者をマージ（重複除去）
+        const allPatients = [...mockPatients]
+        dbPatients.forEach(dbPatient => {
+          if (!allPatients.find(p => p.id === dbPatient.id)) {
+            allPatients.push(dbPatient)
+          }
+        })
+        console.log('MOCK_MODE: 合計患者数:', allPatients.length, '件')
+        return allPatients
+      }
+
       return mockPatients
     } catch (mockError) {
       console.error('MOCK_MODE患者データ取得エラー:', mockError)
@@ -116,13 +138,34 @@ export async function getPatientById(
   clinicId: string,
   patientId: string
 ): Promise<Patient | null> {
-  // モックモードの場合
+  // モックモードの場合もデータベースとlocalStorageの両方を確認
   if (MOCK_MODE) {
+    // まずlocalStorageから検索
     const { getMockPatients } = await import('@/lib/utils/mock-mode')
-    const patients = getMockPatients()
-    const patient = patients.find((p: any) => p.id === patientId && p.clinic_id === clinicId)
-    console.log('getPatientById (MOCK_MODE):', { patientId, found: !!patient, patient })
-    return patient || null
+    const mockPatients = getMockPatients()
+    const mockPatient = mockPatients.find((p: any) => p.id === patientId && p.clinic_id === clinicId)
+
+    if (mockPatient) {
+      console.log('getPatientById (MOCK_MODE - localStorage):', { patientId, found: true })
+      return mockPatient
+    }
+
+    // localStorageになければデータベースから検索
+    const client = getSupabaseClient()
+    const { data: dbPatient, error: dbError } = await client
+      .from('patients')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('id', patientId)
+      .single()
+
+    if (!dbError && dbPatient) {
+      console.log('getPatientById (MOCK_MODE - database):', { patientId, found: true })
+      return dbPatient
+    }
+
+    console.log('getPatientById (MOCK_MODE):', { patientId, found: false })
+    return null
   }
 
   const client = getSupabaseClient()
@@ -339,6 +382,124 @@ export async function getPatientsStats(clinicId: string) {
 }
 
 // ========================================
+// 連携状況管理関連
+/**
+ * 患者の問診表連携状況を取得
+ */
+export async function getPatientLinkStatus(clinicId: string): Promise<{
+  unlinkedPatients: any[],
+  linkedPatients: any[]
+}> {
+  const client = getSupabaseClient()
+  
+  try {
+    // 仮登録患者（未連携）を取得
+    const { data: unlinkedPatients, error: unlinkedError } = await client
+      .from('patients')
+      .select(`
+        *,
+        questionnaire_responses (
+          id,
+          questionnaire_id,
+          completed_at,
+          questionnaires (
+            id,
+            name
+          )
+        )
+      `)
+      .eq('clinic_id', clinicId)
+      .eq('is_registered', false)
+      .order('created_at', { ascending: false })
+
+    if (unlinkedError) {
+      console.error('未連携患者取得エラー:', unlinkedError)
+    }
+
+    // 本登録患者（連携済み）を取得
+    const { data: linkedPatients, error: linkedError } = await client
+      .from('patients')
+      .select(`
+        *,
+        questionnaire_responses (
+          id,
+          questionnaire_id,
+          completed_at,
+          questionnaires (
+            id,
+            name
+          )
+        )
+      `)
+      .eq('clinic_id', clinicId)
+      .eq('is_registered', true)
+      .order('updated_at', { ascending: false })
+
+    if (linkedError) {
+      console.error('連携済み患者取得エラー:', linkedError)
+    }
+
+    return {
+      unlinkedPatients: unlinkedPatients || [],
+      linkedPatients: linkedPatients || []
+    }
+  } catch (error) {
+    console.error('連携状況取得エラー:', error)
+    return {
+      unlinkedPatients: [],
+      linkedPatients: []
+    }
+  }
+}
+
+/**
+ * 患者を本登録に変更（連携実行）
+ */
+export async function linkPatientToQuestionnaire(patientId: string): Promise<void> {
+  const client = getSupabaseClient()
+  
+  try {
+    const { error } = await client
+      .from('patients')
+      .update({ 
+        is_registered: true,
+        registered_at: new Date().toISOString()
+      })
+      .eq('id', patientId)
+
+    if (error) {
+      throw error
+    }
+  } catch (error) {
+    console.error('患者連携エラー:', error)
+    throw error
+  }
+}
+
+/**
+ * 患者を仮登録に戻す（連携解除）
+ */
+export async function unlinkPatientFromQuestionnaire(patientId: string): Promise<void> {
+  const client = getSupabaseClient()
+  
+  try {
+    const { error } = await client
+      .from('patients')
+      .update({ 
+        is_registered: false,
+        registered_at: null
+      })
+      .eq('id', patientId)
+
+    if (error) {
+      throw error
+    }
+  } catch (error) {
+    console.error('患者連携解除エラー:', error)
+    throw error
+  }
+}
+
 // 通知設定関連
 // ========================================
 

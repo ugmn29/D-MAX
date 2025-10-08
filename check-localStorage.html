@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LocalStorage Check</title>
+</head>
+<body>
+    <h1>LocalStorage 患者データ確認</h1>
+    <div id="output"></div>
+    
+    <script>
+        function checkLocalStorage() {
+            const output = document.getElementById('output');
+            
+            // mock_patients のデータを取得
+            const mockPatients = localStorage.getItem('mock_patients');
+            
+            if (!mockPatients) {
+                output.innerHTML = '<p>mock_patients のデータが見つかりません。</p>';
+                return;
+            }
+            
+            try {
+                const patients = JSON.parse(mockPatients);
+                output.innerHTML = `<h2>患者データ (${patients.length}件)</h2>`;
+                
+                // 連携状況別に分類
+                const unlinkedPatients = patients.filter(p => !p.is_registered);
+                const linkedPatients = patients.filter(p => p.is_registered);
+                
+                output.innerHTML += `
+                    <h3>未連携患者 (${unlinkedPatients.length}件)</h3>
+                    <ul>
+                        ${unlinkedPatients.map(p => `<li>${p.last_name} ${p.first_name} (ID: ${p.id})</li>`).join('')}
+                    </ul>
+                    
+                    <h3>連携済み患者 (${linkedPatients.length}件)</h3>
+                    <ul>
+                        ${linkedPatients.map(p => `<li>${p.last_name} ${p.first_name} (ID: ${p.id})</li>`).join('')}
+                    </ul>
+                `;
+                
+                // 全患者の詳細
+                output.innerHTML += '<h3>全患者詳細</h3><pre>' + JSON.stringify(patients, null, 2) + '</pre>';
+                
+            } catch (error) {
+                output.innerHTML = '<p>データの解析に失敗しました: ' + error.message + '</p>';
+            }
+        }
+        
+        // ページ読み込み時に実行
+        checkLocalStorage();
+    </script>
+</body>
+</html>

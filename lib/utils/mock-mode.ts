@@ -19,9 +19,15 @@ const STORAGE_KEYS = {
   UNITS: 'mock_units'
 }
 
+// サーバーサイド用のメモリストレージ
+const serverMemoryStorage: Record<string, any[]> = {}
+
 // localStorageからデータを読み込む関数
 const loadFromStorage = (key: string): any[] => {
-  if (typeof window === 'undefined') return []
+  if (typeof window === 'undefined') {
+    // サーバーサイドではメモリストレージを使用
+    return serverMemoryStorage[key] || []
+  }
   try {
     const data = localStorage.getItem(key)
     return data ? JSON.parse(data) : []
@@ -33,7 +39,10 @@ const loadFromStorage = (key: string): any[] => {
 
 // localStorageからデータを読み込む関数（デフォルト値付き）
 const getFromStorage = (key: string, defaultValue: any[] = []): any[] => {
-  if (typeof window === 'undefined') return defaultValue
+  if (typeof window === 'undefined') {
+    // サーバーサイドではメモリストレージを使用
+    return serverMemoryStorage[key] || defaultValue
+  }
   try {
     const data = localStorage.getItem(key)
     return data ? JSON.parse(data) : defaultValue
@@ -45,7 +54,11 @@ const getFromStorage = (key: string, defaultValue: any[] = []): any[] => {
 
 // localStorageにデータを保存する関数
 export const saveToStorage = (key: string, data: any[]) => {
-  if (typeof window === 'undefined') return
+  if (typeof window === 'undefined') {
+    // サーバーサイドではメモリストレージを使用
+    serverMemoryStorage[key] = data
+    return
+  }
   try {
     localStorage.setItem(key, JSON.stringify(data))
   } catch (error) {
@@ -267,6 +280,32 @@ export const removeMockPatient = (id: string) => {
   const data = getMockPatients()
   const filtered = data.filter(item => item.id !== id)
   saveToStorage(PATIENTS_KEY, filtered)
+}
+
+// 問診表の管理関数
+const QUESTIONNAIRES_KEY = 'mock_questionnaires'
+
+export const getMockQuestionnaires = () => loadFromStorage(QUESTIONNAIRES_KEY)
+export const addMockQuestionnaire = (item: any) => {
+  const data = getMockQuestionnaires()
+  data.push(item)
+  saveToStorage(QUESTIONNAIRES_KEY, data)
+  return item
+}
+export const updateMockQuestionnaire = (id: string, updates: any) => {
+  const data = getMockQuestionnaires()
+  const index = data.findIndex(item => item.id === id)
+  if (index !== -1) {
+    data[index] = { ...data[index], ...updates, updated_at: new Date().toISOString() }
+    saveToStorage(QUESTIONNAIRES_KEY, data)
+    return data[index]
+  }
+  return null
+}
+export const removeMockQuestionnaire = (id: string) => {
+  const data = getMockQuestionnaires()
+  const filtered = data.filter(item => item.id !== id)
+  saveToStorage(QUESTIONNAIRES_KEY, filtered)
 }
 
 // 予約の管理関数
