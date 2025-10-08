@@ -30,50 +30,30 @@ export default function TrainingsPage() {
 
   const loadTrainings = async () => {
     try {
+      console.log('トレーニングデータ取得開始')
+
       const { data, error } = await supabase
         .from('trainings')
         .select('*')
+        .eq('is_deleted', false)
         .order('category', { ascending: true })
 
       if (error) {
         console.error('Supabaseエラー:', error)
-        throw error
+        setTrainings(getMockTrainings())
+        setIsLoading(false)
+        return
       }
 
-      console.log('取得したトレーニング数:', data?.length || 0)
-      
-      // データが0件の場合、自動的にデフォルトデータを投入
       if (!data || data.length === 0) {
-        console.log('トレーニングデータが0件のため、デフォルトデータを投入します')
-        try {
-          const response = await fetch('/api/training/clinic/seed', { method: 'POST' })
-          const seedData = await response.json()
-          
-          if (response.ok) {
-            console.log('デフォルトデータ投入成功:', seedData.message)
-            // 再度データを取得
-            const { data: newData, error: newError } = await supabase
-              .from('trainings')
-              .select('*')
-              .order('category', { ascending: true })
-            
-            if (!newError && newData) {
-              setTrainings(newData)
-              return
-            }
-          }
-        } catch (seedError) {
-          console.error('デフォルトデータ投入エラー:', seedError)
-          // エラーの場合はモックデータを表示
-          setTrainings(getMockTrainings())
-          return
-        }
+        console.log('データが0件のため、モックデータを使用')
+        setTrainings(getMockTrainings())
+      } else {
+        console.log('トレーニングデータ取得成功:', data.length, '件')
+        setTrainings(data)
       }
-      
-      setTrainings(data || [])
     } catch (error) {
       console.error('トレーニング取得エラー:', error)
-      // エラーの場合はモックデータを表示
       setTrainings(getMockTrainings())
     } finally {
       setIsLoading(false)
