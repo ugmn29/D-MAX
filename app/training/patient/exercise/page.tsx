@@ -21,6 +21,7 @@ function ExerciseContent() {
   const [showInterruptConfirm, setShowInterruptConfirm] = useState(false)
   const [isStartCountdown, setIsStartCountdown] = useState(false)
   const [currentPrecautionIndex, setCurrentPrecautionIndex] = useState(0)
+  const [isCompleting, setIsCompleting] = useState(false)
 
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -78,6 +79,13 @@ function ExerciseContent() {
   }
 
   const handleComplete = async () => {
+    // 既に完了処理中の場合は何もしない（重複防止）
+    if (isCompleting) {
+      console.log('Already completing, skipping duplicate call')
+      return
+    }
+
+    setIsCompleting(true)
     setIsRunning(false)
 
     try {

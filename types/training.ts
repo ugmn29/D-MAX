@@ -16,6 +16,13 @@ export interface Training {
   deleted_at: string | null
   created_at: string
   updated_at: string
+  // 評価基準（追加）
+  evaluation_level_1_label?: string
+  evaluation_level_1_criteria?: string | null
+  evaluation_level_2_label?: string
+  evaluation_level_2_criteria?: string | null
+  evaluation_level_3_label?: string
+  evaluation_level_3_criteria?: string | null
 }
 
 export interface TrainingMenu {

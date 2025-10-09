@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { UTMCapture } from '@/components/tracking/UTMCapture'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className={inter.className}>
+        <UTMCapture />
         <div className="min-h-screen bg-dmax-background">
           {children}
         </div>

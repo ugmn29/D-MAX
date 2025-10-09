@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity } from 'lucide-react'
+import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target } from 'lucide-react'
 import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCancelAnalysis, getStaffCancelAnalysis, getTreatmentCancelAnalysis, CancelAnalysisData, TimeSlotCancelData, StaffCancelData, TreatmentCancelData } from '@/lib/api/analytics'
+import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
+import WebBookingEffectTab from '@/components/analytics/WebBookingEffectTab'
 
 export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
@@ -93,7 +95,8 @@ export default function AnalyticsPage() {
             { id: 'staff', label: 'スタッフ分析', icon: Users },
             { id: 'visits', label: '来院分析', icon: Calendar },
             { id: 'cancellation', label: 'キャンセル分析', icon: Activity },
-            { id: 'marketing', label: 'Web予約効果', icon: TrendingUp }
+            { id: 'marketing', label: 'Web予約効果', icon: TrendingUp },
+            { id: 'training', label: 'トレーニング', icon: Target }
           ].map((tab) => {
             const Icon = tab.icon
             return (
@@ -297,6 +300,48 @@ export default function AnalyticsPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* 診療メニュー別の予約数 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>診療メニュー別の予約数</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {analyticsData.treatment_menu_stats && analyticsData.treatment_menu_stats.length > 0 ? (
+                      analyticsData.treatment_menu_stats
+                        .sort((a, b) => b.appointment_count - a.appointment_count)
+                        .map((menu, index) => {
+                          const total = analyticsData.treatment_menu_stats.reduce((sum, m) => sum + m.appointment_count, 0)
+                          const percentage = total > 0 ? (menu.appointment_count / total) * 100 : 0
+
+                          return (
+                            <div key={index} className="border-b pb-3 last:border-b-0">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-bold text-gray-400">#{index + 1}</span>
+                                  <span className="font-medium text-gray-900">{menu.treatment_name}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm text-gray-500">{percentage.toFixed(1)}%</span>
+                                  <span className="font-bold text-blue-600">{menu.appointment_count}件</span>
+                                </div>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          )
+                        })
+                    ) : (
+                      <p className="text-gray-500 text-center py-4">診療メニューデータがありません</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
 
@@ -561,20 +606,11 @@ export default function AnalyticsPage() {
           )}
 
           {activeTab === 'marketing' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Web予約効果分析</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Web予約効果分析機能</h3>
-                  <p className="text-gray-500">
-                    マーケティングROI分析機能は開発中です。
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <WebBookingEffectTab
+              clinicId="11111111-1111-1111-1111-111111111111"
+              startDate={startDate}
+              endDate={endDate}
+            />
           )}
 
           {activeTab === 'sales' && (
@@ -611,6 +647,11 @@ export default function AnalyticsPage() {
             </Card>
           )}
         </>
+      )}
+
+      {/* トレーニング分析タブ */}
+      {activeTab === 'training' && (
+        <TrainingAnalyticsTab />
       )}
 
       {/* データなしの場合 */}

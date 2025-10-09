@@ -16,13 +16,16 @@ import {
   Folder,
   BarChart3,
   Search,
-  FileClock
+  FileClock,
+  TrendingUp,
+  AlertCircle
 } from 'lucide-react'
 import { BasicInfoTab } from './basic-info-tab'
 import { QuestionnaireTab } from './questionnaire-tab'
 import { AppointmentsTab } from './appointments-tab'
 import { AppointmentLogsTab } from './appointment-logs-tab'
 import { SubKarteTab } from './subkarte-tab'
+import PatientTrainingTabs from '@/components/training/PatientTrainingTabs'
 
 interface PatientDetailTabsProps {
   patientId: string
@@ -34,7 +37,7 @@ const tabs = [
   { id: 'visual', label: '視診', icon: Eye, available: true },
   { id: 'p-test', label: 'P検査', icon: Activity, available: true },
   { id: 'sub-chart', label: 'サブカルテ', icon: FileText, available: true },
-  { id: 'training', label: 'トレーニング', icon: Target, available: false },
+  { id: 'training', label: 'トレーニング', icon: Target, available: true },
   { id: 'history', label: '診療履歴', icon: History, available: true },
   { id: 'appointments', label: '予約', icon: Calendar, available: true },
   { id: 'questionnaire', label: '問診', icon: ClipboardList, available: true },
@@ -59,6 +62,8 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
         return <div className="p-6 text-center text-gray-500">P検査機能（開発中）</div>
       case 'sub-chart':
         return <SubKarteTab patientId={patientId} />
+      case 'training':
+        return <PatientTrainingTabs patientId={patientId} />
       case 'history':
         return <div className="p-6 text-center text-gray-500">診療履歴機能（開発中）</div>
       case 'appointments':

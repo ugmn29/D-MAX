@@ -229,10 +229,38 @@ export default function PatientStatusPage() {
                       return (
                         <Card
                           key={apt.id}
-                          className="p-4 hover:shadow-md transition-shadow cursor-pointer"
+                          className="p-4 hover:shadow-md transition-shadow cursor-pointer relative"
                           onClick={() => router.push(`/patients/${patient?.id}`)}
                         >
-                          <div className="space-y-3">
+                          {/* ステータスアイコン（右上） */}
+                          {(() => {
+                            const currentStatus = apt.status
+                            const nextStatus = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]?.nextStatus
+                            const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]
+                            const buttonColor = statusConfig?.color.split(' ')[0] || 'bg-gray-500'
+                            const textColor = statusConfig?.color.split(' ')[1] || 'text-gray-800'
+                            
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (nextStatus) {
+                                    handleStatusChange(apt.id, nextStatus)
+                                  }
+                                }}
+                                className={`absolute top-2 right-2 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors z-10 ${
+                                  nextStatus 
+                                    ? `${buttonColor} ${textColor} hover:opacity-80 cursor-pointer` 
+                                    : `${buttonColor} ${textColor} cursor-default`
+                                }`}
+                                title={nextStatus ? `${nextStatus}に進む (現在: ${currentStatus})` : `現在: ${currentStatus} (最終ステータス)`}
+                              >
+                                {currentStatus[0]}
+                              </button>
+                            )
+                          })()}
+                          
+                          <div className="space-y-3 pr-8">
                             <div className="font-medium text-sm text-blue-600 hover:text-blue-800">
                               {patient?.last_name} {patient?.first_name}
                             </div>
@@ -242,25 +270,6 @@ export default function PatientStatusPage() {
                             <div className="text-xs text-gray-600">
                               {staffName}
                             </div>
-                            {/* ステータス変更ドロップダウン */}
-                            <Select
-                              value={apt.status}
-                              onValueChange={(value) => {
-                                handleStatusChange(apt.id, value)
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <SelectTrigger className="w-full h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {STATUS_ORDER.map(s => (
-                                  <SelectItem key={s} value={s}>
-                                    {s}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
                           </div>
                         </Card>
                       )

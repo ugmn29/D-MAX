@@ -61,6 +61,13 @@ export async function getClinicNotificationSchedules(
 export async function getPatientNotificationSchedules(
   patientId: string
 ): Promise<PatientNotificationSchedule[]> {
+  // UUID形式でない場合（モック患者）は空配列を返す
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)
+  if (!isUUID) {
+    console.log('モック患者のため通知スケジュールをスキップ')
+    return []
+  }
+
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('patient_notification_schedules')

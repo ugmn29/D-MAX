@@ -104,7 +104,7 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
       setSchedules(schedulesData)
 
       // 患者の希望連絡方法を取得
-      const patient = await getPatientById(patientId)
+      const patient = await getPatientById(clinicId, patientId)
       if (patient && (patient as any).preferred_contact_method) {
         setPreferredContactMethod((patient as any).preferred_contact_method)
         setNotificationChannel((patient as any).preferred_contact_method)

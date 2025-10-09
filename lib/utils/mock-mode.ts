@@ -334,6 +334,138 @@ export const removeMockAppointment = (id: string) => {
   saveToStorage(APPOINTMENTS_KEY, filtered)
 }
 
+// デフォルトの予約データ
+const DEFAULT_APPOINTMENTS = [
+  {
+    id: 'apt-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    patient_id: 'p_1759909926230',
+    staff1_id: 'staff-1',
+    staff2_id: null,
+    staff3_id: null,
+    unit_id: 'unit-1',
+    menu1_id: 'menu-1',
+    menu2_id: null,
+    menu3_id: null,
+    appointment_date: '2025-01-09',
+    start_time: '09:00',
+    end_time: '10:00',
+    status: '未来院',
+    notes: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    // 関連データ
+    patient: {
+      id: 'p_1759909926230',
+      last_name: '福永',
+      first_name: '真大',
+      last_name_kana: 'フクナガ',
+      first_name_kana: 'マサヒロ',
+      phone: '090-0000-0001',
+      patient_number: '201'
+    },
+    staff1: {
+      id: 'staff-1',
+      name: '田中太郎'
+    },
+    menu1: {
+      id: 'menu-1',
+      name: '初診',
+      color: '#3B82F6'
+    },
+    unit: {
+      id: 'unit-1',
+      name: '診療室1'
+    }
+  },
+  {
+    id: 'apt-2',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    patient_id: 'p_1759909926257',
+    staff1_id: 'staff-1',
+    staff2_id: null,
+    staff3_id: null,
+    unit_id: 'unit-1',
+    menu1_id: 'menu-2',
+    menu2_id: null,
+    menu3_id: null,
+    appointment_date: '2025-01-09',
+    start_time: '10:30',
+    end_time: '11:30',
+    status: '遅刻',
+    notes: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    // 関連データ
+    patient: {
+      id: 'p_1759909926257',
+      last_name: '未連携',
+      first_name: '患者',
+      last_name_kana: 'ミレンケイ',
+      first_name_kana: 'カンジャ',
+      phone: '090-0000-0002',
+      patient_number: '202'
+    },
+    staff1: {
+      id: 'staff-1',
+      name: '田中太郎'
+    },
+    menu1: {
+      id: 'menu-2',
+      name: '健診',
+      color: '#10B981'
+    },
+    unit: {
+      id: 'unit-1',
+      name: '診療室1'
+    }
+  }
+]
+
+// モックデータの初期化関数
+export const initializeMockData = () => {
+  console.log('モックデータ初期化: 開始', { window: typeof window })
+  
+  // 予約データの初期化
+  const existingAppointments = getMockAppointments()
+  if (existingAppointments.length === 0) {
+    DEFAULT_APPOINTMENTS.forEach(appointment => {
+      addMockAppointment(appointment)
+    })
+    console.log('モック予約データを初期化しました')
+  }
+  
+  // スタッフ役職が空の場合はデフォルトデータを設定
+  const existingPositions = getMockStaffPositions()
+  if (existingPositions.length === 0) {
+    saveToStorage(STORAGE_KEYS.STAFF_POSITIONS, DEFAULT_STAFF_POSITIONS)
+    console.log('スタッフ役職データを初期化しました')
+  }
+  
+  // スタッフが空の場合はデフォルトデータを設定
+  const existingStaff = getMockStaff()
+  if (existingStaff.length === 0) {
+    saveToStorage(STORAGE_KEYS.STAFF, DEFAULT_STAFF)
+    console.log('スタッフデータを初期化しました')
+  }
+  
+  // ユニットが空の場合はデフォルトデータを設定
+  const existingUnits = getMockUnits()
+  if (existingUnits.length === 0) {
+    saveToStorage(STORAGE_KEYS.UNITS, DEFAULT_UNITS)
+    console.log('ユニットデータを初期化しました')
+  }
+  
+  // 診療メニューが空の場合はデフォルトデータを設定
+  const existingMenus = getMockTreatmentMenus()
+  if (existingMenus.length === 0) {
+    saveToStorage(STORAGE_KEYS.TREATMENT_MENUS, DEFAULT_TREATMENT_MENUS)
+    console.log('診療メニューデータを初期化しました')
+  }
+  
+  console.log('モックデータの初期化が完了しました')
+}
+
 // モックデータ
 export const MOCK_CLINIC_SETTINGS = {
   time_slot_minutes: 15,
@@ -610,64 +742,6 @@ export const getMockCancelReasons = () => {
   return reasons
 }
 
-// 初期化時にデフォルトデータを設定
-export const initializeMockData = () => {
-  console.log('モックデータ初期化: 開始', { window: typeof window })
-  
-  if (typeof window === 'undefined') {
-    console.log('モックデータ初期化: windowがundefinedのためスキップ')
-    return
-  }
-  
-  console.log('モックデータを初期化中...')
-  
-  // 強制的に診療メニューデータを初期化（デバッグ用）
-  console.log('モックデータ初期化: 診療メニューデータを強制初期化します', DEFAULT_TREATMENT_MENUS.length, '個のメニュー')
-  saveToStorage(STORAGE_KEYS.TREATMENT_MENUS, DEFAULT_TREATMENT_MENUS)
-  console.log('診療メニューデータを強制初期化しました')
-  
-  // 初期化後の確認
-  const afterInit = getMockTreatmentMenus()
-  console.log('モックデータ初期化: 初期化後の診療メニュー数', afterInit.length)
-  console.log('モックデータ初期化: 初期化後の診療メニュー', afterInit)
-  
-  // スタッフ役職が空の場合はデフォルトデータを設定
-  const existingPositions = getMockStaffPositions()
-  if (existingPositions.length === 0) {
-    saveToStorage(STORAGE_KEYS.STAFF_POSITIONS, DEFAULT_STAFF_POSITIONS)
-    console.log('スタッフ役職データを初期化しました')
-  }
-  
-  // スタッフが空の場合はデフォルトデータを設定
-  const existingStaff = getMockStaff()
-  if (existingStaff.length === 0) {
-    saveToStorage(STORAGE_KEYS.STAFF, DEFAULT_STAFF)
-    console.log('スタッフデータを初期化しました')
-  }
-  
-  // ユニットが空の場合はデフォルトデータを設定
-  const existingUnits = getMockUnits()
-  if (existingUnits.length === 0) {
-    saveToStorage(STORAGE_KEYS.UNITS, DEFAULT_UNITS)
-    console.log('ユニットデータを初期化しました')
-  }
-  
-  // スタッフシフトが空の場合はデフォルトデータを設定
-  const existingShifts = getMockStaffShifts()
-  if (existingShifts.length === 0) {
-    saveToStorage(STORAGE_KEYS.STAFF_SHIFTS, DEFAULT_STAFF_SHIFTS)
-    console.log('スタッフシフトデータを初期化しました')
-  }
-  
-  // キャンセル理由が空の場合はデフォルトデータを設定
-  const existingCancelReasons = getMockCancelReasons()
-  if (existingCancelReasons.length === 0) {
-    saveToStorage('mock_cancel_reasons', DEFAULT_CANCEL_REASONS)
-    console.log('キャンセル理由データを初期化しました')
-  }
-  
-  console.log('モックデータの初期化が完了しました')
-}
 
 // 後方互換性のための定数（空配列）
 export const MOCK_PATIENT_NOTE_TYPES = []

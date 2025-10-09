@@ -15,6 +15,8 @@ import { getWeeklySlots } from '@/lib/api/web-booking'
 import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, addDays, startOfWeek, addWeeks } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { trackPageView, trackButtonClick, trackFormSubmit } from '@/lib/tracking/funnel-tracker'
+import { getStoredUTMData } from '@/lib/tracking/utm-tracker'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -99,6 +101,15 @@ export default function WebBookingPage() {
       window.scrollTo({ top: y, behavior: 'smooth' })
     }
   }
+
+  // ページビュートラッキング
+  useEffect(() => {
+    // ランディングページビューを記録
+    trackPageView(DEMO_CLINIC_ID, 'LANDING', {
+      page: 'web-booking',
+      has_utm: getStoredUTMData() !== null
+    })
+  }, [])
 
   // データ読み込み
   useEffect(() => {
@@ -291,6 +302,12 @@ export default function WebBookingPage() {
   // 日付と時間選択時の処理
   const handleSlotSelect = (date: string, time: string) => {
     setBookingData(prev => ({ ...prev, selectedDate: date, selectedTime: time }))
+    // 時間選択イベントをトラッキング
+    trackButtonClick(DEMO_CLINIC_ID, 'TIME_SELECTION', `${date} ${time}`, {
+      date,
+      time,
+      menu_id: bookingData.selectedMenu
+    })
     setTimeout(() => scrollToSection(patientInfoSectionRef), 300)
   }
 
@@ -367,7 +384,33 @@ export default function WebBookingPage() {
       }
 
       console.log('Web予約: 予約作成データ', appointmentData)
-      await createAppointment(DEMO_CLINIC_ID, appointmentData)
+      const createdAppointment = await createAppointment(DEMO_CLINIC_ID, appointmentData)
+
+      // 予約完了イベントをトラッキング
+      await trackFormSubmit(DEMO_CLINIC_ID, 'COMPLETE', {
+        appointment_id: createdAppointment?.id,
+        menu_id: bookingData.selectedMenu,
+        is_new_patient: bookingData.isNewPatient
+      })
+
+      // 獲得経路データを保存
+      const utmData = getStoredUTMData()
+      try {
+        await fetch('/api/tracking/save-acquisition', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patient_id: tempPatientId,
+            clinic_id: DEMO_CLINIC_ID,
+            utm_data: utmData,
+            questionnaire_source: null, // 問診表からの回答は別途設定
+            questionnaire_detail: null
+          })
+        })
+      } catch (error) {
+        console.error('獲得経路保存エラー:', error)
+        // エラーが発生しても予約処理は継続
+      }
 
       // 予約完了画面を表示
       setBookingCompleted(true)
@@ -644,6 +687,12 @@ export default function WebBookingPage() {
                           key={menu.id}
                           onClick={() => {
                             setBookingData(prev => ({ ...prev, selectedMenu: menu.treatment_menu_id }))
+                            // メニュー選択イベントをトラッキング
+                            trackButtonClick(DEMO_CLINIC_ID, 'MENU_SELECTION', menu.display_name || menu.treatment_menu_name, {
+                              menu_id: menu.treatment_menu_id,
+                              duration: menu.duration,
+                              is_new_patient: bookingData.isNewPatient
+                            })
                             setTimeout(() => scrollToSection(calendarSectionRef), 300)
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${

@@ -94,12 +94,18 @@ export interface TreatmentCancelData {
   cancel_rate: number
 }
 
+export interface TreatmentMenuStats {
+  treatment_name: string
+  appointment_count: number
+}
+
 export interface AnalyticsData {
   kpi: KPIData
   sales_trend: SalesTrendData[]
   treatment_sales: TreatmentSalesData[]
   staff_productivity: StaffProductivityData[]
   time_slot_analysis: TimeSlotAnalysisData[]
+  treatment_menu_stats: TreatmentMenuStats[]
 }
 
 // 基本分析データを取得
@@ -124,13 +130,15 @@ export async function getAnalyticsData(
       salesTrendData,
       treatmentSalesData,
       staffProductivityData,
-      timeSlotAnalysisData
+      timeSlotAnalysisData,
+      treatmentMenuStats
     ] = await Promise.all([
       getKPIData(clinicId, startDate, endDate, prevStartDateStr, prevEndDateStr),
       getSalesTrendData(clinicId, startDate, endDate),
       getTreatmentSalesData(clinicId, startDate, endDate),
       getStaffProductivityData(clinicId, startDate, endDate),
-      getTimeSlotAnalysisData(clinicId, startDate, endDate)
+      getTimeSlotAnalysisData(clinicId, startDate, endDate),
+      getTreatmentMenuStats(clinicId, startDate, endDate)
     ])
 
     return {
@@ -138,7 +146,8 @@ export async function getAnalyticsData(
       sales_trend: salesTrendData,
       treatment_sales: treatmentSalesData,
       staff_productivity: staffProductivityData,
-      time_slot_analysis: timeSlotAnalysisData
+      time_slot_analysis: timeSlotAnalysisData,
+      treatment_menu_stats: treatmentMenuStats
     }
   } catch (error) {
     console.error('分析データ取得エラー:', error)
@@ -880,3 +889,67 @@ export async function getTreatmentCancelAnalysis(
 
   return result
 }
+
+
+// 診療メニュー別の予約統計を取得
+async function getTreatmentMenuStats(
+  clinicId: string,
+  startDate: string,
+  endDate: string
+): Promise<TreatmentMenuStats[]> {
+  // 予約データを取得
+  const appointments = await getAppointments(clinicId, startDate, endDate)
+
+  // 診療メニューを取得
+  const supabase = getSupabaseClient()
+  const { data: menus, error } = await supabase
+    .from('treatment_menus')
+    .select('id, name')
+    .eq('clinic_id', clinicId)
+    .eq('is_deleted', false)
+
+  if (error) {
+    console.error('診療メニュー取得エラー:', error)
+    return []
+  }
+
+  // メニューIDごとの予約数を集計
+  const menuCountMap = new Map<string, { name: string, count: number }>()
+
+  menus?.forEach(menu => {
+    menuCountMap.set(menu.id, { name: menu.name, count: 0 })
+  })
+
+  // 予約データから診療メニューを集計（キャンセル除外）
+  appointments.forEach(apt => {
+    if (apt.status !== 'キャンセル') {
+      if (apt.menu1_id && menuCountMap.has(apt.menu1_id)) {
+        menuCountMap.get(apt.menu1_id)!.count++
+      }
+      if (apt.menu2_id && menuCountMap.has(apt.menu2_id)) {
+        menuCountMap.get(apt.menu2_id)!.count++
+      }
+      if (apt.menu3_id && menuCountMap.has(apt.menu3_id)) {
+        menuCountMap.get(apt.menu3_id)!.count++
+      }
+    }
+  })
+
+  // 結果を配列に変換（予約数が0より大きいもののみ）
+  const result: TreatmentMenuStats[] = []
+
+  menuCountMap.forEach((data) => {
+    if (data.count > 0) {
+      result.push({
+        treatment_name: data.name,
+        appointment_count: data.count
+      })
+    }
+  })
+
+  // 予約数順でソート
+  result.sort((a, b) => b.appointment_count - a.appointment_count)
+
+  return result
+}
+

@@ -5,6 +5,9 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Patient } from '@/types/database'
 import { getPatientById } from '@/lib/api/patients'
+import TrainingFlowChart from '@/components/training/TrainingFlowChart'
+import TrainingProgressChart from '@/components/training/TrainingProgressChart'
+import PatientIssuesTab from '@/components/training/PatientIssuesTab'
 
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
@@ -53,9 +56,10 @@ export default function PatientDetailPage() {
 
   const [patient, setPatient] = useState<Patient | null>(null)
   const [activeMenu, setActiveMenu] = useState<TrainingMenu | null>(null)
+  const [menuHistory, setMenuHistory] = useState<TrainingMenu[]>([])
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'menu' | 'records'>('menu')
+  const [activeTab, setActiveTab] = useState<'training' | 'progress' | 'issues'>('training')
   const [showResetModal, setShowResetModal] = useState(false)
 
   useEffect(() => {
@@ -105,15 +109,15 @@ export default function PatientDetailPage() {
         const mockMenuTrainings = JSON.parse(localStorage.getItem('mock_menu_trainings') || '[]')
         const mockRecords = JSON.parse(localStorage.getItem('mock_training_records') || '[]')
 
+        // トレーニング情報を取得
+        const { data: trainingsData } = await supabase
+          .from('trainings')
+          .select('*')
+          .eq('is_deleted', false)
+
         const patientActiveMenu = mockMenus.find((m: any) => m.patient_id === patientId && m.is_active)
 
         if (patientActiveMenu) {
-          // トレーニング情報を取得
-          const { data: trainingsData } = await supabase
-            .from('trainings')
-            .select('*')
-            .eq('is_deleted', false)
-
           const menuTrainingsWithDetails = mockMenuTrainings
             .filter((mt: any) => mt.menu_id === patientActiveMenu.id)
             .map((mt: any) => ({
@@ -139,7 +143,7 @@ export default function PatientDetailPage() {
 
         setTrainingRecords(patientRecords)
       } else {
-        // データベースモード
+        // データベースモード - アクティブなメニューを取得
         const { data: menuData, error } = await supabase
           .from('training_menus')
           .select(`
@@ -154,7 +158,7 @@ export default function PatientDetailPage() {
           .single()
 
         if (error) {
-          console.error('メニュー取得エラー:', error)
+          // エラーが発生した場合は何もしない
         } else if (menuData) {
           // sort_orderでソート
           const sortedMenuTrainings = (menuData.menu_trainings || []).sort(
@@ -164,6 +168,30 @@ export default function PatientDetailPage() {
             ...menuData,
             menu_trainings: sortedMenuTrainings
           })
+        }
+
+        // メニュー履歴を取得（過去の非アクティブなメニュー）
+        const { data: historyData, error: historyError } = await supabase
+          .from('training_menus')
+          .select(`
+            *,
+            menu_trainings(
+              *,
+              training:trainings(*)
+            )
+          `)
+          .eq('patient_id', patientId)
+          .eq('is_active', false)
+          .order('prescribed_at', { ascending: false })
+
+        if (!historyError && historyData) {
+          const sortedHistory = historyData.map((menu: any) => ({
+            ...menu,
+            menu_trainings: (menu.menu_trainings || []).sort(
+              (a: any, b: any) => a.sort_order - b.sort_order
+            )
+          }))
+          setMenuHistory(sortedHistory)
         }
 
         // トレーニング実施記録を取得（データベースモード）
@@ -239,10 +267,10 @@ export default function PatientDetailPage() {
                 </button>
               )}
               <button
-                onClick={() => router.push(`/training/clinic/prescribe/${patientId}`)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                onClick={() => router.push(`/training/clinic/evaluate/${patientId}`)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
-                新しいメニューを処方
+                📝 来院時評価を記録
               </button>
             </div>
           </div>
@@ -252,200 +280,58 @@ export default function PatientDetailPage() {
       <div className="px-6 py-8">
         {/* タブナビゲーション */}
         <div className="mb-6 border-b border-gray-200">
-          <div className="flex gap-4">
+          <div className="flex gap-4 overflow-x-auto">
             <button
-              onClick={() => setActiveTab('menu')}
-              className={`px-4 py-2 font-medium text-sm transition-colors ${
-                activeTab === 'menu'
+              onClick={() => setActiveTab('training')}
+              className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'training'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              処方メニュー
+              🎯 トレーニング管理
             </button>
             <button
-              onClick={() => setActiveTab('records')}
-              className={`px-4 py-2 font-medium text-sm transition-colors ${
-                activeTab === 'records'
+              onClick={() => setActiveTab('progress')}
+              className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'progress'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              実施記録 ({trainingRecords.length})
+              📈 進捗グラフ
+            </button>
+            <button
+              onClick={() => setActiveTab('issues')}
+              className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'issues'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              ⚠️ 課題
             </button>
           </div>
         </div>
 
-        {/* 処方メニュータブ */}
-        {activeTab === 'menu' && (
-          <>
-            {activeMenu ? (
-              <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xl font-bold text-gray-900">
-                  {activeMenu.menu_name || '処方メニュー'}
-                </h2>
-                <span className="px-3 py-1 text-xs font-semibold text-green-600 bg-green-100 rounded-full">
-                  処方中
-                </span>
-              </div>
-              <p className="text-sm text-gray-500">
-                処方日: {new Date(activeMenu.prescribed_at).toLocaleDateString('ja-JP')}
-              </p>
-            </div>
-
-            {/* トレーニングリスト */}
-            <div className="space-y-4">
-              {activeMenu.menu_trainings && activeMenu.menu_trainings.length > 0 ? (
-                activeMenu.menu_trainings.map((mt, index) => (
-                  <div
-                    key={mt.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">
-                          {mt.training?.training_name || 'トレーニング名'}
-                        </h3>
-                        {mt.training?.description && (
-                          <p className="text-sm text-gray-600 mb-3">
-                            {mt.training.description}
-                          </p>
-                        )}
-                        <div className="flex gap-4 text-sm text-gray-500 mb-3">
-                          <span>{mt.action_seconds}秒</span>
-                          <span>×</span>
-                          <span>{mt.sets}セット</span>
-                          <span>休憩: {mt.rest_seconds}秒</span>
-                        </div>
-
-                        {/* 練習手順 */}
-                        {mt.training?.instructions && mt.training.instructions.length > 0 && (
-                          <div className="mt-3 bg-blue-50 p-3 rounded-lg">
-                            <div className="text-xs font-bold text-blue-900 mb-2">練習手順</div>
-                            <ol className="space-y-1">
-                              {mt.training.instructions.map((instruction, idx) => (
-                                <li key={idx} className="text-xs text-gray-800">
-                                  {idx + 1}. {instruction}
-                                </li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-
-                        {/* 注意事項 */}
-                        {mt.training?.precautions && mt.training.precautions.length > 0 && (
-                          <div className="mt-3 bg-orange-50 p-3 rounded-lg">
-                            <div className="text-xs font-bold text-orange-900 mb-2">注意事項</div>
-                            <ul className="space-y-1">
-                              {mt.training.precautions.map((precaution, idx) => (
-                                <li key={idx} className="text-xs text-gray-800">
-                                  • {precaution}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-gray-500 py-8">
-                  トレーニングが登録されていません
-                </p>
-              )}
-            </div>
+        {/* トレーニング管理タブ */}
+        {activeTab === 'training' && (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <TrainingFlowChart patientId={patientId} clinicId={DEMO_CLINIC_ID} />
           </div>
-            ) : (
-              <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-                <p className="text-gray-600 mb-4">
-                  現在処方されているトレーニングメニューはありません
-                </p>
-                <button
-                  onClick={() => router.push(`/training/clinic/prescribe/${patientId}`)}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  トレーニングメニューを処方する
-                </button>
-              </div>
-            )}
-          </>
         )}
 
-        {/* 実施記録タブ */}
-        {activeTab === 'records' && (
+        {/* 進捗グラフタブ */}
+        {activeTab === 'progress' && (
           <div className="bg-white rounded-xl shadow-sm p-6">
-            {trainingRecords.length > 0 ? (
-              <div className="space-y-4">
-                {trainingRecords.map((record) => (
-                  <div
-                    key={record.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900">
-                            {record.training?.training_name || 'トレーニング'}
-                          </h3>
-                          {record.completed ? (
-                            <span className="px-2 py-1 text-xs font-semibold text-green-600 bg-green-100 rounded-full">
-                              完了
-                            </span>
-                          ) : record.interrupted ? (
-                            <span className="px-2 py-1 text-xs font-semibold text-orange-600 bg-orange-100 rounded-full">
-                              中断
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs font-semibold text-gray-600 bg-gray-100 rounded-full">
-                              未完了
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex gap-4 text-sm text-gray-500">
-                          <span>
-                            {new Date(record.performed_at).toLocaleDateString('ja-JP', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                          </span>
-                          <span>
-                            {new Date(record.performed_at).toLocaleTimeString('ja-JP', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                          {record.time_of_day && (
-                            <span>
-                              {record.time_of_day === 'morning' && '朝'}
-                              {record.time_of_day === 'afternoon' && '昼'}
-                              {record.time_of_day === 'evening' && '夕'}
-                              {record.time_of_day === 'night' && '夜'}
-                            </span>
-                          )}
-                          {record.actual_duration_seconds && (
-                            <span>実施時間: {Math.floor(record.actual_duration_seconds / 60)}分{record.actual_duration_seconds % 60}秒</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-600">実施記録がありません</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  患者さんがトレーニングを実施すると、ここに記録が表示されます
-                </p>
-              </div>
-            )}
+            <TrainingProgressChart patientId={patientId} />
+          </div>
+        )}
+
+        {/* 課題タブ */}
+        {activeTab === 'issues' && (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <PatientIssuesTab patientId={patientId} />
           </div>
         )}
       </div>

@@ -13,7 +13,11 @@ export async function getAppointments(
   // モックモードの場合はlocalStorageから取得
   if (MOCK_MODE) {
     console.log('モックモード: 予約データを取得します', { clinicId, startDate, endDate })
-    const { getMockAppointments, getMockStaff, getMockTreatmentMenus, updateMockAppointment } = await import('@/lib/utils/mock-mode')
+    const { getMockAppointments, getMockStaff, getMockTreatmentMenus, updateMockAppointment, initializeMockData } = await import('@/lib/utils/mock-mode')
+    
+    // モックデータを初期化
+    initializeMockData()
+    
     const appointments = getMockAppointments()
     
     console.log('モックモード: localStorageの全予約データ:', appointments)
@@ -302,6 +306,7 @@ export async function createAppointment(
       id: `mock-appointment-${Date.now()}`,
       clinic_id: clinicId,
       ...appointmentData,
+      status: appointmentData.status || '未来院', // デフォルトステータスを設定
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       // 関連データを含める

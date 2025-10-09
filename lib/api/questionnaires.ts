@@ -26,32 +26,21 @@ export interface Question {
  * 問診表一覧を取得
  */
 export async function getQuestionnaires(clinicId: string): Promise<Questionnaire[]> {
-  // MOCK_MODEの場合はlocalStorageから取得
-  if (MOCK_MODE) {
-    try {
-      const { getMockQuestionnaires } = await import('@/lib/utils/mock-mode')
-      const mockQuestionnaires = getMockQuestionnaires()
-      console.log('MOCK_MODE: localStorageから問診表データを取得:', mockQuestionnaires.length, '件')
-      return mockQuestionnaires
-    } catch (mockError) {
-      console.error('MOCK_MODE問診表データ取得エラー:', mockError)
-      return []
-    }
-  }
-
-  // 本番モードではデータベースから取得
+  // 問診票は常にデータベースから取得
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('questionnaires')
     .select(`
       *,
-      questions (
+      questionnaire_questions (
         id,
         questionnaire_id,
+        section_name,
         question_text,
         question_type,
         options,
         is_required,
+        conditional_logic,
         sort_order
       )
     `)
@@ -63,7 +52,19 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
     throw error
   }
 
-  return data || []
+  console.log('問診表取得成功 - 生データ:', data)
+  console.log('問診表取得成功 - データ件数:', data?.length)
+
+  // questionnaire_questions を questions にマッピング
+  const mappedData = (data || []).map((questionnaire: any) => ({
+    ...questionnaire,
+    questions: questionnaire.questionnaire_questions || []
+  }))
+
+  console.log('問診表取得成功 - マッピング後:', mappedData)
+  console.log('問診表取得成功 - マッピング後件数:', mappedData.length)
+
+  return mappedData
 }
 
 /**
