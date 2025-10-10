@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, Users, DollarSign, Target, MousePointerClick } from 'lucide-react'
+import { TrendingUp, Users, DollarSign, Target, MousePointerClick, Wallet, Settings, Link } from 'lucide-react'
+import AdSpendManager from './AdSpendManager'
+import TrackingTagsSettings from './TrackingTagsSettings'
+import ClientURLGenerator from './ClientURLGenerator'
 
 interface WebBookingEffectTabProps {
   clinicId: string
@@ -34,6 +37,26 @@ interface FunnelStepData {
   conversion_rate: number
 }
 
+interface SourceLTVData {
+  source: string
+  patient_count: number
+  total_revenue: number
+  avg_ltv: number
+  avg_visit_count: number
+  avg_revenue_per_visit: number
+}
+
+interface ROIData {
+  source: string
+  ad_spend: number
+  patient_count: number
+  total_revenue: number
+  roi: number
+  roas: number
+  cpa: number
+  avg_ltv: number
+}
+
 export default function WebBookingEffectTab({ clinicId, startDate, endDate }: WebBookingEffectTabProps) {
   const [loading, setLoading] = useState(false)
   const [acquisitionData, setAcquisitionData] = useState<{
@@ -47,7 +70,21 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
     completed_sessions: number
     overall_completion_rate: number
   } | null>(null)
-  const [activeSubTab, setActiveSubTab] = useState<'acquisition' | 'funnel'>('acquisition')
+  const [ltvData, setLtvData] = useState<{
+    source_ltv: SourceLTVData[]
+    total_patients: number
+    total_revenue: number
+    avg_ltv: number
+  } | null>(null)
+  const [roiData, setRoiData] = useState<{
+    roi_by_source: ROIData[]
+    total_ad_spend: number
+    total_revenue: number
+    overall_roi: number
+    overall_roas: number
+    overall_cpa: number
+  } | null>(null)
+  const [activeSubTab, setActiveSubTab] = useState<'acquisition' | 'funnel' | 'ltv' | 'roi' | 'ad-spend' | 'tag-settings' | 'client-url'>('acquisition')
 
   useEffect(() => {
     loadData()
@@ -73,6 +110,24 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
       if (funnelRes.ok) {
         const funnelJson = await funnelRes.json()
         setFunnelData(funnelJson.data)
+      }
+
+      // LTVデータを取得
+      const ltvRes = await fetch(
+        `/api/analytics/ltv?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
+      )
+      if (ltvRes.ok) {
+        const ltvJson = await ltvRes.json()
+        setLtvData(ltvJson.data)
+      }
+
+      // ROIデータを取得
+      const roiRes = await fetch(
+        `/api/analytics/roi?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
+      )
+      if (roiRes.ok) {
+        const roiJson = await roiRes.json()
+        setRoiData(roiJson.data)
       }
     } catch (error) {
       console.error('Web予約効果データ取得エラー:', error)
@@ -115,6 +170,61 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
           >
             <Target className="w-4 h-4 inline-block mr-2" />
             予約ファネル分析
+          </button>
+          <button
+            onClick={() => setActiveSubTab('ltv')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSubTab === 'ltv'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 inline-block mr-2" />
+            LTV分析
+          </button>
+          <button
+            onClick={() => setActiveSubTab('roi')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSubTab === 'roi'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <DollarSign className="w-4 h-4 inline-block mr-2" />
+            ROI/ROAS分析
+          </button>
+          <button
+            onClick={() => setActiveSubTab('ad-spend')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSubTab === 'ad-spend'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Wallet className="w-4 h-4 inline-block mr-2" />
+            広告費管理
+          </button>
+          <button
+            onClick={() => setActiveSubTab('tag-settings')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSubTab === 'tag-settings'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Settings className="w-4 h-4 inline-block mr-2" />
+            タグ設定
+          </button>
+          <button
+            onClick={() => setActiveSubTab('client-url')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSubTab === 'client-url'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Link className="w-4 h-4 inline-block mr-2" />
+            クライアントURL
           </button>
         </nav>
       </div>
@@ -332,6 +442,209 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* LTV分析タブ */}
+      {activeSubTab === 'ltv' && (
+        <div className="space-y-6">
+          {/* LTV KPI */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">総患者数</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-900">
+                  {ltvData?.total_patients || 0}人
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">総売上</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  ¥{(ltvData?.total_revenue || 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">平均LTV</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  ¥{(ltvData?.avg_ltv || 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 流入元別LTV */}
+          <Card>
+            <CardHeader>
+              <CardTitle>流入元別LTV</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {ltvData && ltvData.source_ltv.length > 0 ? (
+                  ltvData.source_ltv.map((source, index) => (
+                    <div key={index} className="border-b pb-4 last:border-b-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-gray-400">#{index + 1}</span>
+                          <span className="font-medium text-gray-900">{source.source}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-gray-500">患者数: {source.patient_count}</span>
+                          <span className="text-gray-500">来院数: {source.avg_visit_count.toFixed(1)}</span>
+                          <span className="font-bold text-green-600">¥{source.avg_ltv.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                        <div>総売上: ¥{source.total_revenue.toLocaleString()}</div>
+                        <div>平均来院単価: ¥{source.avg_revenue_per_visit.toLocaleString()}</div>
+                        <div>平均LTV: ¥{source.avg_ltv.toLocaleString()}</div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center py-4">データがありません</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ROI/ROAS分析タブ */}
+      {activeSubTab === 'roi' && (
+        <div className="space-y-6">
+          {/* ROI KPI */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">総広告費</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  ¥{(roiData?.total_ad_spend || 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">総売上</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  ¥{(roiData?.total_revenue || 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">ROI</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${(roiData?.overall_roi || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(roiData?.overall_roi || 0).toFixed(1)}%
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">ROAS</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  {(roiData?.overall_roas || 0).toFixed(2)}x
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 流入元別ROI */}
+          <Card>
+            <CardHeader>
+              <CardTitle>流入元別ROI/ROAS</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">流入元</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">広告費</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">患者数</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">売上</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">ROI</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">ROAS</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">CPA</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roiData && roiData.roi_by_source.length > 0 ? (
+                      roiData.roi_by_source.map((source, index) => (
+                        <tr key={index} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-medium">{source.source}</td>
+                          <td className="px-4 py-3 text-sm text-right">¥{source.ad_spend.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-sm text-right">{source.patient_count}</td>
+                          <td className="px-4 py-3 text-sm text-right">¥{source.total_revenue.toLocaleString()}</td>
+                          <td className={`px-4 py-3 text-sm text-right font-bold ${source.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {source.roi.toFixed(1)}%
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right font-bold text-blue-600">
+                            {source.roas.toFixed(2)}x
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right">¥{source.cpa.toLocaleString()}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                          データがありません
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 説明 */}
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-4">
+              <div className="text-sm space-y-1">
+                <p><strong>ROI (Return on Investment)</strong>: (売上 - 広告費) ÷ 広告費 × 100</p>
+                <p><strong>ROAS (Return on Ad Spend)</strong>: 売上 ÷ 広告費</p>
+                <p><strong>CPA (Cost Per Acquisition)</strong>: 広告費 ÷ 獲得患者数</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 広告費管理タブ */}
+      {activeSubTab === 'ad-spend' && (
+        <AdSpendManager clinicId={clinicId} startDate={startDate} endDate={endDate} />
+      )}
+
+      {/* タグ設定タブ */}
+      {activeSubTab === 'tag-settings' && (
+        <TrackingTagsSettings clinicId={clinicId} />
+      )}
+
+      {/* クライアントURLタブ */}
+      {activeSubTab === 'client-url' && (
+        <ClientURLGenerator clinicId={clinicId} />
       )}
     </div>
   )

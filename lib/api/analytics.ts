@@ -906,7 +906,7 @@ async function getTreatmentMenuStats(
     .from('treatment_menus')
     .select('id, name')
     .eq('clinic_id', clinicId)
-    .eq('is_deleted', false)
+    .eq('is_active', true)
 
   if (error) {
     console.error('診療メニュー取得エラー:', error)

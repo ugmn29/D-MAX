@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Calendar, Users, Settings, BarChart3, Menu } from 'lucide-react'
+import { Calendar, Users, Settings, BarChart3, Menu, MousePointerClick } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'カレンダー', href: '/', icon: Calendar },
   { name: '患者管理', href: '/patients', icon: Users },
+  { name: 'Web予約', href: '/web-booking', icon: MousePointerClick },
   { name: '分析', href: '/analytics', icon: BarChart3 },
   { name: '設定', href: '/settings', icon: Settings },
 ]

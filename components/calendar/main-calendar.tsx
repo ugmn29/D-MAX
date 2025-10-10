@@ -2378,15 +2378,46 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         onUpdate={async (appointmentData) => {
           try {
             console.log('予約即座更新:', appointmentData)
-            
+
             if (editingAppointment) {
+              // 更新前のデータを保存（ログ記録用）
+              const oldData = {
+                appointment_date: editingAppointment.appointment_date,
+                start_time: editingAppointment.start_time,
+                end_time: editingAppointment.end_time,
+                staff1_id: editingAppointment.staff1_id,
+                menu1_id: editingAppointment.menu1_id,
+                status: editingAppointment.status,
+                notes: editingAppointment.notes
+              }
+
               // 既存の予約を即座に更新
               await updateAppointment(editingAppointment.id, {
                 ...appointmentData,
                 appointment_date: formatDateForDB(selectedDate)
               })
               console.log('既存予約即座更新完了')
-              
+
+              // 予約変更ログを記録
+              const { logAppointmentChange } = await import('@/lib/api/appointment-logs')
+              try {
+                await logAppointmentChange(
+                  editingAppointment.id,
+                  editingAppointment.patient_id || '',
+                  oldData,
+                  {
+                    ...appointmentData,
+                    appointment_date: formatDateForDB(selectedDate)
+                  },
+                  'system',
+                  '予約情報を即座に更新しました'
+                )
+                console.log('予約変更ログ記録完了')
+              } catch (logError) {
+                console.error('予約変更ログの記録に失敗:', logError)
+                // ログ記録の失敗は予約操作を止めない
+              }
+
               // 予約一覧を再読み込み
               const dateString = formatDateForDB(selectedDate)
               const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)

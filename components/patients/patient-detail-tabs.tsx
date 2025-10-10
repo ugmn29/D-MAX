@@ -208,12 +208,3 @@ function AccessHistoryTab({ patientId }: { patientId: string }) {
     </div>
   )
 }
-
-function AppointmentLogsTab({ patientId }: { patientId: string }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">予約操作ログ</h3>
-      <p className="text-gray-600">予約操作ログタブのコンテンツがここに表示されます</p>
-    </div>
-  )
-}

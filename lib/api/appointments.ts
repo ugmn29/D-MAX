@@ -395,13 +395,50 @@ export async function deleteAppointment(
   clinicId: string,
   appointmentId: string
 ): Promise<void> {
-  // モックモードの場合は何もしない
+  // モックモードの場合
   if (MOCK_MODE) {
     console.log('モックモード: 予約を削除します', { clinicId, appointmentId })
+    const { getMockAppointments, removeMockAppointment } = await import('@/lib/utils/mock-mode')
+
+    // 削除前のデータを取得（ログ記録用）
+    const appointments = getMockAppointments()
+    const appointmentToDelete = appointments.find(a => a.id === appointmentId)
+
+    if (appointmentToDelete) {
+      // 削除ログを記録
+      const { createAppointmentLog } = await import('./appointment-logs')
+      await createAppointmentLog({
+        appointment_id: appointmentId,
+        action: '削除',
+        before_data: {
+          appointment_date: appointmentToDelete.appointment_date,
+          start_time: appointmentToDelete.start_time,
+          end_time: appointmentToDelete.end_time,
+          staff1_id: appointmentToDelete.staff1_id,
+          menu1_id: appointmentToDelete.menu1_id,
+          status: appointmentToDelete.status,
+          notes: appointmentToDelete.notes
+        },
+        reason: '予約を削除しました',
+        operator_id: 'system'
+      })
+
+      // 実際に削除
+      removeMockAppointment(appointmentId)
+    }
+
     return
   }
 
   const client = getSupabaseClient()
+
+  // 削除前のデータを取得（ログ記録用）
+  const { data: appointmentToDelete } = await client
+    .from('appointments')
+    .select('*')
+    .eq('id', appointmentId)
+    .single()
+
   const { error } = await client
     .from('appointments')
     .delete()
@@ -411,6 +448,26 @@ export async function deleteAppointment(
   if (error) {
     console.error('予約削除エラー:', error)
     throw new Error('予約の削除に失敗しました')
+  }
+
+  // 削除ログを記録
+  if (appointmentToDelete) {
+    const { createAppointmentLog } = await import('./appointment-logs')
+    await createAppointmentLog({
+      appointment_id: appointmentId,
+      action: '削除',
+      before_data: {
+        appointment_date: appointmentToDelete.appointment_date,
+        start_time: appointmentToDelete.start_time,
+        end_time: appointmentToDelete.end_time,
+        staff1_id: appointmentToDelete.staff1_id,
+        menu1_id: appointmentToDelete.menu1_id,
+        status: appointmentToDelete.status,
+        notes: appointmentToDelete.notes
+      },
+      reason: '予約を削除しました',
+      operator_id: 'system'
+    })
   }
 }
 
