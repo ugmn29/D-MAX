@@ -26,6 +26,7 @@ import { AppointmentsTab } from './appointments-tab'
 import { AppointmentLogsTab } from './appointment-logs-tab'
 import { SubKarteTab } from './subkarte-tab'
 import PatientTrainingTabs from '@/components/training/PatientTrainingTabs'
+import { PeriodontalExamTab } from './periodontal-exam-tab'
 
 interface PatientDetailTabsProps {
   patientId: string
@@ -59,7 +60,7 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
       case 'visual':
         return <div className="p-6 text-center text-gray-500">視診機能（開発中）</div>
       case 'p-test':
-        return <div className="p-6 text-center text-gray-500">P検査機能（開発中）</div>
+        return <PeriodontalExamTab patientId={patientId} />
       case 'sub-chart':
         return <SubKarteTab patientId={patientId} />
       case 'training':
