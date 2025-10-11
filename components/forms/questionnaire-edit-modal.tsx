@@ -41,6 +41,21 @@ export function QuestionnaireEditModal({
   const [currentSection, setCurrentSection] = useState<string>('患者情報')
   const [editingMode, setEditingMode] = useState<'view' | 'edit'>('view')
   const [editingQuestion, setEditingQuestion] = useState<QuestionnaireQuestion | null>(null)
+  const [editData, setEditData] = useState<{
+    question_text: string
+    question_type: string
+    options: string[]
+    is_required: boolean
+    section_name: string
+    sort_order: number
+  }>({
+    question_text: '',
+    question_type: 'text',
+    options: [],
+    is_required: false,
+    section_name: '',
+    sort_order: 0
+  })
 
 
   // データ読み込み
@@ -56,7 +71,13 @@ export function QuestionnaireEditModal({
         if (targetQuestionnaire) {
           setQuestionnaire(targetQuestionnaire)
           setQuestions(targetQuestionnaire.questions)
-          
+
+          // 最初のセクションを設定
+          const firstSection = Array.from(new Set(targetQuestionnaire.questions.map(q => q.section_name).filter(Boolean)))[0]
+          if (firstSection) {
+            setCurrentSection(firstSection)
+          }
+
           // フォームデータの初期化
           const initialData: FormData = {}
           targetQuestionnaire.questions.forEach(q => {
@@ -78,14 +99,55 @@ export function QuestionnaireEditModal({
     loadQuestionnaire()
   }, [isOpen, questionnaireId, clinicId])
 
+  // 編集中の質問が変更されたらeditDataを更新
+  useEffect(() => {
+    if (editingQuestion) {
+      setEditData({
+        question_text: editingQuestion.question_text,
+        question_type: editingQuestion.question_type,
+        options: editingQuestion.options || [],
+        is_required: editingQuestion.is_required,
+        section_name: editingQuestion.section_name,
+        sort_order: editingQuestion.sort_order
+      })
+    }
+  }, [editingQuestion])
+
   // セクション一覧を取得
-  const sections = Array.from(new Set(questions.map(q => q.section_name))).sort((a, b) => {
+  const sections = Array.from(new Set(questions.map(q => q.section_name).filter(Boolean))).sort((a, b) => {
     const order = ['患者情報', '主訴・症状', '問診', '歯科疾患管理', '同意事項']
     return order.indexOf(a) - order.indexOf(b)
   })
 
   // 現在のセクションの質問を取得
   const currentQuestions = questions.filter(q => q.section_name === currentSection)
+
+  // 患者基本情報と連携している質問IDのマッピング
+  const patientFieldMapping: { [key: string]: string } = {
+    'q1-1': '氏名',
+    'q1-2': 'ふりがな',
+    'q1-3': '性別',
+    'q1-4': '生年月日',
+    'q1-5': '郵便番号',
+    'q1-6': '住所',
+    'q1-8': '自宅電話',
+    'q1-9': '携帯電話',
+    'q1-10': 'メールアドレス',
+    'q3-4': 'アレルギー',
+    'q3-5': 'アレルギー原因',
+    'q3-6': '持病',
+    'q3-8': '病名・病院名'
+  }
+
+  // 質問が患者基本情報と連携しているかチェック
+  const isLinkedToPatient = (questionId: string) => {
+    return questionId in patientFieldMapping
+  }
+
+  // 連携先のフィールド名を取得
+  const getLinkedFieldName = (questionId: string) => {
+    return patientFieldMapping[questionId]
+  }
 
   // 質問タイプのラベル取得
   const getQuestionTypeLabel = (type: string) => {
@@ -238,15 +300,6 @@ export function QuestionnaireEditModal({
 
   // 質問編集フォーム
   const renderQuestionEditForm = (question: QuestionnaireQuestion) => {
-    const [editData, setEditData] = useState({
-      question_text: question.question_text,
-      question_type: question.question_type,
-      options: question.options || [],
-      is_required: question.is_required,
-      section_name: question.section_name,
-      sort_order: question.sort_order
-    })
-
     const addOption = () => {
       setEditData(prev => ({
         ...prev,
@@ -528,7 +581,7 @@ export function QuestionnaireEditModal({
                   key={section}
                   variant={currentSection === section ? 'default' : 'outline'}
                   onClick={() => setCurrentSection(section)}
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap text-xs px-2 py-1 min-w-fit"
                 >
                   {section}
                 </Button>
@@ -580,6 +633,11 @@ export function QuestionnaireEditModal({
                       {question.is_required && (
                         <Badge variant="destructive" className="text-xs">
                           必須
+                        </Badge>
+                      )}
+                      {isLinkedToPatient(question.id) && (
+                        <Badge variant="default" className="text-xs bg-blue-100 text-blue-800">
+                          🔗 {getLinkedFieldName(question.id)}と連携
                         </Badge>
                       )}
                     </div>

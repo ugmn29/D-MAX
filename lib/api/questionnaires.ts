@@ -26,7 +26,25 @@ export interface Question {
  * 問診表一覧を取得
  */
 export async function getQuestionnaires(clinicId: string): Promise<Questionnaire[]> {
-  // 問診票は常にデータベースから取得
+  // MOCK_MODEの場合はlocalStorageから取得
+  if (MOCK_MODE) {
+    try {
+      const { getMockQuestionnaires, initializeMockData } = await import('@/lib/utils/mock-mode')
+
+      // モックデータの初期化
+      initializeMockData()
+
+      const questionnaires = getMockQuestionnaires()
+      console.log('MOCK_MODE: 問診表取得成功 - データ件数:', questionnaires.length)
+      console.log('MOCK_MODE: 問診表取得成功 - データ:', questionnaires)
+      return questionnaires.filter(q => q.clinic_id === clinicId)
+    } catch (mockError) {
+      console.error('MOCK_MODE問診表取得エラー:', mockError)
+      return []
+    }
+  }
+
+  // 本番モードではデータベースから取得
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('questionnaires')
@@ -200,6 +218,133 @@ export async function deleteQuestionnaire(questionnaireId: string): Promise<void
     console.error('問診表削除エラー:', error)
     throw error
   }
+}
+
+/**
+ * 問診表の回答を保存し、患者情報を自動作成/更新
+ */
+export async function createQuestionnaireResponse(responseData: {
+  questionnaire_id: string
+  patient_id?: string
+  appointment_id?: string
+  response_data: any
+  completed_at: string
+}): Promise<string> {
+  const responseId = `response-${Date.now()}`
+
+  if (MOCK_MODE) {
+    try {
+      // 問診表回答データからの患者情報を抽出
+      const { response_data } = responseData
+      const patientData: any = {
+        clinic_id: '11111111-1111-1111-1111-111111111111',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      // 氏名を分割（姓・名）
+      const fullName = response_data['q1-1'] || ''
+      const fullNameKana = response_data['q1-2'] || ''
+
+      // スペースで分割（姓名）
+      const nameParts = fullName.split(/\s+/)
+      const kanaNameParts = fullNameKana.split(/\s+/)
+
+      patientData.last_name = nameParts[0] || ''
+      patientData.first_name = nameParts[1] || ''
+      patientData.last_name_kana = kanaNameParts[0] || ''
+      patientData.first_name_kana = kanaNameParts[1] || ''
+
+      // その他の基本情報
+      patientData.gender = response_data['q1-3'] || null
+      patientData.birth_date = response_data['q1-4'] || null
+      patientData.phone = response_data['q1-9'] || response_data['q1-8'] || null
+      patientData.email = response_data['q1-10'] || null
+      patientData.address = response_data['q1-6'] || null
+      patientData.postal_code = response_data['q1-5'] || null
+
+      // アレルギー情報
+      const allergyTypes = response_data['q3-4'] || []
+      const allergyCause = response_data['q3-5'] || ''
+      if (Array.isArray(allergyTypes) && allergyTypes.length > 0 && !allergyTypes.includes('ない')) {
+        patientData.allergies = `${allergyTypes.join(', ')}${allergyCause ? ` (原因: ${allergyCause})` : ''}`
+      } else if (allergyCause) {
+        patientData.allergies = allergyCause
+      }
+
+      // 持病情報
+      const diseases = response_data['q3-6'] || []
+      const diseaseDetails = response_data['q3-8'] || ''
+      if (Array.isArray(diseases) && diseases.length > 0) {
+        const diseaseList = diseases.join(', ')
+        patientData.medical_history = diseaseDetails ? `${diseaseList} - ${diseaseDetails}` : diseaseList
+      } else if (diseaseDetails) {
+        patientData.medical_history = diseaseDetails
+      }
+
+      // 患者IDが指定されている場合は更新、されていない場合は新規作成
+      let finalPatientId = responseData.patient_id
+
+      if (finalPatientId) {
+        // 既存患者を更新
+        const { updateMockPatient } = await import('@/lib/utils/mock-mode')
+        updateMockPatient(finalPatientId, patientData)
+        console.log('患者情報を更新しました:', finalPatientId)
+      } else {
+        // 新規患者を作成
+        const { addMockPatient } = await import('@/lib/utils/mock-mode')
+        finalPatientId = `p_${Date.now()}`
+        patientData.id = finalPatientId
+        patientData.patient_number = String(Math.floor(Math.random() * 9000) + 1000)
+        addMockPatient(patientData)
+        console.log('新規患者を作成しました:', finalPatientId)
+      }
+
+      // 問診表回答を保存（localStorageに）
+      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      const newResponse = {
+        id: responseId,
+        questionnaire_id: responseData.questionnaire_id,
+        patient_id: finalPatientId,
+        appointment_id: responseData.appointment_id,
+        response_data: responseData.response_data,
+        completed_at: responseData.completed_at,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      responses.push(newResponse)
+      localStorage.setItem('questionnaire_responses', JSON.stringify(responses))
+
+      console.log('問診表回答を保存しました:', responseId)
+      console.log('連携された患者ID:', finalPatientId)
+
+      return responseId
+    } catch (error) {
+      console.error('MOCK_MODE問診表回答保存エラー:', error)
+      throw error
+    }
+  }
+
+  // 本番モード: データベースに保存
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('questionnaire_responses')
+    .insert({
+      questionnaire_id: responseData.questionnaire_id,
+      patient_id: responseData.patient_id,
+      appointment_id: responseData.appointment_id,
+      response_data: responseData.response_data,
+      completed_at: responseData.completed_at
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('問診表回答保存エラー:', error)
+    throw error
+  }
+
+  return data.id
 }
 
 // 互換性のためのダミー関数（既存コンポーネント用）

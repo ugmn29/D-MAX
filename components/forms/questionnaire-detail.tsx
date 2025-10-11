@@ -29,6 +29,12 @@ export function QuestionnaireDetail({ questionnaireId, clinicId, onEdit, onBack 
         
         if (targetQuestionnaire) {
           setQuestionnaire(targetQuestionnaire)
+
+          // 最初のセクションを設定
+          const firstSection = Array.from(new Set(targetQuestionnaire.questions.map(q => q.section_name).filter(Boolean)))[0]
+          if (firstSection) {
+            setCurrentSection(firstSection)
+          }
         }
       } catch (error) {
         console.error('問診票読み込みエラー:', error)
@@ -41,13 +47,40 @@ export function QuestionnaireDetail({ questionnaireId, clinicId, onEdit, onBack 
   }, [questionnaireId, clinicId])
 
   // セクション一覧を取得
-  const sections = questionnaire ? Array.from(new Set(questionnaire.questions.map(q => q.section_name))).sort((a, b) => {
+  const sections = questionnaire ? Array.from(new Set(questionnaire.questions.map(q => q.section_name).filter(Boolean))).sort((a, b) => {
     const order = ['患者情報', '主訴・症状', '問診', '歯科疾患管理', '同意事項']
     return order.indexOf(a) - order.indexOf(b)
   }) : []
 
   // 現在のセクションの質問を取得
   const currentQuestions = questionnaire ? questionnaire.questions.filter(q => q.section_name === currentSection) : []
+
+  // 患者基本情報と連携している質問IDのマッピング
+  const patientFieldMapping: { [key: string]: string } = {
+    'q1-1': '氏名',
+    'q1-2': 'ふりがな',
+    'q1-3': '性別',
+    'q1-4': '生年月日',
+    'q1-5': '郵便番号',
+    'q1-6': '住所',
+    'q1-8': '自宅電話',
+    'q1-9': '携帯電話',
+    'q1-10': 'メールアドレス',
+    'q3-4': 'アレルギー',
+    'q3-5': 'アレルギー原因',
+    'q3-6': '持病',
+    'q3-8': '病名・病院名'
+  }
+
+  // 質問が患者基本情報と連携しているかチェック
+  const isLinkedToPatient = (questionId: string) => {
+    return questionId in patientFieldMapping
+  }
+
+  // 連携先のフィールド名を取得
+  const getLinkedFieldName = (questionId: string) => {
+    return patientFieldMapping[questionId]
+  }
 
   // 質問のタイプに応じた表示
   const renderQuestionType = (question: QuestionnaireQuestion) => {
@@ -246,6 +279,11 @@ export function QuestionnaireDetail({ questionnaireId, clinicId, onEdit, onBack 
                     {question.is_required && (
                       <Badge variant="destructive" className="text-xs">
                         必須
+                      </Badge>
+                    )}
+                    {isLinkedToPatient(question.id) && (
+                      <Badge variant="default" className="text-xs bg-blue-100 text-blue-800">
+                        🔗 {getLinkedFieldName(question.id)}と連携
                       </Badge>
                     )}
                   </div>

@@ -341,6 +341,9 @@ export type Database = {
           insurance_data?: any
           is_registered: boolean
           family_group_id?: string
+          legacy_patient_number?: string
+          legacy_system_name?: string
+          migrated_at?: string
           created_at: string
           updated_at: string
         }
@@ -368,6 +371,9 @@ export type Database = {
           insurance_data?: any
           is_registered?: boolean
           family_group_id?: string
+          legacy_patient_number?: string
+          legacy_system_name?: string
+          migrated_at?: string
           created_at?: string
           updated_at?: string
         }
@@ -395,6 +401,9 @@ export type Database = {
           insurance_data?: any
           is_registered?: boolean
           family_group_id?: string
+          legacy_patient_number?: string
+          legacy_system_name?: string
+          migrated_at?: string
           created_at?: string
           updated_at?: string
         }
