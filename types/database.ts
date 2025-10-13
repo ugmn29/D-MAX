@@ -604,6 +604,367 @@ export type Database = {
           updated_at?: string
         }
       }
+      visual_examinations: {
+        Row: {
+          id: string
+          patient_id: string
+          clinic_id: string
+          examination_date: string
+          notes?: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          clinic_id: string
+          examination_date?: string
+          notes?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          clinic_id?: string
+          examination_date?: string
+          notes?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      visual_tooth_data: {
+        Row: {
+          id: string
+          examination_id: string
+          tooth_number: number
+          status: string
+          caries_level?: string
+          restoration_type?: string
+          material_type?: string
+          notes?: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          examination_id: string
+          tooth_number: number
+          status: string
+          caries_level?: string
+          restoration_type?: string
+          material_type?: string
+          notes?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          examination_id?: string
+          tooth_number?: number
+          status?: string
+          caries_level?: string
+          restoration_type?: string
+          material_type?: string
+          notes?: string
+          created_at?: string
+        }
+      }
+      trainings: {
+        Row: {
+          id: string
+          clinic_id: string | null
+          training_name: string
+          description: string | null
+          category: string | null
+          animation_storage_path: string | null
+          mirror_display: boolean
+          is_default: boolean
+          default_action_seconds: number
+          default_rest_seconds: number
+          default_sets: number
+          is_deleted: boolean
+          deleted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id?: string | null
+          training_name: string
+          description?: string | null
+          category?: string | null
+          animation_storage_path?: string | null
+          mirror_display?: boolean
+          is_default?: boolean
+          default_action_seconds?: number
+          default_rest_seconds?: number
+          default_sets?: number
+          is_deleted?: boolean
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string | null
+          training_name?: string
+          description?: string | null
+          category?: string | null
+          animation_storage_path?: string | null
+          mirror_display?: boolean
+          is_default?: boolean
+          default_action_seconds?: number
+          default_rest_seconds?: number
+          default_sets?: number
+          is_deleted?: boolean
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      training_menus: {
+        Row: {
+          id: string
+          patient_id: string
+          clinic_id: string
+          menu_name: string | null
+          prescribed_at: string
+          is_active: boolean
+          is_deleted: boolean
+          deleted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          clinic_id: string
+          menu_name?: string | null
+          prescribed_at?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          clinic_id?: string
+          menu_name?: string | null
+          prescribed_at?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      menu_trainings: {
+        Row: {
+          id: string
+          menu_id: string
+          training_id: string
+          sort_order: number
+          action_seconds: number
+          rest_seconds: number
+          sets: number
+          auto_progress: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          menu_id: string
+          training_id: string
+          sort_order: number
+          action_seconds: number
+          rest_seconds: number
+          sets: number
+          auto_progress?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          menu_id?: string
+          training_id?: string
+          sort_order?: number
+          action_seconds?: number
+          rest_seconds?: number
+          sets?: number
+          auto_progress?: boolean
+          created_at?: string
+        }
+      }
+      training_evaluations: {
+        Row: {
+          id: string
+          patient_id: string
+          clinic_id: string
+          menu_id: string | null
+          training_id: string
+          menu_training_id: string | null
+          evaluated_at: string
+          evaluator_id: string | null
+          evaluation_level: number
+          comment: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          clinic_id: string
+          menu_id?: string | null
+          training_id: string
+          menu_training_id?: string | null
+          evaluated_at?: string
+          evaluator_id?: string | null
+          evaluation_level: number
+          comment?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          clinic_id?: string
+          menu_id?: string | null
+          training_id?: string
+          menu_training_id?: string | null
+          evaluated_at?: string
+          evaluator_id?: string | null
+          evaluation_level?: number
+          comment?: string | null
+          created_at?: string
+        }
+      }
+      periodontal_examinations: {
+        Row: {
+          id: string
+          patient_id: string
+          clinic_id: string
+          examination_date: string
+          examiner_id: string | null
+          measurement_type: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          clinic_id: string
+          examination_date?: string
+          examiner_id?: string | null
+          measurement_type?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          clinic_id?: string
+          examination_date?: string
+          examiner_id?: string | null
+          measurement_type?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      periodontal_tooth_data: {
+        Row: {
+          id: string
+          examination_id: string
+          tooth_number: number
+          plaque_top: boolean
+          plaque_right: boolean
+          plaque_bottom: boolean
+          plaque_left: boolean
+          is_missing: boolean
+          mobility: number | null
+          ppd_mb: number | null
+          ppd_b: number | null
+          ppd_db: number | null
+          ppd_ml: number | null
+          ppd_l: number | null
+          ppd_dl: number | null
+          bop_mb: boolean
+          bop_b: boolean
+          bop_db: boolean
+          bop_ml: boolean
+          bop_l: boolean
+          bop_dl: boolean
+          pus_mb: boolean
+          pus_b: boolean
+          pus_db: boolean
+          pus_ml: boolean
+          pus_l: boolean
+          pus_dl: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          examination_id: string
+          tooth_number: number
+          plaque_top?: boolean
+          plaque_right?: boolean
+          plaque_bottom?: boolean
+          plaque_left?: boolean
+          is_missing?: boolean
+          mobility?: number | null
+          ppd_mb?: number | null
+          ppd_b?: number | null
+          ppd_db?: number | null
+          ppd_ml?: number | null
+          ppd_l?: number | null
+          ppd_dl?: number | null
+          bop_mb?: boolean
+          bop_b?: boolean
+          bop_db?: boolean
+          bop_ml?: boolean
+          bop_l?: boolean
+          bop_dl?: boolean
+          pus_mb?: boolean
+          pus_b?: boolean
+          pus_db?: boolean
+          pus_ml?: boolean
+          pus_l?: boolean
+          pus_dl?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          examination_id?: string
+          tooth_number?: number
+          plaque_top?: boolean
+          plaque_right?: boolean
+          plaque_bottom?: boolean
+          plaque_left?: boolean
+          is_missing?: boolean
+          mobility?: number | null
+          ppd_mb?: number | null
+          ppd_b?: number | null
+          ppd_db?: number | null
+          ppd_ml?: number | null
+          ppd_l?: number | null
+          ppd_dl?: number | null
+          bop_mb?: boolean
+          bop_b?: boolean
+          bop_db?: boolean
+          bop_ml?: boolean
+          bop_l?: boolean
+          bop_dl?: boolean
+          pus_mb?: boolean
+          pus_b?: boolean
+          pus_db?: boolean
+          pus_ml?: boolean
+          pus_l?: boolean
+          pus_dl?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

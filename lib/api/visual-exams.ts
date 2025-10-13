@@ -1,6 +1,14 @@
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseAdmin } from '@/lib/supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 
-const createClient = () => supabase
+const createClient = (): SupabaseClient<Database> => {
+  // 開発環境ではsupabaseAdminを使用してRLSをバイパス
+  if (process.env.NODE_ENV === 'development' && supabaseAdmin) {
+    return supabaseAdmin
+  }
+  return supabase
+}
 
 // 型定義
 export type ToothStatus = 'healthy' | 'caries' | 'restoration' | 'missing' | 'extraction_required' | 'unerupted'

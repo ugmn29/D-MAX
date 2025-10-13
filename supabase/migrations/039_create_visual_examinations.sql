@@ -39,7 +39,7 @@ CREATE POLICY "Users can view visual examinations from their clinic"
   ON visual_examinations FOR SELECT
   USING (
     clinic_id IN (
-      SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+      SELECT clinic_id FROM staff WHERE user_id = auth.uid()
     )
   );
 
@@ -47,7 +47,7 @@ CREATE POLICY "Users can insert visual examinations to their clinic"
   ON visual_examinations FOR INSERT
   WITH CHECK (
     clinic_id IN (
-      SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+      SELECT clinic_id FROM staff WHERE user_id = auth.uid()
     )
   );
 
@@ -55,7 +55,7 @@ CREATE POLICY "Users can update visual examinations from their clinic"
   ON visual_examinations FOR UPDATE
   USING (
     clinic_id IN (
-      SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+      SELECT clinic_id FROM staff WHERE user_id = auth.uid()
     )
   );
 
@@ -63,7 +63,7 @@ CREATE POLICY "Users can delete visual examinations from their clinic"
   ON visual_examinations FOR DELETE
   USING (
     clinic_id IN (
-      SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+      SELECT clinic_id FROM staff WHERE user_id = auth.uid()
     )
   );
 
@@ -74,7 +74,7 @@ CREATE POLICY "Users can view visual tooth data from their clinic"
     examination_id IN (
       SELECT id FROM visual_examinations
       WHERE clinic_id IN (
-        SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+        SELECT clinic_id FROM staff WHERE user_id = auth.uid()
       )
     )
   );
@@ -85,7 +85,7 @@ CREATE POLICY "Users can insert visual tooth data to their clinic"
     examination_id IN (
       SELECT id FROM visual_examinations
       WHERE clinic_id IN (
-        SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+        SELECT clinic_id FROM staff WHERE user_id = auth.uid()
       )
     )
   );
@@ -96,7 +96,7 @@ CREATE POLICY "Users can update visual tooth data from their clinic"
     examination_id IN (
       SELECT id FROM visual_examinations
       WHERE clinic_id IN (
-        SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+        SELECT clinic_id FROM staff WHERE user_id = auth.uid()
       )
     )
   );
@@ -107,7 +107,7 @@ CREATE POLICY "Users can delete visual tooth data from their clinic"
     examination_id IN (
       SELECT id FROM visual_examinations
       WHERE clinic_id IN (
-        SELECT clinic_id FROM user_roles WHERE user_id = auth.uid()
+        SELECT clinic_id FROM staff WHERE user_id = auth.uid()
       )
     )
   );

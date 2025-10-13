@@ -1,9 +1,17 @@
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseAdmin } from '@/lib/supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 
 export type MeasurementType = '6point' | '4point' | '1point'
 
 // Supabaseクライアント取得関数
-const createClient = () => supabase
+const createClient = (): SupabaseClient<Database> => {
+  // 開発環境ではsupabaseAdminを使用してRLSをバイパス
+  if (process.env.NODE_ENV === 'development' && supabaseAdmin) {
+    return supabaseAdmin
+  }
+  return supabase
+}
 
 // 歯周検査データの型定義
 export interface PeriodontalExam {

@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Training } from '@/types/training'
+import type { Database } from '@/types/database'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+// 型付きクライアント
+const typedSupabase = supabase as SupabaseClient<Database>
 
 interface TrainingFlowChartProps {
   patientId: string
@@ -110,16 +115,21 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
     setIsLoading(true)
     try {
       // 全トレーニングを取得
-      const { data: trainingsData, error: trainingsError } = await supabase
+      const { data: trainingsData, error: trainingsError } = await typedSupabase
         .from('trainings')
         .select('*')
         .eq('is_deleted', false)
         .is('clinic_id', null)
 
-      if (trainingsError) throw trainingsError
+      if (trainingsError) {
+        console.error('トレーニング取得エラー:', trainingsError)
+        throw new Error(`トレーニングデータの取得に失敗: ${trainingsError.message}`)
+      }
+
+      console.log('取得したトレーニング数:', trainingsData?.length || 0)
 
       // アクティブなメニューを取得
-      const { data: activeMenuData } = await supabase
+      const { data: activeMenuData } = await typedSupabase
         .from('training_menus')
         .select(`
           id,
@@ -142,7 +152,7 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
       )
 
       // 評価進捗を取得
-      const { data: progressData } = await supabase
+      const { data: progressData } = await typedSupabase
         .from('training_evaluations')
         .select('training_id, evaluation_level, evaluated_at')
         .eq('patient_id', patientId)
@@ -181,6 +191,13 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
       setAllTrainings(trainingsWithStatus)
     } catch (error) {
       console.error('データ取得エラー:', error)
+      // ユーザーにエラーを表示
+      if (error instanceof Error) {
+        console.error('エラーメッセージ:', error.message)
+        console.error('エラースタック:', error.stack)
+      }
+      // Supabase接続エラーの可能性を通知
+      alert('トレーニングデータの取得に失敗しました。\nSupabaseが起動しているか確認してください。')
     } finally {
       setIsLoading(false)
     }
@@ -218,7 +235,7 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
     try {
       if (!activeMenuId) {
         // 新しいメニューを作成
-        const { data: menuData, error: menuError } = await supabase
+        const { data: menuData, error: menuError } = await typedSupabase
           .from('training_menus')
           .insert({
             patient_id: patientId,
@@ -233,7 +250,7 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
         setActiveMenuId(menuData.id)
 
         // トレーニングを追加
-        const { error: mtError } = await supabase.from('menu_trainings').insert({
+        const { error: mtError } = await typedSupabase.from('menu_trainings').insert({
           menu_id: menuData.id,
           training_id: trainingId,
           sort_order: 1,
@@ -248,7 +265,7 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
         // 既存メニューにトレーニングを追加
         const prescribedCount = allTrainings.filter((t) => t.is_prescribed).length
 
-        const { error } = await supabase.from('menu_trainings').insert({
+        const { error } = await typedSupabase.from('menu_trainings').insert({
           menu_id: activeMenuId,
           training_id: trainingId,
           sort_order: prescribedCount + 1,
@@ -289,7 +306,7 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
 
   const executeUnprescribe = async (menuTrainingId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await typedSupabase
         .from('menu_trainings')
         .delete()
         .eq('id', menuTrainingId)
