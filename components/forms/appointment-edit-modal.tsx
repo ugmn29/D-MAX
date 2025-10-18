@@ -261,8 +261,10 @@ export function AppointmentEditModal({
 
   // 問診票を患者に紐付け
   const linkQuestionnaireToPatient = async () => {
-    if (!selectedQuestionnaireId || !selectedPatient) return
-    
+    if (!selectedQuestionnaireId || !selectedPatient) {
+      return
+    }
+
     try {
       // 選択された問診票のデータを取得
       const selectedQuestionnaire = unlinkedQuestionnaires.find(q => q.id === selectedQuestionnaireId)
@@ -381,13 +383,13 @@ export function AppointmentEditModal({
         alert('患者情報の更新に失敗しました')
         return
       }
-      
+
       await linkQuestionnaireResponseToPatient(
         selectedQuestionnaireId,
         selectedPatient.id,
         editingAppointment?.id
       )
-      
+
       // 患者情報を再取得して表示を更新
       try {
         const { getPatients } = await import('@/lib/api/patients')
@@ -395,11 +397,9 @@ export function AppointmentEditModal({
         const updatedPatient = updatedPatients.find(p => p.id === selectedPatient.id)
         if (updatedPatient) {
           setSelectedPatient(updatedPatient)
-          console.log('患者情報を再取得して表示を更新:', updatedPatient)
-          
+
           // 強制的にコンポーネントを再レンダリング
           setTimeout(() => {
-            console.log('患者情報の表示更新完了:', updatedPatient)
             // 状態を強制的に更新
             setSelectedPatient({ ...updatedPatient })
           }, 100)

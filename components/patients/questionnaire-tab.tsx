@@ -13,9 +13,15 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  ClipboardList
+  ClipboardList,
+  Unlink
 } from 'lucide-react'
-import { getLinkedQuestionnaireResponses, QuestionnaireResponse, getQuestionnaires } from '@/lib/api/questionnaires'
+import {
+  getLinkedQuestionnaireResponses,
+  unlinkQuestionnaireResponse,
+  QuestionnaireResponse,
+  getQuestionnaires
+} from '@/lib/api/questionnaires'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
@@ -63,6 +69,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
 
       // この患者に連携済みの問診票回答を取得
       const patientResponses = await getLinkedQuestionnaireResponses(patientId)
+      console.log('連携済み問診票:', patientResponses)
 
       // 問診票の定義を取得（質問IDから質問文を取得するため）
       // 仮のclinicIdを使用（実際の実装では適切なclinicIdを使用）
@@ -95,6 +102,23 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
 
   const toggleExpanded = (responseId: string) => {
     setExpandedResponse(expandedResponse === responseId ? null : responseId)
+  }
+
+  // 問診票の連携を解除
+  const handleUnlinkResponse = async (responseId: string) => {
+    if (!confirm('この問診票の連携を解除しますか？\n患者の医療情報（アレルギー、既往歴、服用薬）もクリアされます。')) {
+      return
+    }
+
+    try {
+      await unlinkQuestionnaireResponse(responseId, patientId)
+      console.log('問診票の連携を解除しました:', responseId)
+      // 再読み込み
+      await loadQuestionnaireResponses()
+    } catch (err) {
+      console.error('問診票連携解除エラー:', err)
+      alert('問診票の連携解除に失敗しました')
+    }
   }
 
   const formatResponseData = (response: QuestionnaireResponse) => {
@@ -213,6 +237,18 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                     >
                       {response.patient_id ? '連携済み' : '未連携'}
                     </Badge>
+                    {response.patient_id && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnlinkResponse(response.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        title="連携解除"
+                      >
+                        <Unlink className="w-4 h-4 mr-1" />
+                        <span className="text-xs">連携解除</span>
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"

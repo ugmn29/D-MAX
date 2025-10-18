@@ -21,7 +21,8 @@ import {
   Save,
   X,
   Plus,
-  Trash2
+  Trash2,
+  Search
 } from 'lucide-react'
 import { calculateAge } from '@/lib/utils/date'
 import { Patient } from '@/types/database'
@@ -65,8 +66,10 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     phone: '',
     email: '',
     address: '', // 統合された住所フィールド
+    visit_reason: '', // 来院理由
     allergies: '',
     medical_history: '',
+    medications: '', // 服用薬
     special_notes: '',
     primary_doctor: '',
     assigned_dh: ''
@@ -100,7 +103,13 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   // 保険証情報
   const [insuranceInfo, setInsuranceInfo] = useState<InsuranceInfo[]>([])
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
-  
+
+  // 家族連携候補
+  const [familyCandidates, setFamilyCandidates] = useState<Patient[]>([])
+  const [showFamilyCandidates, setShowFamilyCandidates] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Patient[]>([])
+
   // スタッフ情報
   const [staff, setStaff] = useState<Staff[]>([])
   const [doctors, setDoctors] = useState<Staff[]>([])
@@ -112,6 +121,13 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     loadPatientData()
     loadStaffData()
   }, [patientId])
+
+  // 患者データが読み込まれたら家族候補を検索
+  useEffect(() => {
+    if (patient) {
+      searchFamilyCandidates()
+    }
+  }, [patient])
 
   const loadPatientData = async () => {
     try {
@@ -137,32 +153,41 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
           const responseData = questionnaireResponse.response_data
           console.log('問診票データ全体:', responseData)
 
-          // 問診票から住所情報を抽出（複数のキーパターンに対応）
-          let postalCode = ''
-          let address = ''
+          // 問診票から情報を抽出
+          // 初診問診票の場合:
+          // q1-5: 郵便番号
+          // q1-6: 住所
+          // q1-9: 携帯電話番号
+          // q1-10: Eメールアドレス
+          // q1-11: 来院のきっかけ（配列）
 
-          // 郵便番号を検索
-          for (const key in responseData) {
-            const value = responseData[key]
-            // 郵便番号形式（XXX-XXXX または XXXXXXX）をチェック
-            if (typeof value === 'string' && /^\d{3}-?\d{4}$/.test(value.replace('-', ''))) {
-              postalCode = value
-              console.log('郵便番号を検出:', { key, value })
-              break
-            }
-          }
-
-          // 住所を検索（郵便番号の次の項目、または特定のキー）
-          address = responseData.patient_address || responseData.address || responseData['q1-9'] || ''
+          const postalCode = responseData['q1-5'] || ''
+          const address = responseData['q1-6'] || ''
+          const phone = responseData['q1-9'] || ''
+          const email = responseData['q1-10'] || ''
+          const visitReason = responseData['q1-11'] || []
 
           // 郵便番号と住所を統合
           const fullAddress = [postalCode, address]
             .filter(part => part && part.trim() !== '')
             .join(' ')
 
-          // 統合された住所を患者データに反映
+          // 患者データに反映
           if (fullAddress) {
             patientData.address = fullAddress
+          }
+          if (phone) {
+            patientData.phone = phone
+          }
+          // メールアドレスは明示的に設定（空文字列も含む）
+          patientData.email = email
+
+          // 来院理由を患者データに追加（配列を文字列に変換）
+          if (Array.isArray(visitReason) && visitReason.length > 0) {
+            patientData.visit_reason = visitReason.join('、')
+          } else if (typeof visitReason === 'string' && visitReason) {
+            // 文字列の場合もサポート
+            patientData.visit_reason = visitReason
           }
 
           // アレルギー情報を取得
@@ -198,12 +223,47 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             patientData.medical_history = medicalHistoryInfo
           }
 
+          // 服用薬情報を取得
+          let medicationsInfo = ''
+          // 問診票の質問を探す（質問テキストで検索）
+          for (const key in responseData) {
+            const value = responseData[key]
+            // 「現在服用しているお薬」の回答をチェック
+            if (key.includes('現在服用') || key.includes('薬')) {
+              if (value === 'ある' || value === 'あり') {
+                // 薬剤名の詳細を探す
+                const detailKeys = Object.keys(responseData).filter(k =>
+                  k.includes('薬剤名') || k.includes('お薬手帳') || k.includes('点滴') || k.includes('注射')
+                )
+                if (detailKeys.length > 0) {
+                  medicationsInfo = responseData[detailKeys[0]]
+                } else {
+                  medicationsInfo = 'あり（詳細未記入）'
+                }
+                break
+              } else if (value === 'ない' || value === 'なし') {
+                medicationsInfo = 'なし'
+                break
+              }
+            }
+          }
+
+          // 代替: responseData.medicationsが存在する場合
+          if (!medicationsInfo && responseData.medications) {
+            medicationsInfo = responseData.medications
+          }
+
+          if (medicationsInfo) {
+            patientData.medications = medicationsInfo
+          }
+
           console.log('問診票から情報を取得:', {
             postalCode,
             address,
             fullAddress,
             allergies: allergiesInfo,
             medicalHistory: medicalHistoryInfo,
+            medications: medicationsInfo,
             keys: Object.keys(responseData)
           })
         }
@@ -223,8 +283,10 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         phone: patientData.phone || '',
         email: patientData.email || '',
         address: patientData.address || '',
+        visit_reason: (patientData as any).visit_reason || '',
         allergies: patientData.allergies || '',
         medical_history: patientData.medical_history || '',
+        medications: (patientData as any).medications || '',
         special_notes: '',
         primary_doctor: '',
         assigned_dh: ''
@@ -246,6 +308,11 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             console.error('アイコンデータの読み込みエラー:', e)
           }
         }
+      }
+
+      // 保存されている家族連携データを読み込む
+      if ((patientData as any).family_members && Array.isArray((patientData as any).family_members)) {
+        setFamilyMembers((patientData as any).family_members)
       }
     } catch (error) {
       console.error('患者データの読み込みエラー:', error)
@@ -332,18 +399,118 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     }
   }
 
+  // 家族候補を検索（住所または電話番号が一致する患者）
+  const searchFamilyCandidates = async () => {
+    try {
+      const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+      const { getPatients } = await import('@/lib/api/patients')
+      const allPatients = await getPatients(DEMO_CLINIC_ID)
+
+      if (!patient) return
+
+      // 既に連携されている家族のIDリスト
+      const linkedFamilyIds = familyMembers.map(f => f.id)
+
+      // 住所または電話番号が一致する患者を検索（自分自身と既に連携済みを除く）
+      const candidates = allPatients.filter(p => {
+        if (p.id === patientId) return false // 自分自身を除外
+        if (linkedFamilyIds.includes(p.id)) return false // 既に連携済みを除外
+
+        // 住所が一致（空でない場合）
+        const addressMatch = patient.address && p.address && patient.address === p.address
+
+        // 電話番号が一致（空でない場合）
+        const phoneMatch = patient.phone && p.phone && patient.phone === p.phone
+
+        return addressMatch || phoneMatch
+      })
+
+      setFamilyCandidates(candidates)
+    } catch (error) {
+      console.error('家族候補の検索エラー:', error)
+    }
+  }
+
+  // 家族として連携
+  const linkFamilyMember = (candidatePatient: Patient) => {
+    const newMember: FamilyMember = {
+      id: candidatePatient.id,
+      name: `${candidatePatient.last_name} ${candidatePatient.first_name}`,
+      relation: '', // 関係性は後で編集可能
+      patient_number: (candidatePatient as any).patient_number || 0
+    }
+
+    setFamilyMembers([...familyMembers, newMember])
+    setShowFamilyCandidates(false)
+
+    // 候補リストから削除
+    setFamilyCandidates(familyCandidates.filter(c => c.id !== candidatePatient.id))
+  }
+
+  // 家族連携を解除
+  const unlinkFamilyMember = (memberId: string) => {
+    setFamilyMembers(familyMembers.filter(m => m.id !== memberId))
+    // 候補を再検索
+    searchFamilyCandidates()
+  }
+
+  // 患者を検索（名前または診察券番号）
+  const searchPatients = async (query: string) => {
+    if (!query || query.trim() === '') {
+      setSearchResults([])
+      return
+    }
+
+    try {
+      const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+      const { getPatients } = await import('@/lib/api/patients')
+      const allPatients = await getPatients(DEMO_CLINIC_ID)
+
+      // 既に連携されている家族のIDリスト
+      const linkedFamilyIds = familyMembers.map(f => f.id)
+
+      const results = allPatients.filter(p => {
+        if (p.id === patientId) return false // 自分自身を除外
+        if (linkedFamilyIds.includes(p.id)) return false // 既に連携済みを除外
+
+        const fullName = `${p.last_name}${p.first_name}`.toLowerCase()
+        const fullNameKana = `${p.last_name_kana}${p.first_name_kana}`.toLowerCase()
+        const patientNumber = String((p as any).patient_number || '')
+        const searchLower = query.toLowerCase().replace(/\s+/g, '')
+
+        // 名前、ふりがな、診察券番号で検索
+        return (
+          fullName.includes(searchLower) ||
+          fullNameKana.includes(searchLower) ||
+          patientNumber.includes(query)
+        )
+      })
+
+      setSearchResults(results)
+    } catch (error) {
+      console.error('患者検索エラー:', error)
+    }
+  }
+
+  // 検索クエリが変更されたら検索実行
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    searchPatients(value)
+  }
+
   const handleSave = async () => {
     try {
       const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-      
+
       // 患者データの更新
       const updateData = {
         ...editData,
-        patient_icons: selectedIconIds // 特記事項アイコンを含める
+        patient_icons: selectedIconIds, // 特記事項アイコンを含める
+        family_members: familyMembers // 家族連携を含める
       }
-      
+
       console.log('患者データを保存:', updateData)
-      
+
       // 患者データを更新
       await updatePatient(DEMO_CLINIC_ID, patientId, updateData)
       
@@ -373,8 +540,10 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         phone: patient.phone,
         email: patient.email || '',
         address: patient.address || '',
+        visit_reason: (patient as any).visit_reason || '',
         allergies: patient.allergies || '',
         medical_history: patient.medical_history || '',
+        medications: (patient as any).medications || '',
         special_notes: '',
         primary_doctor: '',
         assigned_dh: ''
@@ -608,15 +777,130 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
               )}
             </div>
 
+            <div>
+              <Label htmlFor="visit_reason">来院理由</Label>
+              <div className="p-3 bg-gray-50 rounded-md">
+                <div className="text-sm text-gray-600">
+                  {editData.visit_reason || '--'}
+                </div>
+              </div>
+            </div>
+
             {/* 家族連携 */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-medium">家族連携</Label>
-                <Button size="sm" variant="outline" disabled={!isEditing}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowFamilyCandidates(!showFamilyCandidates)}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   家族を追加
+                  {familyCandidates.length > 0 && ` (候補: ${familyCandidates.length})`}
                 </Button>
               </div>
+
+              {/* 家族候補リスト */}
+              {showFamilyCandidates && (
+                <div className="mb-3 space-y-3 border rounded-lg p-3 bg-blue-50">
+                  {/* 検索窓 */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="患者名または診察券番号で検索"
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      className="pl-10 bg-white"
+                    />
+                  </div>
+
+                  {/* 検索結果 */}
+                  {searchQuery && (
+                    <div className="space-y-2">
+                      {searchResults.length > 0 ? (
+                        <>
+                          <p className="text-sm font-medium text-blue-900">
+                            検索結果（{searchResults.length}件）
+                          </p>
+                          {searchResults.map((candidate) => (
+                            <div key={candidate.id} className="flex items-center justify-between p-2 border rounded bg-white hover:bg-green-50 cursor-pointer transition-colors">
+                              <div onClick={() => linkFamilyMember(candidate)} className="flex-1">
+                                <p className="font-medium text-sm">
+                                  {candidate.last_name} {candidate.first_name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  患者番号: {(candidate as any).patient_number || '--'}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {candidate.address && `住所: ${candidate.address}`}
+                                  {candidate.phone && ` / 電話: ${candidate.phone}`}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => linkFamilyMember(candidate)}
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                連携
+                              </Button>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-4">
+                          該当する患者が見つかりません
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 住所・電話番号一致の候補 */}
+                  {!searchQuery && familyCandidates.length > 0 && (
+                    <>
+                      <p className="text-sm font-medium text-blue-900">
+                        同じ住所または電話番号の患者（候補: {familyCandidates.length}件）
+                      </p>
+                      {familyCandidates.map((candidate) => (
+                        <div key={candidate.id} className="flex items-center justify-between p-2 border rounded bg-white hover:bg-green-50 cursor-pointer transition-colors">
+                          <div onClick={() => linkFamilyMember(candidate)} className="flex-1">
+                            <p className="font-medium text-sm">
+                              {candidate.last_name} {candidate.first_name}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              患者番号: {(candidate as any).patient_number || '--'}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {candidate.address && `住所: ${candidate.address}`}
+                              {candidate.phone && ` / 電話: ${candidate.phone}`}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => linkFamilyMember(candidate)}
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            連携
+                          </Button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {!searchQuery && familyCandidates.length === 0 && (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                      同じ住所または電話番号を持つ患者が見つかりません
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* 連携済み家族リスト */}
               <div className="space-y-3 max-h-[120px] overflow-y-auto border rounded-lg p-3 bg-gray-50">
                 {familyMembers.length === 0 ? (
                   <p className="text-gray-500 text-center py-4 text-sm">連携された家族はいません</p>
@@ -626,14 +910,18 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                       <div>
                         <p className="font-medium text-sm">{member.name}</p>
                         <p className="text-xs text-gray-500">
-                          {member.relation} | 患者番号: {member.patient_number}
+                          {member.relation && `${member.relation} | `}患者番号: {member.patient_number}
                         </p>
                       </div>
-                      {isEditing && (
-                        <Button size="sm" variant="outline" className="text-red-600 hover:text-red-800 h-6 w-6 p-0">
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:text-red-800"
+                        onClick={() => unlinkFamilyMember(member.id)}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        解除
+                      </Button>
                     </div>
                   ))
                 )}

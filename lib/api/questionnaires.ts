@@ -413,7 +413,91 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
         responses[index].patient_id = patientId
         responses[index].updated_at = new Date().toISOString()
         localStorage.setItem('questionnaire_responses', JSON.stringify(responses))
-        console.log('MOCK_MODE: 問診票回答を患者に連携しました', { responseId, patientId })
+
+        // 問診票から医療情報を抽出して患者データに保存
+        const responseData = responses[index].response_data
+        const { updateMockPatient } = await import('@/lib/utils/mock-mode')
+
+        const medicalData: any = {}
+
+        // アレルギー情報を取得
+        // 初診問診票の場合:
+        // q3-3: 麻酔や抜歯での異常経験 ("ない" または "ある")
+        // q3-4: 麻酔・抜歯異常の詳細 (配列)
+        // q3-5: アレルギーの原因 (テキスト)
+        let allergiesInfo = ''
+
+        // q3-5がアレルギーの原因（最も重要な情報）
+        if (responseData['q3-5']) {
+          allergiesInfo = responseData['q3-5']
+        } else if (responseData['q3-3']) {
+          // q3-3が配列の場合
+          if (Array.isArray(responseData['q3-3'])) {
+            const value = responseData['q3-3'][0]
+            if (value === 'ない') {
+              allergiesInfo = 'なし'
+            }
+          } else if (responseData['q3-3'] === 'ない') {
+            allergiesInfo = 'なし'
+          }
+        }
+        if (allergiesInfo) {
+          medicalData.allergies = allergiesInfo
+        }
+
+        // 既往歴を取得
+        // 初診問診票の場合:
+        // q3-6: 具体的な持病（配列） - 例: ['高血圧']
+        // q3-7: 持病・通院中の病気 ("ない" または "ある")
+        // q3-8: 病名・病院名・診療科・医師名 (テキスト)
+        let medicalHistoryInfo = ''
+
+        if (responseData['q3-7'] === 'ある') {
+          const parts = []
+
+          // q3-6: 具体的な持病（配列）
+          if (responseData['q3-6'] && Array.isArray(responseData['q3-6']) && responseData['q3-6'].length > 0) {
+            parts.push(responseData['q3-6'].join('、'))
+          }
+
+          // q3-8: 病名・病院名等
+          if (responseData['q3-8']) {
+            parts.push(`（${responseData['q3-8']}）`)
+          }
+
+          medicalHistoryInfo = parts.join(' ')
+        } else if (responseData['q3-7'] === 'ない') {
+          medicalHistoryInfo = 'なし'
+        }
+
+        if (medicalHistoryInfo) {
+          medicalData.medical_history = medicalHistoryInfo
+        }
+
+        // 服用薬情報を取得
+        // 初診問診票の場合:
+        // q3-9: 現在服用しているお薬 ("ない" または "ある")
+        // q3-10: 薬剤名・お薬手帳の有無・定期的な点滴・注射の有無 (テキスト)
+        let medicationsInfo = ''
+
+        if (responseData['q3-9'] === 'ある') {
+          if (responseData['q3-10']) {
+            medicationsInfo = responseData['q3-10']
+          } else {
+            medicationsInfo = 'あり（詳細未記入）'
+          }
+        } else if (responseData['q3-9'] === 'ない') {
+          medicationsInfo = 'なし'
+        }
+
+        if (medicationsInfo) {
+          medicalData.medications = medicationsInfo
+        }
+
+        // 患者データを更新
+        if (Object.keys(medicalData).length > 0) {
+          updateMockPatient(patientId, medicalData)
+        }
       }
     } catch (error) {
       console.error('MOCK_MODE: 問診票連携エラー', error)
@@ -437,7 +521,7 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
 /**
  * 問診票回答の患者連携を解除
  */
-export async function unlinkQuestionnaireResponse(responseId: string): Promise<void> {
+export async function unlinkQuestionnaireResponse(responseId: string, patientId: string): Promise<void> {
   if (MOCK_MODE) {
     try {
       const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
@@ -447,6 +531,16 @@ export async function unlinkQuestionnaireResponse(responseId: string): Promise<v
         responses[index].updated_at = new Date().toISOString()
         localStorage.setItem('questionnaire_responses', JSON.stringify(responses))
         console.log('MOCK_MODE: 問診票回答の連携を解除しました', { responseId })
+
+        // 患者データから医療情報をクリアし、仮登録状態に戻す
+        const { updateMockPatient } = await import('@/lib/utils/mock-mode')
+        updateMockPatient(patientId, {
+          allergies: '',
+          medical_history: '',
+          medications: '',
+          is_registered: false  // 仮登録状態に戻す
+        })
+        console.log('MOCK_MODE: 患者データから医療情報をクリアし、仮登録状態に戻しました', { patientId })
       }
     } catch (error) {
       console.error('MOCK_MODE: 問診票連携解除エラー', error)

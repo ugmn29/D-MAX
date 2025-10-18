@@ -1,22 +1,28 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getQuestionnaires, type Questionnaire } from '@/lib/api/questionnaires'
 import { QuestionnaireForm } from '@/components/forms/questionnaire-form'
-import { FileText, CheckCircle } from 'lucide-react'
+import { FileText, CheckCircle, Link2, Check } from 'lucide-react'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function QuestionnairePage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const questionnaireId = searchParams.get('id')
+
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<Questionnaire | null>(null)
   const [showThankYouMessage, setShowThankYouMessage] = useState(false)
   const [submittedResponseId, setSubmittedResponseId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   // 問診票データの読み込み
   useEffect(() => {
@@ -27,9 +33,15 @@ export default function QuestionnairePage() {
         // 有効な問診票のみを表示
         const activeQuestionnaires = data.filter(q => q.is_active)
         setQuestionnaires(activeQuestionnaires)
-        
-        // 問診票が1つしかない場合は自動選択
-        if (activeQuestionnaires.length === 1) {
+
+        // URLパラメータから問診票IDが指定されている場合は自動選択
+        if (questionnaireId && activeQuestionnaires.length > 0) {
+          const questionnaire = activeQuestionnaires.find(q => q.id === questionnaireId)
+          if (questionnaire) {
+            setSelectedQuestionnaire(questionnaire)
+          }
+        } else if (activeQuestionnaires.length === 1) {
+          // 問診票が1つしかない場合は自動選択
           setSelectedQuestionnaire(activeQuestionnaires[0])
         }
       } catch (error) {
@@ -40,11 +52,37 @@ export default function QuestionnairePage() {
     }
 
     loadQuestionnaires()
-  }, [])
+  }, [questionnaireId])
 
   // 質問数をカウント
   const getQuestionCount = (questionnaire: Questionnaire) => {
     return questionnaire.questions?.length || 0
+  }
+
+  // 問診票を選択してURLを更新
+  const selectQuestionnaire = (questionnaire: Questionnaire) => {
+    router.push(`/questionnaire?id=${questionnaire.id}`)
+    setSelectedQuestionnaire(questionnaire)
+  }
+
+  // 問診票一覧に戻る
+  const backToList = () => {
+    router.push('/questionnaire')
+    setSelectedQuestionnaire(null)
+  }
+
+  // リンクをクリップボードにコピー
+  const copyLink = async (questionnaireId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // カードのクリックイベントを防ぐ
+    const url = `${window.location.origin}/questionnaire?id=${questionnaireId}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(questionnaireId)
+      setTimeout(() => setCopiedId(null), 2000) // 2秒後にアイコンを戻す
+    } catch (err) {
+      console.error('クリップボードへのコピーに失敗:', err)
+      alert('リンクのコピーに失敗しました')
+    }
   }
 
   // 感謝メッセージの表示
@@ -128,7 +166,7 @@ export default function QuestionnairePage() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => setSelectedQuestionnaire(null)}
+                onClick={backToList}
               >
                 問診票一覧に戻る
               </Button>
@@ -145,7 +183,7 @@ export default function QuestionnairePage() {
               setShowThankYouMessage(true)
               console.log('問診票ページ: 感謝メッセージ表示状態を更新')
             }}
-            onCancel={() => setSelectedQuestionnaire(null)}
+            onCancel={backToList}
           />
         </div>
       </div>
@@ -164,10 +202,10 @@ export default function QuestionnairePage() {
         {/* 問診票一覧 */}
         <div className="grid gap-6">
           {questionnaires.map((questionnaire) => (
-            <Card 
-              key={questionnaire.id} 
+            <Card
+              key={questionnaire.id}
               className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => setSelectedQuestionnaire(questionnaire)}
+              onClick={() => selectQuestionnaire(questionnaire)}
             >
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
@@ -180,6 +218,19 @@ export default function QuestionnairePage() {
                         <CheckCircle className="w-3 h-3 mr-1" />
                         有効
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => copyLink(questionnaire.id, e)}
+                        className="ml-2 p-2 h-8 w-8"
+                        title="リンクをコピー"
+                      >
+                        {copiedId === questionnaire.id ? (
+                          <Check className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <Link2 className="w-4 h-4 text-gray-500 hover:text-blue-600" />
+                        )}
+                      </Button>
                     </div>
                     {questionnaire.description && (
                       <p className="text-gray-600 mb-4">{questionnaire.description}</p>

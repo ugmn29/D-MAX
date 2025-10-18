@@ -75,6 +75,8 @@ import {
   RefreshCw,
   FileSpreadsheet,
   Upload,
+  Link2,
+  Check,
 } from "lucide-react";
 import {
   updateClinicSettings,
@@ -457,6 +459,7 @@ export default function SettingsPage() {
   const [selectedQuestionnaire, setSelectedQuestionnaire] =
     useState<Questionnaire | null>(null);
   const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false);
+  const [copiedQuestionnaireId, setCopiedQuestionnaireId] = useState<string | null>(null);
   const [newQuestionnaire, setNewQuestionnaire] = useState({
     name: "",
     description: "",
@@ -4635,13 +4638,26 @@ export default function SettingsPage() {
                           </h4>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            questionnaire.is_active 
+                            questionnaire.is_active
                                 ? "bg-green-100 text-green-800"
                                 : "bg-gray-100 text-gray-800"
                             }`}
                           >
                             {questionnaire.is_active ? "有効" : "無効"}
                           </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => copyQuestionnaireLink(questionnaire.id, e)}
+                            className="ml-2 p-2 h-8 w-8"
+                            title="問診票リンクをコピー"
+                          >
+                            {copiedQuestionnaireId === questionnaire.id ? (
+                              <Check className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <Link2 className="w-4 h-4 text-gray-500 hover:text-blue-600" />
+                            )}
+                          </Button>
                         </div>
                       </div>
                       <div className="flex space-x-2 ml-4">
@@ -5366,6 +5382,20 @@ export default function SettingsPage() {
     } catch (error) {
       console.error("問診票削除エラー:", error);
       alert("問診票の削除に失敗しました");
+    }
+  };
+
+  // 問診票リンクをコピー
+  const copyQuestionnaireLink = async (questionnaireId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/questionnaire?id=${questionnaireId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedQuestionnaireId(questionnaireId);
+      setTimeout(() => setCopiedQuestionnaireId(null), 2000);
+    } catch (err) {
+      console.error("クリップボードへのコピーに失敗:", err);
+      alert("リンクのコピーに失敗しました");
     }
   };
 
