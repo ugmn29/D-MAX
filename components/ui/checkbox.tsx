@@ -11,22 +11,29 @@ export interface CheckboxProps
 }
 
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ className, onCheckedChange, ...props }, ref) => {
-    const [internalChecked, setInternalChecked] = React.useState(props.defaultChecked || false)
-    
+  ({ className, onCheckedChange, checked, ...props }, ref) => {
+    const [internalChecked, setInternalChecked] = React.useState(
+      checked !== undefined ? checked : (props.defaultChecked || false)
+    )
+
     // 外部からcheckedプロパティが渡された場合はそれを使用、そうでなければ内部状態を使用
-    const isChecked = props.checked !== undefined ? props.checked : internalChecked
+    const isControlled = checked !== undefined
+    const isChecked = isControlled ? checked : internalChecked
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const newChecked = e.target.checked
-      setInternalChecked(newChecked)
+      if (!isControlled) {
+        setInternalChecked(newChecked)
+      }
       props.onChange?.(e)
       onCheckedChange?.(newChecked)
     }
 
     const handleClick = () => {
       const newChecked = !isChecked
-      setInternalChecked(newChecked)
+      if (!isControlled) {
+        setInternalChecked(newChecked)
+      }
       onCheckedChange?.(newChecked)
       // イベントオブジェクトを作成してonChangeも呼び出す
       const syntheticEvent = {

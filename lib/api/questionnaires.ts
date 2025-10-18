@@ -22,6 +22,19 @@ export interface Question {
   sort_order: number
 }
 
+export interface QuestionnaireResponse {
+  id: string
+  questionnaire_id: string
+  patient_id: string | null
+  appointment_id?: string | null
+  response_data: any
+  completed_at: string
+  created_at: string
+  updated_at: string
+  patient_name?: string
+  questionnaire?: Questionnaire
+}
+
 /**
  * 問診表一覧を取得
  */
@@ -282,7 +295,8 @@ export async function createQuestionnaireResponse(responseData: {
         patientData.medical_history = diseaseDetails
       }
 
-      // 患者IDが指定されている場合は更新、されていない場合は新規作成
+      // 患者IDが指定されている場合のみ患者情報を更新
+      // 指定されていない場合は未連携として保存
       let finalPatientId = responseData.patient_id
 
       if (finalPatientId) {
@@ -290,23 +304,16 @@ export async function createQuestionnaireResponse(responseData: {
         const { updateMockPatient } = await import('@/lib/utils/mock-mode')
         updateMockPatient(finalPatientId, patientData)
         console.log('患者情報を更新しました:', finalPatientId)
-      } else {
-        // 新規患者を作成
-        const { addMockPatient } = await import('@/lib/utils/mock-mode')
-        finalPatientId = `p_${Date.now()}`
-        patientData.id = finalPatientId
-        patientData.patient_number = String(Math.floor(Math.random() * 9000) + 1000)
-        addMockPatient(patientData)
-        console.log('新規患者を作成しました:', finalPatientId)
       }
 
       // 問診表回答を保存（localStorageに）
+      // patient_idが指定されていない場合はnullで保存（未連携状態）
       const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
       const newResponse = {
         id: responseId,
         questionnaire_id: responseData.questionnaire_id,
-        patient_id: finalPatientId,
-        appointment_id: responseData.appointment_id,
+        patient_id: finalPatientId || null,
+        appointment_id: responseData.appointment_id || null,
         response_data: responseData.response_data,
         completed_at: responseData.completed_at,
         created_at: new Date().toISOString(),
@@ -315,8 +322,12 @@ export async function createQuestionnaireResponse(responseData: {
       responses.push(newResponse)
       localStorage.setItem('questionnaire_responses', JSON.stringify(responses))
 
-      console.log('問診表回答を保存しました:', responseId)
-      console.log('連携された患者ID:', finalPatientId)
+      console.log('問診表回答を保存しました:', {
+        responseId,
+        patient_id: finalPatientId,
+        isLinked: !!finalPatientId,
+        isUnlinked: !finalPatientId
+      })
 
       return responseId
     } catch (error) {
@@ -347,31 +358,203 @@ export async function createQuestionnaireResponse(responseData: {
   return data.id
 }
 
-// 互換性のためのダミー関数（既存コンポーネント用）
-export async function debugQuestionnaireResponses(): Promise<any[]> {
-  console.log('debugQuestionnaireResponses: ダミー関数')
-  return []
+/**
+ * 未連携の問診票回答を取得
+ */
+export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Promise<QuestionnaireResponse[]> {
+  if (MOCK_MODE) {
+    try {
+      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      // patient_idがnullまたは未定義のものを未連携として扱う
+      const unlinked = responses.filter((r: QuestionnaireResponse) => !r.patient_id)
+      console.log('MOCK_MODE: 未連携問診票取得成功', { count: unlinked.length, responses: unlinked })
+      return unlinked
+    } catch (error) {
+      console.error('MOCK_MODE: 未連携問診票取得エラー', error)
+      return []
+    }
+  }
+
+  const client = getSupabaseClient()
+  const query = client
+    .from('questionnaire_responses')
+    .select('*')
+    .is('patient_id', null)
+    .order('created_at', { ascending: false })
+
+  if (clinicId) {
+    // questionnairesテーブルと結合してクリニックIDでフィルタ
+    const { data, error } = await query
+    if (error) {
+      console.error('未連携問診票取得エラー:', error)
+      throw error
+    }
+    return data || []
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error('未連携問診票取得エラー:', error)
+    throw error
+  }
+
+  return data || []
 }
 
-export async function getUnlinkedQuestionnaireResponses(): Promise<any[]> {
-  console.log('getUnlinkedQuestionnaireResponses: ダミー関数')
-  return []
-}
-
+/**
+ * 問診票回答を患者に連携
+ */
 export async function linkQuestionnaireResponseToPatient(responseId: string, patientId: string): Promise<void> {
-  console.log('linkQuestionnaireResponseToPatient: ダミー関数', { responseId, patientId })
+  if (MOCK_MODE) {
+    try {
+      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      const index = responses.findIndex((r: QuestionnaireResponse) => r.id === responseId)
+      if (index !== -1) {
+        responses[index].patient_id = patientId
+        responses[index].updated_at = new Date().toISOString()
+        localStorage.setItem('questionnaire_responses', JSON.stringify(responses))
+        console.log('MOCK_MODE: 問診票回答を患者に連携しました', { responseId, patientId })
+      }
+    } catch (error) {
+      console.error('MOCK_MODE: 問診票連携エラー', error)
+      throw error
+    }
+    return
+  }
+
+  const client = getSupabaseClient()
+  const { error } = await client
+    .from('questionnaire_responses')
+    .update({ patient_id: patientId, updated_at: new Date().toISOString() })
+    .eq('id', responseId)
+
+  if (error) {
+    console.error('問診票連携エラー:', error)
+    throw error
+  }
 }
 
+/**
+ * 問診票回答の患者連携を解除
+ */
 export async function unlinkQuestionnaireResponse(responseId: string): Promise<void> {
-  console.log('unlinkQuestionnaireResponse: ダミー関数', { responseId })
+  if (MOCK_MODE) {
+    try {
+      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      const index = responses.findIndex((r: QuestionnaireResponse) => r.id === responseId)
+      if (index !== -1) {
+        responses[index].patient_id = null
+        responses[index].updated_at = new Date().toISOString()
+        localStorage.setItem('questionnaire_responses', JSON.stringify(responses))
+        console.log('MOCK_MODE: 問診票回答の連携を解除しました', { responseId })
+      }
+    } catch (error) {
+      console.error('MOCK_MODE: 問診票連携解除エラー', error)
+      throw error
+    }
+    return
+  }
+
+  const client = getSupabaseClient()
+  const { error } = await client
+    .from('questionnaire_responses')
+    .update({ patient_id: null, updated_at: new Date().toISOString() })
+    .eq('id', responseId)
+
+  if (error) {
+    console.error('問診票連携解除エラー:', error)
+    throw error
+  }
 }
 
-export async function getLinkedQuestionnaireResponse(patientId: string): Promise<any | null> {
-  console.log('getLinkedQuestionnaireResponse: ダミー関数', { patientId })
-  return null
+/**
+ * 特定の患者に連携された問診票回答を取得（単一）
+ */
+export async function getLinkedQuestionnaireResponse(patientId: string): Promise<QuestionnaireResponse | null> {
+  if (MOCK_MODE) {
+    try {
+      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      const linked = responses.find((r: QuestionnaireResponse) => r.patient_id === patientId)
+      return linked || null
+    } catch (error) {
+      console.error('MOCK_MODE: 連携済み問診票取得エラー', error)
+      return null
+    }
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('questionnaire_responses')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error) {
+    console.error('連携済み問診票取得エラー:', error)
+    return null
+  }
+
+  return data
 }
 
-export async function getLinkedQuestionnaireResponses(): Promise<any[]> {
-  console.log('getLinkedQuestionnaireResponses: ダミー関数')
-  return []
+/**
+ * 特定の患者に連携された問診票回答を全て取得
+ */
+export async function getLinkedQuestionnaireResponses(patientId: string): Promise<QuestionnaireResponse[]> {
+  if (MOCK_MODE) {
+    try {
+      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      const linked = responses.filter((r: QuestionnaireResponse) => r.patient_id === patientId)
+      console.log('MOCK_MODE: 患者の連携済み問診票取得成功', { patientId, count: linked.length })
+      return linked
+    } catch (error) {
+      console.error('MOCK_MODE: 連携済み問診票取得エラー', error)
+      return []
+    }
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('questionnaire_responses')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('連携済み問診票取得エラー:', error)
+    return []
+  }
+
+  return data || []
+}
+
+/**
+ * デバッグ用：全ての問診票回答を取得
+ */
+export async function debugQuestionnaireResponses(): Promise<QuestionnaireResponse[]> {
+  if (MOCK_MODE) {
+    try {
+      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      console.log('MOCK_MODE: 全問診票回答取得', { count: responses.length, responses })
+      return responses
+    } catch (error) {
+      console.error('MOCK_MODE: 問診票回答デバッグエラー', error)
+      return []
+    }
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('questionnaire_responses')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('問診票回答デバッグエラー:', error)
+    return []
+  }
+
+  return data || []
 }

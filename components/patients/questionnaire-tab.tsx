@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +12,8 @@ import {
   CheckCircle,
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  ClipboardList
 } from 'lucide-react'
 import { getLinkedQuestionnaireResponses, QuestionnaireResponse, getQuestionnaires } from '@/lib/api/questionnaires'
 import { format } from 'date-fns'
@@ -21,16 +23,38 @@ interface QuestionnaireTabProps {
   patientId: string
 }
 
+type QuestionnaireType = 'display' | 'habit'
+
 export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // URLパラメータから問診票タイプを読み取り（デフォルトは'display'）
+  const questionnaireType = (searchParams.get('questionnaireType') as QuestionnaireType) || 'display'
+  const [activeType, setActiveType] = useState<QuestionnaireType>(questionnaireType)
+
   const [questionnaireResponses, setQuestionnaireResponses] = useState<QuestionnaireResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedResponse, setExpandedResponse] = useState<string | null>(null)
   const [questionnaireDefinitions, setQuestionnaireDefinitions] = useState<Map<string, any>>(new Map())
 
+  // URLパラメータが変更されたら activeType を更新
+  useEffect(() => {
+    setActiveType(questionnaireType)
+  }, [questionnaireType])
+
   useEffect(() => {
     loadQuestionnaireResponses()
-  }, [patientId])
+  }, [patientId, activeType])
+
+  // タブ切り替え時にURLを更新
+  const handleTypeChange = (type: QuestionnaireType) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('questionnaireType', type)
+    router.push(`${pathname}?${params.toString()}`)
+  }
 
   const loadQuestionnaireResponses = async () => {
     try {
@@ -114,57 +138,50 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
     return formattedData
   }
 
-  if (loading) {
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center py-8">
+          <div className="text-gray-500">問診票回答を読み込み中...</div>
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-8">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600">{error}</p>
+          <Button onClick={loadQuestionnaireResponses} className="mt-4">
+            再読み込み
+          </Button>
+        </div>
+      )
+    }
+
+    if (questionnaireResponses.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">問診票回答がありません</h3>
+          <p className="text-gray-500 mb-4">この患者に関連する問診票回答が見つかりませんでした。</p>
+          <Button
+            onClick={loadQuestionnaireResponses}
+            variant="outline"
+            size="sm"
+          >
+            再読み込み
+          </Button>
+        </div>
+      )
+    }
+
     return (
-      <div className="flex justify-center py-8">
-        <div className="text-gray-500">問診票回答を読み込み中...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-        <p className="text-red-600">{error}</p>
-        <Button onClick={loadQuestionnaireResponses} className="mt-4">
-          再読み込み
-        </Button>
-      </div>
-    )
-  }
-
-  if (questionnaireResponses.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">問診票回答がありません</h3>
-        <p className="text-gray-500 mb-4">この患者に関連する問診票回答が見つかりませんでした。</p>
-        <Button 
-          onClick={loadQuestionnaireResponses}
-          variant="outline"
-          size="sm"
-        >
-          再読み込み
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">問診票回答</h3>
-        <Badge variant="outline" className="text-sm">
-          {questionnaireResponses.length}件の回答
-        </Badge>
-      </div>
-
       <div className="space-y-4">
         {questionnaireResponses.map((response) => {
           const isExpanded = expandedResponse === response.id
           const formattedData = formatResponseData(response)
-          
+
           return (
             <Card key={response.id} className="border border-gray-200">
               <CardHeader className="pb-3">
@@ -190,7 +207,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Badge 
+                    <Badge
                       variant={response.patient_id ? "default" : "secondary"}
                       className="text-xs"
                     >
@@ -211,7 +228,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                   </div>
                 </div>
               </CardHeader>
-              
+
               {isExpanded && (
                 <CardContent className="pt-0">
                   <div className="space-y-6">
@@ -274,6 +291,53 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
           )
         })}
       </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* サブタブナビゲーション */}
+      <div className="flex items-center space-x-4 border-b border-gray-200">
+        <button
+          onClick={() => handleTypeChange('display')}
+          className={`
+            flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm whitespace-nowrap
+            ${activeType === 'display'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }
+          `}
+        >
+          <FileText className="w-4 h-4" />
+          <span>表示問診票</span>
+        </button>
+        <button
+          onClick={() => handleTypeChange('habit')}
+          className={`
+            flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm whitespace-nowrap
+            ${activeType === 'habit'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }
+          `}
+        >
+          <ClipboardList className="w-4 h-4" />
+          <span>習慣チェック表</span>
+        </button>
+      </div>
+
+      {/* タブの説明とバッジ */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">
+          {activeType === 'display' ? '表示問診票' : '習慣チェック表'}
+        </h3>
+        <Badge variant="outline" className="text-sm">
+          {questionnaireResponses.length}件の回答
+        </Badge>
+      </div>
+
+      {/* コンテンツ表示 */}
+      {renderContent()}
     </div>
   )
 }

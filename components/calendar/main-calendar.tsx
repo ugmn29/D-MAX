@@ -2150,10 +2150,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       )}
                       
                       {/* フリガナ */}
-                      {displayItems.includes('furigana') && patient && (
+                      {displayItems.includes('furigana') && patient && (patient.last_name_kana || patient.first_name_kana) && (
                         <span className="text-xs">
                           {(displayItems.includes('name') || displayItems.some(item => item.match(/^(name|medical_card_number|reservation_time)$/))) ? ' / ' : ''}
-                          ({patient.last_name_kana} {patient.first_name_kana})
+                          {patient.last_name_kana} {patient.first_name_kana}
                         </span>
                       )}
                       

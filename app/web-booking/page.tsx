@@ -872,7 +872,7 @@ export default function WebBookingPage() {
                 <CardTitle>患者情報入力</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className={`grid gap-4 ${webSettings?.patientInfoFields.phoneEnabled ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-4 ${webSettings?.patientInfoFields?.phoneEnabled ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
                   <div>
                     <Label htmlFor="patientName">お名前 *</Label>
                     <Input
@@ -882,10 +882,10 @@ export default function WebBookingPage() {
                       placeholder="例: 田中太郎"
                     />
                   </div>
-                  {webSettings?.patientInfoFields.phoneEnabled && (
+                  {webSettings?.patientInfoFields?.phoneEnabled && (
                     <div>
                       <Label htmlFor="patientPhone">
-                        電話番号 {webSettings?.patientInfoFields.phoneRequired ? '*' : ''}
+                        電話番号 {webSettings?.patientInfoFields?.phoneRequired ? '*' : ''}
                       </Label>
                       <Input
                         id="patientPhone"
@@ -903,10 +903,10 @@ export default function WebBookingPage() {
                     </div>
                   )}
                 </div>
-                {webSettings?.patientInfoFields.emailEnabled && (
+                {webSettings?.patientInfoFields?.emailEnabled && (
                   <div>
                     <Label htmlFor="patientEmail">
-                      メールアドレス {webSettings.patientInfoFields.emailRequired ? '*' : ''}
+                      メールアドレス {webSettings?.patientInfoFields?.emailRequired ? '*' : ''}
                     </Label>
                     <Input
                       id="patientEmail"

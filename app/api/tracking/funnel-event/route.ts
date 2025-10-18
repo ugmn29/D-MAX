@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +25,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Database not configured' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = supabaseAdmin
 
     // ファネルイベントを記録
     const { data, error } = await supabase

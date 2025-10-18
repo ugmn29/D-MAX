@@ -282,12 +282,7 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
       console.log('送信データ:', responseData)
       const responseId = await createQuestionnaireResponse(responseData)
       console.log('問診票送信完了:', responseId)
-      
-      // 送信後に未連携問診票数を確認
-      const { getCurrentUnlinkedCount } = await import('@/lib/api/questionnaires')
-      const currentCount = getCurrentUnlinkedCount()
-      console.log('送信後の未連携問診票数:', currentCount)
-      
+
       onSave?.(responseId)
       console.log('onSaveコールバック実行完了')
     } catch (error) {

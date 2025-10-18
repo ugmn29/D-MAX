@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Modal } from '@/components/ui/modal'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Save, Plus, Trash2, Edit3 } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Edit3, Settings, ArrowRight, Stethoscope } from 'lucide-react'
 import { getClinicSettings, setClinicSetting } from '@/lib/api/clinic'
 import { getTreatmentMenus, updateTreatmentMenu } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
@@ -230,13 +230,6 @@ export default function WebReservationSettingsPage() {
 
   return (
     <MainLayout>
-      {/* デバッグ: ページがレンダリングされているか確認 */}
-      <div className="bg-green-100 border-4 border-green-500 p-4 m-4">
-        <h1 className="text-2xl font-bold text-green-800">🟢 DEBUG: Web予約設定ページが読み込まれました！</h1>
-        <p className="text-green-700">時刻: {new Date().toLocaleString()}</p>
-        <p className="text-green-700">activeTab: {activeTab}</p>
-      </div>
-      
       <div className="flex h-screen">
         {/* 左サイドバー */}
         <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
@@ -281,45 +274,41 @@ export default function WebReservationSettingsPage() {
               </Button>
             </div>
 
-            {/* タブナビゲーション */}
-            <div className="mb-6">
-              {/* デバッグ情報 */}
-              <div className="bg-red-100 border border-red-500 p-2 mb-4">
-                <p className="text-red-700 font-bold">DEBUG INFO: activeTab = {activeTab}</p>
-                <p className="text-red-700">Current Time: {new Date().toLocaleTimeString()}</p>
-              </div>
-              <nav className="flex space-x-8">
-                <button
-                  onClick={() => setActiveTab('basic')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'basic'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  基本設定
-                </button>
-                <button
-                  onClick={() => setActiveTab('flow')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'flow'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  フロー設定
-                </button>
-                <button
-                  onClick={() => setActiveTab('menu')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'menu'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  メニュー設定
-                </button>
-              </nav>
+            {/* サブタブナビゲーション */}
+            <div className="flex space-x-0 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('basic')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  activeTab === 'basic'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Settings className="w-4 h-4 inline mr-2" />
+                基本設定
+              </button>
+              <button
+                onClick={() => setActiveTab('flow')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  activeTab === 'flow'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <ArrowRight className="w-4 h-4 inline mr-2" />
+                フロー設定
+              </button>
+              <button
+                onClick={() => setActiveTab('menu')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  activeTab === 'menu'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Stethoscope className="w-4 h-4 inline mr-2" />
+                メニュー設定
+              </button>
             </div>
 
             {/* 基本設定タブ */}
@@ -428,8 +417,6 @@ export default function WebReservationSettingsPage() {
               <CardHeader>
                 <CardTitle>予約フロー設定</CardTitle>
                 <p className="text-sm text-gray-600">予約フローの各ステップを設定します</p>
-                {/* デバッグ用 */}
-                <p className="text-xs text-red-500 bg-yellow-200 p-2">DEBUG: activeTab={activeTab}, showCancelPolicy={webSettings.showCancelPolicy} - {new Date().toLocaleTimeString()}</p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

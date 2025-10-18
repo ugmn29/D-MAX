@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase'
 
 // GET: トラッキングタグ設定を取得
 export async function GET(request: NextRequest) {
@@ -14,7 +14,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Database not configured' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = supabaseAdmin
 
     const { data, error } = await supabase
       .from('tracking_tags')
@@ -94,7 +101,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Database not configured' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = supabaseAdmin
 
     // UPSERT（存在すれば更新、なければ作成）
     const { data, error } = await supabase

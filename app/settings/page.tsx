@@ -339,6 +339,7 @@ export default function SettingsPage() {
   const [selectedMasterTab, setSelectedMasterTab] = useState("icons");
   const [selectedClinicTab, setSelectedClinicTab] = useState("info");
   const [selectedShiftTab, setSelectedShiftTab] = useState("table");
+  const [selectedWebTab, setSelectedWebTab] = useState<'basic' | 'flow' | 'menu'>('basic');
   const [notificationTab, setNotificationTab] = useState("connection");
   const [questionnaireTab, setQuestionnaireTab] = useState("list");
   const [loading, setLoading] = useState(false);
@@ -764,6 +765,7 @@ export default function SettingsPage() {
     flow: {
       initialSelection: true,
       menuSelection: true,
+      staffSelection: true,
       calendarDisplay: true,
       patientInfo: true,
       confirmation: true,
@@ -1996,7 +1998,12 @@ export default function SettingsPage() {
       allow_returning: newWebMenu.allow_returning,
     };
 
-    setWebBookingMenus([...webBookingMenus, webMenu]);
+    const updatedMenus = [...webBookingMenus, webMenu];
+    setWebBookingMenus(updatedMenus);
+
+    // データベースに保存
+    saveWebBookingMenus(updatedMenus);
+
     setIsAddWebMenuDialogOpen(false);
     setNewWebMenu({
       treatment_menu_id: "",
@@ -2012,7 +2019,11 @@ export default function SettingsPage() {
 
   // Web予約メニューを削除
   const handleRemoveWebBookingMenu = (id: string) => {
-    setWebBookingMenus(webBookingMenus.filter((m) => m.id !== id));
+    const updatedMenus = webBookingMenus.filter((m) => m.id !== id);
+    setWebBookingMenus(updatedMenus);
+
+    // データベースに保存
+    saveWebBookingMenus(updatedMenus);
   };
 
   // Web予約メニューを編集開始
@@ -2085,11 +2096,14 @@ export default function SettingsPage() {
       allow_returning: newWebMenu.allow_returning,
     };
 
-    setWebBookingMenus(
-      webBookingMenus.map((m) =>
-        m.id === editingWebMenu.id ? updatedMenu : m,
-      ),
+    const updatedMenus = webBookingMenus.map((m) =>
+      m.id === editingWebMenu.id ? updatedMenu : m,
     );
+    setWebBookingMenus(updatedMenus);
+
+    // データベースに保存
+    saveWebBookingMenus(updatedMenus);
+
     setIsEditWebMenuDialogOpen(false);
     setEditingWebMenu(null);
     setNewWebMenu({
@@ -2141,6 +2155,25 @@ export default function SettingsPage() {
   const handlePatientInfoFieldsDialogClose = () => {
     setIsPatientInfoFieldsDialogOpen(false);
     setTempPatientInfoFields(webSettings.patientInfoFields);
+  };
+
+  // Web予約メニューをデータベースに保存
+  const saveWebBookingMenus = async (menus: any[]) => {
+    try {
+      console.log("Web予約メニュー保存開始");
+      console.log("保存するメニュー:", menus);
+
+      const settingsToSave = {
+        ...webSettings,
+        booking_menus: menus,
+      };
+
+      await setClinicSetting(DEMO_CLINIC_ID, "web_reservation", settingsToSave);
+      console.log("Web予約メニュー保存完了");
+    } catch (error) {
+      console.error("Web予約メニュー保存エラー:", error);
+      alert("Web予約メニューの保存に失敗しました");
+    }
   };
 
   // Web予約設定を保存
@@ -5724,7 +5757,45 @@ export default function SettingsPage() {
         )}
         {selectedCategory === "web" && (
           <div className="space-y-6">
-            {/* 基本設定 */}
+            {/* サブタブナビゲーション */}
+            <div className="flex space-x-0 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => setSelectedWebTab('basic')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  selectedWebTab === 'basic'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Settings className="w-4 h-4 inline mr-2" />
+                基本設定
+              </button>
+              <button
+                onClick={() => setSelectedWebTab('flow')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  selectedWebTab === 'flow'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <ArrowRight className="w-4 h-4 inline mr-2" />
+                フロー設定
+              </button>
+              <button
+                onClick={() => setSelectedWebTab('menu')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  selectedWebTab === 'menu'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Stethoscope className="w-4 h-4 inline mr-2" />
+                メニュー設定
+              </button>
+            </div>
+
+            {/* 基本設定タブ */}
+            {selectedWebTab === 'basic' && (
               <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -5862,8 +5933,10 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
               </div>
+            )}
 
-            {/* フロー設定 */}
+            {/* フロー設定タブ */}
+            {selectedWebTab === 'flow' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* 左側: フロー設定 */}
                 <div className="space-y-6">
@@ -5946,6 +6019,31 @@ export default function SettingsPage() {
                             <Label htmlFor="flow_menu" className="font-medium">
                               診療メニュー選択
                             </Label>
+                          </div>
+                        </div>
+
+                        {/* 担当者選択 */}
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            id="flow_staff"
+                            checked={webSettings.flow.staffSelection}
+                            onCheckedChange={(checked) =>
+                            setWebSettings((prev) => ({
+                                ...prev,
+                              flow: {
+                                ...prev.flow,
+                                staffSelection: checked as boolean,
+                              },
+                              }))
+                            }
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="flow_staff" className="font-medium">
+                              担当者選択
+                            </Label>
+                            <p className="text-sm text-gray-500">
+                              患者が担当ドクター・衛生士を選択するステップ
+                            </p>
                           </div>
                         </div>
 
@@ -6143,7 +6241,80 @@ export default function SettingsPage() {
                               </div>
                             )}
 
-                            {/* ステップ3: カレンダー表示 */}
+                            {/* ステップ3: 担当者選択 */}
+                            {webSettings.flow.staffSelection && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>担当者の選択</CardTitle>
+                                    <p className="text-sm text-gray-600">
+                                      担当をご希望される場合は選択してください
+                                    </p>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
+                                        <div>
+                                          <h3 className="font-medium text-gray-900 mb-1">
+                                            指定なし
+                                          </h3>
+                                          <p className="text-sm text-gray-600">
+                                            担当者を指定しない
+                                          </p>
+                                        </div>
+                                      </button>
+                                      <button className="p-4 rounded-lg border-2 border-blue-500 bg-blue-50 shadow-md transition-all text-left">
+                                        <div className="flex items-center space-x-3">
+                                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                            <Users className="w-5 h-5 text-gray-600" />
+                                          </div>
+                                          <div>
+                                            <h3 className="font-medium text-gray-900 mb-1">
+                                              田中 太郎
+                                            </h3>
+                                            <p className="text-sm text-gray-600">
+                                              歯科医師
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </button>
+                                      <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
+                                        <div className="flex items-center space-x-3">
+                                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                            <Users className="w-5 h-5 text-gray-600" />
+                                          </div>
+                                          <div>
+                                            <h3 className="font-medium text-gray-900 mb-1">
+                                              佐藤 花子
+                                            </h3>
+                                            <p className="text-sm text-gray-600">
+                                              歯科衛生士
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </button>
+                                      <button className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-all text-left">
+                                        <div className="flex items-center space-x-3">
+                                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                            <Users className="w-5 h-5 text-gray-600" />
+                                          </div>
+                                          <div>
+                                            <h3 className="font-medium text-gray-900 mb-1">
+                                              鈴木 次郎
+                                            </h3>
+                                            <p className="text-sm text-gray-600">
+                                              歯科医師
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* ステップ4: カレンダー表示 */}
                             {webSettings.flow.calendarDisplay && (
                               <div className="animate-fadeIn">
                                 <Card>
@@ -6344,7 +6515,7 @@ export default function SettingsPage() {
                               </div>
                             )}
 
-                            {/* ステップ4: 患者情報入力 */}
+                            {/* ステップ5: 患者情報入力 */}
                             {webSettings.flow.patientInfo && (
                               <div className="animate-fadeIn">
                                 <Card>
@@ -6417,7 +6588,7 @@ export default function SettingsPage() {
                               </div>
                             )}
 
-                            {/* ステップ5: 確認・確定 */}
+                            {/* ステップ6: 確認・確定 */}
                             {webSettings.flow.confirmation && (
                               <div className="animate-fadeIn">
                                 <Card>
@@ -6489,8 +6660,10 @@ export default function SettingsPage() {
                   </Card>
                 </div>
               </div>
+            )}
 
-            {/* メニュー設定 */}
+            {/* メニュー設定タブ */}
+            {selectedWebTab === 'menu' && (
               <div className="space-y-6">
             {/* Web予約メニュー設定 */}
             {webSettings.isEnabled ? (
@@ -6662,6 +6835,7 @@ export default function SettingsPage() {
               </div>
             )}
               </div>
+            )}
 
             {/* Web予約メニュー追加ダイアログ */}
             <Modal
