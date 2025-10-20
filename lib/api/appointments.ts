@@ -90,9 +90,9 @@ export async function getAppointments(
 
         // Web予約の仮患者でlocalStorageに見つからない場合、notesから復元
         // ただし、これは初回のみで、本登録後はlocalStorageに存在するはず
-        if (!patient && appointment.patient_id?.startsWith('web-booking-temp-') && appointment.notes) {
+        if (!patient && appointment.patient_id?.startsWith('web-booking-temp-') && appointment.memo) {
           console.log('警告: Web予約の患者がlocalStorageに見つかりません。notesから復元を試みます。')
-          const notes = appointment.notes
+          const notes = appointment.memo
           const nameMatch = notes.match(/氏名:\s*(.+)/)
           const phoneMatch = notes.match(/電話:\s*(.+)/)
 
@@ -259,7 +259,7 @@ export async function createAppointment(
     // Web予約の仮患者の場合
     if (!patient && appointmentData.patient_id?.startsWith('web-booking-temp-')) {
       // notesから患者情報を抽出
-      const notes = appointmentData.notes || ''
+      const notes = appointmentData.memo || ''
       const nameMatch = notes.match(/氏名:\s*(.+)/)
       const phoneMatch = notes.match(/電話:\s*(.+)/)
 
@@ -345,7 +345,7 @@ export async function createAppointment(
         menu1_id: appointmentData.menu1_id,
         staff1_id: appointmentData.staff1_id,
         status: appointmentData.status || '未来院',
-        notes: appointmentData.notes
+        memo: appointmentData.memo
       },
       'system'
     )
@@ -417,7 +417,7 @@ export async function deleteAppointment(
           staff1_id: appointmentToDelete.staff1_id,
           menu1_id: appointmentToDelete.menu1_id,
           status: appointmentToDelete.status,
-          notes: appointmentToDelete.notes
+          memo: appointmentToDelete.memo
         },
         reason: '予約を削除しました',
         operator_id: 'system'
@@ -463,7 +463,7 @@ export async function deleteAppointment(
         staff1_id: appointmentToDelete.staff1_id,
         menu1_id: appointmentToDelete.menu1_id,
         status: appointmentToDelete.status,
-        notes: appointmentToDelete.notes
+        memo: appointmentToDelete.memo
       },
       reason: '予約を削除しました',
       operator_id: 'system'
@@ -544,8 +544,8 @@ export async function updateAppointment(
     let patient = appointmentData.patient_id ? patients.find(p => p.id === appointmentData.patient_id) : null
 
     // Web予約の仮患者でまだlocalStorageに保存されていない場合
-    if (!patient && appointmentData.patient_id?.startsWith('web-booking-temp-') && appointmentData.notes) {
-      const notes = appointmentData.notes
+    if (!patient && appointmentData.patient_id?.startsWith('web-booking-temp-') && appointmentData.memo) {
+      const notes = appointmentData.memo
       const nameMatch = notes.match(/氏名:\s*(.+)/)
       const phoneMatch = notes.match(/電話:\s*(.+)/)
 
@@ -619,7 +619,7 @@ export async function updateAppointment(
           staff1_id: oldAppointment.staff1_id,
           menu1_id: oldAppointment.menu1_id,
           status: oldAppointment.status,
-          notes: oldAppointment.notes
+          memo: oldAppointment.memo
         },
         {
           appointment_date: updatedAppointment.appointment_date,
@@ -628,7 +628,7 @@ export async function updateAppointment(
           staff1_id: updatedAppointment.staff1_id,
           menu1_id: updatedAppointment.menu1_id,
           status: updatedAppointment.status,
-          notes: updatedAppointment.notes
+          memo: updatedAppointment.memo
         },
         'system',
         '予約情報を更新しました'
@@ -673,9 +673,9 @@ export async function cancelAppointment(
     const { updateMockAppointment, getMockCancelReasons } = await import('@/lib/utils/mock-mode')
     
     const cancelReason = getMockCancelReasons().find(r => r.id === cancelReasonId)
-    
+
     const updatedAppointment = {
-      status: 'キャンセル' as any,
+      status: 'cancelled' as any,
       cancel_reason_id: cancelReasonId,
       cancelled_at: new Date().toISOString(),
       cancelled_by: cancelledBy,
@@ -700,7 +700,7 @@ export async function cancelAppointment(
   const { data, error } = await client
     .from('appointments')
     .update({
-      status: 'キャンセル',
+      status: 'cancelled',
       cancel_reason_id: cancelReasonId,
       cancelled_at: new Date().toISOString(),
       cancelled_by: cancelledBy,

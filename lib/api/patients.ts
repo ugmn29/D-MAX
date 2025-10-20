@@ -622,3 +622,126 @@ export async function updatePatientAutoReminderSettings(
     })
     .eq('id', patientId)
 }
+
+/**
+ * 再診患者の認証
+ * 診察券番号 OR 電話番号 OR メールアドレス（いずれか1つ） + 生年月日で認証
+ */
+export async function authenticateReturningPatient(
+  clinicId: string,
+  authData: {
+    patientNumber?: string
+    phone?: string
+    email?: string
+    birthdate: string // YYYY-MM-DD形式
+  }
+): Promise<Patient | null> {
+  const client = getSupabaseClient()
+
+  // 検索条件を構築
+  let query = client
+    .from('patients')
+    .select('*')
+    .eq('clinic_id', clinicId)
+    .eq('birthdate', authData.birthdate)
+    .eq('is_registered', true) // 本登録済みの患者のみ
+
+  // 診察券番号、電話番号、メールアドレスのいずれか1つで検索
+  const conditions = []
+  if (authData.patientNumber) {
+    conditions.push({ patient_number: authData.patientNumber })
+  }
+  if (authData.phone) {
+    conditions.push({ phone: authData.phone })
+  }
+  if (authData.email) {
+    conditions.push({ email: authData.email })
+  }
+
+  // OR条件で検索（生年月日は必須）
+  if (conditions.length === 0) {
+    return null
+  }
+
+  try {
+    // モックモードの場合
+    if (MOCK_MODE) {
+      const { getMockPatients } = await import('@/lib/utils/mock-mode')
+      const mockPatients = getMockPatients()
+
+      // localStorageから検索
+      const matchedPatient = mockPatients.find((patient: Patient) => {
+        if (patient.clinic_id !== clinicId) return false
+        if (patient.birthdate !== authData.birthdate) return false
+        if (!patient.is_registered) return false
+
+        // 診察券番号、電話番号、メールアドレスのいずれかが一致
+        if (authData.patientNumber && patient.patient_number?.toString() === authData.patientNumber) return true
+        if (authData.phone && patient.phone === authData.phone) return true
+        if (authData.email && patient.email === authData.email) return true
+
+        return false
+      })
+
+      if (matchedPatient) {
+        console.log('患者認証成功 (MOCK_MODE - localStorage):', matchedPatient.id)
+        return matchedPatient
+      }
+
+      // localStorageになければデータベースから検索
+      const { data: dbPatients, error: dbError } = await client
+        .from('patients')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .eq('birthdate', authData.birthdate)
+        .eq('is_registered', true)
+
+      if (!dbError && dbPatients && dbPatients.length > 0) {
+        const matchedDbPatient = dbPatients.find((patient: Patient) => {
+          if (authData.patientNumber && patient.patient_number?.toString() === authData.patientNumber) return true
+          if (authData.phone && patient.phone === authData.phone) return true
+          if (authData.email && patient.email === authData.email) return true
+          return false
+        })
+
+        if (matchedDbPatient) {
+          console.log('患者認証成功 (MOCK_MODE - database):', matchedDbPatient.id)
+          return matchedDbPatient
+        }
+      }
+
+      console.log('患者認証失敗 (MOCK_MODE): 一致する患者が見つかりません')
+      return null
+    }
+
+    // 通常モード: データベースから検索
+    const { data: patients, error } = await client
+      .from('patients')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('birthdate', authData.birthdate)
+      .eq('is_registered', true)
+
+    if (error) {
+      console.error('患者認証エラー:', error)
+      return null
+    }
+
+    if (!patients || patients.length === 0) {
+      return null
+    }
+
+    // 診察券番号、電話番号、メールアドレスのいずれかが一致する患者を検索
+    const matchedPatient = patients.find((patient: Patient) => {
+      if (authData.patientNumber && patient.patient_number?.toString() === authData.patientNumber) return true
+      if (authData.phone && patient.phone === authData.phone) return true
+      if (authData.email && patient.email === authData.email) return true
+      return false
+    })
+
+    return matchedPatient || null
+  } catch (error) {
+    console.error('患者認証処理エラー:', error)
+    return null
+  }
+}

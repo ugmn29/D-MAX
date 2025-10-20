@@ -64,6 +64,9 @@ export default function WebReservationSettingsPage() {
   // タブ状態
   const [activeTab, setActiveTab] = useState<'basic' | 'flow' | 'menu'>('flow')
 
+  // プレビュータブ状態（初診/再診）
+  const [previewTab, setPreviewTab] = useState<'new' | 'returning'>('new')
+
   // ダイアログ状態
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isCancelPolicyDialogOpen, setIsCancelPolicyDialogOpen] = useState(false)
@@ -456,7 +459,7 @@ export default function WebReservationSettingsPage() {
                     <Checkbox
                       id="flow_initial"
                       checked={webSettings.flow.initialSelection}
-                      onCheckedChange={(checked) => 
+                      onCheckedChange={(checked) =>
                         setWebSettings(prev => ({
                           ...prev,
                           flow: { ...prev.flow, initialSelection: checked as boolean }
@@ -468,8 +471,115 @@ export default function WebReservationSettingsPage() {
                         初診/再診選択
                       </Label>
                       <p className="text-sm text-gray-500">
-                        患者が初診か再診かを選択するステップ
+                        患者が初診か再診かを選択するステップ<br/>
+                        <span className="text-xs">※再診の場合は診察券番号・電話番号・メールアドレスのいずれか + 生年月日で患者認証を行います</span>
                       </p>
+
+                      {/* フロー図 - インタラクティブなプレビュー */}
+                      {webSettings.flow.initialSelection && (
+                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="text-sm font-medium text-blue-900 mb-3">👇 選択後のフロー（プレビュー）</div>
+
+                          {/* タブ切り替え */}
+                          <div className="flex space-x-2 mb-4">
+                            <button
+                              onClick={() => setPreviewTab('new')}
+                              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+                                previewTab === 'new'
+                                  ? 'bg-blue-500 text-white shadow-md'
+                                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                              }`}
+                            >
+                              <div className="text-center">
+                                <div className="font-semibold">初診</div>
+                                <div className="text-xs mt-0.5 opacity-90">初めてご来院される方</div>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => setPreviewTab('returning')}
+                              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+                                previewTab === 'returning'
+                                  ? 'bg-green-500 text-white shadow-md'
+                                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                              }`}
+                            >
+                              <div className="text-center">
+                                <div className="font-semibold">再診</div>
+                                <div className="text-xs mt-0.5 opacity-90">過去にご来院されたことがある方</div>
+                              </div>
+                            </button>
+                          </div>
+
+                          {/* 初診フロー */}
+                          {previewTab === 'new' && (
+                            <div className="bg-white rounded-lg p-4 border-2 border-blue-400 shadow-sm">
+                              <div className="text-center font-semibold text-blue-700 mb-4 pb-3 border-b-2 border-blue-200 text-lg">
+                                初診の予約フロー
+                              </div>
+                              <div className="space-y-2.5">
+                                <div className="flex items-center space-x-3 p-2 rounded bg-blue-50">
+                                  <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold shrink-0">1</div>
+                                  <div className="text-sm font-medium">診療メニュー選択</div>
+                                </div>
+                                <div className="ml-3 text-gray-400 text-xl">↓</div>
+                                <div className="flex items-center space-x-3 p-2 rounded bg-blue-50">
+                                  <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold shrink-0">2</div>
+                                  <div className="text-sm font-medium">日時選択</div>
+                                </div>
+                                <div className="ml-3 text-gray-400 text-xl">↓</div>
+                                <div className="flex items-center space-x-3 p-2 rounded bg-blue-50">
+                                  <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold shrink-0">3</div>
+                                  <div>
+                                    <div className="text-sm font-medium">患者情報入力</div>
+                                    <div className="text-xs text-gray-500 ml-1 mt-0.5">名前・電話番号・メールアドレス等</div>
+                                  </div>
+                                </div>
+                                <div className="ml-3 text-gray-400 text-xl">↓</div>
+                                <div className="flex items-center space-x-3 p-2 rounded bg-blue-50">
+                                  <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold shrink-0">4</div>
+                                  <div className="text-sm font-medium">確認・確定</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 再診フロー */}
+                          {previewTab === 'returning' && (
+                            <div className="bg-white rounded-lg p-4 border-2 border-green-400 shadow-sm">
+                              <div className="text-center font-semibold text-green-700 mb-4 pb-3 border-b-2 border-green-200 text-lg">
+                                再診の予約フロー
+                              </div>
+                              <div className="space-y-2.5">
+                                <div className="flex items-center space-x-3 p-2 rounded bg-green-50">
+                                  <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold shrink-0">1</div>
+                                  <div>
+                                    <div className="text-sm font-medium">患者認証</div>
+                                    <div className="text-xs text-gray-500 ml-1 mt-0.5">診察券番号・電話番号・メールアドレスのいずれか + 生年月日</div>
+                                  </div>
+                                </div>
+                                <div className="ml-3 text-gray-400 text-xl">↓</div>
+                                <div className="flex items-center space-x-3 p-2 rounded bg-green-50">
+                                  <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold shrink-0">2</div>
+                                  <div className="text-sm font-medium">診療メニュー選択</div>
+                                </div>
+                                <div className="ml-3 text-gray-400 text-xl">↓</div>
+                                <div className="flex items-center space-x-3 p-2 rounded bg-green-50">
+                                  <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold shrink-0">3</div>
+                                  <div className="text-sm font-medium">日時選択</div>
+                                </div>
+                                <div className="ml-3 text-gray-400 text-xl">↓</div>
+                                <div className="flex items-center space-x-3 p-2 rounded bg-green-50">
+                                  <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold shrink-0">4</div>
+                                  <div>
+                                    <div className="text-sm font-medium">確認・確定</div>
+                                    <div className="text-xs text-gray-500 ml-1 mt-0.5">※患者情報入力はスキップ（認証済みのため）</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   

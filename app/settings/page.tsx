@@ -292,7 +292,6 @@ const settingCategories = [
     id: "web",
     name: "Web予約",
     icon: Globe,
-    href: "/settings/web",
   },
   {
     id: "notification",
@@ -342,6 +341,7 @@ export default function SettingsPage() {
   const [selectedClinicTab, setSelectedClinicTab] = useState("info");
   const [selectedShiftTab, setSelectedShiftTab] = useState("table");
   const [selectedWebTab, setSelectedWebTab] = useState<'basic' | 'flow' | 'menu'>('basic');
+  const [previewPatientType, setPreviewPatientType] = useState<'new' | 'returning'>('new'); // 右側プレビューで選択された患者タイプ
   const [notificationTab, setNotificationTab] = useState("connection");
   const [questionnaireTab, setQuestionnaireTab] = useState("list");
   const [loading, setLoading] = useState(false);
@@ -759,6 +759,8 @@ export default function SettingsPage() {
 また、予定時間に遅れが生じる事で、次に来院予定の患者さまに多大なご迷惑をおかけする恐れがありますので、予約時間前の来院にご協力をお願い致します。
 止むを得ず遅れる場合や、体調不良などでキャンセルを希望される場合は早めのご連絡をお願い致します。
 予約の際には確実に来院できる日にちと時間をご確認下さい。`,
+    acceptNewPatient: true,      // 初診患者を受け付けるか
+    acceptReturningPatient: true, // 再診患者を受け付けるか
     patientInfoFields: {
       phoneRequired: true,
       phoneEnabled: true,
@@ -5960,6 +5962,61 @@ export default function SettingsPage() {
                     患者がアクセスする予約ページのURLです。このURLを患者に共有してください。
                   </p>
                 </div>
+
+                {/* 受付患者タイプ設定 */}
+                <div className="border-t pt-4 mt-4">
+                  <Label className="text-base font-semibold mb-3 block">Web予約受付設定</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="accept_new_patient"
+                        checked={webSettings.acceptNewPatient}
+                        onCheckedChange={(checked) => {
+                          const newValue = checked as boolean
+                          // 両方OFFにならないようにチェック
+                          if (!newValue && !webSettings.acceptReturningPatient) {
+                            alert('少なくとも1つは選択してください')
+                            return
+                          }
+                          setWebSettings((prev) => ({
+                            ...prev,
+                            acceptNewPatient: newValue,
+                          }))
+                        }}
+                      />
+                      <Label htmlFor="accept_new_patient" className="font-medium">
+                        初診患者を受け付ける
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="accept_returning_patient"
+                        checked={webSettings.acceptReturningPatient}
+                        onCheckedChange={(checked) => {
+                          const newValue = checked as boolean
+                          // 両方OFFにならないようにチェック
+                          if (!newValue && !webSettings.acceptNewPatient) {
+                            alert('少なくとも1つは選択してください')
+                            return
+                          }
+                          setWebSettings((prev) => ({
+                            ...prev,
+                            acceptReturningPatient: newValue,
+                          }))
+                        }}
+                      />
+                      <Label htmlFor="accept_returning_patient" className="font-medium">
+                        再診患者を受け付ける
+                      </Label>
+                    </div>
+
+                    <p className="text-sm text-gray-500 ml-7">
+                      ※ チェックされた項目のみ患者に表示されます<br/>
+                      ※ 少なくとも1つはチェックが必要です
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
               </div>
@@ -6009,7 +6066,7 @@ export default function SettingsPage() {
                         </div>
 
                         {/* 初診/再診選択 */}
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-start space-x-3">
                           <Checkbox
                             id="flow_initial"
                             checked={webSettings.flow.initialSelection}
@@ -6027,6 +6084,11 @@ export default function SettingsPage() {
                             <Label htmlFor="flow_initial" className="font-medium">
                               初診/再診選択
                             </Label>
+                            <p className="text-sm text-gray-500">
+                              患者が初診か再診かを選択するステップ<br/>
+                              <span className="text-xs">※再診の場合は診察券番号・電話番号・メールアドレスのいずれか + 生年月日で患者認証を行います</span><br/>
+                              <span className="text-xs text-blue-600">※右側のプレビューで初診/再診ボタンをクリックして、フローの違いを確認できます</span>
+                            </p>
                           </div>
                         </div>
 
@@ -6214,22 +6276,115 @@ export default function SettingsPage() {
                                   </CardHeader>
                                   <CardContent className="space-y-4">
                                     <div className="space-y-3">
-                                    <button className="w-full p-4 border-2 border-blue-500 bg-blue-50 rounded-lg transition-colors">
-                                        <div className="text-left">
-                                          <h3 className="font-medium">初診</h3>
-                                        <p className="text-sm text-gray-600">
-                                          初めてご来院される方
-                                        </p>
+                                      {/* 初診ボタン - acceptNewPatientがtrueの時のみ表示 */}
+                                      {webSettings.acceptNewPatient && (
+                                        <button
+                                          onClick={() => setPreviewPatientType('new')}
+                                          className={`w-full p-4 border-2 rounded-lg transition-colors ${
+                                            previewPatientType === 'new'
+                                              ? 'border-blue-500 bg-blue-50'
+                                              : 'border-gray-200 hover:border-blue-300'
+                                          }`}
+                                        >
+                                          <div className="text-left">
+                                            <h3 className="font-medium">初診</h3>
+                                            <p className="text-sm text-gray-600">
+                                              初めてご来院される方
+                                            </p>
+                                          </div>
+                                        </button>
+                                      )}
+
+                                      {/* 再診ボタン - acceptReturningPatientがtrueの時のみ表示 */}
+                                      {webSettings.acceptReturningPatient && (
+                                        <button
+                                          onClick={() => setPreviewPatientType('returning')}
+                                          className={`w-full p-4 border-2 rounded-lg transition-colors ${
+                                            previewPatientType === 'returning'
+                                              ? 'border-blue-500 bg-blue-50'
+                                              : 'border-gray-200 hover:border-blue-300'
+                                          }`}
+                                        >
+                                          <div className="text-left">
+                                            <h3 className="font-medium">再診</h3>
+                                            <p className="text-sm text-gray-600">
+                                              過去にご来院されたことがある方
+                                            </p>
+                                          </div>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
+
+                            {/* 再診患者認証画面 */}
+                            {webSettings.flow.initialSelection && previewPatientType === 'returning' && (
+                              <div className="animate-fadeIn">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>患者情報の確認</CardTitle>
+                                    <p className="text-sm text-gray-600 mt-2">
+                                      以下のいずれか1つと生年月日を入力してください
+                                    </p>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label htmlFor="preview_patient_number">診察券番号</Label>
+                                        <Input
+                                          id="preview_patient_number"
+                                          placeholder="例: 12345"
+                                          disabled
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label htmlFor="preview_phone">電話番号</Label>
+                                        <Input
+                                          id="preview_phone"
+                                          placeholder="例: 03-1234-5678"
+                                          disabled
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label htmlFor="preview_email">メールアドレス</Label>
+                                        <Input
+                                          id="preview_email"
+                                          type="email"
+                                          placeholder="例: tanaka@example.com"
+                                          disabled
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label>生年月日 *</Label>
+                                        <div className="grid grid-cols-3 gap-2 mt-1">
+                                          <Input
+                                            placeholder="年 (例: 1990)"
+                                            maxLength={4}
+                                            disabled
+                                          />
+                                          <Input
+                                            placeholder="月 (例: 01)"
+                                            maxLength={2}
+                                            disabled
+                                          />
+                                          <Input
+                                            placeholder="日 (例: 01)"
+                                            maxLength={2}
+                                            disabled
+                                          />
                                         </div>
-                                      </button>
-                                    <button className="w-full p-4 border-2 border-gray-200 hover:border-blue-300 rounded-lg transition-colors">
-                                        <div className="text-left">
-                                          <h3 className="font-medium">再診</h3>
-                                        <p className="text-sm text-gray-600">
-                                          過去にご来院されたことがある方
-                                        </p>
-                                        </div>
-                                      </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex justify-center pt-2">
+                                      <Button size="lg" className="w-full max-w-xs" disabled>
+                                        ログイン
+                                      </Button>
                                     </div>
                                   </CardContent>
                                 </Card>
@@ -6545,8 +6700,8 @@ export default function SettingsPage() {
                               </div>
                             )}
 
-                            {/* ステップ5: 患者情報入力 */}
-                            {webSettings.flow.patientInfo && (
+                            {/* ステップ5: 患者情報入力（初診のみ） */}
+                            {webSettings.flow.patientInfo && previewPatientType === 'new' && (
                               <div className="animate-fadeIn">
                                 <Card>
                                   <CardHeader>
@@ -7901,6 +8056,14 @@ export default function SettingsPage() {
                 </div>
               </div>
             </Modal>
+
+          {/* Web予約設定保存ボタン */}
+          <div className="flex justify-end pt-6 border-t border-gray-200">
+            <Button onClick={handleSaveWebSettings} size="lg">
+              <Save className="w-4 h-4 mr-2" />
+              Web予約設定を保存
+            </Button>
+          </div>
           </div>
         )}
         {selectedCategory === "notification" && (

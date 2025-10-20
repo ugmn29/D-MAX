@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,14 +8,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { parseDBDate } from '@/lib/utils/date'
-import { 
-  Search, 
-  UserPlus, 
-  Edit, 
-  Clock, 
+import {
+  Search,
+  UserPlus,
+  Edit,
+  Clock,
   Calendar,
   User,
   Phone,
@@ -24,7 +25,9 @@ import {
   X,
   FileText,
   CreditCard,
-  CheckCircle
+  CheckCircle,
+  Type,
+  Highlighter
 } from 'lucide-react'
 import { getPatients, createPatient } from '@/lib/api/patients'
 import { getTreatmentMenus } from '@/lib/api/treatment'
@@ -103,14 +106,14 @@ export function AppointmentEditModal({
   
   // タブ管理
   const [activeTab, setActiveTab] = useState<'appointment' | 'subkarte' | 'notifications'>('appointment')
-  
+
   // モーダルが開かれたときにタブをリセット
   useEffect(() => {
     if (isOpen) {
       setActiveTab('appointment')
     }
   }, [isOpen])
-  
+
   // 患者編集モーダル
   const [showPatientEditModal, setShowPatientEditModal] = useState(false)
   
@@ -189,7 +192,7 @@ export function AppointmentEditModal({
         staff1_id: '',
         staff2_id: '',
         staff3_id: '',
-        notes: ''
+        memo: ''
       }
     } else {
       // 単一選択の場合は従来通り
@@ -207,13 +210,26 @@ export function AppointmentEditModal({
         staff1_id: '',
         staff2_id: '',
         staff3_id: '',
-        notes: ''
+        memo: ''
       }
     }
   }, [selectedTimeSlots, timeSlotMinutes, selectedTime])
 
   // 予約データ
   const [appointmentData, setAppointmentData] = useState(getInitialAppointmentData())
+  const memoRef = useRef<HTMLDivElement>(null)
+
+  // メモ欄の書式設定状態
+  const [activeTextColor, setActiveTextColor] = useState<string | null>(null)
+  const [activeMarkerColor, setActiveMarkerColor] = useState<string | null>(null)
+
+  // メモ欄の内容を初期化
+  useEffect(() => {
+    if (memoRef.current && isOpen) {
+      console.log('メモ欄を初期化:', appointmentData.memo)
+      memoRef.current.innerHTML = appointmentData.memo || ''
+    }
+  }, [appointmentData.memo, isOpen])
 
   // 警告モーダル関連の状態
   const [showWarningModal, setShowWarningModal] = useState(false)
@@ -502,7 +518,7 @@ export function AppointmentEditModal({
           staff1_id: editingAppointment.staff1_id || '',
           staff2_id: editingAppointment.staff2_id || '',
           staff3_id: editingAppointment.staff3_id || '',
-          notes: editingAppointment.notes || ''
+          memo: editingAppointment.memo || ''
         })
         
         // 既存の患者を設定
@@ -848,9 +864,9 @@ export function AppointmentEditModal({
     try {
       // 既存予約との重複チェック
       const appointments = await getAppointments(clinicId, date, date)
-      const conflictingAppointments = appointments.filter(apt => 
+      const conflictingAppointments = appointments.filter(apt =>
         apt.unit_id === unitId &&
-        apt.status !== 'キャンセル' &&
+        apt.status !== 'cancelled' &&
         !(apt.end_time <= startTime || apt.start_time >= endTime)
       )
       
@@ -1000,7 +1016,7 @@ export function AppointmentEditModal({
           staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
           staff2_id: appointmentData.staff2_id,
           staff3_id: appointmentData.staff3_id,
-          notes: appointmentData.notes,
+          memo: appointmentData.memo,
           status: editingAppointment.status
         })
       }
@@ -1035,7 +1051,7 @@ export function AppointmentEditModal({
           staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
           staff2_id: appointmentData.staff2_id,
           staff3_id: appointmentData.staff3_id,
-          notes: appointmentData.notes,
+          memo: appointmentData.memo,
           status: editingAppointment.status
         })
       }
@@ -1061,9 +1077,12 @@ export function AppointmentEditModal({
   const handleSave = async () => {
     try {
       setSaving(true)
-      
+
+      // メモ欄の現在の内容を取得（onBlurが発火していない場合に備えて）
+      const currentMemo = memoRef.current ? memoRef.current.innerHTML : appointmentData.memo
+
       let patientToUse = selectedPatient
-      
+
       // 既存の予約を編集する場合は、新規患者作成をスキップ
       if (!editingAppointment) {
         // 新規患者フォームが表示されている場合は、まず患者を作成
@@ -1073,21 +1092,21 @@ export function AppointmentEditModal({
             alert('患者の名前と電話番号を入力してください')
             return
           }
-          
+
           // 新規患者を作成（仮登録時は診察券番号を割り振らない）
           patientToUse = await createPatient(clinicId, {
             ...newPatientData,
             patient_number: '', // 仮登録時は空
             is_registered: false // 仮登録
           })
-          
+
           setSelectedPatient(patientToUse)
           setShowNewPatientForm(false)
         } else if (selectedPatient) {
           // 既存の患者が選択されている場合
           patientToUse = selectedPatient
         }
-        
+
         // 患者が選択されていない場合はエラー
         if (!patientToUse) {
           alert('患者を選択するか、新規患者を登録してください')
@@ -1105,7 +1124,7 @@ export function AppointmentEditModal({
         staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
         staff2_id: appointmentData.staff2_id,
         staff3_id: appointmentData.staff3_id,
-        notes: appointmentData.notes,
+        memo: currentMemo,
         status: editingAppointment ? editingAppointment.status : '予約済み'
       }
 
@@ -1305,7 +1324,7 @@ export function AppointmentEditModal({
       staff1_id: '',
       staff2_id: '',
       staff3_id: '',
-      notes: ''
+      memo: ''
     })
     onClose()
   }
@@ -1497,7 +1516,7 @@ export function AppointmentEditModal({
                   ) : null}
 
                   {/* 新規患者フォーム */}
-                  {showNewPatientForm && (
+                  {!editingAppointment && showNewPatientForm && (
                     <div className="p-4 border border-gray-200 rounded-md bg-gray-50 mt-3">
                       <div className="text-sm font-medium mb-3">新規患者登録</div>
                       <div className="space-y-3">
@@ -1575,10 +1594,20 @@ export function AppointmentEditModal({
                               <div key={appointment.id || index} className="px-4 py-3">
                                 <div className="grid grid-cols-4 gap-4 text-sm">
                                   <div className="text-gray-900">
-                                    {formattedDate} {appointment.start_time}
+                                    <div className="flex items-start justify-between">
+                                      <div>
+                                        <div>{formattedDate}</div>
+                                        <div className="flex items-center gap-2">
+                                          <span>{appointment.start_time}</span>
+                                          {appointment.status === 'cancelled' && (
+                                            <span className="text-red-600" style={{ fontSize: "10px" }}>キャンセル</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
                                   <div className="overflow-hidden">
-                                    <div 
+                                    <div
                                       className="break-words"
                                       style={{
                                         display: '-webkit-box',
@@ -1599,7 +1628,7 @@ export function AppointmentEditModal({
                                     </div>
                                   </div>
                                   <div className="text-gray-900 overflow-hidden">
-                                    <div 
+                                    <div
                                       className="break-words"
                                       style={{
                                         display: '-webkit-box',
@@ -1614,7 +1643,7 @@ export function AppointmentEditModal({
                                     </div>
                                   </div>
                                   <div className="text-gray-500">
-                                    -
+                                    {appointment.cancel_reason || '-'}
                                   </div>
                                 </div>
                               </div>
@@ -1778,7 +1807,7 @@ export function AppointmentEditModal({
                               staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
                               staff2_id: appointmentData.staff2_id,
                               staff3_id: appointmentData.staff3_id,
-                              notes: appointmentData.notes,
+                              memo: appointmentData.memo,
                               status: editingAppointment.status
                             })
                           }
@@ -1818,7 +1847,7 @@ export function AppointmentEditModal({
                       const menu1 = treatmentMenus.find(m => m.id === appointmentData.menu1_id)
                       const menu2 = treatmentMenus.find(m => m.id === appointmentData.menu2_id)
                       const menu3 = treatmentMenus.find(m => m.id === appointmentData.menu3_id)
-                      
+
                       console.log('診療メニュー表示更新:', {
                         appointmentData: {
                           menu1_id: appointmentData.menu1_id,
@@ -1828,43 +1857,26 @@ export function AppointmentEditModal({
                         foundMenus: { menu1, menu2, menu3 },
                         selectedMenus: { selectedMenu1, selectedMenu2, selectedMenu3 }
                       })
-                      
-                      if (menu3) return menu3.name
-                      if (menu2) return menu2.name
-                      if (menu1) return menu1.name
-                      
-                      // フォールバック: selectedMenuの状態を使用
-                      return selectedMenu1?.name || selectedMenu2?.name || selectedMenu3?.name || '未選択'
-                    })()}
-                    {(() => {
-                      const menu2 = treatmentMenus.find(m => m.id === appointmentData.menu2_id)
-                      const menu3 = treatmentMenus.find(m => m.id === appointmentData.menu3_id)
-                      
-                      if (menu3 && menu2) {
-                        return <span className="ml-1">/{menu2.name}</span>
+
+                      // メニュー1から順番に表示
+                      const displayMenu1 = menu1 || selectedMenu1
+                      const displayMenu2 = menu2 || selectedMenu2
+                      const displayMenu3 = menu3 || selectedMenu3
+
+                      if (!displayMenu1) {
+                        return '未選択'
                       }
-                      if (menu2) {
-                        return <span className="ml-1">/{menu2.name}</span>
+
+                      // メニュー1 / メニュー2 / メニュー3 の形式で表示
+                      let displayText = displayMenu1.name
+                      if (displayMenu2) {
+                        displayText += ` / ${displayMenu2.name}`
                       }
-                      
-                      // フォールバック: selectedMenuの状態を使用
-                      if (selectedMenu2) {
-                        return <span className="ml-1">/{selectedMenu2.name}</span>
+                      if (displayMenu3) {
+                        displayText += ` / ${displayMenu3.name}`
                       }
-                      return null
-                    })()}
-                    {(() => {
-                      const menu3 = treatmentMenus.find(m => m.id === appointmentData.menu3_id)
-                      
-                      if (menu3) {
-                        return <span className="ml-1">/{menu3.name}</span>
-                      }
-                      
-                      // フォールバック: selectedMenuの状態を使用
-                      if (selectedMenu3) {
-                        return <span className="ml-1">/{selectedMenu3.name}</span>
-                      }
-                      return null
+
+                      return displayText
                     })()}
                   </div>
                 </div>
@@ -1904,51 +1916,195 @@ export function AppointmentEditModal({
 
                 {/* メモ */}
                 <div>
-                  <Label htmlFor="notes" className="text-sm font-medium">メモ</Label>
-                  <Textarea
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="notes" className="text-sm font-medium">メモ</Label>
+                    <div className="flex gap-0.5">
+                      {/* テキスト色 */}
+                      <button
+                        type="button"
+                        className={`h-4 w-4 rounded-full border ${activeTextColor === '#dc2626' ? 'border-red-600 border-2' : 'border-gray-300'} flex items-center justify-center text-red-600 hover:bg-red-50`}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          const selection = window.getSelection()
+                          if (selection && selection.toString().length > 0) {
+                            // 選択テキストがある場合は即座に色を適用
+                            document.execCommand('styleWithCSS', false, 'true')
+                            document.execCommand('foreColor', false, '#dc2626')
+                          }
+                          if (activeTextColor === '#dc2626') {
+                            setActiveTextColor(null)
+                          } else {
+                            setActiveTextColor('#dc2626')
+                          }
+                        }}
+                        title="赤文字"
+                      >
+                        <Type className="w-2 h-2" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`h-4 w-4 rounded-full border ${activeTextColor === '#2563eb' ? 'border-blue-600 border-2' : 'border-gray-300'} flex items-center justify-center text-blue-600 hover:bg-blue-50`}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          const selection = window.getSelection()
+                          if (selection && selection.toString().length > 0) {
+                            // 選択テキストがある場合は即座に色を適用
+                            document.execCommand('styleWithCSS', false, 'true')
+                            document.execCommand('foreColor', false, '#2563eb')
+                          }
+                          if (activeTextColor === '#2563eb') {
+                            setActiveTextColor(null)
+                          } else {
+                            setActiveTextColor('#2563eb')
+                          }
+                        }}
+                        title="青文字"
+                      >
+                        <Type className="w-2 h-2" />
+                      </button>
+                      {/* マーカー */}
+                      <button
+                        type="button"
+                        className={`h-4 w-4 rounded-full border ${activeMarkerColor === '#fef08a' ? 'border-yellow-600 border-2' : 'border-gray-300'} flex items-center justify-center bg-yellow-200 hover:bg-yellow-300`}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          const selection = window.getSelection()
+                          if (selection && selection.toString().length > 0) {
+                            // 選択テキストがある場合は即座にマーカーを適用
+                            document.execCommand('styleWithCSS', false, 'true')
+                            document.execCommand('backColor', false, '#fef08a')
+                          }
+                          if (activeMarkerColor === '#fef08a') {
+                            setActiveMarkerColor(null)
+                          } else {
+                            setActiveMarkerColor('#fef08a')
+                          }
+                        }}
+                        title="黄色マーカー"
+                      >
+                        <Highlighter className="w-2 h-2" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`h-4 w-4 rounded-full border ${activeMarkerColor === '#bbf7d0' ? 'border-green-600 border-2' : 'border-gray-300'} flex items-center justify-center bg-green-200 hover:bg-green-300`}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          const selection = window.getSelection()
+                          if (selection && selection.toString().length > 0) {
+                            // 選択テキストがある場合は即座にマーカーを適用
+                            document.execCommand('styleWithCSS', false, 'true')
+                            document.execCommand('backColor', false, '#bbf7d0')
+                          }
+                          if (activeMarkerColor === '#bbf7d0') {
+                            setActiveMarkerColor(null)
+                          } else {
+                            setActiveMarkerColor('#bbf7d0')
+                          }
+                        }}
+                        title="緑色マーカー"
+                      >
+                        <Highlighter className="w-2 h-2" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`h-4 w-4 rounded-full border ${activeMarkerColor === '#fbcfe8' ? 'border-pink-600 border-2' : 'border-gray-300'} flex items-center justify-center bg-pink-200 hover:bg-pink-300`}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          const selection = window.getSelection()
+                          if (selection && selection.toString().length > 0) {
+                            // 選択テキストがある場合は即座にマーカーを適用
+                            document.execCommand('styleWithCSS', false, 'true')
+                            document.execCommand('backColor', false, '#fbcfe8')
+                          }
+                          if (activeMarkerColor === '#fbcfe8') {
+                            setActiveMarkerColor(null)
+                          } else {
+                            setActiveMarkerColor('#fbcfe8')
+                          }
+                        }}
+                        title="ピンク色マーカー"
+                      >
+                        <Highlighter className="w-2 h-2" />
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    ref={memoRef}
                     id="notes"
-                    placeholder="メモを入力..."
-                    value={appointmentData.notes}
-                    onChange={(e) => setAppointmentData(prev => ({ ...prev, notes: e.target.value }))}
-                    className="mt-1"
-                    rows={4}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onKeyDown={(e) => {
+                      // 入力時に色を適用
+                      document.execCommand('styleWithCSS', false, 'true')
+                      if (activeTextColor) {
+                        document.execCommand('foreColor', false, activeTextColor)
+                      } else {
+                        document.execCommand('foreColor', false, '#000000')
+                      }
+                      if (activeMarkerColor) {
+                        document.execCommand('backColor', false, activeMarkerColor)
+                      } else {
+                        document.execCommand('backColor', false, 'transparent')
+                      }
+                    }}
+                    onMouseUp={() => {
+                      // テキスト選択時に色を適用
+                      const selection = window.getSelection()
+                      if (selection && selection.toString().length > 0) {
+                        document.execCommand('styleWithCSS', false, 'true')
+                        if (activeTextColor) {
+                          document.execCommand('foreColor', false, activeTextColor)
+                        } else {
+                          document.execCommand('foreColor', false, '#000000')
+                        }
+                        if (activeMarkerColor) {
+                          document.execCommand('backColor', false, activeMarkerColor)
+                        } else {
+                          document.execCommand('backColor', false, 'transparent')
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const html = e.currentTarget.innerHTML
+                      setAppointmentData(prev => ({ ...prev, memo: html }))
+                    }}
+                    className="mt-1 min-h-[160px] p-3 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    style={{ maxHeight: '320px', overflowY: 'auto' }}
                   />
                 </div>
 
                 {/* アクションボタン */}
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button 
+                <div className="flex justify-between items-center pt-4">
+                  <Button
                     variant="outline"
-                    onClick={() => {
-                      if (editingAppointment && onCopyAppointment) {
-                        onCopyAppointment(editingAppointment)
-                        onClose()
-                      }
-                    }}
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => setShowCancelModal(true)}
                     disabled={!editingAppointment}
                   >
-                    <Copy className="w-4 h-4 mr-1" />
-                    コピー
+                    予約キャンセル
                   </Button>
-                  <Button 
-                    onClick={handleSave}
-                    disabled={saving || (!selectedPatient && !showNewPatientForm)}
-                  >
-                    {saving ? '登録中...' : '登録'}
-                  </Button>
-                </div>
-                
-                  {/* 予約キャンセルボタン */}
-                  <div className="flex justify-end pt-2">
-                    <Button 
-                      variant="outline" 
-                      className="text-red-600 border-red-300 hover:bg-red-50"
-                      onClick={() => setShowCancelModal(true)}
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (editingAppointment && onCopyAppointment) {
+                          onCopyAppointment(editingAppointment)
+                          onClose()
+                        }
+                      }}
                       disabled={!editingAppointment}
                     >
-                      予約キャンセル
+                      <Copy className="w-4 h-4 mr-1" />
+                      コピー
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving || (!selectedPatient && !showNewPatientForm)}
+                    >
+                      {saving ? '登録中...' : '登録'}
                     </Button>
                   </div>
+                </div>
                 </div>
               ) : activeTab === 'subkarte' ? (
                 /* サブカルテタブ */
@@ -2008,55 +2164,121 @@ export function AppointmentEditModal({
                   selectedMenu1={selectedMenu1}
                   selectedMenu2={selectedMenu2}
                   selectedMenu3={selectedMenu3}
-                  onMenu1Select={(menu) => {
+                  onMenu1Select={async (menu) => {
                     console.log('診療メニュー1選択:', menu)
                     setSelectedMenu1(menu)
                     setSelectedMenu2(null)
                     setSelectedMenu3(null)
-                    setAppointmentData(prev => {
-                      const newData = {
-                        ...prev,
-                        menu1_id: menu.id,
-                        menu2_id: '',
-                        menu3_id: ''
+                    const newData = {
+                      ...appointmentData,
+                      menu1_id: menu.id,
+                      menu2_id: '',
+                      menu3_id: ''
+                    }
+                    setAppointmentData(newData)
+                    console.log('診療メニュー1選択後のappointmentData:', newData)
+
+                    // 既存予約の場合はデータベースに即座に保存
+                    if (editingAppointment && onUpdate) {
+                      try {
+                        await onUpdate(newData)
+                        console.log('診療メニュー1変更をデータベースに保存しました')
+                      } catch (error) {
+                        console.error('診療メニュー1保存エラー:', error)
                       }
-                      console.log('診療メニュー1選択後のappointmentData:', newData)
-                      return newData
-                    })
+                    }
+
                     // 診療メニュー1を選択した場合は、サブメニューが表示されるまで少し待ってからモーダルを閉じる
                     setTimeout(() => {
                       setShowMenuModal(false)
                     }, 500)
                   }}
-                  onMenu2Select={(menu) => {
+                  onMenu2Select={async (menu) => {
                     console.log('診療メニュー2選択:', menu)
                     setSelectedMenu2(menu)
                     setSelectedMenu3(null)
-                    setAppointmentData(prev => {
-                      const newData = {
-                        ...prev,
-                        menu2_id: menu.id,
-                        menu3_id: ''
+
+                    // メニュー2の親メニュー（メニュー1）を自動的に取得して設定
+                    let parentMenu1 = selectedMenu1
+                    if (menu.parent_id) {
+                      const foundParent = treatmentMenus.find(m => m.id === menu.parent_id)
+                      if (foundParent) {
+                        console.log('メニュー2の親メニューを自動設定:', foundParent)
+                        parentMenu1 = foundParent
+                        setSelectedMenu1(foundParent)
                       }
-                      console.log('診療メニュー2選択後のappointmentData:', newData)
-                      return newData
-                    })
+                    }
+
+                    const newData = {
+                      ...appointmentData,
+                      menu1_id: parentMenu1?.id || '',
+                      menu2_id: menu.id,
+                      menu3_id: ''
+                    }
+                    setAppointmentData(newData)
+                    console.log('診療メニュー2選択後のappointmentData:', newData)
+
+                    // 既存予約の場合はデータベースに即座に保存
+                    if (editingAppointment && onUpdate) {
+                      try {
+                        await onUpdate(newData)
+                        console.log('診療メニュー2変更をデータベースに保存しました')
+                      } catch (error) {
+                        console.error('診療メニュー2保存エラー:', error)
+                      }
+                    }
+
                     // 診療メニュー2を選択した場合はモーダルを閉じる
                     setTimeout(() => {
                       setShowMenuModal(false)
                     }, 300)
                   }}
-                  onMenu3Select={(menu) => {
+                  onMenu3Select={async (menu) => {
                     console.log('診療メニュー3選択:', menu)
                     setSelectedMenu3(menu)
-                    setAppointmentData(prev => {
-                      const newData = {
-                        ...prev,
-                        menu3_id: menu.id
+
+                    // メニュー3の親メニュー（メニュー2）とその親（メニュー1）を自動的に取得して設定
+                    let parentMenu2 = selectedMenu2
+                    let parentMenu1 = selectedMenu1
+
+                    if (menu.parent_id) {
+                      const foundParent2 = treatmentMenus.find(m => m.id === menu.parent_id)
+                      if (foundParent2) {
+                        console.log('メニュー3の親メニュー（メニュー2）を自動設定:', foundParent2)
+                        parentMenu2 = foundParent2
+                        setSelectedMenu2(foundParent2)
+
+                        // さらにメニュー2の親（メニュー1）も取得
+                        if (foundParent2.parent_id) {
+                          const foundParent1 = treatmentMenus.find(m => m.id === foundParent2.parent_id)
+                          if (foundParent1) {
+                            console.log('メニュー3の祖父メニュー（メニュー1）を自動設定:', foundParent1)
+                            parentMenu1 = foundParent1
+                            setSelectedMenu1(foundParent1)
+                          }
+                        }
                       }
-                      console.log('診療メニュー3選択後のappointmentData:', newData)
-                      return newData
-                    })
+                    }
+
+                    const newData = {
+                      ...appointmentData,
+                      menu1_id: parentMenu1?.id || '',
+                      menu2_id: parentMenu2?.id || '',
+                      menu3_id: menu.id
+                    }
+                    setAppointmentData(newData)
+                    console.log('診療メニュー3選択後のappointmentData:', newData)
+
+                    // 既存予約の場合はデータベースに即座に保存
+                    if (editingAppointment && onUpdate) {
+                      try {
+                        await onUpdate(newData)
+                        console.log('診療メニュー3変更をデータベースに保存しました')
+                      } catch (error) {
+                        console.error('診療メニュー3保存エラー:', error)
+                      }
+                    }
+
                     // 診療メニュー3を選択した場合はモーダルを閉じる
                     setTimeout(() => {
                       setShowMenuModal(false)

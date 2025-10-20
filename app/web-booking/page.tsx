@@ -12,7 +12,9 @@ import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
 import { getWeeklySlots } from '@/lib/api/web-booking'
-import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { authenticateReturningPatient } from '@/lib/api/patients'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight, Phone } from 'lucide-react'
 import { format, addDays, startOfWeek, addWeeks } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { trackPageView, trackButtonClick, trackFormSubmit } from '@/lib/tracking/funnel-tracker'
@@ -74,11 +76,26 @@ export default function WebBookingPage() {
   const [businessHours, setBusinessHours] = useState<any>({})
   const [allTimeSlots, setAllTimeSlots] = useState<string[]>([])
 
+  // 再診患者認証用のstate
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authenticatedPatient, setAuthenticatedPatient] = useState<any>(null)
+  const [authError, setAuthError] = useState<string>('')
+  const [clinicPhone, setClinicPhone] = useState<string>('')
+  const [authData, setAuthData] = useState({
+    patientNumber: '',
+    phone: '',
+    email: '',
+    birthYear: '',
+    birthMonth: '',
+    birthDay: ''
+  })
+
   // セクションへの参照
   const menuSectionRef = useRef<HTMLDivElement>(null)
   const calendarSectionRef = useRef<HTMLDivElement>(null)
   const patientInfoSectionRef = useRef<HTMLDivElement>(null)
   const confirmationSectionRef = useRef<HTMLDivElement>(null)
+  const authSectionRef = useRef<HTMLDivElement>(null)
 
   // 予約データ
   const [bookingData, setBookingData] = useState({
@@ -143,6 +160,8 @@ export default function WebBookingPage() {
 また、予定時間に遅れが生じる事で、次に来院予定の患者さまに多大なご迷惑をおかけする恐れがありますので、予約時間前の来院にご協力をお願い致します。
 止むを得ず遅れる場合や、体調不良などでキャンセルを希望される場合は早めのご連絡をお願い致します。
 予約の際には確実に来院できる日にちと時間をご確認下さい。`,
+          acceptNewPatient: true,
+          acceptReturningPatient: true,
           patientInfoFields: {
             phoneRequired: true,
             phoneEnabled: true,
@@ -182,6 +201,18 @@ export default function WebBookingPage() {
         // 時間スロット設定と診療時間を保存
         setTimeSlotMinutes(settings.time_slot_minutes || 15)
         setBusinessHours(clinic || {})
+
+        // クリニック電話番号を取得
+        const supabase = getSupabaseClient()
+        const { data: clinicData } = await supabase
+          .from('clinics')
+          .select('phone')
+          .eq('id', DEMO_CLINIC_ID)
+          .single()
+
+        if (clinicData?.phone) {
+          setClinicPhone(clinicData.phone)
+        }
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
@@ -299,6 +330,55 @@ export default function WebBookingPage() {
     }
   }
 
+  // 再診患者認証処理
+  const handleAuthenticate = async () => {
+    try {
+      setAuthError('')
+
+      // 入力チェック: いずれか1つ + 生年月日
+      if (!authData.patientNumber && !authData.phone && !authData.email) {
+        setAuthError('診察券番号、電話番号、メールアドレスのいずれか1つを入力してください')
+        return
+      }
+
+      if (!authData.birthYear || !authData.birthMonth || !authData.birthDay) {
+        setAuthError('生年月日を入力してください')
+        return
+      }
+
+      // 生年月日をYYYY-MM-DD形式に変換
+      const birthdate = `${authData.birthYear}-${authData.birthMonth.padStart(2, '0')}-${authData.birthDay.padStart(2, '0')}`
+
+      // 患者認証APIを呼び出し
+      const patient = await authenticateReturningPatient(DEMO_CLINIC_ID, {
+        patientNumber: authData.patientNumber || undefined,
+        phone: authData.phone || undefined,
+        email: authData.email || undefined,
+        birthdate
+      })
+
+      if (patient) {
+        // 認証成功
+        setIsAuthenticated(true)
+        setAuthenticatedPatient(patient)
+        setBookingData(prev => ({
+          ...prev,
+          patientName: `${patient.last_name || ''} ${patient.first_name || ''}`.trim(),
+          patientPhone: patient.phone || '',
+          patientEmail: patient.email || ''
+        }))
+        // メニュー選択へスクロール
+        setTimeout(() => scrollToSection(menuSectionRef), 300)
+      } else {
+        // 認証失敗
+        setAuthError('患者情報が見つかりませんでした')
+      }
+    } catch (error) {
+      console.error('認証エラー:', error)
+      setAuthError('認証処理中にエラーが発生しました')
+    }
+  }
+
   // 日付と時間選択時の処理
   const handleSlotSelect = (date: string, time: string) => {
     setBookingData(prev => ({ ...prev, selectedDate: date, selectedTime: time }))
@@ -308,7 +388,12 @@ export default function WebBookingPage() {
       time,
       menu_id: bookingData.selectedMenu
     })
-    setTimeout(() => scrollToSection(patientInfoSectionRef), 300)
+    // 再診の場合は確認画面へ、初診の場合は患者情報入力へ
+    if (!bookingData.isNewPatient && isAuthenticated) {
+      setTimeout(() => scrollToSection(confirmationSectionRef), 300)
+    } else {
+      setTimeout(() => scrollToSection(patientInfoSectionRef), 300)
+    }
   }
 
   // 予約確定
@@ -347,39 +432,49 @@ export default function WebBookingPage() {
         }
       }
 
-      // Web予約用の仮患者IDを作成
-      const tempPatientId = `web-booking-temp-${Date.now()}`
+      // 患者IDを決定
+      let patientId: string
 
-      // 仮患者データをlocalStorageに保存（本登録時に更新するため）
-      const { addMockPatient } = await import('@/lib/utils/mock-mode')
-      const nameParts = bookingData.patientName.split(' ')
-      const tempPatient = {
-        id: tempPatientId,
-        clinic_id: DEMO_CLINIC_ID,
-        last_name: nameParts[0] || '',
-        first_name: nameParts[1] || '',
-        last_name_kana: '',
-        first_name_kana: '',
-        phone: bookingData.patientPhone,
-        email: bookingData.patientEmail,
-        patient_number: null,
-        is_registered: false, // 仮登録状態
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+      if (!bookingData.isNewPatient && isAuthenticated && authenticatedPatient) {
+        // 再診の場合: 認証済み患者のIDを使用
+        patientId = authenticatedPatient.id
+        console.log('Web予約: 再診患者として予約', authenticatedPatient)
+      } else {
+        // 初診の場合: Web予約用の仮患者IDを作成
+        const tempPatientId = `web-booking-temp-${Date.now()}`
+
+        // 仮患者データをlocalStorageに保存（本登録時に更新するため）
+        const { addMockPatient } = await import('@/lib/utils/mock-mode')
+        const nameParts = bookingData.patientName.split(' ')
+        const tempPatient = {
+          id: tempPatientId,
+          clinic_id: DEMO_CLINIC_ID,
+          last_name: nameParts[0] || '',
+          first_name: nameParts[1] || '',
+          last_name_kana: '',
+          first_name_kana: '',
+          phone: bookingData.patientPhone,
+          email: bookingData.patientEmail,
+          patient_number: null,
+          is_registered: false, // 仮登録状態
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        addMockPatient(tempPatient)
+        console.log('Web予約: 仮患者データを作成しました', tempPatient)
+        patientId = tempPatientId
       }
-      addMockPatient(tempPatient)
-      console.log('Web予約: 仮患者データを作成しました', tempPatient)
 
       // 実際の予約作成APIを呼び出す
       const appointmentData = {
-        patient_id: tempPatientId,
+        patient_id: patientId,
         appointment_date: bookingData.selectedDate,
         start_time: bookingData.selectedTime,
         end_time: endTime,
         menu1_id: bookingData.selectedMenu,
         staff1_id: staffId,
         status: '未来院', // 初回ステータスを「未来院」に設定
-        notes: `Web予約\n氏名: ${bookingData.patientName}\n電話: ${bookingData.patientPhone}\nメール: ${bookingData.patientEmail}${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`,
+        memo: `Web予約${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`,
         is_new_patient: bookingData.isNewPatient
       }
 
@@ -624,45 +719,169 @@ export default function WebBookingPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
-                  <button
-                    onClick={() => {
-                      setBookingData(prev => ({ ...prev, isNewPatient: true }))
-                      setTimeout(() => scrollToSection(menuSectionRef), 300)
-                    }}
-                    className={`w-full p-4 border-2 rounded-lg transition-colors ${
-                      bookingData.isNewPatient
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300'
-                    }`}
-                  >
-                    <div className="text-left">
-                      <h3 className="font-medium">初診</h3>
-                      <p className="text-sm text-gray-600">初めてご来院される方</p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setBookingData(prev => ({ ...prev, isNewPatient: false }))
-                      setTimeout(() => scrollToSection(menuSectionRef), 300)
-                    }}
-                    className={`w-full p-4 border-2 rounded-lg transition-colors ${
-                      !bookingData.isNewPatient
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300'
-                    }`}
-                  >
-                    <div className="text-left">
-                      <h3 className="font-medium">再診</h3>
-                      <p className="text-sm text-gray-600">過去にご来院されたことがある方</p>
-                    </div>
-                  </button>
+                  {/* 初診ボタン - acceptNewPatientがtrueの時のみ表示 */}
+                  {webSettings?.acceptNewPatient && (
+                    <button
+                      onClick={() => {
+                        setBookingData(prev => ({ ...prev, isNewPatient: true }))
+                        setTimeout(() => scrollToSection(menuSectionRef), 300)
+                      }}
+                      className={`w-full p-4 border-2 rounded-lg transition-colors ${
+                        bookingData.isNewPatient
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="text-left">
+                        <h3 className="font-medium">初診</h3>
+                        <p className="text-sm text-gray-600">初めてご来院される方</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* 再診ボタン - acceptReturningPatientがtrueの時のみ表示 */}
+                  {webSettings?.acceptReturningPatient && (
+                    <button
+                      onClick={() => {
+                        setBookingData(prev => ({ ...prev, isNewPatient: false }))
+                        setIsAuthenticated(false)
+                        setAuthenticatedPatient(null)
+                        setTimeout(() => scrollToSection(authSectionRef), 300)
+                      }}
+                      className={`w-full p-4 border-2 rounded-lg transition-colors ${
+                        !bookingData.isNewPatient
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="text-left">
+                        <h3 className="font-medium">再診</h3>
+                        <p className="text-sm text-gray-600">過去にご来院されたことがある方</p>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>
           )}
 
+          {/* 再診患者認証画面 */}
+          {!bookingData.isNewPatient && !isAuthenticated && (
+            <Card ref={authSectionRef}>
+              <CardHeader>
+                <CardTitle>患者情報の確認</CardTitle>
+                <p className="text-sm text-gray-600 mt-2">
+                  以下のいずれか1つと生年月日を入力してください
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 認証情報入力 */}
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="auth_patient_number">診察券番号</Label>
+                    <Input
+                      id="auth_patient_number"
+                      value={authData.patientNumber}
+                      onChange={(e) => setAuthData(prev => ({ ...prev, patientNumber: e.target.value }))}
+                      placeholder="例: 12345"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="auth_phone">電話番号</Label>
+                    <Input
+                      id="auth_phone"
+                      value={authData.phone}
+                      onChange={(e) => setAuthData(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="例: 03-1234-5678"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="auth_email">メールアドレス</Label>
+                    <Input
+                      id="auth_email"
+                      type="email"
+                      value={authData.email}
+                      onChange={(e) => setAuthData(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="例: tanaka@example.com"
+                    />
+                  </div>
+
+                  {/* 生年月日（年月日別々） */}
+                  <div>
+                    <Label>生年月日 *</Label>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      <Input
+                        placeholder="年 (例: 1990)"
+                        value={authData.birthYear}
+                        onChange={(e) => setAuthData(prev => ({ ...prev, birthYear: e.target.value }))}
+                        maxLength={4}
+                      />
+                      <Input
+                        placeholder="月 (例: 01)"
+                        value={authData.birthMonth}
+                        onChange={(e) => setAuthData(prev => ({ ...prev, birthMonth: e.target.value }))}
+                        maxLength={2}
+                      />
+                      <Input
+                        placeholder="日 (例: 01)"
+                        value={authData.birthDay}
+                        onChange={(e) => setAuthData(prev => ({ ...prev, birthDay: e.target.value }))}
+                        maxLength={2}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* エラーメッセージ */}
+                {authError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-800 mb-2">{authError}</p>
+                    {clinicPhone && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-700 mt-2 pt-2 border-t border-red-200">
+                        <Phone className="w-4 h-4" />
+                        <span className="font-medium">お困りの方はお電話ください:</span>
+                        <a
+                          href={`tel:${clinicPhone.replace(/[^0-9]/g, '')}`}
+                          className="text-blue-600 hover:text-blue-700 font-medium underline"
+                        >
+                          {clinicPhone}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 認証ボタン */}
+                <div className="flex justify-center pt-2">
+                  <Button onClick={handleAuthenticate} size="lg" className="w-full max-w-xs">
+                    ログイン
+                  </Button>
+                </div>
+
+                {/* 診察券番号がわからない場合 */}
+                {clinicPhone && (
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">診察券番号がわからない方</p>
+                    <div className="flex items-center justify-center space-x-2 mt-2">
+                      <Phone className="w-4 h-4 text-gray-500" />
+                      <a
+                        href={`tel:${clinicPhone.replace(/[^0-9]/g, '')}`}
+                        className="text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        {clinicPhone} にお電話ください
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* ステップ2: 診療メニュー選択 */}
-          <Card ref={menuSectionRef}>
+          {(bookingData.isNewPatient || isAuthenticated) && (
+            <Card ref={menuSectionRef}>
               <CardHeader>
                 <CardTitle>診療メニューの選択</CardTitle>
               </CardHeader>
@@ -715,9 +934,11 @@ export default function WebBookingPage() {
                 )}
               </CardContent>
             </Card>
+          )}
 
           {/* ステップ3: カレンダー表示 */}
-          <Card ref={calendarSectionRef}>
+          {(bookingData.isNewPatient || isAuthenticated) && (
+            <Card ref={calendarSectionRef}>
               <CardHeader>
                 <CardTitle>日時選択</CardTitle>
                 <p className="text-sm text-gray-600">
@@ -865,9 +1086,11 @@ export default function WebBookingPage() {
                 )}
               </CardContent>
             </Card>
+          )}
 
           {/* ステップ4: 患者情報入力 */}
-          <Card ref={patientInfoSectionRef}>
+          {bookingData.isNewPatient && (
+            <Card ref={patientInfoSectionRef}>
               <CardHeader>
                 <CardTitle>患者情報入力</CardTitle>
               </CardHeader>
@@ -929,9 +1152,11 @@ export default function WebBookingPage() {
                 </div>
               </CardContent>
             </Card>
+          )}
 
           {/* ステップ5: 確認・確定 */}
-          <Card ref={confirmationSectionRef}>
+          {(bookingData.isNewPatient || isAuthenticated) && (
+            <Card ref={confirmationSectionRef}>
               <CardHeader>
                 <CardTitle>予約内容確認</CardTitle>
               </CardHeader>
@@ -983,6 +1208,7 @@ export default function WebBookingPage() {
                 </div>
               </CardContent>
             </Card>
+          )}
         </div>
 
         {/* 問診表モーダル */}

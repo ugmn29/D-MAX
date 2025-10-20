@@ -177,7 +177,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     e.stopPropagation()
     
     // キャンセルされた予約はドラッグできない
-    if (appointment.status === 'キャンセル') {
+    if (appointment.status === 'cancelled') {
       console.log('キャンセルされた予約はドラッグできません')
       return
     }
@@ -368,7 +368,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     // 同じ予約以外で重複をチェック（キャンセルされた予約は除外）
     const hasConflict = appointments.some(existingAppointment => {
       if (existingAppointment.id === appointment.id) return false // 自分自身は除外
-      if (existingAppointment.status === 'キャンセル') return false // キャンセルされた予約は除外
+      if (existingAppointment.status === 'cancelled') return false // キャンセルされた予約は除外
       
       const existingStartMinutes = timeToMinutes(existingAppointment.start_time)
       const existingEndMinutes = timeToMinutes(existingAppointment.end_time)
@@ -558,7 +558,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     e.preventDefault()
     
     // キャンセルされた予約はリサイズできない
-    if (appointment.status === 'キャンセル') {
+    if (appointment.status === 'cancelled') {
       console.log('キャンセルされた予約はリサイズできません')
       return
     }
@@ -749,7 +749,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           return minutesToTime(endMinutes)
         })(),
         status: copiedAppointment.status,
-        notes: (copiedAppointment as any).notes || '',
+        memo: (copiedAppointment as any).memo || '',
         appointment_date: formatDateForDB(selectedDate)
       }
 
@@ -1810,21 +1810,21 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           if (!isSelectingCells) return
                           console.log('セル複数選択完了:', selectedCells)
                           setIsSelectingCells(false)
-                          
+
                           // 複数選択されたセルがある場合、最初のセルで予約編集モーダルを開く
                           if (selectedCells.length > 0) {
                             const firstCell = selectedCells[0]
                             setSelectedTimeSlot(firstCell.timeSlot)
                             setSelectedCell(firstCell)
-                            
+
                             // 複数選択されたセルの時間範囲を計算
                             const selectedTimeSlots = selectedCells.map(cell => cell.timeSlot).sort()
                             const startTime = selectedTimeSlots[0]
                             const endTime = selectedTimeSlots[selectedTimeSlots.length - 1]
-                            
+
                             // 診療時間を計算（15分単位）
                             const duration = selectedCells.length * 15 // 15分 × 選択セル数
-                            
+
                             console.log('セル複数選択による時間計算:', {
                               selectedCells,
                               selectedTimeSlots,
@@ -1833,10 +1833,33 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                               duration,
                               cellCount: selectedCells.length
                             })
-                            
+
                             // 選択された時間範囲を状態に保存
                             setSelectedTimeSlots(selectedTimeSlots)
-                            
+
+                            // 貼り付けモードの場合は、コピー元のデータを使用
+                            if (isPasteMode && copiedAppointment) {
+                              // 貼り付け先のスタッフを取得
+                              const targetStaff = displayMode === 'staff' || displayMode === 'both' ? workingStaff[firstCell.columnIndex] : null
+                              const newStaffId = targetStaff ? targetStaff.staff.id : ''
+
+                              console.log('複数セル選択 - コピー元の予約データ:', copiedAppointment)
+                              console.log('複数セル選択 - コピー元の患者情報:', (copiedAppointment as any).patient)
+
+                              // コピー元のデータをベースに、日時とスタッフを新しい値に変更
+                              const { id, end_time, ...appointmentWithoutId } = copiedAppointment as any
+                              const modifiedAppointment = {
+                                ...appointmentWithoutId,
+                                start_time: firstCell.timeSlot,
+                                staff1_id: newStaffId,
+                                patient: (copiedAppointment as any).patient,
+                                patient_id: (copiedAppointment as any).patient_id
+                              }
+
+                              console.log('複数セル選択 - 貼り付け時の予約データ:', modifiedAppointment)
+                              setEditingAppointment(modifiedAppointment as any)
+                            }
+
                             // 表示モードに応じてスタッフインデックスとユニットインデックスを設定
                             if (displayMode === 'units') {
                               setSelectedStaffIndex(undefined)
@@ -1853,7 +1876,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                                 setSelectedUnitIndex(firstCell.columnIndex - workingStaff.length)
                               }
                             }
-                            
+
                             setShowAppointmentModal(true)
                           }
                         }}
@@ -1937,7 +1960,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
           {/* 予約ブロック */}
           {appointmentBlocks.map((block, index) => {
-            const isCancelled = block.appointment.status === 'キャンセル'
+            const isCancelled = block.appointment.status === 'cancelled'
             
             // キャンセルされた予約はブロックを表示しない（アイコンのみ別途表示）
             if (isCancelled) {
@@ -2031,10 +2054,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   color: 'black', // キャンセルされた予約も通常のテキスト色を使用
                   padding: '2px 8px 8px 8px', // 上を2px、左右8px、下8px
                   zIndex: isDragging && draggedAppointment?.id === block.appointment.id ? 1000 : isCancelled ? 5 : 10,
-                  opacity: isDragging && draggedAppointment?.id === block.appointment.id ? 0.8 : 1, // キャンセルされた予約も通常の不透明度
+                  opacity: isDragging && draggedAppointment?.id === block.appointment.id ? 0.8 : isPasteMode ? 0.5 : 1, // 貼り付けモード時は半透明にして背景が見えるようにする
                   transform: isDragging && draggedAppointment?.id === block.appointment.id ? 'scale(1.02)' : 'scale(1)',
                   boxShadow: isDragging && draggedAppointment?.id === block.appointment.id ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
-                  transition: isDragging && draggedAppointment?.id === block.appointment.id ? 'none' : 'all 0.2s ease'
+                  transition: isDragging && draggedAppointment?.id === block.appointment.id ? 'none' : 'all 0.2s ease',
+                  pointerEvents: isPasteMode ? 'none' : 'auto' // 貼り付けモード時はクリックイベントを背景のセルに通す
                 }}
                 onMouseDown={(e) => handleAppointmentMouseDown(e, block.appointment)}
                 onClick={(e) => {
@@ -2043,19 +2067,26 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     e.stopPropagation()
                     return
                   }
-                  
-                  // 予約編集モーダルを開く
+
                   e.stopPropagation()
+
+                  // 貼り付けモードの場合は、予約ブロックのクリックを無視して背景のセルに処理を委譲
+                  if (isPasteMode && copiedAppointment) {
+                    console.log('貼り付けモード: 予約ブロックのクリックを無視')
+                    return
+                  }
+
+                  // 予約編集モーダルを開く
                   console.log('予約セルクリック:', block.appointment)
                   console.log('選択された時間スロット:', block.appointment.start_time)
                   console.log('選択されたスタッフインデックス:', block.staffIndex)
                   console.log('表示モード:', displayMode)
-                  
+
                   setSelectedTimeSlot(block.appointment.start_time)
-                  
+
                   // 予約の現在位置を計算して設定
                   const { staffIndex: calculatedStaffIndex, unitIndex: calculatedUnitIndex } = calculateAppointmentPosition(block.appointment)
-                  
+
                   // 表示モードに応じてスタッフインデックスとユニットインデックスを設定
                   if (displayMode === 'units') {
                     // ユニット表示モードの場合
@@ -2077,7 +2108,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       setSelectedUnitIndex(calculatedStaffIndex - workingStaff.length)
                     }
                   }
-                  
+
                   setEditingAppointment(block.appointment)
                   setShowAppointmentModal(true)
                   console.log('モーダル表示フラグ設定完了')
@@ -2225,14 +2256,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           const staff1 = (block.appointment as any).staff1
                           const staff2 = (block.appointment as any).staff2
                           const staff3 = (block.appointment as any).staff3
-                          
+
                           if (!staff1 && !staff2 && !staff3) return null
-                          
+
                           const staffParts = []
                           if (staff1) staffParts.push(staff1.name)
                           if (staff2) staffParts.push(staff2.name)
                           if (staff3) staffParts.push(staff3.name)
-                          
+
                           return (
                             <span>
                               {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
@@ -2240,6 +2271,24 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                             </span>
                           )
                         })()
+                      )}
+
+                      {/* メモ */}
+                      {block.appointment.memo && (
+                        <span
+                          className="text-xs text-gray-600"
+                          dangerouslySetInnerHTML={{
+                            __html: (displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|treatment_content|staff|medical_card_number|reservation_time)$/)) ? ' / ' : '') +
+                                    block.appointment.memo
+                                      .replace(/<div[^>]*>/gi, '')
+                                      .replace(/<\/div>/gi, ' ')
+                                      .replace(/<p[^>]*>/gi, '')
+                                      .replace(/<\/p>/gi, ' ')
+                                      .replace(/<br\s*\/?>/gi, ' ')
+                                      .replace(/\n/g, ' ')
+                                      .trim()
+                          }}
+                        />
                       )}
                     </div>
                   </>
@@ -2260,7 +2309,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
           {/* キャンセルされた予約のアイコンのみ表示 */}
           {appointmentBlocks.map((block, index) => {
-            const isCancelled = block.appointment.status === 'キャンセル'
+            const isCancelled = block.appointment.status === 'cancelled'
             
             // キャンセルされた予約のみアイコンを表示
             if (!isCancelled) {
@@ -2388,7 +2437,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 staff1_id: editingAppointment.staff1_id,
                 menu1_id: editingAppointment.menu1_id,
                 status: editingAppointment.status,
-                notes: editingAppointment.notes
+                memo: editingAppointment.memo
               }
 
               // 既存の予約を即座に更新

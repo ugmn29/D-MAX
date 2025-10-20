@@ -266,10 +266,20 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
                   <div key={appointment.id} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100">
                     <div className="grid grid-cols-4 gap-4 text-sm">
                       <div className="text-gray-900">
-                        {formattedDate} {appointment.start_time}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div>{formattedDate}</div>
+                            <div className="flex items-center gap-2">
+                              <span>{appointment.start_time}</span>
+                              {appointment.status === 'cancelled' && (
+                                <span className="text-red-600" style={{ fontSize: "10px" }}>キャンセル</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       <div className="overflow-hidden">
-                        <div 
+                        <div
                           className="break-words"
                           style={{
                             display: '-webkit-box',
@@ -290,7 +300,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
                         </div>
                       </div>
                       <div className="text-gray-900 overflow-hidden">
-                        <div 
+                        <div
                           className="break-words"
                           style={{
                             display: '-webkit-box',
@@ -305,7 +315,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
                         </div>
                       </div>
                       <div className="text-gray-500">
-                        -
+                        {appointment.cancel_reason || '-'}
                       </div>
                     </div>
                   </div>

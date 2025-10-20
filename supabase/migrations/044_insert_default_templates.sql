@@ -246,7 +246,123 @@ TEL: {{clinic_phone}}',
   '{{patient_name}}様 定期検診のご案内です。ご予約お待ちしております。{{clinic_name}} {{clinic_phone}}'
 );
 
--- 5. LINE連携完了通知
+-- 5. 治療リマインド（1ヶ月後）
+INSERT INTO notification_templates (
+  clinic_id,
+  name,
+  notification_type,
+  message_template,
+  line_message,
+  email_subject,
+  email_message,
+  sms_message,
+  default_timing_value,
+  default_timing_unit
+) VALUES (
+  demo_clinic_id,
+  '治療リマインド（1ヶ月後）',
+  'treatment_reminder',
+  '{{patient_name}}様、治療のご案内です。',
+  '{{patient_name}}様
+
+{{clinic_name}}です。
+前回の治療から1ヶ月が経過しました。
+
+継続治療が必要な場合がございますので、
+ご予約をお願いいたします。
+
+■前回の治療内容
+{{treatment_name}}
+
+■ご予約について
+リッチメニューの「予約確認」または下記URLからご予約いただけます。
+{{booking_url}}
+
+{{clinic_name}}
+TEL: {{clinic_phone}}',
+  '【{{clinic_name}}】治療のご案内',
+  '{{patient_name}}様
+
+いつもありがとうございます。
+{{clinic_name}}です。
+
+前回の治療から1ヶ月が経過しました。
+
+■前回の治療内容
+{{treatment_name}}
+
+継続治療が必要な場合がございますので、
+お早めのご来院をお勧めいたします。
+
+■ご予約について
+下記URLまたはお電話でご予約をお願いいたします。
+{{booking_url}}
+
+{{clinic_name}}
+TEL: {{clinic_phone}}',
+  '{{patient_name}}様 治療のご案内です。ご予約お待ちしております。{{clinic_name}} {{clinic_phone}}',
+  1,
+  'months'
+);
+
+-- 6. 治療リマインド（3ヶ月後）
+INSERT INTO notification_templates (
+  clinic_id,
+  name,
+  notification_type,
+  message_template,
+  line_message,
+  email_subject,
+  email_message,
+  sms_message,
+  default_timing_value,
+  default_timing_unit
+) VALUES (
+  demo_clinic_id,
+  '治療リマインド（3ヶ月後）',
+  'treatment_reminder',
+  '{{patient_name}}様、経過確認のご案内です。',
+  '{{patient_name}}様
+
+{{clinic_name}}です。
+前回の治療から3ヶ月が経過しました。
+
+治療後の経過確認をお勧めいたします。
+
+■前回の治療内容
+{{treatment_name}}
+
+■ご予約について
+リッチメニューの「予約確認」または下記URLからご予約いただけます。
+{{booking_url}}
+
+{{clinic_name}}
+TEL: {{clinic_phone}}',
+  '【{{clinic_name}}】経過確認のご案内',
+  '{{patient_name}}様
+
+いつもありがとうございます。
+{{clinic_name}}です。
+
+前回の治療から3ヶ月が経過しました。
+
+■前回の治療内容
+{{treatment_name}}
+
+治療後の経過確認をお勧めいたします。
+
+■ご予約について
+下記URLまたはお電話でご予約をお願いいたします。
+{{booking_url}}
+
+{{clinic_name}}
+TEL: {{clinic_phone}}',
+  '{{patient_name}}様 経過確認のご案内です。{{clinic_name}} {{clinic_phone}}',
+  3,
+  'months'
+);
+
+-- 7. LINE連携完了通知
 INSERT INTO notification_templates (
   clinic_id,
   name,
