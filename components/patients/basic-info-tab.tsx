@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   User,
   Phone,
@@ -30,6 +31,10 @@ import { getLinkedQuestionnaireResponse } from '@/lib/api/questionnaires'
 import { getStaff, Staff } from '@/lib/api/staff'
 import { PATIENT_ICONS, PatientIcon } from '@/lib/constants/patient-icons'
 import { getPatientById, updatePatient } from '@/lib/api/patients'
+import {
+  getPatientNotificationPreferences,
+  upsertPatientNotificationPreferences
+} from '@/lib/api/patient-notification-preferences'
 
 interface BasicInfoTabProps {
   patientId: string
@@ -73,6 +78,15 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     special_notes: '',
     primary_doctor: '',
     assigned_dh: ''
+  })
+
+  // 通知受信設定
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    appointment_reminder: true,
+    periodic_checkup: true,
+    treatment_reminder: true,
+    appointment_change: true,
+    custom: true
   })
 
   // 選択されたアイコン
@@ -291,7 +305,23 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         primary_doctor: '',
         assigned_dh: ''
       })
-      
+
+      // 通知受信設定を読み込む
+      try {
+        const preferencesData = await getPatientNotificationPreferences(patientId, DEMO_CLINIC_ID)
+        if (preferencesData) {
+          setNotificationPreferences({
+            appointment_reminder: preferencesData.appointment_reminder,
+            periodic_checkup: preferencesData.periodic_checkup,
+            treatment_reminder: preferencesData.treatment_reminder,
+            appointment_change: preferencesData.appointment_change,
+            custom: preferencesData.custom
+          })
+        }
+      } catch (preferencesError) {
+        console.log('通知設定の取得エラー（デフォルト値を使用）:', preferencesError)
+      }
+
       // 保存されているアイコンデータを読み込む
       if ((patientData as any).patient_icons) {
         setSelectedIconIds((patientData as any).patient_icons)
@@ -513,13 +543,25 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
       // 患者データを更新
       await updatePatient(DEMO_CLINIC_ID, patientId, updateData)
-      
+
+      // 通知受信設定を保存
+      try {
+        await upsertPatientNotificationPreferences(patientId, DEMO_CLINIC_ID, notificationPreferences)
+        console.log('通知受信設定の保存に成功しました')
+
+        // 通知設定タブに更新を通知
+        window.dispatchEvent(new Event('notificationPreferencesUpdated'))
+      } catch (preferencesError) {
+        console.error('通知受信設定の保存エラー:', preferencesError)
+        // エラーでも患者データの保存は続行
+      }
+
       // ローカルストレージにアイコンを保存
       localStorage.setItem(`patient_icons_${patientId}`, JSON.stringify(selectedIconIds))
-      
+
       // 患者データを再読み込み
       await loadPatientData()
-      
+
       setIsEditing(false)
       console.log('患者データの保存に成功しました')
     } catch (error) {
@@ -1069,6 +1111,83 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 通知受信設定 */}
+            <div>
+              <Label>通知受信設定</Label>
+              <div className="p-3 bg-gray-50 rounded-md space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="notif_appointment_reminder"
+                    checked={notificationPreferences.appointment_reminder}
+                    onCheckedChange={(checked) => setNotificationPreferences({
+                      ...notificationPreferences,
+                      appointment_reminder: checked as boolean
+                    })}
+                    disabled={!isEditing}
+                  />
+                  <Label htmlFor="notif_appointment_reminder" className="cursor-pointer font-normal text-sm">
+                    予約リマインド通知を受け取る
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="notif_periodic_checkup"
+                    checked={notificationPreferences.periodic_checkup}
+                    onCheckedChange={(checked) => setNotificationPreferences({
+                      ...notificationPreferences,
+                      periodic_checkup: checked as boolean
+                    })}
+                    disabled={!isEditing}
+                  />
+                  <Label htmlFor="notif_periodic_checkup" className="cursor-pointer font-normal text-sm">
+                    定期検診リマインド通知を受け取る
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="notif_treatment_reminder"
+                    checked={notificationPreferences.treatment_reminder}
+                    onCheckedChange={(checked) => setNotificationPreferences({
+                      ...notificationPreferences,
+                      treatment_reminder: checked as boolean
+                    })}
+                    disabled={!isEditing}
+                  />
+                  <Label htmlFor="notif_treatment_reminder" className="cursor-pointer font-normal text-sm">
+                    治療リマインド通知を受け取る
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="notif_appointment_change"
+                    checked={notificationPreferences.appointment_change}
+                    onCheckedChange={(checked) => setNotificationPreferences({
+                      ...notificationPreferences,
+                      appointment_change: checked as boolean
+                    })}
+                    disabled={!isEditing}
+                  />
+                  <Label htmlFor="notif_appointment_change" className="cursor-pointer font-normal text-sm">
+                    予約変更通知を受け取る
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="notif_custom"
+                    checked={notificationPreferences.custom}
+                    onCheckedChange={(checked) => setNotificationPreferences({
+                      ...notificationPreferences,
+                      custom: checked as boolean
+                    })}
+                    disabled={!isEditing}
+                  />
+                  <Label htmlFor="notif_custom" className="cursor-pointer font-normal text-sm">
+                    カスタム通知を受け取る
+                  </Label>
+                </div>
+              </div>
             </div>
 
             <div>

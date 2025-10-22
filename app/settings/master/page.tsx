@@ -29,6 +29,7 @@ import {
 import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
 import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, deletePatientNoteType } from '@/lib/api/patient-note-types'
 import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
+import { getMemoTemplates, createMemoTemplate, updateMemoTemplate, deleteMemoTemplate, MemoTemplate } from '@/lib/api/memo-templates'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 
 // 仮のクリニックID
@@ -91,6 +92,16 @@ export default function MasterSettingsPage() {
     is_active: true
   })
 
+  // メモテンプレートの状態
+  const [memoTemplates, setMemoTemplates] = useState<MemoTemplate[]>([])
+  const [showAddMemoTemplate, setShowAddMemoTemplate] = useState(false)
+  const [newMemoTemplate, setNewMemoTemplate] = useState({
+    name: '',
+    content: '',
+    sort_order: 0,
+    is_active: true
+  })
+
   // アイコンマスターの状態
   const [iconMaster, setIconMaster] = useState(PATIENT_ICONS)
   const [editingIconId, setEditingIconId] = useState<string | null>(null)
@@ -100,21 +111,23 @@ export default function MasterSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        const [positionsData, noteTypesData, cancelReasonsData] = await Promise.all([
+        const [positionsData, noteTypesData, cancelReasonsData, memoTemplatesData] = await Promise.all([
           getStaffPositions(DEMO_CLINIC_ID),
           getPatientNoteTypes(DEMO_CLINIC_ID),
-          getCancelReasons(DEMO_CLINIC_ID)
+          getCancelReasons(DEMO_CLINIC_ID),
+          getMemoTemplates(DEMO_CLINIC_ID)
         ])
         setStaffPositions(positionsData)
         setPatientNoteTypes(noteTypesData)
         setCancelReasons(cancelReasonsData)
+        setMemoTemplates(memoTemplatesData)
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
         setLoading(false)
       }
     }
-    
+
     loadData()
   }, [])
 
@@ -262,7 +275,7 @@ export default function MasterSettingsPage() {
   // キャンセル理由削除
   const handleDeleteCancelReason = async (reasonId: string) => {
     if (!confirm('このキャンセル理由を削除しますか？')) return
-    
+
     try {
       setSaving(true)
       await deleteCancelReason(reasonId)
@@ -273,6 +286,67 @@ export default function MasterSettingsPage() {
     } catch (error) {
       console.error('キャンセル理由削除エラー:', error)
       alert('キャンセル理由の削除に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // メモテンプレート追加
+  const handleAddMemoTemplate = async () => {
+    try {
+      setSaving(true)
+      await createMemoTemplate(DEMO_CLINIC_ID, newMemoTemplate)
+
+      // データを再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID)
+      setMemoTemplates(data)
+
+      setNewMemoTemplate({
+        name: '',
+        content: '',
+        sort_order: 0,
+        is_active: true
+      })
+      setShowAddMemoTemplate(false)
+    } catch (error) {
+      console.error('メモテンプレート追加エラー:', error)
+      alert('メモテンプレートの追加に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // メモテンプレート更新
+  const handleUpdateMemoTemplate = async (templateId: string, updates: Partial<MemoTemplate>) => {
+    try {
+      setSaving(true)
+      await updateMemoTemplate(DEMO_CLINIC_ID, templateId, updates)
+
+      // データを再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID)
+      setMemoTemplates(data)
+    } catch (error) {
+      console.error('メモテンプレート更新エラー:', error)
+      alert('メモテンプレートの更新に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // メモテンプレート削除
+  const handleDeleteMemoTemplate = async (templateId: string) => {
+    if (!confirm('このメモテンプレートを削除しますか？')) return
+
+    try {
+      setSaving(true)
+      await deleteMemoTemplate(DEMO_CLINIC_ID, templateId)
+
+      // データを再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID)
+      setMemoTemplates(data)
+    } catch (error) {
+      console.error('メモテンプレート削除エラー:', error)
+      alert('メモテンプレートの削除に失敗しました')
     } finally {
       setSaving(false)
     }
@@ -330,6 +404,16 @@ export default function MasterSettingsPage() {
             }`}
           >
             キャンセル
+          </button>
+          <button
+            onClick={() => setSelectedTab('memo')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              selectedTab === 'memo'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            メモ
           </button>
         </nav>
       </div>
@@ -814,6 +898,151 @@ export default function MasterSettingsPage() {
                   <Button
                     onClick={handleAddCancelReason}
                     disabled={saving || !newCancelReason.name.trim()}
+                  >
+                    {saving ? '追加中...' : '追加'}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </div>
+      )}
+
+      {/* メモタブのコンテンツ */}
+      {selectedTab === 'memo' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">メモテンプレート</h3>
+              <p className="text-sm text-gray-500">予約メモで使用するテンプレートを管理します</p>
+            </div>
+            <Button onClick={() => setShowAddMemoTemplate(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              新規追加
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {memoTemplates.map(template => (
+              <div key={template.id} className="flex items-start justify-between p-4 bg-white border border-gray-200 rounded-lg">
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">{template.name}</div>
+                  <div className="mt-2 text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-2 rounded border border-gray-200">
+                    {template.content}
+                  </div>
+                  <div className="mt-2 text-sm text-gray-500">
+                    並び順: {template.sort_order} | ステータス: {template.is_active ? '有効' : '無効'}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 ml-4">
+                  <input
+                    type="checkbox"
+                    checked={template.is_active}
+                    onChange={(e) => {
+                      handleUpdateMemoTemplate(template.id, { is_active: e.target.checked })
+                    }}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      const newName = prompt('新しいテンプレート名を入力してください:', template.name)
+                      if (newName && newName.trim()) {
+                        const newContent = prompt('新しいテンプレート内容を入力してください:', template.content)
+                        if (newContent !== null) {
+                          handleUpdateMemoTemplate(template.id, {
+                            name: newName.trim(),
+                            content: newContent
+                          })
+                        }
+                      }
+                    }}
+                    className="p-1 text-gray-400 hover:text-blue-600"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMemoTemplate(template.id)}
+                    className="p-1 text-gray-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {memoTemplates.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">メモテンプレートが登録されていません</p>
+                <Button
+                  onClick={() => setShowAddMemoTemplate(true)}
+                  className="mt-2"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  最初のメモテンプレートを追加
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* メモテンプレート追加モーダル */}
+          {showAddMemoTemplate && (
+            <Modal
+              isOpen={showAddMemoTemplate}
+              onClose={() => setShowAddMemoTemplate(false)}
+              title="新しいメモテンプレートを追加"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="memo_template_name">テンプレート名</Label>
+                  <Input
+                    id="memo_template_name"
+                    value={newMemoTemplate.name}
+                    onChange={(e) => setNewMemoTemplate(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="例: 初診時"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="memo_template_content">テンプレート内容</Label>
+                  <Textarea
+                    id="memo_template_content"
+                    value={newMemoTemplate.content}
+                    onChange={(e) => setNewMemoTemplate(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="例: 初診&#10;主訴：&#10;既往歴："
+                    className="min-h-[150px]"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="memo_template_sort_order">並び順</Label>
+                  <Input
+                    id="memo_template_sort_order"
+                    type="number"
+                    value={newMemoTemplate.sort_order}
+                    onChange={(e) => setNewMemoTemplate(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="memo_template_active"
+                    checked={newMemoTemplate.is_active}
+                    onCheckedChange={(checked) => setNewMemoTemplate(prev => ({ ...prev, is_active: checked as boolean }))}
+                  />
+                  <Label htmlFor="memo_template_active">有効</Label>
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddMemoTemplate(false)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={handleAddMemoTemplate}
+                    disabled={saving || !newMemoTemplate.name.trim() || !newMemoTemplate.content.trim()}
                   >
                     {saving ? '追加中...' : '追加'}
                   </Button>

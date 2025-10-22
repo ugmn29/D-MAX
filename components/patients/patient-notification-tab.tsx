@@ -28,6 +28,10 @@ import {
   updateNotificationSchedule,
   deleteNotificationSchedule
 } from '@/lib/api/notification-schedules'
+import {
+  getPatientNotificationPreferences,
+  upsertPatientNotificationPreferences
+} from '@/lib/api/patient-notification-preferences'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getPatientById } from '@/lib/api/patients'
 import { getStaff } from '@/lib/api/staff'
@@ -51,6 +55,16 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
   const [schedules, setSchedules] = useState<PatientNotificationSchedule[]>([])
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [formType, setFormType] = useState<'treatment_reminder' | 'periodic_checkup'>('treatment_reminder')
+
+  // 通知受信設定
+  const [preferences, setPreferences] = useState({
+    appointment_reminder: true,
+    periodic_checkup: true,
+    treatment_reminder: true,
+    appointment_change: true,
+    custom: true
+  })
+  const [savingPreferences, setSavingPreferences] = useState(false)
 
   // フォームデータ
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
@@ -95,6 +109,20 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
     loadData()
   }, [patientId, clinicId])
 
+  // 基本情報タブでの設定変更を検知して再読み込み
+  useEffect(() => {
+    const handleNotificationUpdate = () => {
+      console.log('通知設定が更新されました。再読み込みします。')
+      loadData()
+    }
+
+    window.addEventListener('notificationPreferencesUpdated', handleNotificationUpdate)
+
+    return () => {
+      window.removeEventListener('notificationPreferencesUpdated', handleNotificationUpdate)
+    }
+  }, [patientId, clinicId])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -117,6 +145,18 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
       // スタッフを取得
       const staffData = await getStaff(clinicId)
       setStaff(staffData)
+
+      // 通知受信設定を取得
+      const preferencesData = await getPatientNotificationPreferences(patientId, clinicId)
+      if (preferencesData) {
+        setPreferences({
+          appointment_reminder: preferencesData.appointment_reminder,
+          periodic_checkup: preferencesData.periodic_checkup,
+          treatment_reminder: preferencesData.treatment_reminder,
+          appointment_change: preferencesData.appointment_change,
+          custom: preferencesData.custom
+        })
+      }
 
     } catch (error) {
       console.error('データ読み込みエラー:', error)
@@ -211,6 +251,23 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
     }
   }
 
+  // 通知受信設定を更新
+  const handlePreferenceChange = async (key: keyof typeof preferences, value: boolean) => {
+    try {
+      setSavingPreferences(true)
+      const newPreferences = { ...preferences, [key]: value }
+      setPreferences(newPreferences)
+
+      await upsertPatientNotificationPreferences(patientId, clinicId, newPreferences)
+    } catch (error) {
+      console.error('受信設定の更新エラー:', error)
+      // エラー時は元に戻す
+      setPreferences(preferences)
+    } finally {
+      setSavingPreferences(false)
+    }
+  }
+
   // ステータス別グループ化
   const groupedSchedules = {
     scheduled: schedules.filter(s => s.status === 'scheduled'),
@@ -268,9 +325,78 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
 
   return (
     <div className="space-y-4">
+      {/* 通知受信設定 */}
+      <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium">通知受信設定</h4>
+              {savingPreferences && (
+                <span className="text-xs text-gray-500">保存中...</span>
+              )}
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="appointment_reminder"
+                  checked={preferences.appointment_reminder}
+                  onCheckedChange={(checked) => handlePreferenceChange('appointment_reminder', checked as boolean)}
+                  disabled={savingPreferences}
+                />
+                <Label htmlFor="appointment_reminder" className="cursor-pointer font-normal">
+                  予約リマインド通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="periodic_checkup"
+                  checked={preferences.periodic_checkup}
+                  onCheckedChange={(checked) => handlePreferenceChange('periodic_checkup', checked as boolean)}
+                  disabled={savingPreferences}
+                />
+                <Label htmlFor="periodic_checkup" className="cursor-pointer font-normal">
+                  定期検診リマインド通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="treatment_reminder"
+                  checked={preferences.treatment_reminder}
+                  onCheckedChange={(checked) => handlePreferenceChange('treatment_reminder', checked as boolean)}
+                  disabled={savingPreferences}
+                />
+                <Label htmlFor="treatment_reminder" className="cursor-pointer font-normal">
+                  治療リマインド通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="appointment_change"
+                  checked={preferences.appointment_change}
+                  onCheckedChange={(checked) => handlePreferenceChange('appointment_change', checked as boolean)}
+                  disabled={savingPreferences}
+                />
+                <Label htmlFor="appointment_change" className="cursor-pointer font-normal">
+                  予約変更通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="custom"
+                  checked={preferences.custom}
+                  onCheckedChange={(checked) => handlePreferenceChange('custom', checked as boolean)}
+                  disabled={savingPreferences}
+                />
+                <Label htmlFor="custom" className="cursor-pointer font-normal">
+                  カスタム通知を受け取る
+                </Label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">連絡予定</h3>
+        <h3 className="text-lg font-semibold">通知設定</h3>
         <div className="flex space-x-2">
           <Button
             size="sm"
@@ -537,7 +663,7 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
       {schedules.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           <Bell className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-          <p>連絡予定はありません</p>
+          <p>通知設定はありません</p>
           <p className="text-sm mt-1">上のボタンから通知を作成できます</p>
         </div>
       )}

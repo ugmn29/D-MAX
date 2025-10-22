@@ -87,6 +87,11 @@ export interface NotificationTemplate {
   default_timing_unit: TimingUnit | null
   default_web_booking_menu_ids: string[] | null
   default_staff_id: string | null
+  // 自動送信設定
+  auto_send_enabled: boolean  // 自動送信を有効にするか
+  auto_send_trigger: 'appointment_created' | 'appointment_date' | 'line_linked' | 'manual' | null  // 送信トリガー
+  auto_send_timing_value: number | null  // タイミング値（例：3日前なら3）
+  auto_send_timing_unit: 'days_before' | 'days_after' | 'immediate' | null  // タイミング単位
   created_at: string
   updated_at: string
 }
@@ -105,6 +110,11 @@ export interface NotificationTemplateInsert {
   default_timing_unit?: TimingUnit | null
   default_web_booking_menu_ids?: string[] | null
   default_staff_id?: string | null
+  // 自動送信設定
+  auto_send_enabled?: boolean
+  auto_send_trigger?: 'appointment_created' | 'appointment_date' | 'line_linked' | 'manual' | null
+  auto_send_timing_value?: number | null
+  auto_send_timing_unit?: 'days_before' | 'days_after' | 'immediate' | null
   created_at?: string
   updated_at?: string
 }
@@ -121,6 +131,11 @@ export interface NotificationTemplateUpdate {
   default_timing_unit?: TimingUnit | null
   default_web_booking_menu_ids?: string[] | null
   default_staff_id?: string | null
+  // 自動送信設定
+  auto_send_enabled?: boolean
+  auto_send_trigger?: 'appointment_created' | 'appointment_date' | 'line_linked' | 'manual' | null
+  auto_send_timing_value?: number | null
+  auto_send_timing_unit?: 'days_before' | 'days_after' | 'immediate' | null
   updated_at?: string
 }
 

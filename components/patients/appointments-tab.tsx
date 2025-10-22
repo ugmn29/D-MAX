@@ -241,7 +241,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
             <div>予約日時</div>
             <div>担当</div>
             <div>メニュー</div>
-            <div>キャンセル</div>
+            <div>メモ</div>
           </div>
         </div>
         <div 
@@ -314,8 +314,21 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
                           {menuName}
                         </div>
                       </div>
-                      <div className="text-gray-500">
-                        {appointment.cancel_reason || '-'}
+                      <div className="text-gray-500 overflow-hidden">
+                        <div
+                          className="break-words"
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: '1.2',
+                            maxHeight: '2.4em'
+                          }}
+                          dangerouslySetInnerHTML={{
+                            __html: (appointment as any).memo || '-'
+                          }}
+                        />
                       </div>
                     </div>
                   </div>

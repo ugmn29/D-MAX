@@ -102,6 +102,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [selectedCells, setSelectedCells] = useState<{timeSlot: string, columnIndex: number}[]>([])
   const [isSelectingCells, setIsSelectingCells] = useState(false)
 
+
   // キャンセル情報モーダル
   const [showCancelInfoModal, setShowCancelInfoModal] = useState(false)
   const [selectedCancelledAppointment, setSelectedCancelledAppointment] = useState<Appointment | null>(null)
@@ -457,15 +458,23 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         alert(`選択された時間帯（${newStartTime} - ${newEndTime}）には既に他の予約があります`)
         return
       }
-      
-      // 休憩時間との重複チェック
-      if (checkBreakTimeConflict(newStartTime, newEndTime)) {
-        const confirmMessage = `選択された時間帯（${newStartTime} - ${newEndTime}）は休憩時間と重複しています。\nそれでも予約を確定しますか？`
-        if (!confirm(confirmMessage)) {
-          return
-        }
-      }
-      
+
+      // ドラッグ操作を直接実行（休憩時間チェックは登録時に行う）
+      await performDragUpdate(appointment, newStartTime, newEndTime, newStaffIndex)
+    } catch (error) {
+      console.error('予約移動エラー:', error)
+      alert('予約の移動に失敗しました')
+    }
+  }
+
+  // ドラッグ更新の実際の処理
+  const performDragUpdate = async (
+    appointment: Appointment,
+    newStartTime: string,
+    newEndTime: string,
+    newStaffIndex: number | null
+  ) => {
+    try {
       // 更新データを準備
       const updateData: any = {
         start_time: newStartTime,
@@ -536,19 +545,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       const dateString = formatDateForDB(selectedDate)
       const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
       setAppointments(updatedAppointments)
-      
-      console.log('予約を移動しました（1枠ごと）:', { 
-        id: appointment.id, 
-        from: appointment.start_time, 
+
+      console.log('予約を移動しました（1枠ごと）:', {
+        id: appointment.id,
+        from: appointment.start_time,
         to: newStartTime,
         endTime: newEndTime,
-        duration,
         staffChanged: newStaffIndex !== null,
         newStaff: newStaffIndex !== null ? workingStaff[newStaffIndex]?.staff.name : '変更なし'
       })
     } catch (error) {
       console.error('予約移動エラー:', error)
       alert('予約の移動に失敗しました')
+      throw error
     }
   }
 
@@ -652,23 +661,15 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       resetResizeState()
       return
     }
-    
-    // 休憩時間との重複チェック
-    if (checkBreakTimeConflict(resizingAppointment.start_time, newEndTime)) {
-      const confirmMessage = `選択された時間帯（${resizingAppointment.start_time} - ${newEndTime}）は休憩時間と重複しています。\nそれでも予約を確定しますか？`
-      if (!confirm(confirmMessage)) {
-        resetResizeState()
-        return
-      }
-    }
-    
+
+    // リサイズ操作を直接実行（休憩時間チェックは登録時に行う）
     try {
       // 予約を更新
       await updateAppointment(resizingAppointment.id, {
         end_time: newEndTime,
         appointment_date: formatDateForDB(selectedDate)
       })
-      
+
       // 予約一覧を再読み込み
       const dateString = formatDateForDB(selectedDate)
       const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
@@ -686,6 +687,31 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
     
     resetResizeState()
+  }
+
+  // リサイズ更新の実際の処理
+  const performResizeUpdate = async (appointment: Appointment, newEndTime: string) => {
+    try {
+      await updateAppointment(appointment.id, {
+        end_time: newEndTime,
+        appointment_date: formatDateForDB(selectedDate)
+      })
+
+      // 予約一覧を再読み込み
+      const dateString = formatDateForDB(selectedDate)
+      const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+      setAppointments(updatedAppointments)
+
+      console.log('予約の診療時間を変更しました:', {
+        id: appointment.id,
+        from: appointment.end_time,
+        to: newEndTime
+      })
+    } catch (error) {
+      console.error('予約リサイズエラー:', error)
+      alert('予約の診療時間変更に失敗しました')
+      throw error
+    }
   }
 
   // リサイズ状態をリセット
@@ -759,13 +785,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         return
       }
 
-      // 休憩時間との重複チェック
-      if (checkBreakTimeConflict(newAppointmentData.start_time, newAppointmentData.end_time)) {
-        const confirmMessage = `選択された時間帯（${newAppointmentData.start_time} - ${newAppointmentData.end_time}）は休憩時間と重複しています。\nそれでも予約を確定しますか？`
-        if (!confirm(confirmMessage)) {
-          return
-        }
-      }
+      // ペースト操作を直接実行（休憩時間チェックは登録時に行う）
+      await performPasteAppointment(newAppointmentData)
+    } catch (error) {
+      console.error('予約貼り付けエラー:', error)
+      alert('予約の貼り付けに失敗しました')
+    }
+  }
+
+  // 貼り付け実行の実際の処理
+  const performPasteAppointment = async (newAppointmentData: any) => {
+    try {
 
       // 予約を作成
       await createAppointment(clinicId, newAppointmentData)
@@ -784,6 +814,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     } catch (error) {
       console.error('予約貼り付けエラー:', error)
       alert('予約の貼り付けに失敗しました')
+      throw error
     }
   }
 
@@ -2471,6 +2502,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               const dateString = formatDateForDB(selectedDate)
               const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
               setAppointments(updatedAppointments)
+
+              // editingAppointmentも最新データに更新
+              const updatedAppointment = updatedAppointments.find(apt => apt.id === editingAppointment.id)
+              if (updatedAppointment) {
+                setEditingAppointment(updatedAppointment)
+                console.log('editingAppointmentを最新データに更新しました:', updatedAppointment)
+              }
             }
           } catch (error) {
             console.error('予約即座更新エラー:', error)

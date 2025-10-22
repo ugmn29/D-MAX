@@ -665,13 +665,27 @@ export async function updateAppointment(
 export async function cancelAppointment(
   appointmentId: string,
   cancelReasonId: string,
-  cancelledBy: string
+  cancelledBy: string,
+  additionalMemo?: string
 ): Promise<Appointment> {
   // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
-    console.log('モックモード: 予約をキャンセルします', { appointmentId, cancelReasonId, cancelledBy })
-    const { updateMockAppointment, getMockCancelReasons } = await import('@/lib/utils/mock-mode')
-    
+    console.log('モックモード: 予約をキャンセルします', { appointmentId, cancelReasonId, cancelledBy, additionalMemo })
+    const { updateMockAppointment, getMockCancelReasons, getMockAppointments } = await import('@/lib/utils/mock-mode')
+
+    // 既存の予約データを取得
+    const appointments = getMockAppointments()
+    const currentAppointment = appointments.find(apt => apt.id === appointmentId)
+    const existingMemo = currentAppointment?.memo || ''
+
+    // 既存メモに追記（キャンセルメモがある場合のみ）
+    let updatedMemo = existingMemo
+    if (additionalMemo && additionalMemo.trim()) {
+      updatedMemo = existingMemo
+        ? `${existingMemo}\n\n[キャンセル時メモ]\n${additionalMemo}`
+        : `[キャンセル時メモ]\n${additionalMemo}`
+    }
+
     const cancelReason = getMockCancelReasons().find(r => r.id === cancelReasonId)
 
     const updatedAppointment = {
@@ -679,15 +693,15 @@ export async function cancelAppointment(
       cancel_reason_id: cancelReasonId,
       cancelled_at: new Date().toISOString(),
       cancelled_by: cancelledBy,
+      memo: updatedMemo,
       updated_at: new Date().toISOString()
     }
-    
+
     updateMockAppointment(appointmentId, updatedAppointment)
-    
+
     // 更新されたデータを再取得
-    const { getMockAppointments } = await import('@/lib/utils/mock-mode')
-    const appointments = getMockAppointments()
-    const appointment = appointments.find(apt => apt.id === appointmentId)
+    const updatedAppointments = getMockAppointments()
+    const appointment = updatedAppointments.find(apt => apt.id === appointmentId)
     
     if (!appointment) {
       throw new Error('予約が見つかりません')
@@ -697,6 +711,24 @@ export async function cancelAppointment(
   }
 
   const client = getSupabaseClient()
+
+  // 既存の予約データを取得してメモを確認
+  const { data: currentData } = await client
+    .from('appointments')
+    .select('memo')
+    .eq('id', appointmentId)
+    .single()
+
+  const existingMemo = currentData?.memo || ''
+
+  // 既存メモに追記（キャンセルメモがある場合のみ）
+  let updatedMemo = existingMemo
+  if (additionalMemo && additionalMemo.trim()) {
+    updatedMemo = existingMemo
+      ? `${existingMemo}\n\n[キャンセル時メモ]\n${additionalMemo}`
+      : `[キャンセル時メモ]\n${additionalMemo}`
+  }
+
   const { data, error } = await client
     .from('appointments')
     .update({
@@ -704,6 +736,7 @@ export async function cancelAppointment(
       cancel_reason_id: cancelReasonId,
       cancelled_at: new Date().toISOString(),
       cancelled_by: cancelledBy,
+      memo: updatedMemo,
       updated_at: new Date().toISOString()
     })
     .eq('id', appointmentId)

@@ -41,7 +41,11 @@ export async function POST(request: NextRequest) {
       line_message,
       email_subject,
       email_message,
-      sms_message
+      sms_message,
+      auto_send_enabled,
+      auto_send_trigger,
+      auto_send_timing_value,
+      auto_send_timing_unit
     } = body
 
     if (!clinic_id || !name || !notification_type) {
@@ -73,6 +77,10 @@ export async function POST(request: NextRequest) {
       email_subject,
       email_message,
       sms_message,
+      auto_send_enabled,
+      auto_send_trigger,
+      auto_send_timing_value,
+      auto_send_timing_unit,
       default_timing_value: null,
       default_timing_unit: null,
       default_web_booking_menu_ids: null,
@@ -100,7 +108,11 @@ export async function PUT(request: NextRequest) {
       line_message,
       email_subject,
       email_message,
-      sms_message
+      sms_message,
+      auto_send_enabled,
+      auto_send_trigger,
+      auto_send_timing_value,
+      auto_send_timing_unit
     } = body
 
     if (!id || !name || !notification_type) {
@@ -122,7 +134,11 @@ export async function PUT(request: NextRequest) {
       line_message,
       email_subject,
       email_message,
-      sms_message
+      sms_message,
+      auto_send_enabled,
+      auto_send_trigger,
+      auto_send_timing_value,
+      auto_send_timing_unit
     })
 
     return NextResponse.json(template)

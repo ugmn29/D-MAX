@@ -742,6 +742,75 @@ export const getMockCancelReasons = () => {
   return reasons
 }
 
+// メモテンプレートのデフォルトデータ
+const DEFAULT_MEMO_TEMPLATES = [
+  {
+    id: 'memo-template-1',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '初診',
+    content: '初診',
+    is_active: true,
+    sort_order: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'memo-template-2',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '再診',
+    content: '再診',
+    is_active: true,
+    sort_order: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'memo-template-3',
+    clinic_id: '11111111-1111-1111-1111-111111111111',
+    name: '要確認',
+    content: '要確認',
+    is_active: true,
+    sort_order: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+]
+
+// メモテンプレートを取得
+export const getMockMemoTemplates = () => {
+  console.log('getMockMemoTemplates: 呼び出し')
+  const templates = getFromStorage('mock_memo_templates', DEFAULT_MEMO_TEMPLATES)
+  console.log('getMockMemoTemplates: 取得したテンプレート:', templates)
+  console.log('getMockMemoTemplates: テンプレートの数:', templates.length)
+  return templates
+}
+
+
+/**
+ * 診察券番号を自動生成（連番）
+ * クリニックごとに1から始まる連番を生成
+ */
+export const generatePatientNumber = (clinicId: string, patients: any[]): string => {
+  // 同じクリニックの患者で、patient_numberが設定されているものを取得
+  const clinicPatients = patients.filter(p =>
+    p.clinic_id === clinicId &&
+    p.patient_number &&
+    !p.id.startsWith('web-booking-temp-')
+  )
+
+  if (clinicPatients.length === 0) {
+    // 最初の患者は「1」
+    return '1'
+  }
+
+  // 既存の番号から最大値を取得
+  const maxNumber = Math.max(
+    ...clinicPatients.map(p => parseInt(p.patient_number) || 0)
+  )
+
+  // 次の番号を返す
+  return String(maxNumber + 1)
+}
 
 // 後方互換性のための定数（空配列）
 export const MOCK_PATIENT_NOTE_TYPES = []

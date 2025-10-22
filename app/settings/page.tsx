@@ -108,6 +108,13 @@ import {
   deleteCancelReason,
 } from "@/lib/api/cancel-reasons";
 import {
+  getMemoTemplates,
+  createMemoTemplate,
+  updateMemoTemplate,
+  deleteMemoTemplate,
+  MemoTemplate,
+} from "@/lib/api/memo-templates";
+import {
   getTreatmentMenus,
   createTreatmentMenu,
   updateTreatmentMenu,
@@ -399,6 +406,10 @@ export default function SettingsPage() {
     email_subject: "",
     email_message: "",
     sms_message: "",
+    auto_send_enabled: false,
+    auto_send_trigger: "manual" as "appointment_created" | "appointment_date" | "line_linked" | "manual",
+    auto_send_timing_value: 3,
+    auto_send_timing_unit: "days_before" as "days_before" | "days_after" | "immediate",
   });
   const [activeChannelTab, setActiveChannelTab] = useState<
     "line" | "email" | "sms"
@@ -847,11 +858,14 @@ export default function SettingsPage() {
   const [staffPositions, setStaffPositions] = useState<any[]>([]);
   const [patientNoteTypes, setPatientNoteTypes] = useState<any[]>([]);
   const [cancelReasons, setCancelReasons] = useState<any[]>([]);
+  const [memoTemplates, setMemoTemplates] = useState<MemoTemplate[]>([]);
+  const [draggedTemplateIndex, setDraggedTemplateIndex] = useState<number | null>(null);
   const [iconMaster, setIconMaster] = useState(ICON_MASTER_DATA);
   const [editingIconId, setEditingIconId] = useState<string | null>(null);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [showAddNoteType, setShowAddNoteType] = useState(false);
   const [showAddCancelReason, setShowAddCancelReason] = useState(false);
+  const [showAddMemoTemplate, setShowAddMemoTemplate] = useState(false);
   const [showEditCancelReason, setShowEditCancelReason] = useState(false);
   const [editingCancelReason, setEditingCancelReason] = useState<any>(null);
   const [newPosition, setNewPosition] = useState({
@@ -866,6 +880,10 @@ export default function SettingsPage() {
     is_active: true,
   });
   const [newCancelReason, setNewCancelReason] = useState({
+    name: "",
+    is_active: true,
+  });
+  const [newMemoTemplate, setNewMemoTemplate] = useState({
     name: "",
     is_active: true,
   });
@@ -1273,6 +1291,10 @@ export default function SettingsPage() {
                 email_subject: t.email_subject || "",
                 email_message: t.email_message || "",
                 sms_message: t.sms_message || "",
+                auto_send_enabled: t.auto_send_enabled || false,
+                auto_send_trigger: t.auto_send_trigger || "manual",
+                auto_send_timing_value: t.auto_send_timing_value || 3,
+                auto_send_timing_unit: t.auto_send_timing_unit || "days_before",
               })),
             );
           }
@@ -1463,15 +1485,17 @@ export default function SettingsPage() {
     // マスタデータの読み込み
     const loadMasterData = async () => {
       try {
-        const [positionsData, noteTypesData, cancelReasonsData] =
+        const [positionsData, noteTypesData, cancelReasonsData, memoTemplatesData] =
           await Promise.all([
           getStaffPositions(DEMO_CLINIC_ID),
           getPatientNoteTypes(DEMO_CLINIC_ID),
             getCancelReasons(DEMO_CLINIC_ID),
+            getMemoTemplates(DEMO_CLINIC_ID),
           ]);
         setStaffPositions(positionsData);
         setPatientNoteTypes(noteTypesData);
         setCancelReasons(cancelReasonsData);
+        setMemoTemplates(memoTemplatesData);
       } catch (error) {
         console.error("マスタデータ読み込みエラー:", error);
       }
@@ -2821,6 +2845,100 @@ export default function SettingsPage() {
     setShowEditCancelReason(true);
   };
 
+  // メモテンプレート追加
+  const handleAddMemoTemplate = async () => {
+    try {
+      setSaving(true);
+      await createMemoTemplate(DEMO_CLINIC_ID, newMemoTemplate);
+
+      // データを再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      setMemoTemplates(data);
+
+      setNewMemoTemplate({
+        name: "",
+        is_active: true,
+      });
+      setShowAddMemoTemplate(false);
+    } catch (error) {
+      console.error("メモテンプレート追加エラー:", error);
+      alert("メモテンプレートの追加に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateMemoTemplate = async (templateId: string, updates: Partial<MemoTemplate>) => {
+    try {
+      setSaving(true);
+      await updateMemoTemplate(DEMO_CLINIC_ID, templateId, updates);
+
+      // データを再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      setMemoTemplates(data);
+    } catch (error) {
+      console.error("メモテンプレート更新エラー:", error);
+      alert("メモテンプレートの更新に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteMemoTemplate = async (templateId: string) => {
+    if (!confirm("このメモテンプレートを削除しますか？")) return;
+
+    try {
+      setSaving(true);
+      await deleteMemoTemplate(DEMO_CLINIC_ID, templateId);
+
+      // データを再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      setMemoTemplates(data);
+    } catch (error) {
+      console.error("メモテンプレート削除エラー:", error);
+      alert("メモテンプレートの削除に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // メモテンプレートの並び順を更新
+  const handleReorderMemoTemplates = async (startIndex: number, endIndex: number) => {
+    console.log('並び替え開始:', { startIndex, endIndex });
+    console.log('現在のテンプレート:', memoTemplates);
+
+    const result = Array.from(memoTemplates);
+    const [removed] = result.splice(startIndex, 1);
+    result.splice(endIndex, 0, removed);
+
+    console.log('並び替え後のテンプレート:', result);
+
+    // 楽観的更新
+    setMemoTemplates(result);
+
+    try {
+      // 各テンプレートの並び順を更新
+      for (let i = 0; i < result.length; i++) {
+        console.log(`更新中: ${result[i].name} の並び順を ${i} に設定`);
+        await updateMemoTemplate(DEMO_CLINIC_ID, result[i].id, {
+          sort_order: i
+        });
+      }
+
+      console.log('並び順更新完了、データを再読み込み');
+      // データを再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      console.log('再読み込み後のデータ:', data);
+      setMemoTemplates(data);
+    } catch (error) {
+      console.error("並び順更新エラー:", error);
+      alert("並び順の更新に失敗しました");
+      // エラー時は再読み込み
+      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      setMemoTemplates(data);
+    }
+  };
+
   const handleSaveEditCancelReason = async () => {
     if (!editingCancelReason) {
       console.error("編集するキャンセル理由がありません");
@@ -2937,6 +3055,16 @@ export default function SettingsPage() {
             }`}
           >
             キャンセル
+          </button>
+          <button
+            onClick={() => setSelectedMasterTab("memo")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              selectedMasterTab === "memo"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            メモ
           </button>
         </nav>
       </div>
@@ -3535,6 +3663,148 @@ export default function SettingsPage() {
                     disabled={saving || !editingCancelReason.name.trim()}
                   >
                     {saving ? "保存中..." : "保存"}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </div>
+      )}
+
+      {/* メモタブのコンテンツ */}
+      {selectedMasterTab === "memo" && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">メモテンプレート</h3>
+              <p className="text-sm text-gray-500">予約メモで使用するテンプレートを管理します</p>
+            </div>
+            <Button onClick={() => setShowAddMemoTemplate(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              新規追加
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {memoTemplates.map((template, index) => (
+              <div
+                key={template.id}
+                draggable
+                onDragStart={(e) => {
+                  console.log('ドラッグ開始:', index);
+                  setDraggedTemplateIndex(index);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('ドロップ:', { from: draggedTemplateIndex, to: index });
+                  if (draggedTemplateIndex !== null && draggedTemplateIndex !== index) {
+                    handleReorderMemoTemplates(draggedTemplateIndex, index);
+                  }
+                  setDraggedTemplateIndex(null);
+                }}
+                onDragEnd={() => {
+                  console.log('ドラッグ終了');
+                  setDraggedTemplateIndex(null);
+                }}
+                className={`flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg cursor-move ${
+                  draggedTemplateIndex === index ? 'opacity-50' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3 flex-1">
+                  <GripVertical className="w-5 h-5 text-gray-400" />
+                  <div className="font-medium text-gray-900">{template.name}</div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={template.is_active}
+                    onChange={(e) => {
+                      handleUpdateMemoTemplate(template.id, { is_active: e.target.checked })
+                    }}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      const newName = prompt('新しいテンプレート名を入力してください:', template.name)
+                      if (newName && newName.trim()) {
+                        handleUpdateMemoTemplate(template.id, {
+                          name: newName.trim()
+                        })
+                      }
+                    }}
+                    className="p-1 text-gray-400 hover:text-blue-600"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMemoTemplate(template.id)}
+                    className="p-1 text-gray-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {memoTemplates.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">メモテンプレートが登録されていません</p>
+                <Button
+                  onClick={() => setShowAddMemoTemplate(true)}
+                  className="mt-2"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  最初のメモテンプレートを追加
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* メモテンプレート追加モーダル */}
+          {showAddMemoTemplate && (
+            <Modal
+              isOpen={showAddMemoTemplate}
+              onClose={() => setShowAddMemoTemplate(false)}
+              title="新しいメモテンプレートを追加"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="memo_template_name">テンプレート名</Label>
+                  <Input
+                    id="memo_template_name"
+                    value={newMemoTemplate.name}
+                    onChange={(e) => setNewMemoTemplate(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="例: 初診"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="memo_template_active"
+                    checked={newMemoTemplate.is_active}
+                    onCheckedChange={(checked) => setNewMemoTemplate(prev => ({ ...prev, is_active: checked as boolean }))}
+                  />
+                  <Label htmlFor="memo_template_active">有効</Label>
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddMemoTemplate(false)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={handleAddMemoTemplate}
+                    disabled={saving || !newMemoTemplate.name.trim()}
+                  >
+                    {saving ? '追加中...' : '追加'}
                   </Button>
                 </div>
               </div>
@@ -8639,6 +8909,10 @@ export default function SettingsPage() {
                         email_subject: "",
                         email_message: "",
                         sms_message: "",
+                        auto_send_enabled: false,
+                        auto_send_trigger: "manual",
+                        auto_send_timing_value: 3,
+                        auto_send_timing_unit: "days_before",
                       });
                       setActiveChannelTab("line");
                       setShowTemplateModal(true);
@@ -8666,42 +8940,20 @@ export default function SettingsPage() {
                         className="border border-gray-200 rounded-lg p-2.5 hover:bg-gray-50 transition-colors"
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-1">
                             <h4 className="text-sm font-medium text-gray-900">
                               {template.name}
                             </h4>
-                              <div className="flex gap-1">
-                                {template.line_message && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
-                                  LINE
-                                </span>
-                                )}
-                                {template.email_message && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                                  メール
-                                </span>
-                                )}
-                                {template.sms_message && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                  SMS
-                                </span>
-                                )}
-                              </div>
-                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                              {template.notification_type ===
-                              "appointment_reminder"
-                                ? "予約リマインド"
-                                : template.notification_type ===
-                                    "periodic_checkup"
-                                  ? "定期検診"
-                                  : template.notification_type ===
-                                      "treatment_reminder"
-                                    ? "治療リマインド"
-                                    : template.notification_type ===
-                                        "appointment_change"
-                                      ? "予約変更"
-                                      : "カスタム"}
+                            {/* 送信タイミング表示 */}
+                            {template.auto_send_enabled && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+                                {template.auto_send_trigger === "appointment_created" && "予約作成時に送信"}
+                                {template.auto_send_trigger === "appointment_date" &&
+                                  `予約日の${template.auto_send_timing_value}${template.auto_send_timing_unit === "days_before" ? "日前" : "日後"}に送信`}
+                                {template.auto_send_trigger === "line_linked" && "LINE連携時に送信"}
+                                {template.auto_send_trigger === "manual" && "手動送信のみ"}
                               </span>
+                            )}
                             </div>
                           <div className="flex items-center gap-1.5">
                             <Button
@@ -8716,6 +8968,10 @@ export default function SettingsPage() {
                                   email_subject: template.email_subject || "",
                                   email_message: template.email_message || "",
                                   sms_message: template.sms_message || "",
+                                  auto_send_enabled: template.auto_send_enabled || false,
+                                  auto_send_trigger: template.auto_send_trigger || "manual",
+                                  auto_send_timing_value: template.auto_send_timing_value || 3,
+                                  auto_send_timing_unit: template.auto_send_timing_unit || "days_before",
                                 });
                                 setActiveChannelTab("line");
                                 setShowTemplateModal(true);
@@ -8797,7 +9053,62 @@ export default function SettingsPage() {
                             <option value="custom">カスタム</option>
                           </select>
                         </div>
+                          {/* 自動送信設定 */}
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={templateForm.auto_send_enabled}
+                                onChange={(e) => setTemplateForm({ ...templateForm, auto_send_enabled: e.target.checked })}
+                                className="w-4 h-4"
+                              />
+                              <span className="text-sm font-medium">自動送信</span>
+                            </label>
+                          </div>
                         </div>
+                        {/* 自動送信設定の詳細 */}
+                        {templateForm.auto_send_enabled && (
+                          <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
+                            <div className="flex items-center gap-4">
+                              <label className="text-sm font-medium text-gray-700">送信タイミング:</label>
+                              <select
+                                value={templateForm.auto_send_trigger}
+                                onChange={(e) => setTemplateForm({ ...templateForm, auto_send_trigger: e.target.value as any })}
+                                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+                              >
+                                <option value="appointment_created">予約作成時</option>
+                                <option value="appointment_date">予約日から</option>
+                                <option value="line_linked">LINE連携時</option>
+                                <option value="manual">手動のみ</option>
+                              </select>
+                              {templateForm.auto_send_trigger === 'appointment_date' && (
+                                <>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={templateForm.auto_send_timing_value || 1}
+                                    onChange={(e) => setTemplateForm({ ...templateForm, auto_send_timing_value: parseInt(e.target.value) || 1 })}
+                                    className="w-16 px-2 py-1.5 border border-gray-300 rounded-md text-sm"
+                                  />
+                                  <select
+                                    value={templateForm.auto_send_timing_unit}
+                                    onChange={(e) => setTemplateForm({ ...templateForm, auto_send_timing_unit: e.target.value as any })}
+                                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+                                  >
+                                    <option value="days_before">日前</option>
+                                    <option value="days_after">日後</option>
+                                  </select>
+                                </>
+                              )}
+                              {templateForm.auto_send_trigger === 'appointment_created' && (
+                                <span className="text-sm text-gray-600">→ 予約作成直後に自動送信</span>
+                              )}
+                              {templateForm.auto_send_trigger === 'line_linked' && (
+                                <span className="text-sm text-gray-600">→ LINE連携完了時に自動送信</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div className="flex items-center gap-3">
                           <Button
                             variant="outline"
@@ -8841,6 +9152,10 @@ export default function SettingsPage() {
                                         email_message:
                                           templateForm.email_message,
                                         sms_message: templateForm.sms_message,
+                                        auto_send_enabled: templateForm.auto_send_enabled,
+                                        auto_send_trigger: templateForm.auto_send_trigger,
+                                        auto_send_timing_value: templateForm.auto_send_timing_value,
+                                        auto_send_timing_unit: templateForm.auto_send_timing_unit,
                                       }),
                                     },
                                   );
@@ -8875,6 +9190,10 @@ export default function SettingsPage() {
                                         email_message:
                                           templateForm.email_message,
                                         sms_message: templateForm.sms_message,
+                                        auto_send_enabled: templateForm.auto_send_enabled,
+                                        auto_send_trigger: templateForm.auto_send_trigger,
+                                        auto_send_timing_value: templateForm.auto_send_timing_value,
+                                        auto_send_timing_unit: templateForm.auto_send_timing_unit,
                                       }),
                                     },
                                   );

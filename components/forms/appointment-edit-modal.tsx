@@ -27,7 +27,8 @@ import {
   CreditCard,
   CheckCircle,
   Type,
-  Highlighter
+  Highlighter,
+  FileCode
 } from 'lucide-react'
 import { getPatients, createPatient } from '@/lib/api/patients'
 import { getTreatmentMenus } from '@/lib/api/treatment'
@@ -35,8 +36,10 @@ import Link from 'next/link'
 import { getStaff } from '@/lib/api/staff'
 import { getBusinessHours, getBreakTimes } from '@/lib/api/clinic'
 import { getAppointments, updateAppointment } from '@/lib/api/appointments'
+import { getMemoTemplates, MemoTemplate } from '@/lib/api/memo-templates'
 import { getUnits, getStaffUnitPriorities, Unit, StaffUnitPriority } from '@/lib/api/units'
 import { logAppointmentChange, logAppointmentCreation } from '@/lib/api/appointment-logs'
+import { createAutoNotificationsForAppointment } from '@/lib/api/auto-notification'
 import { getUnlinkedQuestionnaireResponses, linkQuestionnaireResponseToPatient, unlinkQuestionnaireResponse, QuestionnaireResponse, debugQuestionnaireResponses } from '@/lib/api/questionnaires'
 import { MOCK_MODE, initializeMockData } from '@/lib/utils/mock-mode'
 import { Patient, TreatmentMenu, Staff } from '@/types/database'
@@ -222,6 +225,11 @@ export function AppointmentEditModal({
   // メモ欄の書式設定状態
   const [activeTextColor, setActiveTextColor] = useState<string | null>(null)
   const [activeMarkerColor, setActiveMarkerColor] = useState<string | null>(null)
+
+  // メモテンプレート関連
+  const [memoTemplates, setMemoTemplates] = useState<MemoTemplate[]>([])
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
+  const savedSelectionRef = useRef<Range | null>(null)
 
   // メモ欄の内容を初期化
   useEffect(() => {
@@ -662,34 +670,57 @@ export function AppointmentEditModal({
     }
   }, [isOpen, selectedStaffIndex, selectedUnitIndex, workingStaff, allUnits, appointmentData.start_time, appointmentData.end_time, selectedDate])
 
+  // 患者の予約履歴を読み込む関数
+  const loadPatientAppointments = async () => {
+    if (selectedPatient && isOpen) {
+      try {
+        console.log('患者の予約履歴を取得:', selectedPatient.id)
+        const appointments = await getAppointments(clinicId)
+        console.log('取得した全予約:', appointments)
+
+        // 選択された患者の予約のみをフィルタリングし、日時順（最新が上）にソート
+        const patientAppointments = appointments
+          .filter(apt => apt.patient_id === selectedPatient.id)
+          .sort((a, b) => {
+            // 日付と時刻を組み合わせて比較
+            const dateTimeA = `${a.appointment_date} ${a.start_time}`
+            const dateTimeB = `${b.appointment_date} ${b.start_time}`
+            // 降順（最新が上）
+            return dateTimeB.localeCompare(dateTimeA)
+          })
+        console.log('患者の予約履歴（日時順）:', patientAppointments)
+
+        setPatientAppointments(patientAppointments)
+      } catch (error) {
+        console.error('予約履歴の取得エラー:', error)
+        setPatientAppointments([])
+      }
+    } else {
+      setPatientAppointments([])
+    }
+  }
+
   // 患者が選択された時に予約履歴を取得
   useEffect(() => {
-    const loadPatientAppointments = async () => {
-      if (selectedPatient && isOpen) {
-        try {
-          console.log('患者の予約履歴を取得:', selectedPatient.id)
-          const appointments = await getAppointments(clinicId)
-          console.log('取得した全予約:', appointments)
-          
-          // 選択された患者の予約のみをフィルタリング
-          const patientAppointments = appointments.filter(apt => 
-            apt.patient_id === selectedPatient.id
-          )
-          console.log('患者の予約履歴:', patientAppointments)
-          
-          setPatientAppointments(patientAppointments)
-        } catch (error) {
-          console.error('予約履歴の取得エラー:', error)
-          setPatientAppointments([])
-        }
-      } else {
-        setPatientAppointments([])
+    loadPatientAppointments()
+  }, [selectedPatient, isOpen, clinicId])
+
+  // メモテンプレートを取得
+  useEffect(() => {
+    const loadMemoTemplates = async () => {
+      try {
+        const templates = await getMemoTemplates(clinicId)
+        setMemoTemplates(templates)
+      } catch (error) {
+        console.error('メモテンプレート取得エラー:', error)
       }
     }
 
-    loadPatientAppointments()
-  }, [selectedPatient, isOpen, clinicId])
-  
+    if (isOpen) {
+      loadMemoTemplates()
+    }
+  }, [clinicId, isOpen])
+
   // 新規患者データ
   const [newPatientData, setNewPatientData] = useState({
     last_name: '',
@@ -1073,6 +1104,57 @@ export function AppointmentEditModal({
     }))
   }
 
+  // メモテンプレートを挿入
+  const insertMemoTemplate = (template: MemoTemplate) => {
+    if (memoRef.current) {
+      // 保存されたカーソル位置を復元
+      if (savedSelectionRef.current) {
+        const selection = window.getSelection()
+        if (selection) {
+          selection.removeAllRanges()
+          selection.addRange(savedSelectionRef.current.cloneRange())
+        }
+      }
+
+      // カーソル位置を取得
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+
+        // テンプレートテキストをスパンで囲む
+        const span = document.createElement('span')
+        span.style.color = 'rgb(0, 0, 0)'
+        span.textContent = template.name
+
+        // カーソル位置に挿入
+        range.deleteContents()
+        range.insertNode(span)
+
+        // カーソルを挿入したテキストの後ろに移動
+        range.setStartAfter(span)
+        range.setEndAfter(span)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      } else {
+        // カーソル位置が取得できない場合は末尾に追加
+        const currentContent = memoRef.current.innerHTML
+        const templateText = `<span style="color: rgb(0, 0, 0);">${template.name}</span>`
+        memoRef.current.innerHTML = currentContent + templateText
+      }
+
+      // appointmentDataも更新
+      setAppointmentData(prev => ({
+        ...prev,
+        memo: memoRef.current!.innerHTML
+      }))
+
+      // フォーカスを戻す
+      memoRef.current.focus()
+    }
+
+    setShowTemplateDropdown(false)
+  }
+
   // 予約保存
   const handleSave = async () => {
     try {
@@ -1080,6 +1162,7 @@ export function AppointmentEditModal({
 
       // メモ欄の現在の内容を取得（onBlurが発火していない場合に備えて）
       const currentMemo = memoRef.current ? memoRef.current.innerHTML : appointmentData.memo
+      console.log('保存時のメモ内容:', { currentMemo, fromRef: memoRef.current?.innerHTML, fromState: appointmentData.memo })
 
       let patientToUse = selectedPatient
 
@@ -1141,33 +1224,23 @@ export function AppointmentEditModal({
       
       // 検証OKの場合は保存
       if (editingAppointment && editingAppointment.id) {
-        // 既存の予約を更新
-        const oldData = {
-          start_time: editingAppointment.start_time,
-          end_time: editingAppointment.end_time,
-          staff1_id: editingAppointment.staff1_id,
-          menu1_id: editingAppointment.menu1_id,
-          status: editingAppointment.status,
-          memo: editingAppointment.memo
+        // 既存の予約を更新 - onUpdateを使用してカレンダー側の再読み込みも実行
+        console.log('既存予約を更新します:', editingAppointment.id, appointment)
+        console.log('更新されたメモ:', appointment.memo)
+
+        // onUpdateを呼び出してカレンダー側で処理
+        if (onUpdate) {
+          await onUpdate(appointment)
+          console.log('onUpdate経由で予約を更新しました')
+        } else {
+          // onUpdateが提供されていない場合は直接更新（後方互換性のため）
+          await updateAppointment(editingAppointment.id, appointment)
+          console.log('直接updateAppointmentで予約を更新しました')
         }
-        
-        await updateAppointment(editingAppointment.id, appointment)
-        console.log('既存予約を更新:', editingAppointment.id, appointment)
-        
-        // 予約変更ログを記録
-        try {
-          await logAppointmentChange(
-            editingAppointment.id,
-            editingAppointment.patient_id,
-            oldData,
-            appointment,
-            'system', // 実際の実装では現在のスタッフIDを取得
-            '予約情報を更新しました'
-          )
-        } catch (error) {
-          console.error('予約変更ログの記録に失敗:', error)
-          // ログ記録の失敗は予約操作を止めない
-        }
+
+        // 予約履歴を再読み込み
+        await loadPatientAppointments()
+        console.log('予約履歴を再読み込みしました')
       } else {
         // 新規予約を作成
         const newAppointmentId = await onSave(appointment)
@@ -1185,16 +1258,32 @@ export function AppointmentEditModal({
             console.error('予約作成ログの記録に失敗:', error)
             // ログ記録の失敗は予約操作を止めない
           }
+
+          // 自動通知スケジュールを作成
+          try {
+            await createAutoNotificationsForAppointment(
+              clinicId,
+              patientToUse.id,
+              selectedDate, // YYYY-MM-DD形式の予約日
+              appointment.start_time
+            )
+            console.log('自動通知スケジュールを作成しました')
+          } catch (error) {
+            console.error('自動通知スケジュール作成エラー:', error)
+            // 自動通知の失敗は予約操作を止めない
+          }
         } else {
           console.warn('予約IDが取得できなかったため、ログを作成できませんでした')
         }
       }
+      console.log('予約保存完了、モーダルを閉じます')
       onClose()
     } catch (error) {
       console.error('予約保存エラー:', error)
       alert('予約の保存に失敗しました')
     } finally {
       setSaving(false)
+      console.log('saving状態をfalseに設定しました')
     }
   }
 
@@ -1233,32 +1322,22 @@ export function AppointmentEditModal({
       
       if (pendingAppointmentData) {
         if (editingAppointment && editingAppointment.id) {
-          // 既存の予約を更新
-          const oldData = {
-            start_time: editingAppointment.start_time,
-            end_time: editingAppointment.end_time,
-            staff1_id: editingAppointment.staff1_id,
-            menu1_id: editingAppointment.menu1_id,
-            status: editingAppointment.status,
-            memo: editingAppointment.memo
-          }
-          
-          await updateAppointment(editingAppointment.id, pendingAppointmentData)
+          // 既存の予約を更新 - onUpdateを使用してカレンダー側の再読み込みも実行
           console.log('既存予約を更新（警告後）:', editingAppointment.id, pendingAppointmentData)
-          
-          // 予約変更ログを記録
-          try {
-            await logAppointmentChange(
-              editingAppointment.id,
-              editingAppointment.patient_id,
-              oldData,
-              pendingAppointmentData,
-              'system',
-              '予約情報を更新しました（警告後）'
-            )
-          } catch (error) {
-            console.error('予約変更ログの記録に失敗:', error)
+
+          // onUpdateを呼び出してカレンダー側で処理
+          if (onUpdate) {
+            await onUpdate(pendingAppointmentData)
+            console.log('onUpdate経由で予約を更新しました（警告後）')
+          } else {
+            // onUpdateが提供されていない場合は直接更新（後方互換性のため）
+            await updateAppointment(editingAppointment.id, pendingAppointmentData)
+            console.log('直接updateAppointmentで予約を更新しました（警告後）')
           }
+
+          // 予約履歴を再読み込み
+          await loadPatientAppointments()
+          console.log('予約履歴を再読み込みしました（警告後）')
         } else {
           // 新規予約を作成
           const newAppointmentId = await onSave(pendingAppointmentData)
@@ -1274,6 +1353,19 @@ export function AppointmentEditModal({
               )
             } catch (error) {
               console.error('予約作成ログの記録に失敗:', error)
+            }
+
+            // 自動通知スケジュールを作成
+            try {
+              await createAutoNotificationsForAppointment(
+                clinicId,
+                selectedPatient?.id || '',
+                selectedDate,
+                pendingAppointmentData.start_time
+              )
+              console.log('自動通知スケジュールを作成しました（警告後）')
+            } catch (error) {
+              console.error('自動通知スケジュール作成エラー:', error)
             }
           } else {
             console.warn('予約IDが取得できなかったため、ログを作成できませんでした（警告後）')
@@ -1565,11 +1657,11 @@ export function AppointmentEditModal({
                 <h3 className="text-base font-medium mb-4 flex-shrink-0">予約履歴</h3>
                 <div className="border border-gray-200 rounded-md flex-1 flex flex-col bg-white min-h-0">
                   <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex-shrink-0">
-                    <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-600">
-                      <div>予約日時</div>
-                      <div>担当</div>
-                      <div>メニュー</div>
-                      <div>キャンセル</div>
+                    <div className="flex gap-2 text-sm font-medium text-gray-600">
+                      <div className="w-[130px]">予約日時</div>
+                      <div className="w-[80px]">担当</div>
+                      <div className="w-[80px]">メニュー</div>
+                      <div className="flex-1">メモ</div>
                     </div>
                   </div>
                   <div 
@@ -1592,21 +1684,17 @@ export function AppointmentEditModal({
                             
                             return (
                               <div key={appointment.id || index} className="px-4 py-3">
-                                <div className="grid grid-cols-4 gap-4 text-sm">
-                                  <div className="text-gray-900">
-                                    <div className="flex items-start justify-between">
-                                      <div>
-                                        <div>{formattedDate}</div>
-                                        <div className="flex items-center gap-2">
-                                          <span>{appointment.start_time}</span>
-                                          {appointment.status === 'cancelled' && (
-                                            <span className="text-red-600" style={{ fontSize: "10px" }}>キャンセル</span>
-                                          )}
-                                        </div>
-                                      </div>
+                                <div className="flex gap-2 text-sm">
+                                  <div className="w-[130px] text-gray-900">
+                                    <div>{formattedDate}</div>
+                                    <div className="flex items-center gap-2">
+                                      <span>{appointment.start_time}</span>
+                                      {appointment.status === 'cancelled' && (
+                                        <span className="text-red-600" style={{ fontSize: "10px" }}>キャンセル</span>
+                                      )}
                                     </div>
                                   </div>
-                                  <div className="overflow-hidden">
+                                  <div className="w-[80px] overflow-hidden">
                                     <div
                                       className="break-words"
                                       style={{
@@ -1627,7 +1715,7 @@ export function AppointmentEditModal({
                                       )}
                                     </div>
                                   </div>
-                                  <div className="text-gray-900 overflow-hidden">
+                                  <div className="w-[80px] text-gray-900 overflow-hidden">
                                     <div
                                       className="break-words"
                                       style={{
@@ -1642,8 +1730,21 @@ export function AppointmentEditModal({
                                       {menuName}
                                     </div>
                                   </div>
-                                  <div className="text-gray-500">
-                                    {appointment.cancel_reason || '-'}
+                                  <div className="flex-1 text-gray-500 overflow-hidden">
+                                    <div
+                                      className="break-words"
+                                      style={{
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        lineHeight: '1.2',
+                                        maxHeight: '2.4em'
+                                      }}
+                                      dangerouslySetInnerHTML={{
+                                        __html: appointment.memo || '-'
+                                      }}
+                                    />
                                   </div>
                                 </div>
                               </div>
@@ -1702,7 +1803,7 @@ export function AppointmentEditModal({
                       : 'text-gray-300 cursor-not-allowed'
                   }`}
                 >
-                  連絡予定
+                  通知設定
                 </button>
               </div>
 
@@ -2026,6 +2127,51 @@ export function AppointmentEditModal({
                       >
                         <Highlighter className="w-2 h-2" />
                       </button>
+                      {/* テンプレートボタン */}
+                      <div className="relative ml-1">
+                        <button
+                          type="button"
+                          className="h-4 w-4 rounded border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            // カーソル位置を保存
+                            const selection = window.getSelection()
+                            if (selection && selection.rangeCount > 0) {
+                              savedSelectionRef.current = selection.getRangeAt(0).cloneRange()
+                            }
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setShowTemplateDropdown(!showTemplateDropdown)
+                          }}
+                          title="テンプレート"
+                        >
+                          <FileCode className="w-2 h-2" />
+                        </button>
+                        {/* テンプレートドロップダウン */}
+                        {showTemplateDropdown && (
+                          <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                            <div className="py-1">
+                              {memoTemplates.length > 0 ? (
+                                memoTemplates.map(template => (
+                                  <button
+                                    key={template.id}
+                                    type="button"
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    onClick={() => insertMemoTemplate(template)}
+                                  >
+                                    {template.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-4 py-2 text-sm text-gray-500">
+                                  テンプレートがありません
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div
@@ -2033,8 +2179,13 @@ export function AppointmentEditModal({
                     id="notes"
                     contentEditable
                     suppressContentEditableWarning
-                    onKeyDown={(e) => {
-                      // 入力時に色を適用
+                    onBeforeInput={(e: any) => {
+                      // 文字入力時のみ色を適用（削除操作は除外）
+                      if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+                        return
+                      }
+
+                      // 文字入力時のみ色を適用
                       document.execCommand('styleWithCSS', false, 'true')
                       if (activeTextColor) {
                         document.execCommand('foreColor', false, activeTextColor)
@@ -2045,6 +2196,20 @@ export function AppointmentEditModal({
                         document.execCommand('backColor', false, activeMarkerColor)
                       } else {
                         document.execCommand('backColor', false, 'transparent')
+                      }
+                    }}
+                    onClick={() => {
+                      // カーソル位置を保存
+                      const selection = window.getSelection()
+                      if (selection && selection.rangeCount > 0) {
+                        savedSelectionRef.current = selection.getRangeAt(0).cloneRange()
+                      }
+                    }}
+                    onKeyUp={() => {
+                      // キー入力後のカーソル位置を保存（Reactの再レンダリングを避けるためrefのみ更新）
+                      const selection = window.getSelection()
+                      if (selection && selection.rangeCount > 0) {
+                        savedSelectionRef.current = selection.getRangeAt(0).cloneRange()
                       }
                     }}
                     onMouseUp={() => {
@@ -2063,9 +2228,14 @@ export function AppointmentEditModal({
                           document.execCommand('backColor', false, 'transparent')
                         }
                       }
+                      // カーソル位置を保存
+                      if (selection && selection.rangeCount > 0) {
+                        savedSelectionRef.current = selection.getRangeAt(0).cloneRange()
+                      }
                     }}
                     onBlur={(e) => {
                       const html = e.currentTarget.innerHTML
+                      console.log('メモブラー:', html)
                       setAppointmentData(prev => ({ ...prev, memo: html }))
                     }}
                     className="mt-1 min-h-[160px] p-3 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
@@ -2125,7 +2295,7 @@ export function AppointmentEditModal({
                   )}
                 </div>
               ) : (
-                /* 連絡予定タブ */
+                /* 通知設定タブ */
                 <div className="flex-1 overflow-hidden">
                   {selectedPatient && selectedPatient.is_registered ? (
                     <PatientNotificationTab patientId={selectedPatient.id} clinicId={clinicId} />
@@ -2133,7 +2303,7 @@ export function AppointmentEditModal({
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">
                         <p className="mb-2">仮登録の患者です</p>
-                        <p className="text-sm">本登録後に連絡予定が利用可能になります</p>
+                        <p className="text-sm">本登録後に通知設定が利用可能になります</p>
                       </div>
                     </div>
                   ) : (
@@ -2396,10 +2566,22 @@ export function AppointmentEditModal({
         appointmentId={editingAppointment.id}
         patientName={selectedPatient ? `${selectedPatient.last_name} ${selectedPatient.first_name}` : '患者情報なし'}
         appointmentTime={`${appointmentData.start_time} - ${appointmentData.end_time}`}
+        existingMemo={appointmentData.memo}
+        appointmentData={editingAppointment}
         onCancelSuccess={() => {
           setShowCancelModal(false)
           onClose()
           // キャンセル成功後にカレンダーを再読み込み
+          onAppointmentCancel?.()
+        }}
+        onCancelAndReschedule={(appointment) => {
+          setShowCancelModal(false)
+          // コピー機能を実行
+          if (onCopyAppointment) {
+            onCopyAppointment(appointment)
+          }
+          onClose()
+          // カレンダーを再読み込み
           onAppointmentCancel?.()
         }}
       />

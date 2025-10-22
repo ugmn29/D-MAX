@@ -15,6 +15,9 @@ interface CancelReasonModalProps {
   patientName: string
   appointmentTime: string
   onCancelSuccess: () => void
+  existingMemo?: string // 既存のメモ
+  appointmentData?: any // 予約データ全体（コピー用）
+  onCancelAndReschedule?: (appointment: any) => void // キャンセルして別日予約
 }
 
 export function CancelReasonModal({
@@ -23,10 +26,14 @@ export function CancelReasonModal({
   appointmentId,
   patientName,
   appointmentTime,
-  onCancelSuccess
+  onCancelSuccess,
+  existingMemo = '',
+  appointmentData,
+  onCancelAndReschedule
 }: CancelReasonModalProps) {
   const [cancelReasons, setCancelReasons] = useState<CancelReason[]>([])
   const [selectedReasonId, setSelectedReasonId] = useState<string>('')
+  const [cancelMemo, setCancelMemo] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -58,9 +65,46 @@ export function CancelReasonModal({
 
     try {
       setSaving(true)
-      // デモスタッフIDを使用
-      await cancelAppointment(appointmentId, selectedReasonId, '11111111-1111-1111-1111-111111111111')
+      // デモスタッフIDを使用、キャンセルメモも渡す
+      await cancelAppointment(
+        appointmentId,
+        selectedReasonId,
+        '11111111-1111-1111-1111-111111111111',
+        cancelMemo.trim() || undefined
+      )
       onCancelSuccess()
+      onClose()
+    } catch (error) {
+      console.error('予約キャンセルエラー:', error)
+      alert('予約のキャンセルに失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelAndReschedule = async () => {
+    if (!selectedReasonId) {
+      alert('キャンセル理由を選択してください')
+      return
+    }
+
+    if (!appointmentData || !onCancelAndReschedule) {
+      alert('予約データが見つかりません')
+      return
+    }
+
+    try {
+      setSaving(true)
+      // 予約をキャンセル
+      await cancelAppointment(
+        appointmentId,
+        selectedReasonId,
+        '11111111-1111-1111-1111-111111111111',
+        cancelMemo.trim() || undefined
+      )
+
+      // コピーモードに入る
+      onCancelAndReschedule(appointmentData)
       onClose()
     } catch (error) {
       console.error('予約キャンセルエラー:', error)
@@ -139,17 +183,39 @@ export function CancelReasonModal({
               )}
             </div>
 
+            {/* メモ欄 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                メモ（任意）
+              </label>
+              <textarea
+                value={cancelMemo}
+                onChange={(e) => setCancelMemo(e.target.value)}
+                placeholder="キャンセルに関する補足事項があれば入力してください"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-y"
+              />
+            </div>
+
             {/* アクションボタン */}
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={onClose}>
                 キャンセル
               </Button>
-              <Button 
+              {onCancelAndReschedule && appointmentData && (
+                <Button
+                  onClick={handleCancelAndReschedule}
+                  disabled={!selectedReasonId || saving}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {saving ? '処理中...' : 'キャンセルして別日予約'}
+                </Button>
+              )}
+              <Button
                 onClick={handleCancel}
                 disabled={!selectedReasonId || saving}
-                className="bg-red-600 hover:bg-red-700"
+                className="bg-red-600 hover:bg-red-700 text-white"
               >
-                {saving ? 'キャンセル中...' : '予約をキャンセル'}
+                {saving ? 'キャンセル中...' : '予約キャンセル'}
               </Button>
             </div>
           </CardContent>

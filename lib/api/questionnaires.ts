@@ -403,6 +403,7 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
 
 /**
  * 問診票回答を患者に連携
+ * 連携時に本登録完了処理と診察券番号の自動割り振りを行う
  */
 export async function linkQuestionnaireResponseToPatient(responseId: string, patientId: string): Promise<void> {
   if (MOCK_MODE) {
@@ -416,9 +417,18 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
 
         // 問診票から医療情報を抽出して患者データに保存
         const responseData = responses[index].response_data
-        const { updateMockPatient } = await import('@/lib/utils/mock-mode')
+        const { updateMockPatient, getMockPatients, generatePatientNumber } = await import('@/lib/utils/mock-mode')
 
         const medicalData: any = {}
+
+        // 診察券番号を自動生成
+        const patients = getMockPatients()
+        const clinicId = '11111111-1111-1111-1111-111111111111'
+        const patientNumber = generatePatientNumber(clinicId, patients)
+        medicalData.patient_number = patientNumber
+
+        // 本登録完了フラグを設定
+        medicalData.is_registered = true
 
         // アレルギー情報を取得
         // 初診問診票の場合:
