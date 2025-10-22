@@ -1266,6 +1266,125 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
               </div>
             </div>
 
+            {/* Web予約設定 */}
+            <div>
+              <Label>Web予約設定</Label>
+              <div className="p-3 bg-gray-50 rounded-md space-y-3">
+                {/* 基本設定 */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="web_booking_enabled"
+                      checked={webBookingSettings.web_booking_enabled}
+                      onCheckedChange={(checked) => setWebBookingSettings({
+                        ...webBookingSettings,
+                        web_booking_enabled: checked as boolean
+                      })}
+                      disabled={!isEditing}
+                    />
+                    <Label htmlFor="web_booking_enabled" className="cursor-pointer font-normal text-sm">
+                      Web予約を許可する
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="web_cancel_enabled"
+                      checked={webBookingSettings.web_cancel_enabled}
+                      onCheckedChange={(checked) => setWebBookingSettings({
+                        ...webBookingSettings,
+                        web_cancel_enabled: checked as boolean
+                      })}
+                      disabled={!isEditing}
+                    />
+                    <Label htmlFor="web_cancel_enabled" className="cursor-pointer font-normal text-sm">
+                      Webキャンセルを許可する
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="web_reschedule_enabled"
+                      checked={webBookingSettings.web_reschedule_enabled}
+                      onCheckedChange={(checked) => setWebBookingSettings({
+                        ...webBookingSettings,
+                        web_reschedule_enabled: checked as boolean
+                      })}
+                      disabled={!isEditing}
+                    />
+                    <Label htmlFor="web_reschedule_enabled" className="cursor-pointer font-normal text-sm">
+                      Web日程変更を許可する
+                    </Label>
+                  </div>
+                </div>
+
+                {/* 制限設定 */}
+                <div className="border-t pt-3 space-y-3">
+                  <div>
+                    <Label htmlFor="web_cancel_limit" className="text-sm">月間キャンセル回数制限</Label>
+                    <select
+                      id="web_cancel_limit"
+                      value={webBookingSettings.web_cancel_limit === null ? 'unlimited' : webBookingSettings.web_cancel_limit}
+                      onChange={(e) => setWebBookingSettings({
+                        ...webBookingSettings,
+                        web_cancel_limit: e.target.value === 'unlimited' ? null : parseInt(e.target.value)
+                      })}
+                      disabled={!isEditing}
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+                    >
+                      <option value="unlimited">無制限</option>
+                      <option value="1">1回</option>
+                      <option value="2">2回</option>
+                      <option value="3">3回</option>
+                      <option value="5">5回</option>
+                      <option value="10">10回</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="cancel_deadline_hours" className="text-sm">キャンセル可能期限</Label>
+                    <select
+                      id="cancel_deadline_hours"
+                      value={webBookingSettings.cancel_deadline_hours === null ? 'no_limit' : webBookingSettings.cancel_deadline_hours}
+                      onChange={(e) => setWebBookingSettings({
+                        ...webBookingSettings,
+                        cancel_deadline_hours: e.target.value === 'no_limit' ? null : parseInt(e.target.value)
+                      })}
+                      disabled={!isEditing}
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+                    >
+                      <option value="no_limit">制限なし</option>
+                      <option value="1">1時間前まで</option>
+                      <option value="3">3時間前まで</option>
+                      <option value="6">6時間前まで</option>
+                      <option value="12">12時間前まで</option>
+                      <option value="24">24時間前まで</option>
+                      <option value="48">48時間前まで</option>
+                      <option value="72">72時間前まで</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="max_concurrent_bookings" className="text-sm">同時予約可能件数</Label>
+                    <select
+                      id="max_concurrent_bookings"
+                      value={webBookingSettings.max_concurrent_bookings === null ? 'unlimited' : webBookingSettings.max_concurrent_bookings}
+                      onChange={(e) => setWebBookingSettings({
+                        ...webBookingSettings,
+                        max_concurrent_bookings: e.target.value === 'unlimited' ? null : parseInt(e.target.value)
+                      })}
+                      disabled={!isEditing}
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+                    >
+                      <option value="unlimited">無制限</option>
+                      <option value="1">1件</option>
+                      <option value="2">2件</option>
+                      <option value="3">3件</option>
+                      <option value="5">5件</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="special_notes">特記事項</Label>
               

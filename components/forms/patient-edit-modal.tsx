@@ -19,6 +19,10 @@ import {
   getPatientNotificationPreferences,
   upsertPatientNotificationPreferences
 } from '@/lib/api/patient-notification-preferences'
+import {
+  getPatientWebBookingSettings,
+  upsertPatientWebBookingSettings
+} from '@/lib/api/patient-web-booking-settings'
 
 interface PatientEditModalProps {
   isOpen: boolean
@@ -92,6 +96,16 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
     custom: true
   })
   const [savingPreferences, setSavingPreferences] = useState(false)
+
+  // Web予約設定
+  const [webBookingSettings, setWebBookingSettings] = useState({
+    web_booking_enabled: true,
+    web_cancel_enabled: true,
+    web_reschedule_enabled: true,
+    web_cancel_limit: null as number | null,
+    cancel_deadline_hours: null as number | null,
+    max_concurrent_bookings: null as number | null
+  })
 
   // 患者データが変更されたら編集データを更新
   useEffect(() => {
@@ -255,6 +269,23 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
       }
     } catch (preferencesError) {
       console.log('通知設定の取得エラー（デフォルト値を使用）:', preferencesError)
+    }
+
+    // Web予約設定を読み込む
+    try {
+      const webBookingData = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+      if (webBookingData) {
+        setWebBookingSettings({
+          web_booking_enabled: webBookingData.web_booking_enabled,
+          web_cancel_enabled: webBookingData.web_cancel_enabled,
+          web_reschedule_enabled: webBookingData.web_reschedule_enabled,
+          web_cancel_limit: webBookingData.web_cancel_limit,
+          cancel_deadline_hours: webBookingData.cancel_deadline_hours,
+          max_concurrent_bookings: webBookingData.max_concurrent_bookings
+        })
+      }
+    } catch (webBookingError) {
+      console.log('Web予約設定の取得エラー（デフォルト値を使用）:', webBookingError)
     }
   }
 
@@ -457,6 +488,20 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
       console.log('患者情報の保存に成功しました')
 
       // 通知受信設定は既にチェックボックスの変更時に保存されているのでここでは保存しない
+
+      // Web予約設定を保存
+      try {
+        await upsertPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID, webBookingSettings)
+        console.log('Web予約設定の保存に成功しました')
+
+        // 他のコンポーネントに更新を通知
+        window.dispatchEvent(new CustomEvent('webBookingSettingsUpdated', {
+          detail: { patientId: patient.id, settings: webBookingSettings }
+        }))
+      } catch (webBookingError) {
+        console.error('Web予約設定の保存エラー:', webBookingError)
+        // エラーでも患者データの保存は続行
+      }
 
       // 親コンポーネントのコールバックを呼び出し
       if (onSave) {
@@ -907,9 +952,122 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                   </div>
                 </div>
 
+                {/* Web予約設定 */}
+                <div>
+                  <Label>Web予約設定</Label>
+                  <div className="p-3 bg-gray-50 rounded-md space-y-3">
+                    {/* 基本設定 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="web_booking_enabled_modal"
+                          checked={webBookingSettings.web_booking_enabled}
+                          onCheckedChange={(checked) => setWebBookingSettings({
+                            ...webBookingSettings,
+                            web_booking_enabled: checked as boolean
+                          })}
+                        />
+                        <Label htmlFor="web_booking_enabled_modal" className="cursor-pointer font-normal text-sm">
+                          Web予約を許可する
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="web_cancel_enabled_modal"
+                          checked={webBookingSettings.web_cancel_enabled}
+                          onCheckedChange={(checked) => setWebBookingSettings({
+                            ...webBookingSettings,
+                            web_cancel_enabled: checked as boolean
+                          })}
+                        />
+                        <Label htmlFor="web_cancel_enabled_modal" className="cursor-pointer font-normal text-sm">
+                          Webキャンセルを許可する
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="web_reschedule_enabled_modal"
+                          checked={webBookingSettings.web_reschedule_enabled}
+                          onCheckedChange={(checked) => setWebBookingSettings({
+                            ...webBookingSettings,
+                            web_reschedule_enabled: checked as boolean
+                          })}
+                        />
+                        <Label htmlFor="web_reschedule_enabled_modal" className="cursor-pointer font-normal text-sm">
+                          Web日程変更を許可する
+                        </Label>
+                      </div>
+                    </div>
+
+                    {/* 制限設定 */}
+                    <div className="border-t pt-3 space-y-3">
+                      <div>
+                        <Label htmlFor="web_cancel_limit_modal" className="text-sm">月間キャンセル回数制限</Label>
+                        <select
+                          id="web_cancel_limit_modal"
+                          value={webBookingSettings.web_cancel_limit === null ? 'unlimited' : webBookingSettings.web_cancel_limit}
+                          onChange={(e) => setWebBookingSettings({
+                            ...webBookingSettings,
+                            web_cancel_limit: e.target.value === 'unlimited' ? null : parseInt(e.target.value)
+                          })}
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        >
+                          <option value="unlimited">無制限</option>
+                          <option value="1">1回</option>
+                          <option value="2">2回</option>
+                          <option value="3">3回</option>
+                          <option value="5">5回</option>
+                          <option value="10">10回</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="cancel_deadline_hours_modal" className="text-sm">キャンセル可能期限</Label>
+                        <select
+                          id="cancel_deadline_hours_modal"
+                          value={webBookingSettings.cancel_deadline_hours === null ? 'no_limit' : webBookingSettings.cancel_deadline_hours}
+                          onChange={(e) => setWebBookingSettings({
+                            ...webBookingSettings,
+                            cancel_deadline_hours: e.target.value === 'no_limit' ? null : parseInt(e.target.value)
+                          })}
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        >
+                          <option value="no_limit">制限なし</option>
+                          <option value="1">1時間前まで</option>
+                          <option value="3">3時間前まで</option>
+                          <option value="6">6時間前まで</option>
+                          <option value="12">12時間前まで</option>
+                          <option value="24">24時間前まで</option>
+                          <option value="48">48時間前まで</option>
+                          <option value="72">72時間前まで</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="max_concurrent_bookings_modal" className="text-sm">同時予約可能件数</Label>
+                        <select
+                          id="max_concurrent_bookings_modal"
+                          value={webBookingSettings.max_concurrent_bookings === null ? 'unlimited' : webBookingSettings.max_concurrent_bookings}
+                          onChange={(e) => setWebBookingSettings({
+                            ...webBookingSettings,
+                            max_concurrent_bookings: e.target.value === 'unlimited' ? null : parseInt(e.target.value)
+                          })}
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        >
+                          <option value="unlimited">無制限</option>
+                          <option value="1">1件</option>
+                          <option value="2">2件</option>
+                          <option value="3">3件</option>
+                          <option value="5">5件</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <Label htmlFor="special_notes">特記事項</Label>
-                  
+
                   {/* アイコン選択UI */}
                   <div className="mb-3">
                     <Label className="text-sm text-gray-600 mb-2 block">該当するアイコンを選択</Label>
