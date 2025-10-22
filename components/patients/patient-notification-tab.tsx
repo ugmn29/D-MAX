@@ -259,6 +259,11 @@ export function PatientNotificationTab({ patientId, clinicId }: PatientNotificat
       setPreferences(newPreferences)
 
       await upsertPatientNotificationPreferences(patientId, clinicId, newPreferences)
+
+      // 他のコンポーネントに更新を通知
+      window.dispatchEvent(new CustomEvent('notificationPreferencesUpdated', {
+        detail: { patientId, preferences: newPreferences }
+      }))
     } catch (error) {
       console.error('受信設定の更新エラー:', error)
       // エラー時は元に戻す

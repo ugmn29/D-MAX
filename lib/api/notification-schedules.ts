@@ -7,6 +7,7 @@ import {
   NotificationChannel
 } from '@/types/notification'
 import { replaceTemplateVariables } from './notification-templates'
+import { canReceiveNotification } from './patient-notification-preferences'
 import crypto from 'crypto'
 
 /**
@@ -112,6 +113,18 @@ export async function createNotificationSchedule(
   params: CreateNotificationScheduleParams
 ): Promise<PatientNotificationSchedule> {
   const client = getSupabaseClient()
+
+  // 患者の通知受信設定をチェック
+  const canReceive = await canReceiveNotification(
+    params.patient_id,
+    params.clinic_id,
+    params.notification_type
+  )
+
+  if (!canReceive) {
+    console.log(`患者 ${params.patient_id} は ${params.notification_type} の受信を拒否しているため、スケジュールを作成しません`)
+    throw new Error('患者が通知受信を拒否しています')
+  }
 
   // 送信日時を計算
   const sendDatetime = calculateSendDatetime(params.timing_value, params.timing_unit)

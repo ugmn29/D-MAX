@@ -29,8 +29,18 @@ export async function getPatientNotificationPreferences(
   clinicId: string
 ): Promise<PatientNotificationPreferences | null> {
   try {
-    // 一時患者IDの場合はクエリせずにnullを返す（デフォルト値を使用）
+    // 一時患者IDの場合はlocalStorageから取得
     if (patientId.startsWith('web-booking-temp-')) {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem(`notification_preferences_${patientId}`)
+        if (stored) {
+          try {
+            return JSON.parse(stored)
+          } catch (e) {
+            console.error('通知設定の読み込みエラー:', e)
+          }
+        }
+      }
       return null
     }
 
@@ -70,9 +80,25 @@ export async function upsertPatientNotificationPreferences(
   preferences: PatientNotificationPreferencesUpdate
 ): Promise<PatientNotificationPreferences | null> {
   try {
-    // 一時患者IDの場合は更新せずにnullを返す
+    // 一時患者IDの場合はlocalStorageに保存
     if (patientId.startsWith('web-booking-temp-')) {
-      console.log('一時患者のため通知設定は保存されません')
+      console.log('一時患者のため通知設定をlocalStorageに保存します')
+      if (typeof window !== 'undefined') {
+        const data: PatientNotificationPreferences = {
+          id: `temp-${patientId}`,
+          patient_id: patientId,
+          clinic_id: clinicId,
+          appointment_reminder: preferences.appointment_reminder ?? true,
+          periodic_checkup: preferences.periodic_checkup ?? true,
+          treatment_reminder: preferences.treatment_reminder ?? true,
+          appointment_change: preferences.appointment_change ?? true,
+          custom: preferences.custom ?? true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        localStorage.setItem(`notification_preferences_${patientId}`, JSON.stringify(data))
+        return data
+      }
       return null
     }
 

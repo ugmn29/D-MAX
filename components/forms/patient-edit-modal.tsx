@@ -91,6 +91,7 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
     appointment_change: true,
     custom: true
   })
+  const [savingPreferences, setSavingPreferences] = useState(false)
 
   // 患者データが変更されたら編集データを更新
   useEffect(() => {
@@ -99,6 +100,34 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
       loadStaffData()
       loadPatientIcons()
       searchFamilyCandidates()
+    }
+  }, [patient])
+
+  // 他のコンポーネントでの通知設定変更を検知
+  useEffect(() => {
+    const handleNotificationUpdate = async (event: any) => {
+      if (!patient) return
+      console.log('PatientEditModal: 通知設定が更新されました')
+      // 通知設定を再読み込み
+      try {
+        const preferencesData = await getPatientNotificationPreferences(patient.id, DEMO_CLINIC_ID)
+        if (preferencesData) {
+          setNotificationPreferences({
+            appointment_reminder: preferencesData.appointment_reminder,
+            periodic_checkup: preferencesData.periodic_checkup,
+            treatment_reminder: preferencesData.treatment_reminder,
+            appointment_change: preferencesData.appointment_change,
+            custom: preferencesData.custom
+          })
+        }
+      } catch (error) {
+        console.error('通知設定の再読み込みエラー:', error)
+      }
+    }
+
+    window.addEventListener('notificationPreferencesUpdated', handleNotificationUpdate)
+    return () => {
+      window.removeEventListener('notificationPreferencesUpdated', handleNotificationUpdate)
     }
   }, [patient])
 
@@ -378,6 +407,33 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
     searchFamilyCandidates()
   }
 
+  // 通知受信設定を即座に更新
+  const handlePreferenceChange = async (key: keyof typeof notificationPreferences, value: boolean) => {
+    if (!patient) return
+
+    try {
+      setSavingPreferences(true)
+      const newPreferences = { ...notificationPreferences, [key]: value }
+      setNotificationPreferences(newPreferences)
+
+      // 即座にデータベースに保存
+      await upsertPatientNotificationPreferences(patient.id, DEMO_CLINIC_ID, newPreferences)
+      console.log('通知受信設定の保存に成功しました')
+
+      // 他のコンポーネントに更新を通知
+      window.dispatchEvent(new CustomEvent('notificationPreferencesUpdated', {
+        detail: { patientId: patient.id, preferences: newPreferences }
+      }))
+    } catch (error) {
+      console.error('通知受信設定の更新エラー:', error)
+      // エラー時は元に戻す
+      setNotificationPreferences(notificationPreferences)
+      alert('通知受信設定の保存に失敗しました')
+    } finally {
+      setSavingPreferences(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!patient) return
 
@@ -400,16 +456,7 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
       await updatePatient(DEMO_CLINIC_ID, patient.id, patientDataToSave)
       console.log('患者情報の保存に成功しました')
 
-      // 通知受信設定を保存
-      try {
-        await upsertPatientNotificationPreferences(patient.id, DEMO_CLINIC_ID, notificationPreferences)
-        console.log('通知受信設定の保存に成功しました')
-
-        // 通知設定タブに更新を通知
-        window.dispatchEvent(new Event('notificationPreferencesUpdated'))
-      } catch (preferencesError) {
-        console.error('通知受信設定の保存エラー:', preferencesError)
-      }
+      // 通知受信設定は既にチェックボックスの変更時に保存されているのでここでは保存しない
 
       // 親コンポーネントのコールバックを呼び出し
       if (onSave) {
@@ -795,16 +842,19 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
 
                 {/* 通知受信設定 */}
                 <div>
-                  <Label>通知受信設定</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>通知受信設定</Label>
+                    {savingPreferences && (
+                      <span className="text-xs text-gray-500">保存中...</span>
+                    )}
+                  </div>
                   <div className="p-3 bg-gray-50 rounded-md space-y-2">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="notif_appointment_reminder"
                         checked={notificationPreferences.appointment_reminder}
-                        onCheckedChange={(checked) => setNotificationPreferences({
-                          ...notificationPreferences,
-                          appointment_reminder: checked as boolean
-                        })}
+                        onCheckedChange={(checked) => handlePreferenceChange('appointment_reminder', checked as boolean)}
+                        disabled={savingPreferences}
                       />
                       <Label htmlFor="notif_appointment_reminder" className="cursor-pointer font-normal text-sm">
                         予約リマインド通知を受け取る
@@ -814,10 +864,8 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                       <Checkbox
                         id="notif_periodic_checkup"
                         checked={notificationPreferences.periodic_checkup}
-                        onCheckedChange={(checked) => setNotificationPreferences({
-                          ...notificationPreferences,
-                          periodic_checkup: checked as boolean
-                        })}
+                        onCheckedChange={(checked) => handlePreferenceChange('periodic_checkup', checked as boolean)}
+                        disabled={savingPreferences}
                       />
                       <Label htmlFor="notif_periodic_checkup" className="cursor-pointer font-normal text-sm">
                         定期検診リマインド通知を受け取る
@@ -827,10 +875,8 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                       <Checkbox
                         id="notif_treatment_reminder"
                         checked={notificationPreferences.treatment_reminder}
-                        onCheckedChange={(checked) => setNotificationPreferences({
-                          ...notificationPreferences,
-                          treatment_reminder: checked as boolean
-                        })}
+                        onCheckedChange={(checked) => handlePreferenceChange('treatment_reminder', checked as boolean)}
+                        disabled={savingPreferences}
                       />
                       <Label htmlFor="notif_treatment_reminder" className="cursor-pointer font-normal text-sm">
                         治療リマインド通知を受け取る
@@ -840,10 +886,8 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                       <Checkbox
                         id="notif_appointment_change"
                         checked={notificationPreferences.appointment_change}
-                        onCheckedChange={(checked) => setNotificationPreferences({
-                          ...notificationPreferences,
-                          appointment_change: checked as boolean
-                        })}
+                        onCheckedChange={(checked) => handlePreferenceChange('appointment_change', checked as boolean)}
+                        disabled={savingPreferences}
                       />
                       <Label htmlFor="notif_appointment_change" className="cursor-pointer font-normal text-sm">
                         予約変更通知を受け取る
@@ -853,10 +897,8 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                       <Checkbox
                         id="notif_custom"
                         checked={notificationPreferences.custom}
-                        onCheckedChange={(checked) => setNotificationPreferences({
-                          ...notificationPreferences,
-                          custom: checked as boolean
-                        })}
+                        onCheckedChange={(checked) => handlePreferenceChange('custom', checked as boolean)}
+                        disabled={savingPreferences}
                       />
                       <Label htmlFor="notif_custom" className="cursor-pointer font-normal text-sm">
                         カスタム通知を受け取る

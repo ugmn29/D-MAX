@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { getNotificationSettings } from './notification-settings'
 import { PatientNotificationSchedule } from '@/types/notification'
+import { canReceiveNotification } from './patient-notification-preferences'
 
 /**
  * テンプレートからチャネル別のメッセージを取得
@@ -149,6 +150,28 @@ export async function sendNotification(
   const client = getSupabaseClient()
 
   try {
+    // 患者の通知受信設定をチェック
+    const canReceive = await canReceiveNotification(
+      schedule.patient_id,
+      clinicId,
+      schedule.notification_type
+    )
+
+    if (!canReceive) {
+      console.log(`患者 ${schedule.patient_id} は ${schedule.notification_type} の受信を拒否しています`)
+      // ステータスをキャンセルに更新
+      await client
+        .from('patient_notification_schedules')
+        .update({
+          status: 'cancelled',
+          cancelled_reason: '患者が通知受信を拒否',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', schedule.id)
+
+      return { success: false, error: '患者が通知受信を拒否' }
+    }
+
     // 通知設定を取得
     const settings = await getNotificationSettings(clinicId)
     if (!settings) {

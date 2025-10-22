@@ -19,33 +19,42 @@ export async function createAutoNotificationsForAppointment(
     const autoSendTemplates = templates.filter(t => t.auto_send_enabled)
 
     for (const template of autoSendTemplates) {
-      // 予約作成時トリガーのテンプレート
-      if (template.auto_send_trigger === 'appointment_created') {
-        await createNotificationForTemplate(
-          template,
-          clinicId,
-          patientId,
-          appointmentDate,
-          appointmentTime,
-          0 // 即座に送信
-        )
-      }
+      try {
+        // 予約作成時トリガーのテンプレート
+        if (template.auto_send_trigger === 'appointment_created') {
+          await createNotificationForTemplate(
+            template,
+            clinicId,
+            patientId,
+            appointmentDate,
+            appointmentTime,
+            0 // 即座に送信
+          )
+        }
 
-      // 予約日基準のトリガーのテンプレート
-      if (template.auto_send_trigger === 'appointment_date' && template.auto_send_timing_value) {
-        const daysOffset = calculateDaysOffset(
-          template.auto_send_timing_value,
-          template.auto_send_timing_unit
-        )
+        // 予約日基準のトリガーのテンプレート
+        if (template.auto_send_trigger === 'appointment_date' && template.auto_send_timing_value) {
+          const daysOffset = calculateDaysOffset(
+            template.auto_send_timing_value,
+            template.auto_send_timing_unit
+          )
 
-        await createNotificationForTemplate(
-          template,
-          clinicId,
-          patientId,
-          appointmentDate,
-          appointmentTime,
-          daysOffset
-        )
+          await createNotificationForTemplate(
+            template,
+            clinicId,
+            patientId,
+            appointmentDate,
+            appointmentTime,
+            daysOffset
+          )
+        }
+      } catch (error: any) {
+        // 患者が通知受信を拒否している場合はスキップ
+        if (error?.message?.includes('患者が通知受信を拒否')) {
+          console.log(`患者 ${patientId} がテンプレート ${template.name} の受信を拒否しているためスキップ`)
+        } else {
+          console.error(`テンプレート ${template.name} の通知作成エラー:`, error)
+        }
       }
     }
 

@@ -35,6 +35,11 @@ import {
   getPatientNotificationPreferences,
   upsertPatientNotificationPreferences
 } from '@/lib/api/patient-notification-preferences'
+import {
+  getPatientWebBookingSettings,
+  upsertPatientWebBookingSettings,
+  PatientWebBookingSettings
+} from '@/lib/api/patient-web-booking-settings'
 
 interface BasicInfoTabProps {
   patientId: string
@@ -89,6 +94,16 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     custom: true
   })
 
+  // Web予約設定
+  const [webBookingSettings, setWebBookingSettings] = useState({
+    web_booking_enabled: true,
+    web_cancel_enabled: true,
+    web_reschedule_enabled: true,
+    web_cancel_limit: null as number | null,
+    cancel_deadline_hours: null as number | null,
+    max_concurrent_bookings: null as number | null
+  })
+
   // 選択されたアイコン
   const [selectedIconIds, setSelectedIconIds] = useState<string[]>([])
 
@@ -134,6 +149,34 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     console.log('BasicInfoTab: コンポーネントがマウントされました', { patientId })
     loadPatientData()
     loadStaffData()
+  }, [patientId])
+
+  // 他のコンポーネントでの通知設定変更を検知
+  useEffect(() => {
+    const handleNotificationUpdate = async (event: any) => {
+      console.log('BasicInfoTab: 通知設定が更新されました')
+      // 通知設定を再読み込み
+      try {
+        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+        const preferencesData = await getPatientNotificationPreferences(patientId, DEMO_CLINIC_ID)
+        if (preferencesData) {
+          setNotificationPreferences({
+            appointment_reminder: preferencesData.appointment_reminder,
+            periodic_checkup: preferencesData.periodic_checkup,
+            treatment_reminder: preferencesData.treatment_reminder,
+            appointment_change: preferencesData.appointment_change,
+            custom: preferencesData.custom
+          })
+        }
+      } catch (error) {
+        console.error('通知設定の再読み込みエラー:', error)
+      }
+    }
+
+    window.addEventListener('notificationPreferencesUpdated', handleNotificationUpdate)
+    return () => {
+      window.removeEventListener('notificationPreferencesUpdated', handleNotificationUpdate)
+    }
   }, [patientId])
 
   // 患者データが読み込まれたら家族候補を検索
@@ -320,6 +363,23 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         }
       } catch (preferencesError) {
         console.log('通知設定の取得エラー（デフォルト値を使用）:', preferencesError)
+      }
+
+      // Web予約設定を読み込む
+      try {
+        const webBookingData = await getPatientWebBookingSettings(patientId, DEMO_CLINIC_ID)
+        if (webBookingData) {
+          setWebBookingSettings({
+            web_booking_enabled: webBookingData.web_booking_enabled,
+            web_cancel_enabled: webBookingData.web_cancel_enabled,
+            web_reschedule_enabled: webBookingData.web_reschedule_enabled,
+            web_cancel_limit: webBookingData.web_cancel_limit,
+            cancel_deadline_hours: webBookingData.cancel_deadline_hours,
+            max_concurrent_bookings: webBookingData.max_concurrent_bookings
+          })
+        }
+      } catch (webBookingError) {
+        console.log('Web予約設定の取得エラー（デフォルト値を使用）:', webBookingError)
       }
 
       // 保存されているアイコンデータを読み込む
@@ -549,10 +609,26 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         await upsertPatientNotificationPreferences(patientId, DEMO_CLINIC_ID, notificationPreferences)
         console.log('通知受信設定の保存に成功しました')
 
-        // 通知設定タブに更新を通知
-        window.dispatchEvent(new Event('notificationPreferencesUpdated'))
+        // 他のコンポーネントに更新を通知
+        window.dispatchEvent(new CustomEvent('notificationPreferencesUpdated', {
+          detail: { patientId, preferences: notificationPreferences }
+        }))
       } catch (preferencesError) {
         console.error('通知受信設定の保存エラー:', preferencesError)
+        // エラーでも患者データの保存は続行
+      }
+
+      // Web予約設定を保存
+      try {
+        await upsertPatientWebBookingSettings(patientId, DEMO_CLINIC_ID, webBookingSettings)
+        console.log('Web予約設定の保存に成功しました')
+
+        // 他のコンポーネントに更新を通知
+        window.dispatchEvent(new CustomEvent('webBookingSettingsUpdated', {
+          detail: { patientId, settings: webBookingSettings }
+        }))
+      } catch (webBookingError) {
+        console.error('Web予約設定の保存エラー:', webBookingError)
         // エラーでも患者データの保存は続行
       }
 

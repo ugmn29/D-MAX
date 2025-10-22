@@ -9165,7 +9165,7 @@ export default function SettingsPage() {
                                     setTemplates(
                                       templates.map((t) =>
                                         t.id === editingTemplate.id
-                                          ? { ...t, ...templateForm }
+                                          ? updated
                                           : t,
                                       ),
                                     );
@@ -9202,10 +9202,7 @@ export default function SettingsPage() {
                                     const created = await response.json();
                                     setTemplates([
                                       ...templates,
-                                      {
-                                        id: created.id,
-                                        ...templateForm,
-                                      },
+                                      created,
                                     ]);
                                   }
                                 }

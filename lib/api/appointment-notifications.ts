@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { getPatientById } from './patients'
 import { getNotificationTemplates } from './notification-templates'
+import { canReceiveNotification } from './patient-notification-preferences'
 
 /**
  * 予約リマインド通知を作成
@@ -12,6 +13,13 @@ export async function createAppointmentReminderNotification(
   appointmentDatetime: string
 ): Promise<void> {
   const client = getSupabaseClient()
+
+  // 患者の通知受信設定をチェック
+  const canReceive = await canReceiveNotification(patientId, clinicId, 'appointment_reminder')
+  if (!canReceive) {
+    console.log(`患者 ${patientId} は予約リマインド通知の受信を拒否しているため、通知を作成しません`)
+    return
+  }
 
   // 患者情報を取得
   const patient = await getPatientById('11111111-1111-1111-1111-111111111111', patientId)
@@ -96,6 +104,13 @@ export async function createAppointmentChangeNotification(
   newDatetime: string
 ): Promise<void> {
   const client = getSupabaseClient()
+
+  // 患者の通知受信設定をチェック
+  const canReceive = await canReceiveNotification(patientId, clinicId, 'appointment_change')
+  if (!canReceive) {
+    console.log(`患者 ${patientId} は予約変更通知の受信を拒否しているため、通知を作成しません`)
+    return
+  }
 
   // 患者情報を取得
   const patient = await getPatientById('11111111-1111-1111-1111-111111111111', patientId)
