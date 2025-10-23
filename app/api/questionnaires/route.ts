@@ -51,7 +51,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch questionnaires' }, { status: 500 })
     }
 
-    return NextResponse.json(data || [])
+    // questionnaire_questions を questions にマッピング
+    const mappedData = (data || []).map((questionnaire: any) => ({
+      ...questionnaire,
+      questions: questionnaire.questionnaire_questions || []
+    }))
+
+    // 標準問診表を最初に表示（名前でソート）
+    mappedData.sort((a, b) => {
+      if (a.name === '標準問診表') return -1
+      if (b.name === '標準問診表') return 1
+      if (a.name === '習慣チェック表') return 1
+      if (b.name === '習慣チェック表') return -1
+      return a.name.localeCompare(b.name, 'ja')
+    })
+
+    return NextResponse.json(mappedData)
   } catch (error) {
     console.error('問診表API エラー:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

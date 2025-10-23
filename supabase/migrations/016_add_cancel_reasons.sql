@@ -16,12 +16,13 @@ ADD COLUMN cancel_reason_id UUID REFERENCES cancel_reasons(id),
 ADD COLUMN cancelled_at TIMESTAMP WITH TIME ZONE,
 ADD COLUMN cancelled_by UUID REFERENCES staff(id);
 
--- キャンセル理由のデフォルトデータを挿入
-INSERT INTO cancel_reasons (clinic_id, name, description, sort_order) VALUES
-('11111111-1111-1111-1111-111111111111', '無断キャンセル', '連絡なしでのキャンセル', 1),
-('11111111-1111-1111-1111-111111111111', '事前連絡', '事前に連絡があったキャンセル', 2),
-('11111111-1111-1111-1111-111111111111', '当日キャンセル', '当日のキャンセル', 3),
-('11111111-1111-1111-1111-111111111111', '医院都合', '医院側の都合によるキャンセル', 4);
+-- キャンセル理由はシステムテンプレートから自動コピーされます
+-- （医院初期化API経由で作成）
+-- INSERT INTO cancel_reasons (clinic_id, name, description, sort_order) VALUES
+-- ('11111111-1111-1111-1111-111111111111', '無断キャンセル', '連絡なしでのキャンセル', 1),
+-- ('11111111-1111-1111-1111-111111111111', '事前連絡', '事前に連絡があったキャンセル', 2),
+-- ('11111111-1111-1111-1111-111111111111', '当日キャンセル', '当日のキャンセル', 3),
+-- ('11111111-1111-1111-1111-111111111111', '医院都合', '医院側の都合によるキャンセル', 4);
 
 -- インデックス作成
 CREATE INDEX idx_cancel_reasons_clinic ON cancel_reasons(clinic_id);

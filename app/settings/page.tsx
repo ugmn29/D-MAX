@@ -1210,7 +1210,17 @@ export default function SettingsPage() {
           const data = await getQuestionnaires(DEMO_CLINIC_ID);
           console.log("問診票取得完了 - データ:", data);
           console.log("問診票取得完了 - 件数:", data.length);
-          setQuestionnaires(data);
+
+          // 標準問診表を最初に表示（名前でソート）
+          const sortedData = [...data].sort((a, b) => {
+            if (a.name === '標準問診表') return -1;
+            if (b.name === '標準問診表') return 1;
+            if (a.name === '習慣チェック表') return 1;
+            if (b.name === '習慣チェック表') return -1;
+            return a.name.localeCompare(b.name, 'ja');
+          });
+
+          setQuestionnaires(sortedData);
         } catch (error) {
           console.error("問診票データの読み込みエラー:", error);
         }
@@ -3018,59 +3028,57 @@ export default function SettingsPage() {
   const renderMasterSettings = () => (
     <div className="space-y-6">
       {/* サブタブ */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          <button
-            onClick={() => setSelectedMasterTab("icons")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === "icons"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            アイコン
-          </button>
-          <button
-            onClick={() => setSelectedMasterTab("staff")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === "staff"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            スタッフ
-          </button>
-          <button
-            onClick={() => setSelectedMasterTab("files")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === "files"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            ファイル
-          </button>
-          <button
-            onClick={() => setSelectedMasterTab("cancel")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === "cancel"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            キャンセル
-          </button>
-          <button
-            onClick={() => setSelectedMasterTab("memo")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              selectedMasterTab === "memo"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            メモ
-          </button>
-        </nav>
+      <div className="flex space-x-0 border-b border-gray-200">
+        <button
+          onClick={() => setSelectedMasterTab("icons")}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedMasterTab === "icons"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          アイコン
+        </button>
+        <button
+          onClick={() => setSelectedMasterTab("staff")}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedMasterTab === "staff"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          スタッフ
+        </button>
+        <button
+          onClick={() => setSelectedMasterTab("files")}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedMasterTab === "files"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          ファイル
+        </button>
+        <button
+          onClick={() => setSelectedMasterTab("cancel")}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedMasterTab === "cancel"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          キャンセル
+        </button>
+        <button
+          onClick={() => setSelectedMasterTab("memo")}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedMasterTab === "memo"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          メモ
+        </button>
       </div>
 
       {/* アイコンタブのコンテンツ */}
@@ -3911,87 +3919,34 @@ export default function SettingsPage() {
         <div className="p-4">
           {/* タブに応じたメニュー一覧（階層表示） */}
           <div className="space-y-1">
-            {getFilteredTreatmentMenus().length > 0 ? (
-              <div className="space-y-1">
-                {getFilteredTreatmentMenus().map((menu) => (
-                  <div key={`root-${menu.id}`}>{renderMenuItem(menu, 0)}</div>
-                ))}
-                
-                {/* メニュー-1を追加ボタン */}
-                <div className="ml-4 mt-12">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setParentMenuForChild(null);
-                      setUseParentColor(true);
-                      setNewTreatmentMenu((prev) => ({
-                        ...prev,
-                        level: 1,
-                        color: "#3B82F6",
-                      }));
-                      setShowTreatmentAddForm(true);
-                    }}
-                    className="flex items-center space-x-1 text-xs px-2 py-1 h-7"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>メニュー1を追加</span>
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  {selectedTab === "menu1" && (
-                    <FileText className="w-8 h-8 text-gray-400" />
-                  )}
-                  {selectedTab === "menu2" && (
-                    <FolderOpen className="w-8 h-8 text-gray-400" />
-                  )}
-                  {selectedTab === "submenu" && (
-                    <Tag className="w-8 h-8 text-gray-400" />
-                  )}
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {selectedTab === "menu1" && "メニュー-1が登録されていません"}
-                  {selectedTab === "menu2" && "メニュー-2が登録されていません"}
-                  {selectedTab === "submenu" &&
-                    "サブメニューが登録されていません"}
-                </h3>
-                <p className="text-gray-500 mb-4">
-                  {selectedTab === "menu1" &&
-                    "上部の「メニュー-1を追加」ボタンから新しいメニューを追加してください"}
-                  {selectedTab === "menu2" &&
-                    "上部の「メニュー-2を追加」ボタンから新しいメニューを追加してください"}
-                  {selectedTab === "submenu" &&
-                    "上部の「サブメニューを追加」ボタンから新しいメニューを追加してください"}
-                </p>
-                    <Button
+            <div className="space-y-1">
+              {getFilteredTreatmentMenus().map((menu) => (
+                <div key={`root-${menu.id}`}>{renderMenuItem(menu, 0)}</div>
+              ))}
+
+              {/* メニュー-1を追加ボタン */}
+              <div className="ml-4 mt-12">
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     setParentMenuForChild(null);
                     setUseParentColor(true);
                     setNewTreatmentMenu((prev) => ({
                       ...prev,
-                      level:
-                        selectedTab === "menu1"
-                          ? 1
-                          : selectedTab === "menu2"
-                            ? 2
-                            : 3,
+                      level: 1,
                       color: "#3B82F6",
                     }));
                     setShowTreatmentAddForm(true);
                   }}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="flex items-center space-x-1 text-xs px-2 py-1 h-7"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {selectedTab === "menu1" && "メニュー-1を追加"}
-                  {selectedTab === "menu2" && "メニュー-2を追加"}
-                  {selectedTab === "submenu" && "サブメニューを追加"}
-                    </Button>
-                  </div>
-        )}
-      </div>
+                  <Plus className="w-3 h-3" />
+                  <span>メニュー1を追加</span>
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {/* メニュー追加モーダル */}
           {showTreatmentAddForm && (
@@ -4580,8 +4535,8 @@ export default function SettingsPage() {
             onClick={() => setUnitsActiveTab("units")}
             className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
               unitsActiveTab === "units"
-                ? "text-blue-600 border-blue-600"
-                : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                ? "border-blue-500 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             <Grid3X3 className="w-4 h-4 inline mr-2" />
@@ -4591,8 +4546,8 @@ export default function SettingsPage() {
             onClick={() => setUnitsActiveTab("priorities")}
             className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
               unitsActiveTab === "priorities"
-                ? "text-blue-600 border-blue-600"
-                : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                ? "border-blue-500 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             <Users className="w-4 h-4 inline mr-2" />
@@ -4921,19 +4876,6 @@ export default function SettingsPage() {
                           >
                             {questionnaire.is_active ? "有効" : "無効"}
                           </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => copyQuestionnaireLink(questionnaire.id, e)}
-                            className="ml-2 p-2 h-8 w-8"
-                            title="問診票リンクをコピー"
-                          >
-                            {copiedQuestionnaireId === questionnaire.id ? (
-                              <Check className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <Link2 className="w-4 h-4 text-gray-500 hover:text-blue-600" />
-                            )}
-                          </Button>
                         </div>
                       </div>
                       <div className="flex space-x-2 ml-4">
@@ -5073,56 +5015,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* 患者一覧（連携済み） */}
-              <div>
-                <h4 className="text-md font-medium text-gray-900 mb-3">
-                  連携済み患者 ({linkStatusData.linkedPatients.length}件)
-                </h4>
-                <div className="space-y-3">
-                  {linkStatusData.linkedPatients.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>連携済みの患者はありません</p>
-                    </div>
-                  ) : (
-                    linkStatusData.linkedPatients.map((patient: any) => (
-                      <div key={patient.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <div className="flex items-center">
-                              <h5 className="text-md font-medium text-gray-900 mr-3">
-                                {patient.last_name} {patient.first_name}
-                              </h5>
-                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                連携済み
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-500 mt-1">
-                              {patient.questionnaire_responses && patient.questionnaire_responses.length > 0 ? (
-                                <>
-                                  {patient.questionnaire_responses[0].questionnaires?.name} - 
-                                  連携日時: {new Date(patient.registered_at || patient.updated_at).toLocaleDateString('ja-JP')}
-                                </>
-                              ) : (
-                                `連携日時: ${new Date(patient.registered_at || patient.updated_at).toLocaleDateString('ja-JP')}`
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex space-x-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUnlinkPatient(patient.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              解除
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         )}

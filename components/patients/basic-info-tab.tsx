@@ -77,6 +77,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     email: '',
     address: '', // 統合された住所フィールド
     visit_reason: '', // 来院理由
+    preferred_contact_method: '', // 希望連絡方法
     allergies: '',
     medical_history: '',
     medications: '', // 服用薬
@@ -341,6 +342,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         email: patientData.email || '',
         address: patientData.address || '',
         visit_reason: (patientData as any).visit_reason || '',
+        preferred_contact_method: (patientData as any).preferred_contact_method || '',
         allergies: patientData.allergies || '',
         medical_history: patientData.medical_history || '',
         medications: (patientData as any).medications || '',
@@ -902,6 +904,38 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   {editData.visit_reason || '--'}
                 </div>
               </div>
+            </div>
+
+            {/* 希望連絡方法 */}
+            <div>
+              <Label htmlFor="preferred_contact_method">希望連絡方法</Label>
+              {isEditing ? (
+                <Select
+                  value={editData.preferred_contact_method}
+                  onValueChange={(value) =>
+                    setEditData({ ...editData, preferred_contact_method: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選択してください" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">指定なし</SelectItem>
+                    <SelectItem value="line">LINE</SelectItem>
+                    <SelectItem value="email">メール</SelectItem>
+                    <SelectItem value="sms">SMS</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-md">
+                  <div className="text-sm text-gray-600">
+                    {editData.preferred_contact_method === 'line' && 'LINE'}
+                    {editData.preferred_contact_method === 'email' && 'メール'}
+                    {editData.preferred_contact_method === 'sms' && 'SMS'}
+                    {!editData.preferred_contact_method && '--'}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 家族連携 */}

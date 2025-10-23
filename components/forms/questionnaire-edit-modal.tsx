@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getQuestionnaires, type Questionnaire, type QuestionnaireQuestion } from '@/lib/api/questionnaires'
-import { Edit, Save, X, Plus, Trash2, GripVertical } from 'lucide-react'
+import { Edit, Save, X, Plus, Trash2, GripVertical, Eye, EyeOff } from 'lucide-react'
 
 interface QuestionnaireEditModalProps {
   isOpen: boolean
@@ -41,6 +41,7 @@ export function QuestionnaireEditModal({
   const [currentSection, setCurrentSection] = useState<string>('患者情報')
   const [editingMode, setEditingMode] = useState<'view' | 'edit'>('view')
   const [editingQuestion, setEditingQuestion] = useState<QuestionnaireQuestion | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [editData, setEditData] = useState<{
     question_text: string
     question_type: string
@@ -48,13 +49,15 @@ export function QuestionnaireEditModal({
     is_required: boolean
     section_name: string
     sort_order: number
+    linked_field?: string
   }>({
     question_text: '',
     question_type: 'text',
     options: [],
     is_required: false,
     section_name: '',
-    sort_order: 0
+    sort_order: 0,
+    linked_field: ''
   })
 
 
@@ -108,7 +111,8 @@ export function QuestionnaireEditModal({
         options: editingQuestion.options || [],
         is_required: editingQuestion.is_required,
         section_name: editingQuestion.section_name,
-        sort_order: editingQuestion.sort_order
+        sort_order: editingQuestion.sort_order,
+        linked_field: (editingQuestion as any).linked_field || ''
       })
     }
   }, [editingQuestion])
@@ -122,31 +126,35 @@ export function QuestionnaireEditModal({
   // 現在のセクションの質問を取得
   const currentQuestions = questions.filter(q => q.section_name === currentSection)
 
-  // 患者基本情報と連携している質問IDのマッピング
-  const patientFieldMapping: { [key: string]: string } = {
-    'q1-1': '氏名',
-    'q1-2': 'ふりがな',
-    'q1-3': '性別',
-    'q1-4': '生年月日',
-    'q1-5': '郵便番号',
-    'q1-6': '住所',
-    'q1-8': '自宅電話',
-    'q1-9': '携帯電話',
-    'q1-10': 'メールアドレス',
-    'q3-4': 'アレルギー',
-    'q3-5': 'アレルギー原因',
-    'q3-6': '持病',
-    'q3-8': '病名・病院名'
+  // 患者情報フィールドの日本語名マッピング
+  const patientFieldLabels: { [key: string]: string } = {
+    'last_name': '姓',
+    'first_name': '名',
+    'last_name_kana': '姓（カナ）',
+    'first_name_kana': '名（カナ）',
+    'gender': '性別',
+    'birth_date': '生年月日',
+    'postal_code': '郵便番号',
+    'address': '住所',
+    'phone': '電話番号',
+    'email': 'メールアドレス',
+    'emergency_contact': '緊急連絡先',
+    'referral_source': '来院のきっかけ',
+    'preferred_contact_method': '希望連絡方法',
+    'allergies': 'アレルギー',
+    'medical_history': '既往歴・持病',
+    'medications': '服用中の薬'
   }
 
   // 質問が患者基本情報と連携しているかチェック
-  const isLinkedToPatient = (questionId: string) => {
-    return questionId in patientFieldMapping
+  const isLinkedToPatient = (question: QuestionnaireQuestion) => {
+    return !!(question as any).linked_field
   }
 
   // 連携先のフィールド名を取得
-  const getLinkedFieldName = (questionId: string) => {
-    return patientFieldMapping[questionId]
+  const getLinkedFieldName = (question: QuestionnaireQuestion) => {
+    const linkedField = (question as any).linked_field
+    return linkedField ? patientFieldLabels[linkedField] || linkedField : ''
   }
 
   // 質問タイプのラベル取得
@@ -253,49 +261,113 @@ export function QuestionnaireEditModal({
     })
   }
 
-  // バリデーション
+  // バリデーション（編集モードでは不要 - 質問の構造のみを編集）
   const validateForm = () => {
-    const newErrors: { [key: string]: string } = {}
-    
-    currentQuestions.forEach(question => {
-      const isRequired = isQuestionRequired(question)
-      if (isRequired) {
-        const value = formData[question.id]
-        if (!value || (Array.isArray(value) && value.length === 0)) {
-          newErrors[question.id] = 'この項目は必須です'
-        }
-      }
-    })
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    // 編集モードでは質問の回答をバリデーションする必要はない
+    // 質問の構造（質問文が空でないかなど）は個別の質問編集時にチェック済み
+    return true
   }
 
   // 保存処理
   const handleSave = async () => {
-    if (!validateForm()) {
+    if (!questionnaire) {
+      console.error('問診表が見つかりません')
       return
     }
 
-    if (!questionnaire) return
-
     try {
       setSaving(true)
-      
-      // ここで実際の保存処理を行う
-      // 現在はモックとして、元のデータをそのまま返す
+
+      console.log('問診表を保存します:', { questionnaireId: questionnaire.id, questionsCount: questions.length })
+
+      // 質問をAPIエンドポイント経由でデータベースに保存
+      const response = await fetch('/api/questionnaires/questions', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          questionnaire_id: questionnaire.id,
+          questions: questions
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || errorData.error || '保存に失敗しました')
+      }
+
+      const result = await response.json()
+      console.log('問診表の保存が完了しました:', result)
+
+      // 更新された問診表データを作成
       const updatedQuestionnaire = {
         ...questionnaire,
+        questions: questions,
         updated_at: new Date().toISOString()
       }
-      
+
       onSave?.(updatedQuestionnaire)
       onClose()
     } catch (error) {
       console.error('問診票保存エラー:', error)
+      alert('問診表の保存に失敗しました。エラー: ' + (error as Error).message)
     } finally {
       setSaving(false)
     }
+  }
+
+  // 質問の表示/非表示を切り替え
+  const toggleQuestionVisibility = (questionId: string) => {
+    const updatedQuestions = questions.map(q =>
+      q.id === questionId
+        ? { ...q, is_hidden: !(q as any).is_hidden }
+        : q
+    )
+    setQuestions(updatedQuestions)
+  }
+
+  // ドラッグ&ドロップハンドラー
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === dropIndex) return
+
+    const currentQuestions = questions.filter(q => q.section_name === currentSection)
+    const otherQuestions = questions.filter(q => q.section_name !== currentSection)
+
+    const draggedQuestion = currentQuestions[draggedIndex]
+    const newCurrentQuestions = [...currentQuestions]
+
+    // 配列から削除して新しい位置に挿入
+    newCurrentQuestions.splice(draggedIndex, 1)
+    newCurrentQuestions.splice(dropIndex, 0, draggedQuestion)
+
+    // 現在のセクションの最小sort_orderを取得
+    const minSortOrder = currentQuestions.length > 0
+      ? Math.min(...currentQuestions.map(q => q.sort_order))
+      : 1
+
+    // sort_orderを更新（セクション内での連番）
+    const updatedCurrentQuestions = newCurrentQuestions.map((q, idx) => ({
+      ...q,
+      sort_order: minSortOrder + idx
+    }))
+
+    // すべての質問を結合して更新
+    setQuestions([...otherQuestions, ...updatedCurrentQuestions])
+    setDraggedIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
   }
 
   // 質問編集フォーム
@@ -322,8 +394,8 @@ export function QuestionnaireEditModal({
     }
 
     const saveQuestion = () => {
-      const updatedQuestions = questions.map(q => 
-        q.id === question.id 
+      const updatedQuestions = questions.map(q =>
+        q.id === question.id
           ? { ...q, ...editData }
           : q
       )
@@ -333,7 +405,7 @@ export function QuestionnaireEditModal({
 
     return (
       <div className="fixed inset-0 z-60 bg-black bg-opacity-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+        <div className="bg-white rounded-lg max-w-5xl w-full max-h-[85vh] overflow-y-auto">
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-semibold">質問を編集</h3>
@@ -357,22 +429,23 @@ export function QuestionnaireEditModal({
               {/* 質問タイプ */}
               <div>
                 <Label htmlFor="question_type">質問タイプ</Label>
-                <Select
+                <select
+                  id="question_type"
                   value={editData.question_type}
-                  onValueChange={(value) => setEditData(prev => ({ ...prev, question_type: value }))}
+                  onChange={(e) => setEditData(prev => ({ ...prev, question_type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="text">テキスト入力</option>
                   <option value="textarea">テキストエリア</option>
                   <option value="number">数値入力</option>
                   <option value="date">日付選択</option>
-                  <option value="radio">ラジオボタン</option>
-                  <option value="checkbox">チェックボックス</option>
-                  <option value="select">セレクトボックス</option>
-                </Select>
+                  <option value="radio">ラジオボタン（単一選択）</option>
+                  <option value="radio_multiple">ラジオボタン（複数選択可）</option>
+                </select>
               </div>
 
-              {/* 選択肢（radio, checkbox, selectの場合） */}
-              {(editData.question_type === 'radio' || editData.question_type === 'checkbox' || editData.question_type === 'select') && (
+              {/* 選択肢（radio, radio_multipleの場合） */}
+              {(editData.question_type === 'radio' || editData.question_type === 'radio_multiple') && (
                 <div>
                   <Label>選択肢</Label>
                   <div className="space-y-2">
@@ -410,15 +483,36 @@ export function QuestionnaireEditModal({
                 />
               </div>
 
-              {/* 並び順 */}
+              {/* 患者情報フィールドとの連携 */}
               <div>
-                <Label htmlFor="sort_order">並び順</Label>
-                <Input
-                  id="sort_order"
-                  type="number"
-                  value={editData.sort_order}
-                  onChange={(e) => setEditData(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
-                />
+                <Label htmlFor="linked_field">患者情報フィールドとの連携</Label>
+                <select
+                  id="linked_field"
+                  value={editData.linked_field || ''}
+                  onChange={(e) => setEditData(prev => ({ ...prev, linked_field: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">連携なし</option>
+                  <option value="last_name">姓</option>
+                  <option value="first_name">名</option>
+                  <option value="last_name_kana">姓（カナ）</option>
+                  <option value="first_name_kana">名（カナ）</option>
+                  <option value="gender">性別</option>
+                  <option value="birth_date">生年月日</option>
+                  <option value="postal_code">郵便番号</option>
+                  <option value="address">住所</option>
+                  <option value="phone">電話番号</option>
+                  <option value="email">メールアドレス</option>
+                  <option value="emergency_contact">緊急連絡先</option>
+                  <option value="referral_source">来院のきっかけ</option>
+                  <option value="preferred_contact_method">希望連絡方法</option>
+                  <option value="allergies">アレルギー</option>
+                  <option value="medical_history">既往歴・持病</option>
+                  <option value="medications">服用中の薬</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  患者情報と自動連携するフィールドを選択できます
+                </p>
               </div>
 
               {/* 必須項目 */}
@@ -555,8 +649,7 @@ export function QuestionnaireEditModal({
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold flex items-center">
-              <Edit className="w-6 h-6 mr-2" />
-              問診票編集: {questionnaire?.name || '読み込み中...'}
+              {questionnaire?.name || '読み込み中...'}
             </h2>
             {questionnaire?.description && (
               <p className="text-gray-600 mt-1">{questionnaire.description}</p>
@@ -575,117 +668,119 @@ export function QuestionnaireEditModal({
           <>
 
             {/* セクションナビゲーション */}
-            <div className="flex space-x-2 overflow-x-auto">
+            <div className="flex space-x-0 border-b border-gray-200 mb-4">
               {sections.map((section) => (
-                <Button
+                <button
                   key={section}
-                  variant={currentSection === section ? 'default' : 'outline'}
                   onClick={() => setCurrentSection(section)}
-                  className="whitespace-nowrap text-xs px-2 py-1 min-w-fit"
+                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 whitespace-nowrap ${
+                    currentSection === section
+                      ? "border-blue-500 text-blue-600 bg-blue-50"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
                 >
                   {section}
-                </Button>
+                </button>
               ))}
             </div>
 
             {/* 現在のセクションの質問 */}
             <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>{currentSection}</CardTitle>
-                    <p className="text-sm text-gray-500">
-                      {currentQuestions.length}件の質問
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newQuestion: QuestionnaireQuestion = {
-                        id: `temp-${Date.now()}`,
-                        question_text: '新しい質問',
-                        question_type: 'text',
-                        options: [],
-                        is_required: false,
-                        section_name: currentSection,
-                        sort_order: currentQuestions.length + 1,
-                        conditional_logic: null
-                      }
-                      setQuestions(prev => [...prev, newQuestion])
-                      setEditingQuestion(newQuestion)
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    質問を追加
-                  </Button>
-                </div>
-              </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 pt-6 min-h-[400px]">
           {currentQuestions.map((question, index) => {
             const isRequired = isQuestionRequired(question)
+            const isHidden = (question as any).is_hidden
             return (
-              <div key={question.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
+              <div
+                key={question.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`border rounded-lg p-3 cursor-move ${
+                  isHidden
+                    ? 'border-gray-300 bg-gray-50 opacity-60'
+                    : 'border-gray-200'
+                } ${draggedIndex === index ? 'opacity-50' : ''}`}
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
+                    <div className="flex items-center space-x-2">
+                      <GripVertical className="w-4 h-4 text-gray-400" />
                       <span className="text-sm font-medium text-gray-500">Q{index + 1}</span>
+                      <h3 className="font-medium text-gray-900">{question.question_text}</h3>
                       {question.is_required && (
-                        <Badge variant="destructive" className="text-xs">
-                          必須
-                        </Badge>
+                        <span className="text-red-600 font-bold">※</span>
                       )}
-                      {isLinkedToPatient(question.id) && (
+                      {isLinkedToPatient(question) && (
                         <Badge variant="default" className="text-xs bg-blue-100 text-blue-800">
-                          🔗 {getLinkedFieldName(question.id)}と連携
+                          🔗 {getLinkedFieldName(question)}と連携
                         </Badge>
                       )}
                     </div>
-                    <h3 className="font-medium text-gray-900 mb-2">{question.question_text}</h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <span>タイプ: {getQuestionTypeLabel(question.question_type)}</span>
-                      <span>並び順: {question.sort_order}</span>
-                    </div>
-                    {question.options && question.options.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-xs text-gray-500 mb-1">選択肢:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {question.options.map((option, optIndex) => (
-                            <span key={optIndex} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                              {option}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingQuestion(question)}
+                  <div className="flex space-x-2 ml-2">
+                    <button
+                      onClick={() => toggleQuestionVisibility(question.id)}
+                      title={(question as any).is_hidden ? "表示する" : "非表示にする"}
+                      className="hover:opacity-70 transition-opacity"
                     >
-                      <Edit className="w-4 h-4 mr-1" />
-                      編集
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
+                      {(question as any).is_hidden ? (
+                        <EyeOff className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-600" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setEditingQuestion(question)}
+                      title="編集"
+                      className="hover:opacity-70 transition-opacity"
+                    >
+                      <Edit className="w-4 h-4 text-gray-600" />
+                    </button>
+                    <button
                       onClick={() => {
                         if (confirm('この質問を削除しますか？')) {
                           setQuestions(prev => prev.filter(q => q.id !== question.id))
                         }
                       }}
-                      className="text-red-600 hover:text-red-700"
+                      className="hover:opacity-70 transition-opacity"
+                      title="削除"
                     >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      削除
-                    </Button>
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </button>
                   </div>
                 </div>
               </div>
             )
           })}
+
+          {/* 質問を追加ボタン */}
+          <div className="pt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const newQuestion: QuestionnaireQuestion = {
+                  id: `temp-${Date.now()}`,
+                  question_text: '新しい質問',
+                  question_type: 'text',
+                  options: [],
+                  is_required: false,
+                  section_name: currentSection,
+                  sort_order: currentQuestions.length + 1,
+                  conditional_logic: null
+                }
+                setQuestions(prev => [...prev, newQuestion])
+                setEditingQuestion(newQuestion)
+              }}
+              className="w-full"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              質問を追加
+            </Button>
+          </div>
         </CardContent>
             </Card>
 

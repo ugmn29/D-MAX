@@ -246,59 +246,38 @@ export default function TreatmentSettingsPage() {
   return (
     <div className="h-screen bg-gray-50">
       {/* 上部ナビゲーションバー */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white border-b border-gray-200 px-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <button 
+          <div className="flex space-x-0 border-b border-gray-200">
+            <button
               onClick={() => setSelectedTab('menu1')}
-              className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded transition-colors"
+              className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                selectedTab === 'menu1'
+                  ? "border-blue-500 text-blue-600 bg-blue-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
             >
-              <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                selectedTab === 'menu1' ? 'bg-blue-100' : 'bg-gray-100'
-              }`}>
-                <FileText className={`w-4 h-4 ${
-                  selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
-                }`} />
-              </div>
-              <span className={`font-medium ${
-                selectedTab === 'menu1' ? 'text-blue-600' : 'text-gray-600'
-              }`}>
-                メニュー-1
-              </span>
+              メニュー-1
             </button>
-            <button 
+            <button
               onClick={() => setSelectedTab('menu2')}
-              className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded transition-colors"
+              className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                selectedTab === 'menu2'
+                  ? "border-blue-500 text-blue-600 bg-blue-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
             >
-              <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                selectedTab === 'menu2' ? 'bg-blue-100' : 'bg-gray-100'
-              }`}>
-                <FolderOpen className={`w-4 h-4 ${
-                  selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
-                }`} />
-              </div>
-              <span className={`font-medium ${
-                selectedTab === 'menu2' ? 'text-blue-600' : 'text-gray-600'
-              }`}>
-                メニュー-2
-              </span>
+              メニュー-2
             </button>
-            <button 
+            <button
               onClick={() => setSelectedTab('submenu')}
-              className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded transition-colors"
+              className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                selectedTab === 'submenu'
+                  ? "border-blue-500 text-blue-600 bg-blue-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
             >
-              <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                selectedTab === 'submenu' ? 'bg-blue-100' : 'bg-gray-100'
-              }`}>
-                <Tag className={`w-4 h-4 ${
-                  selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
-                }`} />
-              </div>
-              <span className={`font-medium ${
-                selectedTab === 'submenu' ? 'text-blue-600' : 'text-gray-600'
-              }`}>
-                サブメニュー
-              </span>
+              サブメニュー
             </button>
           </div>
           
@@ -338,42 +317,7 @@ export default function TreatmentSettingsPage() {
         <div className="p-6">
           {/* タブに応じたメニュー一覧 */}
           <div className="space-y-4">
-            {getFilteredMenus().length > 0 ? (
-              getFilteredMenus().map(menu => renderMenuItem(menu))
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  {selectedTab === 'menu1' && <FileText className="w-8 h-8 text-gray-400" />}
-                  {selectedTab === 'menu2' && <FolderOpen className="w-8 h-8 text-gray-400" />}
-                  {selectedTab === 'submenu' && <Tag className="w-8 h-8 text-gray-400" />}
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {selectedTab === 'menu1' && 'メニュー-1が登録されていません'}
-                  {selectedTab === 'menu2' && 'メニュー-2が登録されていません'}
-                  {selectedTab === 'submenu' && 'サブメニューが登録されていません'}
-                </h3>
-                <p className="text-gray-500 mb-4">
-                  {selectedTab === 'menu1' && '上部の「メニュー-1を追加」ボタンから新しいメニューを追加してください'}
-                  {selectedTab === 'menu2' && '上部の「メニュー-2を追加」ボタンから新しいメニューを追加してください'}
-                  {selectedTab === 'submenu' && '上部の「サブメニューを追加」ボタンから新しいメニューを追加してください'}
-                </p>
-                <Button 
-                  onClick={() => {
-                    setNewMenu(prev => ({
-                      ...prev,
-                      level: selectedTab === 'menu1' ? 1 : selectedTab === 'menu2' ? 2 : 3
-                    }))
-                    setShowAddForm(true)
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {selectedTab === 'menu1' && 'メニュー-1を追加'}
-                  {selectedTab === 'menu2' && 'メニュー-2を追加'}
-                  {selectedTab === 'submenu' && 'サブメニューを追加'}
-                </Button>
-              </div>
-            )}
+            {getFilteredMenus().map(menu => renderMenuItem(menu))}
           </div>
 
           {/* メニュー追加フォーム */}

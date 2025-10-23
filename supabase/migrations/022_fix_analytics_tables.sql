@@ -75,34 +75,39 @@ ALTER TABLE treatment_menus DISABLE ROW LEVEL SECURITY;
 ALTER TABLE staff DISABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_positions DISABLE ROW LEVEL SECURITY;
 
--- デモデータの挿入
-INSERT INTO cancel_reasons (clinic_id, name, sort_order, is_active)
-VALUES 
-    ('11111111-1111-1111-1111-111111111111', '無断キャンセル', 1, true),
-    ('11111111-1111-1111-1111-111111111111', '事前連絡', 2, true),
-    ('11111111-1111-1111-1111-111111111111', '当日キャンセル', 3, true),
-    ('11111111-1111-1111-1111-111111111111', '医院都合', 4, true)
-ON CONFLICT DO NOTHING;
+-- キャンセル理由はシステムテンプレートから自動コピーされます
+-- （医院初期化API経由で作成）
+-- INSERT INTO cancel_reasons (clinic_id, name, sort_order, is_active)
+-- VALUES
+--     ('11111111-1111-1111-1111-111111111111', '無断キャンセル', 1, true),
+--     ('11111111-1111-1111-1111-111111111111', '事前連絡', 2, true),
+--     ('11111111-1111-1111-1111-111111111111', '当日キャンセル', 3, true),
+--     ('11111111-1111-1111-1111-111111111111', '医院都合', 4, true)
+-- ON CONFLICT DO NOTHING;
 
-INSERT INTO treatment_menus (clinic_id, name, level, sort_order, is_active)
-VALUES 
-    ('11111111-1111-1111-1111-111111111111', '初診', 1, 1, true),
-    ('11111111-1111-1111-1111-111111111111', '再診', 1, 2, true),
-    ('11111111-1111-1111-1111-111111111111', '定期検診', 1, 3, true),
-    ('11111111-1111-1111-1111-111111111111', '歯科治療', 1, 4, true)
-ON CONFLICT DO NOTHING;
+-- 診療メニューは各医院で独自に作成してください
+-- INSERT INTO treatment_menus (clinic_id, name, level, sort_order, is_active)
+-- VALUES
+--     ('11111111-1111-1111-1111-111111111111', '初診', 1, 1, true),
+--     ('11111111-1111-1111-1111-111111111111', '再診', 1, 2, true),
+--     ('11111111-1111-1111-1111-111111111111', '定期検診', 1, 3, true),
+--     ('11111111-1111-1111-1111-111111111111', '歯科治療', 1, 4, true)
+-- ON CONFLICT DO NOTHING;
 
-INSERT INTO staff_positions (clinic_id, name, sort_order)
-VALUES 
-    ('11111111-1111-1111-1111-111111111111', '院長', 1),
-    ('11111111-1111-1111-1111-111111111111', '歯科医師', 2),
-    ('11111111-1111-1111-1111-111111111111', '歯科衛生士', 3),
-    ('11111111-1111-1111-1111-111111111111', '受付', 4)
-ON CONFLICT DO NOTHING;
+-- スタッフ役職はシステムテンプレートから自動コピーされます
+-- （医院初期化API経由で作成）
+-- INSERT INTO staff_positions (clinic_id, name, sort_order)
+-- VALUES
+--     ('11111111-1111-1111-1111-111111111111', '院長', 1),
+--     ('11111111-1111-1111-1111-111111111111', '歯科医師', 2),
+--     ('11111111-1111-1111-1111-111111111111', '歯科衛生士', 3),
+--     ('11111111-1111-1111-1111-111111111111', '受付', 4)
+-- ON CONFLICT DO NOTHING;
 
-INSERT INTO staff (clinic_id, name, position_id)
-VALUES 
-    ('11111111-1111-1111-1111-111111111111', '田中院長', (SELECT id FROM staff_positions WHERE name = '院長' LIMIT 1)),
-    ('11111111-1111-1111-1111-111111111111', '佐藤歯科医師', (SELECT id FROM staff_positions WHERE name = '歯科医師' LIMIT 1)),
-    ('11111111-1111-1111-1111-111111111111', '山田衛生士', (SELECT id FROM staff_positions WHERE name = '歯科衛生士' LIMIT 1))
-ON CONFLICT DO NOTHING;
+-- スタッフデータもシステムテンプレート初期化後に作成してください
+-- INSERT INTO staff (clinic_id, name, position_id)
+-- VALUES
+--     ('11111111-1111-1111-1111-111111111111', '田中院長', (SELECT id FROM staff_positions WHERE name = '院長' LIMIT 1)),
+--     ('11111111-1111-1111-1111-111111111111', '佐藤歯科医師', (SELECT id FROM staff_positions WHERE name = '歯科医師' LIMIT 1)),
+--     ('11111111-1111-1111-1111-111111111111', '山田衛生士', (SELECT id FROM staff_positions WHERE name = '歯科衛生士' LIMIT 1))
+-- ON CONFLICT DO NOTHING;

@@ -1,59 +1,63 @@
+-- テスト用患者データは不要のためコメントアウト
+-- 各医院で独自に患者を登録してください
+
+-- 旧コード（参考用）:
 -- テスト用患者を追加（トレーニングログイン用）
-INSERT INTO patients (
-  id,
-  clinic_id,
-  patient_number,
-  last_name,
-  first_name,
-  last_name_kana,
-  first_name_kana,
-  birth_date,
-  is_registered,
-  phone,
-  created_at,
-  updated_at
-) VALUES (
-  gen_random_uuid(),
-  '11111111-1111-1111-1111-111111111111',
-  1001,
-  '山田',
-  '太郎',
-  'ヤマダ',
-  'タロウ',
-  '2015-04-15',
-  true,
-  '090-1234-5678',
-  NOW(),
-  NOW()
-)
-ON CONFLICT (clinic_id, patient_number) DO NOTHING;
+-- INSERT INTO patients (
+--   id,
+--   clinic_id,
+--   patient_number,
+--   last_name,
+--   first_name,
+--   last_name_kana,
+--   first_name_kana,
+--   birth_date,
+--   is_registered,
+--   phone,
+--   created_at,
+--   updated_at
+-- ) VALUES (
+--   gen_random_uuid(),
+--   '11111111-1111-1111-1111-111111111111',
+--   1001,
+--   '山田',
+--   '太郎',
+--   'ヤマダ',
+--   'タロウ',
+--   '2015-04-15',
+--   true,
+--   '090-1234-5678',
+--   NOW(),
+--   NOW()
+-- )
+-- ON CONFLICT (clinic_id, patient_number) DO NOTHING;
 
 -- 別の患者を追加
-INSERT INTO patients (
-  id,
-  clinic_id,
-  patient_number,
-  last_name,
-  first_name,
-  last_name_kana,
-  first_name_kana,
-  birth_date,
-  is_registered,
-  phone,
-  created_at,
-  updated_at
-) VALUES (
-  gen_random_uuid(),
-  '11111111-1111-1111-1111-111111111111',
-  1002,
-  '佐藤',
-  '花子',
-  'サトウ',
-  'ハナコ',
-  '2010-08-20',
-  true,
-  '090-5678-1234',
-  NOW(),
-  NOW()
-)
-ON CONFLICT (clinic_id, patient_number) DO NOTHING;
+-- INSERT INTO patients (
+--   id,
+--   clinic_id,
+--   patient_number,
+--   last_name,
+--   first_name,
+--   last_name_kana,
+--   first_name_kana,
+--   birth_date,
+--   is_registered,
+--   phone,
+--   created_at,
+--   updated_at
+-- ) VALUES (
+--   gen_random_uuid(),
+--   '11111111-1111-1111-1111-111111111111',
+--   1002,
+--   '佐藤',
+--   '花子',
+--   'サトウ',
+--   'ハナコ',
+--   '2010-08-20',
+--   true,
+--   '090-5678-1234',
+--   NOW(),
+--   NOW()
+-- )
+-- ON CONFLICT (clinic_id, patient_number) DO NOTHING;

@@ -3,7 +3,7 @@ INSERT INTO system_questionnaire_templates (id, name, description, category, is_
 VALUES (
   '00000000-0000-0000-0000-000000000001'::uuid,
   '標準問診表',
-  '歯科の標準的な問診票です。基本情報、受診理由、健康状態、アレルギー、治療の希望などを含みます。',
+  '',
   'standard',
   true,
   1

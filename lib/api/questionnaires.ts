@@ -72,7 +72,8 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
         options,
         is_required,
         conditional_logic,
-        sort_order
+        sort_order,
+        linked_field
       )
     `)
     .eq('clinic_id', clinicId)
@@ -661,4 +662,72 @@ export async function debugQuestionnaireResponses(): Promise<QuestionnaireRespon
   }
 
   return data || []
+}
+
+/**
+ * 問診表の質問型定義
+ */
+export interface QuestionnaireQuestion {
+  id: string
+  questionnaire_id: string
+  section_name: string
+  question_text: string
+  question_type: string
+  options?: string[]
+  is_required: boolean
+  conditional_logic?: any
+  sort_order: number
+}
+
+/**
+ * 問診表の質問を更新
+ */
+export async function updateQuestionnaireQuestions(
+  questionnaireId: string,
+  questions: QuestionnaireQuestion[]
+): Promise<void> {
+  const client = getSupabaseClient()
+
+  try {
+    // 既存の質問を削除
+    const { error: deleteError } = await client
+      .from('questionnaire_questions')
+      .delete()
+      .eq('questionnaire_id', questionnaireId)
+
+    if (deleteError) {
+      console.error('質問削除エラー:', deleteError)
+      throw deleteError
+    }
+
+    // 新しい質問を挿入
+    if (questions.length > 0) {
+      const questionsToInsert = questions.map(q => ({
+        id: q.id.startsWith('temp-') ? undefined : q.id, // temp-で始まるIDは新規作成
+        questionnaire_id: questionnaireId,
+        section_name: q.section_name,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: q.options || [],
+        is_required: q.is_required,
+        conditional_logic: q.conditional_logic,
+        sort_order: q.sort_order,
+        linked_field: (q as any).linked_field || null
+      }))
+
+      const { error: insertError } = await client
+        .from('questionnaire_questions')
+        .insert(questionsToInsert)
+
+      if (insertError) {
+        console.error('質問挿入エラー:', insertError)
+        throw insertError
+      }
+    }
+
+    console.log('質問更新成功:', { questionnaireId, count: questions.length })
+  } catch (error) {
+    console.error('質問更新エラー:', error)
+    throw error
+  }
 }

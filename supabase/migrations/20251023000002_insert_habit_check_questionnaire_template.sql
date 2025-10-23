@@ -3,7 +3,7 @@ INSERT INTO system_questionnaire_templates (id, name, description, category, is_
 VALUES (
   '00000000-0000-0000-0000-000000000002'::uuid,
   '習慣チェック表',
-  '習癖、食生活、姿勢、病気に関する詳細なチェック表です。患者様の生活習慣を総合的に評価します。',
+  '',
   'habit_check',
   true,
   2
