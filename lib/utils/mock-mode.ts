@@ -2,7 +2,7 @@
 // 環境変数 USE_DATABASE=true でデータベース使用を強制
 // デフォルトは開発環境ではモック、本番環境ではデータベース
 // 一時的にデータベースを使用する場合は false に設定
-export const MOCK_MODE = true // process.env.USE_DATABASE === 'true' ? false : process.env.NODE_ENV === 'development'
+export const MOCK_MODE = false // process.env.USE_DATABASE === 'true' ? false : process.env.NODE_ENV === 'development'
 
 // 問診票のみデータベースを使用するフラグ
 export const USE_DATABASE_FOR_QUESTIONNAIRES = process.env.USE_DATABASE_QUESTIONNAIRES === 'true'

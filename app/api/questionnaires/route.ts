@@ -31,13 +31,15 @@ export async function GET(request: NextRequest) {
       .from('questionnaires')
       .select(`
         *,
-        questions (
+        questionnaire_questions (
           id,
           questionnaire_id,
+          section_name,
           question_text,
           question_type,
           options,
           is_required,
+          conditional_logic,
           sort_order
         )
       `)

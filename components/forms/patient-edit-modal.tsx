@@ -893,7 +893,7 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                       <span className="text-xs text-gray-500">保存中...</span>
                     )}
                   </div>
-                  <div className="p-3 bg-gray-50 rounded-md space-y-2">
+                  <div className="p-3 bg-gray-50 rounded-md space-y-2 max-h-[200px] overflow-y-auto">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="notif_appointment_reminder"
@@ -955,7 +955,7 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
                 {/* Web予約設定 */}
                 <div>
                   <Label>Web予約設定</Label>
-                  <div className="p-3 bg-gray-50 rounded-md space-y-3">
+                  <div className="p-3 bg-gray-50 rounded-md space-y-3 max-h-[300px] overflow-y-auto">
                     {/* 基本設定 */}
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2">

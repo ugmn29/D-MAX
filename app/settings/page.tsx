@@ -1203,9 +1203,13 @@ export default function SettingsPage() {
   // 問診票データの読み込み
   useEffect(() => {
     const loadQuestionnaires = async () => {
+      console.log("loadQuestionnaires実行 - selectedCategory:", selectedCategory);
       if (selectedCategory === "questionnaire") {
         try {
+          console.log("問診票取得開始 - DEMO_CLINIC_ID:", DEMO_CLINIC_ID);
           const data = await getQuestionnaires(DEMO_CLINIC_ID);
+          console.log("問診票取得完了 - データ:", data);
+          console.log("問診票取得完了 - 件数:", data.length);
           setQuestionnaires(data);
         } catch (error) {
           console.error("問診票データの読み込みエラー:", error);

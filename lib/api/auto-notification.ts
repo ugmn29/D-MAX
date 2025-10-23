@@ -81,9 +81,7 @@ export async function createAutoNotificationForLineLinked(
     )
 
     for (const template of lineLinkedTemplates) {
-      // メッセージを取得
-      const message = template.line_message || template.message_template
-
+      // custom_messageを渡さない（送信時に最新のテンプレート内容を使用）
       await createNotificationSchedule({
         patient_id: patientId,
         clinic_id: clinicId,
@@ -91,8 +89,7 @@ export async function createAutoNotificationForLineLinked(
         notification_type: template.notification_type,
         timing_value: 0,
         timing_unit: 'days',
-        send_channel: 'line',
-        custom_message: message
+        send_channel: 'line'
       })
     }
 
@@ -120,20 +117,18 @@ async function createNotificationForTemplate(
 
   // デフォルトチャネルを決定（LINE > メール > SMS の優先順位）
   let sendChannel: 'line' | 'email' | 'sms' = 'line'
-  let message = template.line_message || template.message_template
 
   if (!template.line_message && template.email_message) {
     sendChannel = 'email'
-    message = template.email_message
   } else if (!template.line_message && !template.email_message && template.sms_message) {
     sendChannel = 'sms'
-    message = template.sms_message
   }
 
   // タイミング値と単位を計算
   const timingValue = Math.abs(daysOffset)
   const timingUnit: 'days' | 'weeks' | 'months' = 'days'
 
+  // custom_messageを渡さない（送信時に最新のテンプレート内容を使用）
   await createNotificationSchedule({
     patient_id: patientId,
     clinic_id: clinicId,
@@ -141,8 +136,7 @@ async function createNotificationForTemplate(
     notification_type: template.notification_type,
     timing_value: timingValue,
     timing_unit: timingUnit,
-    send_channel: sendChannel,
-    custom_message: message
+    send_channel: sendChannel
   })
 }
 

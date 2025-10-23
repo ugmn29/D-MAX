@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
 
 export interface MemoTemplate {
   id: string
@@ -27,7 +27,8 @@ export async function getMemoTemplates(clinicId: string): Promise<MemoTemplate[]
     return sortedTemplates
   }
 
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('memo_templates')
     .select('*')
     .eq('clinic_id', clinicId)
@@ -72,7 +73,8 @@ export async function createMemoTemplate(clinicId: string, templateData: {
     return newTemplate
   }
 
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('memo_templates')
     .insert({
       clinic_id: clinicId,
@@ -130,7 +132,8 @@ export async function updateMemoTemplate(clinicId: string, id: string, templateD
     ...(templateData.name ? { content: templateData.name } : {})
   }
 
-  const { data, error } = await supabase
+  const client = getSupabaseClient()
+  const { data, error } = await client
     .from('memo_templates')
     .update(updateData)
     .eq('id', id)
@@ -160,7 +163,8 @@ export async function deleteMemoTemplate(clinicId: string, id: string): Promise<
     return
   }
 
-  const { error } = await supabase
+  const client = getSupabaseClient()
+  const { error } = await client
     .from('memo_templates')
     .update({ is_active: false })
     .eq('id', id)
