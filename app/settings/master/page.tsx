@@ -31,6 +31,7 @@ import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, dele
 import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
 import { getMemoTemplates, createMemoTemplate, updateMemoTemplate, deleteMemoTemplate, MemoTemplate } from '@/lib/api/memo-templates'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
+import { initializeClinicStaffPositions, initializeClinicCancelReasons } from '@/lib/api/clinic-initialization'
 
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -117,9 +118,40 @@ export default function MasterSettingsPage() {
           getCancelReasons(DEMO_CLINIC_ID),
           getMemoTemplates(DEMO_CLINIC_ID)
         ])
-        setStaffPositions(positionsData)
+
+        // スタッフ役職が空の場合、デフォルトデータを初期化
+        if (positionsData.length === 0) {
+          console.log('スタッフ役職が空です。デフォルトデータを初期化します...')
+          const initResult = await initializeClinicStaffPositions(DEMO_CLINIC_ID)
+          if (initResult.success) {
+            console.log(`✓ ${initResult.count}件のスタッフ役職を初期化しました`)
+            const reloadedPositions = await getStaffPositions(DEMO_CLINIC_ID)
+            setStaffPositions(reloadedPositions)
+          } else {
+            console.error('スタッフ役職の初期化に失敗:', initResult.errors)
+            setStaffPositions(positionsData)
+          }
+        } else {
+          setStaffPositions(positionsData)
+        }
+
+        // キャンセル理由が空の場合、デフォルトデータを初期化
+        if (cancelReasonsData.length === 0) {
+          console.log('キャンセル理由が空です。デフォルトデータを初期化します...')
+          const initResult = await initializeClinicCancelReasons(DEMO_CLINIC_ID)
+          if (initResult.success) {
+            console.log(`✓ ${initResult.count}件のキャンセル理由を初期化しました`)
+            const reloadedReasons = await getCancelReasons(DEMO_CLINIC_ID)
+            setCancelReasons(reloadedReasons)
+          } else {
+            console.error('キャンセル理由の初期化に失敗:', initResult.errors)
+            setCancelReasons(cancelReasonsData)
+          }
+        } else {
+          setCancelReasons(cancelReasonsData)
+        }
+
         setPatientNoteTypes(noteTypesData)
-        setCancelReasons(cancelReasonsData)
         setMemoTemplates(memoTemplatesData)
       } catch (error) {
         console.error('データ読み込みエラー:', error)

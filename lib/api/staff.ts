@@ -171,7 +171,8 @@ export async function createStaff(clinicId: string, data: CreateStaffData): Prom
   }
 
   try {
-    const { data: newStaff, error } = await supabase
+    const client = getSupabaseClient()
+    const { data: newStaff, error } = await client
       .from('staff')
       .insert({
         ...data,
@@ -209,7 +210,8 @@ export async function createStaff(clinicId: string, data: CreateStaffData): Prom
 // スタッフ更新
 export async function updateStaff(clinicId: string, staffId: string, data: UpdateStaffData): Promise<Staff> {
   try {
-    const { data: updatedStaff, error } = await supabase
+    const client = getSupabaseClient()
+    const { data: updatedStaff, error } = await client
       .from('staff')
       .update({
         ...data,
@@ -235,7 +237,8 @@ export async function updateStaff(clinicId: string, staffId: string, data: Updat
 // スタッフ削除（論理削除）
 export async function deleteStaff(clinicId: string, staffId: string): Promise<void> {
   try {
-    const { error } = await supabase
+    const client = getSupabaseClient()
+    const { error } = await client
       .from('staff')
       .update({
         is_active: false,

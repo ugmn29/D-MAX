@@ -28,8 +28,12 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, questionsCount: questions.length })
   } catch (error) {
     console.error('問診表の質問更新APIエラー:', error)
+    const errorMessage = error instanceof Error ? error.message : '不明なエラー'
     return NextResponse.json(
-      { error: 'Failed to update questionnaire questions', details: (error as Error).message },
+      {
+        error: '問診表の質問更新に失敗しました',
+        message: errorMessage
+      },
       { status: 500 }
     )
   }

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Modal } from '@/components/ui/modal'
 import { Clock, Edit, Trash2, Plus } from 'lucide-react'
 import { ShiftPattern } from '@/types/database'
 import { getShiftPatterns, createShiftPattern, updateShiftPattern, deleteShiftPattern } from '@/lib/api/shift-patterns'
@@ -19,7 +20,7 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
   const [patterns, setPatterns] = useState<ShiftPattern[]>([])
   const [loading, setLoading] = useState(false)
   const [editingPattern, setEditingPattern] = useState<ShiftPattern | null>(null)
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
   
   const [newPattern, setNewPattern] = useState({
     abbreviation: '',
@@ -94,7 +95,7 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
         no_break: false,
         memo: ''
       })
-      setShowAddForm(false)
+      setShowAddModal(false)
       await loadPatterns()
     } catch (error: any) {
       console.error('パターン追加エラー:', error)
@@ -325,12 +326,24 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
         </CardContent>
       </Card>
 
-      {/* 新規パターン追加 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>新規パターン追加</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* 新規パターン追加ボタン */}
+      <div className="flex justify-end">
+        <Button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center space-x-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>新規パターン追加</span>
+        </Button>
+      </div>
+
+      {/* 新規パターン追加モーダル */}
+      <Modal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="新規パターン追加"
+      >
+        <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="abbreviation">短縮名</Label>
@@ -429,7 +442,13 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
             />
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowAddModal(false)}
+            >
+              キャンセル
+            </Button>
             <Button
               onClick={handleAddPattern}
               disabled={loading || !newPattern.abbreviation || !newPattern.name}
@@ -439,8 +458,8 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
               <span>パターンを追加</span>
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Modal>
     </div>
   )
 }

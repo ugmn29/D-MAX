@@ -19,16 +19,18 @@ import { Slider } from "@/components/ui/slider";
 import { Modal } from "@/components/ui/modal";
 import { Textarea } from "@/components/ui/textarea";
 import { getPatients, getPatientLinkStatus, linkPatientToQuestionnaire, unlinkPatientFromQuestionnaire } from "@/lib/api/patients";
-import { 
-  getQuestionnaires, 
-  createQuestionnaire, 
-  updateQuestionnaire, 
+import {
+  getQuestionnaires,
+  createQuestionnaire,
+  updateQuestionnaire,
   deleteQuestionnaire,
   Questionnaire,
   QuestionnaireQuestion
 } from "@/lib/api/questionnaires";
+import { QuestionnaireForm } from "@/components/forms/questionnaire-form";
 import { ShiftPatterns } from "@/components/shift/shift-patterns";
 import { ShiftTable } from "@/components/shift/shift-table";
+import { CalendarMiniPreview } from "@/components/calendar/calendar-mini-preview";
 import {
   Settings,
   Building2,
@@ -77,6 +79,10 @@ import {
   Upload,
   Link2,
   Check,
+  Armchair,
+  Dumbbell,
+  Eye,
+  RockingChair,
 } from "lucide-react";
 import {
   updateClinicSettings,
@@ -114,6 +120,10 @@ import {
   deleteMemoTemplate,
   MemoTemplate,
 } from "@/lib/api/memo-templates";
+import {
+  initializeClinicStaffPositions,
+  initializeClinicCancelReasons,
+} from "@/lib/api/clinic-initialization";
 import {
   getTreatmentMenus,
   createTreatmentMenu,
@@ -280,7 +290,7 @@ const settingCategories = [
   {
     id: "units",
     name: "ユニット",
-    icon: Grid3X3,
+    icon: Armchair,
     href: "/settings/units",
   },
   {
@@ -310,7 +320,6 @@ const settingCategories = [
     id: "master",
     name: "マスタ",
     icon: Database,
-    href: "/settings/master",
   },
   {
     id: "subkarte",
@@ -321,7 +330,7 @@ const settingCategories = [
   {
     id: "training",
     name: "トレーニング",
-    icon: Accessibility,
+    icon: Dumbbell,
     href: "/settings/training",
   },
   {
@@ -353,6 +362,45 @@ export default function SettingsPage() {
   const [questionnaireTab, setQuestionnaireTab] = useState("list");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // 未保存の変更管理
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
+
+  // 保存完了モーダル
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
+
+  // 削除確認モーダル関連
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [deletingMenuId, setDeletingMenuId] = useState<string | null>(null);
+
+  // 汎用確認モーダル
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  }>({
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  // 汎用通知モーダル（alert代替）
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertModalConfig, setAlertModalConfig] = useState<{
+    title: string;
+    message: string;
+    type?: "success" | "error" | "info";
+  }>({
+    title: "",
+    message: "",
+    type: "info",
+  });
 
   // 連携状況管理の状態
   const [linkStatusData, setLinkStatusData] = useState({
@@ -471,6 +519,7 @@ export default function SettingsPage() {
     useState<Questionnaire | null>(null);
   const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false);
   const [copiedQuestionnaireId, setCopiedQuestionnaireId] = useState<string | null>(null);
+  const [previewQuestionnaireId, setPreviewQuestionnaireId] = useState<string | null>(null); // プレビュー表示する問診表ID
   const [newQuestionnaire, setNewQuestionnaire] = useState({
     name: "",
     description: "",
@@ -506,7 +555,8 @@ export default function SettingsPage() {
   >({});
   const [timeSlotMinutes, setTimeSlotMinutes] = useState(15);
   const [holidays, setHolidays] = useState<string[]>([]); // 休診日は空で開始
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const isInitialLoadRef = useRef(true); // useRefに変更（状態変更でuseEffectが発火しないようにする）
+  const treatmentMenusLoadedRef = useRef(false); // 診療メニューの初回読み込み完了フラグ
 
   // カレンダー設定の状態
   const [displayItems, setDisplayItems] = useState<string[]>([]);
@@ -541,6 +591,7 @@ export default function SettingsPage() {
   const [unitsActiveTab, setUnitsActiveTab] = useState<"units" | "priorities">(
     "units",
   );
+  const [draggedUnitIndex, setDraggedUnitIndex] = useState<number | null>(null);
 
   // ユニット管理の関数
   const loadUnitsData = async () => {
@@ -572,52 +623,68 @@ export default function SettingsPage() {
     setShowUnitModal(true);
   };
 
-  const handleSaveUnit = async () => {
-    try {
-      setSaving(true);
-      
-      if (editingUnit) {
-        // 更新
-        const updatedUnit = await updateUnit(
-          DEMO_CLINIC_ID,
-          editingUnit.id,
-          unitFormData,
-        );
-        setUnitsData(
-          unitsData.map((u) => (u.id === editingUnit.id ? updatedUnit : u)),
-        );
-      } else {
-        // 新規作成
-        const newUnit = await createUnit(DEMO_CLINIC_ID, unitFormData);
-        setUnitsData([...unitsData, newUnit]);
-      }
-      
-      setShowUnitModal(false);
-    } catch (error) {
-      console.error("ユニット保存エラー:", error);
-      alert("ユニットの保存に失敗しました");
-    } finally {
-      setSaving(false);
+  const handleSaveUnit = () => {
+    // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+    if (editingUnit) {
+      // 更新
+      setUnitsData(
+        unitsData.map((u) =>
+          u.id === editingUnit.id ? { ...u, ...unitFormData } : u
+        )
+      );
+    } else {
+      // 新規作成（一時IDを使用）
+      const newUnit = {
+        id: `temp-unit-${Date.now()}`,
+        clinic_id: DEMO_CLINIC_ID,
+        ...unitFormData,
+        created_at: new Date().toISOString(),
+      };
+      setUnitsData([...unitsData, newUnit]);
     }
+
+    setShowUnitModal(false);
   };
 
-  const handleDeleteUnit = async (unit: any) => {
-    if (!confirm(`ユニット「${unit.name}」を削除しますか？`)) return;
+  const handleDeleteUnit = (unit: any) => {
+    showConfirm(
+      `ユニット「${unit.name}」を削除しますか？`,
+      () => {
+        // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+        // 削除フラグを立てる
+        setUnitsData(
+          unitsData.map((u) =>
+            u.id === unit.id ? { ...u, _deleted: true } : u
+          )
+        );
+      },
+      { isDanger: true, confirmText: "削除" }
+    );
+  };
 
-    try {
-      setSaving(true);
-      await deleteUnit(DEMO_CLINIC_ID, unit.id);
-      setUnitsData(unitsData.filter((u) => u.id !== unit.id));
-    } catch (error) {
-      console.error("ユニット削除エラー:", error);
-      if (error instanceof Error && error.message.includes("予約が存在する")) {
-        alert("このユニットに関連する予約が存在するため削除できません");
-      } else {
-        alert("ユニットの削除に失敗しました");
-      }
-    } finally {
-      setSaving(false);
+  const handleDropUnit = (targetIndex: number) => {
+    if (draggedUnitIndex === null || draggedUnitIndex === targetIndex) {
+      setDraggedUnitIndex(null);
+      return;
     }
+
+    // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+    // ソート済みのユニット配列を作成
+    const sortedUnits = [...unitsData].sort((a, b) => a.sort_order - b.sort_order);
+
+    // 配列を並び替え
+    const [draggedItem] = sortedUnits.splice(draggedUnitIndex, 1);
+    sortedUnits.splice(targetIndex, 0, draggedItem);
+
+    // 新しい並び順を設定
+    const updatedUnits = sortedUnits.map((unit, index) => ({
+      ...unit,
+      sort_order: index + 1,
+    }));
+
+    // 状態を更新
+    setUnitsData(updatedUnits);
+    setDraggedUnitIndex(null);
   };
 
   // スタッフユニット優先順位の関数
@@ -660,7 +727,7 @@ export default function SettingsPage() {
       loadStaffUnitPriorities();
     } catch (error) {
       console.error("スタッフ割り当てエラー:", error);
-      alert("スタッフの割り当てに失敗しました: " + error.message);
+      showAlert("スタッフの割り当てに失敗しました: " + error.message, "error");
     }
   };
 
@@ -670,7 +737,7 @@ export default function SettingsPage() {
       loadStaffUnitPriorities();
     } catch (error) {
       console.error("優先順位削除エラー:", error);
-      alert("優先順位の削除に失敗しました");
+      showAlert("優先順位の削除に失敗しました", "error");
     }
   };
 
@@ -733,7 +800,7 @@ export default function SettingsPage() {
       loadStaffUnitPriorities();
     } catch (error) {
       console.error("優先順位更新エラー:", error);
-      alert("優先順位の更新に失敗しました");
+      showAlert("優先順位の更新に失敗しました", "error");
     } finally {
       setDraggedPriority(null);
     }
@@ -923,7 +990,46 @@ export default function SettingsPage() {
   });
 
   const handleCategoryClick = (categoryId: string) => {
-    setSelectedCategory(categoryId);
+    // 編集中のデータがあるかチェック
+    const hasEditingData =
+      editingTemplate !== null ||
+      editingUnit !== null ||
+      editingWebMenu !== null ||
+      editingStaff !== null ||
+      editingCancelReason !== null ||
+      editingDefaultText !== null ||
+      editingTreatmentMenu !== null;
+
+    if (hasUnsavedChanges || hasEditingData) {
+      setPendingCategory(categoryId);
+      setShowUnsavedWarning(true);
+    } else {
+      setSelectedCategory(categoryId);
+    }
+  };
+
+  // 未保存の変更を破棄してページ遷移
+  const discardChanges = () => {
+    setHasUnsavedChanges(false);
+    setShowUnsavedWarning(false);
+    // 全ての編集状態をリセット
+    setEditingTemplate(null);
+    setEditingUnit(null);
+    setEditingWebMenu(null);
+    setEditingStaff(null);
+    setEditingCancelReason(null);
+    setEditingDefaultText(null);
+    setEditingTreatmentMenu(null);
+    if (pendingCategory) {
+      setSelectedCategory(pendingCategory);
+      setPendingCategory(null);
+    }
+  };
+
+  // ページ遷移をキャンセル
+  const cancelNavigation = () => {
+    setShowUnsavedWarning(false);
+    setPendingCategory(null);
   };
 
   // CSV データ検証関数
@@ -973,7 +1079,7 @@ export default function SettingsPage() {
   // ファイル処理関数
   const processFile = useCallback((file: File) => {
     if (!file.name.endsWith('.csv')) {
-      alert('CSVファイルのみ対応しています')
+      showAlert('CSVファイルのみ対応しています', 'error')
       return
     }
 
@@ -999,7 +1105,7 @@ export default function SettingsPage() {
         skipEmptyLines: true,
         complete: (results) => {
           if (results.data.length === 0) {
-            alert('CSVファイルにデータがありません')
+            showAlert('CSVファイルにデータがありません', 'error')
             setIsProcessing(false)
             return
           }
@@ -1020,14 +1126,14 @@ export default function SettingsPage() {
         },
         error: (error) => {
           console.error('CSV解析エラー:', error)
-          alert('CSVファイルの解析に失敗しました')
+          showAlert('CSVファイルの解析に失敗しました', 'error')
           setIsProcessing(false)
         }
       })
     }
 
     reader.onerror = () => {
-      alert('ファイルの読み込みに失敗しました')
+      showAlert('ファイルの読み込みに失敗しました', 'error')
       setIsProcessing(false)
     }
 
@@ -1098,7 +1204,7 @@ export default function SettingsPage() {
   // デフォルトテキストの追加
   const handleAddDefaultText = () => {
     if (!newDefaultText.title.trim() || !newDefaultText.content.trim()) {
-      alert("タイトルと内容を入力してください");
+      showAlert("タイトルと内容を入力してください", "error");
       return;
     }
 
@@ -1126,7 +1232,7 @@ export default function SettingsPage() {
   // デフォルトテキストの編集保存
   const handleEditDefaultTextSave = () => {
     if (!newDefaultText.title.trim() || !newDefaultText.content.trim()) {
-      alert("タイトルと内容を入力してください");
+      showAlert("タイトルと内容を入力してください", "error");
       return;
     }
 
@@ -1149,10 +1255,10 @@ export default function SettingsPage() {
 
   // デフォルトテキストの削除
   const handleDeleteDefaultText = (id: string) => {
-    if (confirm("このデフォルトテキストを削除しますか？")) {
+    showConfirm("このデフォルトテキストを削除しますか？", () => {
       const updatedTexts = defaultTexts.filter((text) => text.id !== id);
       saveDefaultTexts(updatedTexts);
-    }
+    }, { isDanger: true, confirmText: "削除" });
   };
 
   // 連携状況データを取得
@@ -1167,30 +1273,30 @@ export default function SettingsPage() {
 
   // 患者を連携（本登録）
   const handleLinkPatient = async (patientId: string) => {
-    if (!confirm('この患者を本登録に変更しますか？')) return;
-    
-    try {
-      await linkPatientToQuestionnaire(patientId);
-      alert('患者を本登録に変更しました');
-      loadLinkStatusData(); // データを再取得
-    } catch (error) {
-      console.error('患者連携エラー:', error);
-      alert('患者の連携に失敗しました');
-    }
+    showConfirm('この患者を本登録に変更しますか？', async () => {
+      try {
+        await linkPatientToQuestionnaire(patientId);
+        showAlert('患者を本登録に変更しました', 'success');
+        loadLinkStatusData(); // データを再取得
+      } catch (error) {
+        console.error('患者連携エラー:', error);
+        showAlert('患者の連携に失敗しました', 'error');
+      }
+    });
   };
 
   // 患者の連携を解除（仮登録に戻す）
   const handleUnlinkPatient = async (patientId: string) => {
-    if (!confirm('この患者を仮登録に戻しますか？\n過去の問診データは保持されます。')) return;
-    
-    try {
-      await unlinkPatientFromQuestionnaire(patientId);
-      alert('患者を仮登録に戻しました');
-      loadLinkStatusData(); // データを再取得
-    } catch (error) {
-      console.error('患者連携解除エラー:', error);
-      alert('患者の連携解除に失敗しました');
-    }
+    showConfirm('この患者を仮登録に戻しますか？\n過去の問診データは保持されます。', async () => {
+      try {
+        await unlinkPatientFromQuestionnaire(patientId);
+        showAlert('患者を仮登録に戻しました', 'success');
+        loadLinkStatusData(); // データを再取得
+      } catch (error) {
+        console.error('患者連携解除エラー:', error);
+        showAlert('患者の連携解除に失敗しました', 'error');
+      }
+    });
   };
 
   // 連携状況データの読み込み
@@ -1232,7 +1338,15 @@ export default function SettingsPage() {
   // ユニットデータの読み込み
   useEffect(() => {
     if (selectedCategory === "units") {
-      loadUnitsData();
+      // データ読み込み時に変更検知をスキップ
+      isInitialLoadRef.current = true;
+
+      loadUnitsData().then(() => {
+        // 次のフレームで変更検知を再開
+        setTimeout(() => {
+          isInitialLoadRef.current = false;
+        }, 100);
+      });
       // スタッフデータも読み込み
       const loadStaffForUnits = async () => {
         try {
@@ -1277,6 +1391,10 @@ export default function SettingsPage() {
             const settings = await response.json();
             // Webhook URLを常に現在のオリジンで設定
             const webhookUrl = `${window.location.origin}/api/line/webhook`;
+
+            // データ読み込み時に変更検知をスキップ
+            isInitialLoadRef.current = true;
+
             setNotificationSettings({
               ...settings,
               line: {
@@ -1284,6 +1402,11 @@ export default function SettingsPage() {
                 webhook_url: webhookUrl,
               },
             });
+
+            // 次のフレームで変更検知を再開
+            setTimeout(() => {
+              isInitialLoadRef.current = false;
+            }, 100);
           }
         } catch (error) {
           console.error("通知設定の読み込みエラー:", error);
@@ -1474,10 +1597,18 @@ export default function SettingsPage() {
       }
     };
 
-    loadClinicSettings();
+    // 全データの読み込みを待ってから初期読み込みフラグをfalseにする
+    const initializeData = async () => {
+      await loadClinicSettings();
 
-    // 初期読み込み完了フラグを設定
-    setIsInitialLoad(false);
+      // 初期読み込み完了フラグを設定（データ読み込み完了後、さらに少し待つ）
+      setTimeout(() => {
+        console.log("✅ 初期読み込み完了: isInitialLoadをfalseに設定");
+        isInitialLoadRef.current = false;
+      }, 500); // 500msに増やして確実にデータがセットされるまで待つ
+    };
+
+    initializeData();
 
     // スタッフデータの読み込み
     const loadStaff = async () => {
@@ -1506,9 +1637,40 @@ export default function SettingsPage() {
             getCancelReasons(DEMO_CLINIC_ID),
             getMemoTemplates(DEMO_CLINIC_ID),
           ]);
-        setStaffPositions(positionsData);
+
+        // スタッフ役職が空の場合、デフォルトデータを初期化
+        if (positionsData.length === 0) {
+          console.log('スタッフ役職が空です。デフォルトデータを初期化します...');
+          const initResult = await initializeClinicStaffPositions(DEMO_CLINIC_ID);
+          if (initResult.success) {
+            console.log(`✓ ${initResult.count}件のスタッフ役職を初期化しました`);
+            const reloadedPositions = await getStaffPositions(DEMO_CLINIC_ID);
+            setStaffPositions(reloadedPositions);
+          } else {
+            console.error('スタッフ役職の初期化に失敗:', initResult.errors);
+            setStaffPositions(positionsData);
+          }
+        } else {
+          setStaffPositions(positionsData);
+        }
+
+        // キャンセル理由が空の場合、デフォルトデータを初期化
+        if (cancelReasonsData.length === 0) {
+          console.log('キャンセル理由が空です。デフォルトデータを初期化します...');
+          const initResult = await initializeClinicCancelReasons(DEMO_CLINIC_ID);
+          if (initResult.success) {
+            console.log(`✓ ${initResult.count}件のキャンセル理由を初期化しました`);
+            const reloadedReasons = await getCancelReasons(DEMO_CLINIC_ID);
+            setCancelReasons(reloadedReasons);
+          } else {
+            console.error('キャンセル理由の初期化に失敗:', initResult.errors);
+            setCancelReasons(cancelReasonsData);
+          }
+        } else {
+          setCancelReasons(cancelReasonsData);
+        }
+
         setPatientNoteTypes(noteTypesData);
-        setCancelReasons(cancelReasonsData);
         setMemoTemplates(memoTemplatesData);
       } catch (error) {
         console.error("マスタデータ読み込みエラー:", error);
@@ -1517,31 +1679,75 @@ export default function SettingsPage() {
     
     loadMasterData();
 
-    // 診療メニューデータの読み込み
+    // 診療メニューデータの読み込み（初期読み込み時のみ）
     const loadTreatmentMenus = async () => {
+      // 既に読み込み済みの場合はスキップ（ローカルの変更を保持）
+      if (treatmentMenusLoadedRef.current) {
+        console.log("診療メニューは既に読み込み済み、スキップします");
+        return;
+      }
+
       try {
         console.log("メニュー読み込み開始:", DEMO_CLINIC_ID);
         const data = await getTreatmentMenus(DEMO_CLINIC_ID);
         console.log("読み込んだメニューデータ:", data);
         setTreatmentMenus(data);
+        treatmentMenusLoadedRef.current = true; // 読み込み完了フラグを立てる
       } catch (error) {
         console.error("メニュー読み込みエラー:", error);
       }
     };
-    
+
     loadTreatmentMenus();
   }, []);
+
+  // 設定変更を監視して未保存フラグを立てる
+  useEffect(() => {
+    // 初期読み込み中はスキップ
+    if (isInitialLoadRef.current) {
+      console.log("🔵 初期読み込み中のため、変更検知をスキップ");
+      return;
+    }
+
+    // データが変更されたら未保存フラグを立てる
+    console.log("🔶 設定変更検知: 未保存フラグをONにします");
+    setHasUnsavedChanges(true);
+  }, [clinicInfo, businessHours, breakTimes, holidays, displayItems, cellHeight, webSettings, webBookingMenus, notificationSettings, treatmentMenus, unitsData, staff]);
+  // 注: questionnairesは即座に保存されるため、未保存変更として扱わない
+
+  // 未保存の変更がある場合、ページ離脱時に警告を表示
+  useEffect(() => {
+    // localStorageに未保存状態を保存（他のページから参照できるように）
+    if (hasUnsavedChanges) {
+      localStorage.setItem('settings_has_unsaved_changes', 'true');
+    } else {
+      localStorage.removeItem('settings_has_unsaved_changes');
+    }
+
+    // beforeunloadイベントで警告
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = ''; // Chrome requires returnValue to be set
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
 
   // timeSlotMinutesの変更を監視して自動保存
   useEffect(() => {
     console.log(
       "設定ページ: 自動保存useEffect実行 - isInitialLoad:",
-      isInitialLoad,
+      isInitialLoadRef.current,
       "timeSlotMinutes:",
       timeSlotMinutes,
     );
-    
-    if (isInitialLoad) {
+
+    if (isInitialLoadRef.current) {
       console.log("設定ページ: 初期読み込み中のため自動保存をスキップ");
       return; // 初期読み込み時は保存しない
     }
@@ -1625,7 +1831,7 @@ export default function SettingsPage() {
     }, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [timeSlotMinutes, isInitialLoad]);
+  }, [timeSlotMinutes]);
 
   // 診療時間の変更
   const handleBusinessHoursChange = (
@@ -1759,7 +1965,15 @@ export default function SettingsPage() {
   // 表示項目の変更
   const handleDisplayItemChange = (itemId: string, checked: boolean) => {
     if (checked) {
-      setDisplayItems((prev) => [...prev, itemId]);
+      // DISPLAY_ITEMSの定義順を維持するため、ソートして追加
+      setDisplayItems((prev) => {
+        const newItems = [...prev, itemId];
+        return newItems.sort((a, b) => {
+          const indexA = DISPLAY_ITEMS.findIndex((item) => item.id === a);
+          const indexB = DISPLAY_ITEMS.findIndex((item) => item.id === b);
+          return indexA - indexB;
+        });
+      });
     } else {
       setDisplayItems((prev) => prev.filter((id) => id !== itemId));
     }
@@ -1768,8 +1982,7 @@ export default function SettingsPage() {
   // 診療メニューのWeb予約設定を更新
   const handleMenuUpdate = async (menuId: string, updates: any) => {
     try {
-      await updateTreatmentMenu(DEMO_CLINIC_ID, menuId, updates);
-      // ローカル状態を更新
+      // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
       setTreatmentMenus((prev) =>
         prev.map((menu) =>
           menu.id === menuId ? { ...menu, ...updates } : menu,
@@ -1777,7 +1990,7 @@ export default function SettingsPage() {
       );
     } catch (error) {
       console.error("診療メニュー更新エラー:", error);
-      alert("診療メニューの更新に失敗しました");
+      showAlert("診療メニューの更新に失敗しました", "error");
     }
   };
 
@@ -1993,11 +2206,11 @@ export default function SettingsPage() {
   // Web予約メニューを追加
   const handleAddWebBookingMenu = () => {
     if (!newWebMenu.treatment_menu_id) {
-      alert("診療メニューを選択してください");
+      showAlert("診療メニューを選択してください", "error");
       return;
     }
     if (newWebMenu.steps.length === 0) {
-      alert("少なくとも1つのステップを追加してください");
+      showAlert("少なくとも1つのステップを追加してください", "error");
       return;
     }
 
@@ -2091,11 +2304,11 @@ export default function SettingsPage() {
   const handleSaveEditWebMenu = () => {
     if (!editingWebMenu) return;
     if (!newWebMenu.treatment_menu_id) {
-      alert("診療メニューを選択してください");
+      showAlert("診療メニューを選択してください", "error");
       return;
     }
     if (newWebMenu.steps.length === 0) {
-      alert("少なくとも1つのステップを追加してください");
+      showAlert("少なくとも1つのステップを追加してください", "error");
       return;
     }
 
@@ -2215,7 +2428,7 @@ export default function SettingsPage() {
       console.log("Web予約メニュー保存完了");
     } catch (error) {
       console.error("Web予約メニュー保存エラー:", error);
-      alert("Web予約メニューの保存に失敗しました");
+      showAlert("Web予約メニューの保存に失敗しました", "error");
     }
   };
 
@@ -2237,7 +2450,10 @@ export default function SettingsPage() {
       // 保存後にデータを再読み込み
       const reloadedSettings = await getClinicSettings(DEMO_CLINIC_ID);
       console.log("再読み込みした設定:", reloadedSettings);
-      
+
+      // データ再読み込み時に変更検知をスキップ
+      isInitialLoadRef.current = true;
+
       if (reloadedSettings.web_reservation) {
         setWebSettings(reloadedSettings.web_reservation);
         setWebBookingMenus(
@@ -2249,15 +2465,67 @@ export default function SettingsPage() {
         );
       }
 
-      alert("Web予約設定を保存しました");
+      // 保存成功時に未保存フラグをクリア（データ再読み込み後すぐに実行）
+      setHasUnsavedChanges(false);
+
+      // 次のフレームで変更検知を再開
+      setTimeout(() => {
+        isInitialLoadRef.current = false;
+      }, 100);
+
+      showAlert("Web予約設定を保存しました", "success");
     } catch (error) {
       console.error("Web予約設定保存エラー:", error);
-      alert("Web予約設定の保存に失敗しました");
+      showAlert("Web予約設定の保存に失敗しました", "error");
     }
+  };
+
+  // 汎用確認ダイアログヘルパー
+  const showConfirm = (
+    message: string,
+    onConfirm: () => void,
+    options?: {
+      title?: string;
+      confirmText?: string;
+      cancelText?: string;
+      isDanger?: boolean;
+    }
+  ) => {
+    setConfirmModalConfig({
+      title: options?.title || "確認",
+      message,
+      confirmText: options?.confirmText || "OK",
+      cancelText: options?.cancelText || "キャンセル",
+      onConfirm,
+      isDanger: options?.isDanger || false,
+    });
+    setShowConfirmModal(true);
+  };
+
+  // 汎用アラートヘルパー
+  const showAlert = (
+    message: string,
+    type: "success" | "error" | "info" = "info",
+    title?: string
+  ) => {
+    setAlertModalConfig({
+      title: title || (type === "error" ? "エラー" : type === "success" ? "成功" : "通知"),
+      message,
+      type,
+    });
+    setShowAlertModal(true);
   };
 
   // 保存処理
   const handleSave = async () => {
+    console.log("=== handleSave 呼び出し開始 ===");
+    console.log("selectedCategory:", selectedCategory);
+    console.log("現在のclinicInfo:", clinicInfo);
+    console.log("現在のbusinessHours:", businessHours);
+    console.log("現在のbreakTimes:", breakTimes);
+    console.log("現在のtimeSlotMinutes:", timeSlotMinutes);
+    console.log("現在のholidays:", holidays);
+
     try {
       setSaving(true);
 
@@ -2284,44 +2552,262 @@ export default function SettingsPage() {
 
       // Supabaseに保存
       if (selectedCategory === "clinic") {
+        console.log("=== クリニック設定を保存中 ===");
         // クリニック設定は個別に保存
         await setClinicSetting(
           DEMO_CLINIC_ID,
           "clinic_info",
           settings.clinicInfo,
         );
+        console.log("✓ clinic_info保存完了");
+
         await setClinicSetting(
           DEMO_CLINIC_ID,
           "business_hours",
           settings.businessHours,
         );
+        console.log("✓ business_hours保存完了");
+
         await setClinicSetting(
           DEMO_CLINIC_ID,
           "break_times",
           settings.breakTimes,
         );
+        console.log("✓ break_times保存完了");
+
         await setClinicSetting(
           DEMO_CLINIC_ID,
           "time_slot_minutes",
           settings.timeSlotMinutes,
         );
+        console.log("✓ time_slot_minutes保存完了");
+
         await setClinicSetting(DEMO_CLINIC_ID, "holidays", settings.holidays);
+        console.log("✓ holidays保存完了:", settings.holidays);
         console.log("クリニック設定をclinic_settingsテーブルに保存しました");
-        console.log("保存されたholidays:", settings.holidays);
+      } else if (selectedCategory === "calendar") {
+        console.log("=== カレンダー設定を保存中 ===");
+        // カレンダー設定を個別に保存
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "time_slot_minutes",
+          settings.timeSlotMinutes,
+        );
+        console.log("✓ time_slot_minutes保存完了");
+
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "display_items",
+          settings.displayItems,
+        );
+        console.log("✓ display_items保存完了");
+
+        await setClinicSetting(
+          DEMO_CLINIC_ID,
+          "cell_height",
+          settings.cellHeight,
+        );
+        console.log("✓ cell_height保存完了");
+        console.log("カレンダー設定をclinic_settingsテーブルに保存しました");
+      } else if (selectedCategory === "treatment") {
+        console.log("=== 診療メニュー設定を保存中 ===");
+
+        // 診療メニューを一括保存
+        for (const menu of treatmentMenus) {
+          if (menu._deleted) {
+            // 削除フラグが立っているメニューを削除
+            if (!menu.id.startsWith('temp-')) {
+              await deleteTreatmentMenu(DEMO_CLINIC_ID, menu.id);
+              console.log(`✓ メニュー削除: ${menu.name}`);
+            }
+          } else if (menu.id.startsWith('temp-')) {
+            // 一時IDのメニューを新規作成
+            const { id, _deleted, ...menuData } = menu;
+            const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
+            console.log(`✓ メニュー作成: ${menu.name}`, result);
+          } else {
+            // 既存メニューを更新
+            const { id, _deleted, ...menuData } = menu;
+            await updateTreatmentMenu(DEMO_CLINIC_ID, menu.id, menuData);
+            console.log(`✓ メニュー更新: ${menu.name}`);
+          }
+        }
+
+        // 保存後にデータを再読み込み
+        treatmentMenusLoadedRef.current = false; // フラグをリセットして再読み込み可能に
+        const reloadedMenus = await getTreatmentMenus(DEMO_CLINIC_ID);
+        treatmentMenusLoadedRef.current = true; // 再度フラグを立てる
+
+        // データ再読み込み時に変更検知をスキップ
+        isInitialLoadRef.current = true;
+        setTreatmentMenus(reloadedMenus);
+
+        // 未保存フラグをクリア（データ再読み込み後すぐに実行）
+        setHasUnsavedChanges(false);
+
+        // 次のフレームで変更検知を再開
+        setTimeout(() => {
+          isInitialLoadRef.current = false;
+        }, 100);
+
+        console.log("診療メニュー保存完了");
+
+        // 早期リターンして、下のsetHasUnsavedChanges(false)の二重実行を防ぐ
+        setShowSaveSuccessModal(true);
+        setSaving(false);
+        return;
+      } else if (selectedCategory === "questionnaire") {
+        console.log("=== 問診表設定を保存中 ===");
+        // 問診表は個別のAPIで管理されているため、ここでは何もしない
+        console.log("問診表は個別に保存されています");
+      } else if (selectedCategory === "units") {
+        console.log("=== ユニット設定を保存中 ===");
+
+        // ユニットを一括保存
+        for (const unit of unitsData) {
+          if (unit._deleted) {
+            // 削除フラグが立っているユニットを削除
+            if (!unit.id.startsWith('temp-')) {
+              await deleteUnit(DEMO_CLINIC_ID, unit.id);
+              console.log(`✓ ユニット削除: ${unit.name}`);
+            }
+          } else if (unit.id.startsWith('temp-')) {
+            // 一時IDのユニットを新規作成
+            const { id, _deleted, ...unitData } = unit;
+            const result = await createUnit(DEMO_CLINIC_ID, unitData);
+            console.log(`✓ ユニット作成: ${unit.name}`, result);
+          } else {
+            // 既存ユニットを更新
+            const { id, _deleted, clinic_id, created_at, ...unitData } = unit;
+            await updateUnit(DEMO_CLINIC_ID, unit.id, unitData);
+            console.log(`✓ ユニット更新: ${unit.name}`);
+          }
+        }
+
+        // 保存後にデータを再読み込み
+        const reloadedUnits = await getUnits(DEMO_CLINIC_ID);
+
+        // データ再読み込み時に変更検知をスキップ
+        isInitialLoadRef.current = true;
+        setUnitsData(reloadedUnits);
+
+        // 未保存フラグをクリア（データ再読み込み後すぐに実行）
+        setHasUnsavedChanges(false);
+
+        // 次のフレームで変更検知を再開
+        setTimeout(() => {
+          isInitialLoadRef.current = false;
+        }, 100);
+
+        console.log("ユニット設定保存完了");
+
+        // 早期リターンして、下のsetHasUnsavedChanges(false)の二重実行を防ぐ
+        setShowSaveSuccessModal(true);
+        setSaving(false);
+        return;
+      } else if (selectedCategory === "staff") {
+        console.log("=== スタッフ設定を保存中 ===");
+
+        // スタッフを一括保存
+        for (const member of staff) {
+          if (member._deleted) {
+            // 削除フラグが立っているスタッフを削除
+            if (!member.id.startsWith('temp-')) {
+              await deleteStaff(DEMO_CLINIC_ID, member.id);
+              console.log(`✓ スタッフ削除: ${member.name}`);
+            }
+          } else if (member.id.startsWith('temp-')) {
+            // 一時IDのスタッフを新規作成
+            const { id, _deleted, position, created_at, ...memberData } = member;
+            const result = await createStaff(DEMO_CLINIC_ID, memberData);
+            console.log(`✓ スタッフ作成: ${member.name}`, result);
+          } else {
+            // 既存スタッフを更新
+            const { id, _deleted, position, clinic_id, created_at, updated_at, ...memberData } = member;
+            await updateStaff(DEMO_CLINIC_ID, member.id, memberData);
+            console.log(`✓ スタッフ更新: ${member.name}`);
+          }
+        }
+
+        // 保存後にデータを再読み込み
+        const reloadedStaff = await getStaff(DEMO_CLINIC_ID);
+
+        // データ再読み込み時に変更検知をスキップ
+        isInitialLoadRef.current = true;
+        setStaff(reloadedStaff);
+
+        // シフト表をリフレッシュ
+        setRefreshTrigger((prev) => prev + 1);
+
+        // 未保存フラグをクリア（データ再読み込み後すぐに実行）
+        setHasUnsavedChanges(false);
+
+        // 次のフレームで変更検知を再開
+        setTimeout(() => {
+          isInitialLoadRef.current = false;
+        }, 100);
+
+        console.log("スタッフ設定保存完了");
+
+        // 早期リターンして、下のsetHasUnsavedChanges(false)の二重実行を防ぐ
+        setShowSaveSuccessModal(true);
+        setSaving(false);
+        return;
+      } else if (selectedCategory === "shift") {
+        console.log("=== シフト設定を保存中 ===");
+        // シフトは個別のAPIで管理されているため、ここでは何もしない
+        console.log("シフトは個別に保存されています");
+      } else if (selectedCategory === "web") {
+        console.log("=== Web予約設定を保存中 ===");
+        // Web予約設定を保存
+        await handleSaveWebSettings();
+        return; // handleSaveWebSettingsで完了メッセージを表示するため、ここでreturn
+      } else if (selectedCategory === "notification") {
+        console.log("=== 通知設定を保存中 ===");
+        // 通知設定はnotificationSettings変数から保存
+        const response = await fetch("/api/notification-settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clinic_id: DEMO_CLINIC_ID,
+            settings: notificationSettings,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error("通知設定の保存に失敗しました");
+        }
+        console.log("✓ 通知設定保存完了");
+      } else if (selectedCategory === "master") {
+        console.log("=== マスタ設定を保存中 ===");
+        // マスタデータは個別のAPIで管理されているため、ここでは何もしない
+        console.log("マスタデータは個別に保存されています");
+      } else if (selectedCategory === "subkarte") {
+        console.log("=== サブカルテ設定を保存中 ===");
+        // サブカルテ設定を保存
+        await setClinicSetting(DEMO_CLINIC_ID, "subkarte_settings", {
+          defaultTexts: defaultTexts,
+        });
+        console.log("✓ サブカルテ設定保存完了");
+      } else if (selectedCategory === "training") {
+        console.log("=== トレーニング設定を保存中 ===");
+        // トレーニング設定は個別に管理されているため、ここでは何もしない
+        console.log("トレーニング設定は個別に保存されています");
+      } else if (selectedCategory === "data-import") {
+        console.log("=== データ移行設定を保存中 ===");
+        // データ移行はインポート処理のため、保存不要
+        console.log("データ移行は保存不要です");
       } else {
-        // その他の設定は従来通り
-        const result = await updateClinicSettings(DEMO_CLINIC_ID, settings);
-        console.log("保存結果:", result);
-        console.log("保存結果の詳細:", JSON.stringify(result, null, 2));
-        console.log("保存結果のcancel_types:", result.cancel_types);
+        console.warn("⚠ 不明なカテゴリ:", selectedCategory);
+        showAlert(`不明なカテゴリです: ${selectedCategory}`, "error");
+        setSaving(false);
+        return;
       }
 
-      alert(
-        "設定を保存しました。カレンダーページをリロードすると反映されます。",
-      );
+      setHasUnsavedChanges(false);
+      setShowSaveSuccessModal(true);
     } catch (error) {
       console.error("保存エラー:", error);
-      alert("保存に失敗しました: " + (error as Error).message);
+      showAlert("保存に失敗しました: " + (error as Error).message, "error");
     } finally {
       setSaving(false);
     }
@@ -2333,7 +2819,7 @@ export default function SettingsPage() {
       {/* サブタブ */}
       <div className="flex space-x-0 mb-6 border-b border-gray-200">
         <button
-          onClick={() => setSelectedClinicTab("info")}
+          onMouseEnter={() => setSelectedClinicTab("info")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             selectedClinicTab === "info"
               ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -2343,7 +2829,7 @@ export default function SettingsPage() {
           医院情報
         </button>
         <button
-          onClick={() => setSelectedClinicTab("hours")}
+          onMouseEnter={() => setSelectedClinicTab("hours")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             selectedClinicTab === "hours"
               ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -2612,83 +3098,97 @@ export default function SettingsPage() {
 
   // カレンダー設定コンテンツ
   const renderCalendarSettings = () => (
-    <div className="space-y-8">
-      {/* 1コマの時間 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">1コマの時間</h3>
-          <div className="max-w-xs">
-            <Select
-              value={timeSlotMinutes.toString()}
-              onValueChange={(value) => setTimeSlotMinutes(parseInt(value))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIME_SLOT_OPTIONS.map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value.toString()}
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      {/* 表示項目 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">表示項目</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {DISPLAY_ITEMS.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center space-x-2 p-1.5 rounded hover:bg-gray-50"
+    <div className="flex gap-6">
+      {/* 左側: 設定項目 (60%) */}
+      <div className="flex-1 space-y-8" style={{ maxWidth: '60%' }}>
+        {/* 1コマの時間 */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">1コマの時間</h3>
+            <div className="max-w-xs">
+              <Select
+                value={timeSlotMinutes.toString()}
+                onValueChange={(value) => setTimeSlotMinutes(parseInt(value))}
               >
-                <Checkbox
-                  id={item.id}
-                  checked={displayItems.includes(item.id)}
-                  onCheckedChange={(checked) => 
-                    handleDisplayItemChange(item.id, checked as boolean)
-                  }
-                  className="flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <Label
-                    htmlFor={item.id}
-                    className="text-sm font-medium text-gray-900 cursor-pointer block truncate"
-                  >
-                    {item.name}
-                  </Label>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_SLOT_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value.toString()}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* 表示項目 */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">表示項目</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {DISPLAY_ITEMS.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center space-x-2 p-1.5 rounded hover:bg-gray-50"
+                >
+                  <Checkbox
+                    id={item.id}
+                    checked={displayItems.includes(item.id)}
+                    onCheckedChange={(checked) =>
+                      handleDisplayItemChange(item.id, checked as boolean)
+                    }
+                    className="flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <Label
+                      htmlFor={item.id}
+                      className="text-sm font-medium text-gray-900 cursor-pointer block truncate"
+                    >
+                      {item.name}
+                    </Label>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* セル表示設定 */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">セル表示設定</h3>
+            <div className="max-w-md">
+              <Label className="text-sm font-medium text-gray-700">
+                セルの高さ: {cellHeight}px
+              </Label>
+              <Slider
+                value={[cellHeight]}
+                onValueChange={(value) => setCellHeight(value[0])}
+                min={20}
+                max={80}
+                step={5}
+                className="mt-2"
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* セル表示設定 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">セル表示設定</h3>
-          <div className="max-w-md">
-            <Label className="text-sm font-medium text-gray-700">
-              セルの高さ: {cellHeight}px
-            </Label>
-            <Slider
-              value={[cellHeight]}
-              onValueChange={(value) => setCellHeight(value[0])}
-              min={20}
-              max={80}
-              step={5}
-              className="mt-2"
-            />
-          </div>
+      {/* 右側: プレビュー (40%) */}
+      <div className="flex-1" style={{ maxWidth: '40%' }}>
+        <div className="sticky top-4">
+          <CalendarMiniPreview
+            timeSlotMinutes={timeSlotMinutes}
+            cellHeight={cellHeight}
+            displayItems={displayItems}
+          />
         </div>
       </div>
     </div>
@@ -2716,7 +3216,7 @@ export default function SettingsPage() {
       console.error("役職追加エラー:", error);
       const errorMessage =
         error instanceof Error ? error.message : "役職の追加に失敗しました";
-      alert(`役職の追加に失敗しました: ${errorMessage}`);
+      showAlert(`役職の追加に失敗しました: ${errorMessage}`, "error");
     } finally {
       setSaving(false);
     }
@@ -2732,28 +3232,28 @@ export default function SettingsPage() {
       setStaffPositions(data);
     } catch (error) {
       console.error("役職更新エラー:", error);
-      alert("役職の更新に失敗しました");
+      showAlert("役職の更新に失敗しました", "error");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeletePosition = async (positionId: string) => {
-    if (!confirm("この役職を削除しますか？")) return;
-    
-    try {
-      setSaving(true);
-      await deleteStaffPosition(DEMO_CLINIC_ID, positionId);
+    showConfirm("この役職を削除しますか？", async () => {
+      try {
+        setSaving(true);
+        await deleteStaffPosition(DEMO_CLINIC_ID, positionId);
 
-      // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID);
-      setStaffPositions(data);
-    } catch (error) {
-      console.error("役職削除エラー:", error);
-      alert("役職の削除に失敗しました");
-    } finally {
-      setSaving(false);
-    }
+        // データを再読み込み
+        const data = await getStaffPositions(DEMO_CLINIC_ID);
+        setStaffPositions(data);
+      } catch (error) {
+        console.error("役職削除エラー:", error);
+        showAlert("役職の削除に失敗しました", "error");
+      } finally {
+        setSaving(false);
+      }
+    }, { isDanger: true, confirmText: "削除" });
   };
 
   const handleAddNoteType = async () => {
@@ -2774,7 +3274,7 @@ export default function SettingsPage() {
       setShowAddNoteType(false);
     } catch (error) {
       console.error("ノートタイプ追加エラー:", error);
-      alert("ノートタイプの追加に失敗しました");
+      showAlert("ノートタイプの追加に失敗しました", "error");
     } finally {
       setSaving(false);
     }
@@ -2813,7 +3313,7 @@ export default function SettingsPage() {
       setShowAddCancelReason(false);
     } catch (error) {
       console.error("キャンセル理由追加エラー:", error);
-      alert("キャンセル理由の追加に失敗しました");
+      showAlert("キャンセル理由の追加に失敗しました", "error");
     } finally {
       setSaving(false);
     }
@@ -2829,28 +3329,28 @@ export default function SettingsPage() {
       setCancelReasons(data);
     } catch (error) {
       console.error("キャンセル理由更新エラー:", error);
-      alert("キャンセル理由の更新に失敗しました");
+      showAlert("キャンセル理由の更新に失敗しました", "error");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteCancelReason = async (reasonId: string) => {
-    if (!confirm("このキャンセル理由を削除しますか？")) return;
-    
-    try {
-      setSaving(true);
-      await deleteCancelReason(DEMO_CLINIC_ID, reasonId);
+    showConfirm("このキャンセル理由を削除しますか？", async () => {
+      try {
+        setSaving(true);
+        await deleteCancelReason(DEMO_CLINIC_ID, reasonId);
 
-      // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID);
-      setCancelReasons(data);
-    } catch (error) {
-      console.error("キャンセル理由削除エラー:", error);
-      alert("キャンセル理由の削除に失敗しました");
-    } finally {
-      setSaving(false);
-    }
+        // データを再読み込み
+        const data = await getCancelReasons(DEMO_CLINIC_ID);
+        setCancelReasons(data);
+      } catch (error) {
+        console.error("キャンセル理由削除エラー:", error);
+        showAlert("キャンセル理由の削除に失敗しました", "error");
+      } finally {
+        setSaving(false);
+      }
+    }, { isDanger: true, confirmText: "削除" });
   };
 
   const handleEditCancelReason = (reason: any) => {
@@ -2876,7 +3376,7 @@ export default function SettingsPage() {
       setShowAddMemoTemplate(false);
     } catch (error) {
       console.error("メモテンプレート追加エラー:", error);
-      alert("メモテンプレートの追加に失敗しました");
+      showAlert("メモテンプレートの追加に失敗しました", "error");
     } finally {
       setSaving(false);
     }
@@ -2892,28 +3392,28 @@ export default function SettingsPage() {
       setMemoTemplates(data);
     } catch (error) {
       console.error("メモテンプレート更新エラー:", error);
-      alert("メモテンプレートの更新に失敗しました");
+      showAlert("メモテンプレートの更新に失敗しました", "error");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteMemoTemplate = async (templateId: string) => {
-    if (!confirm("このメモテンプレートを削除しますか？")) return;
+    showConfirm("このメモテンプレートを削除しますか？", async () => {
+      try {
+        setSaving(true);
+        await deleteMemoTemplate(DEMO_CLINIC_ID, templateId);
 
-    try {
-      setSaving(true);
-      await deleteMemoTemplate(DEMO_CLINIC_ID, templateId);
-
-      // データを再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID);
-      setMemoTemplates(data);
-    } catch (error) {
-      console.error("メモテンプレート削除エラー:", error);
-      alert("メモテンプレートの削除に失敗しました");
-    } finally {
-      setSaving(false);
-    }
+        // データを再読み込み
+        const data = await getMemoTemplates(DEMO_CLINIC_ID);
+        setMemoTemplates(data);
+      } catch (error) {
+        console.error("メモテンプレート削除エラー:", error);
+        showAlert("メモテンプレートの削除に失敗しました", "error");
+      } finally {
+        setSaving(false);
+      }
+    }, { isDanger: true, confirmText: "削除" });
   };
 
   // メモテンプレートの並び順を更新
@@ -2946,7 +3446,7 @@ export default function SettingsPage() {
       setMemoTemplates(data);
     } catch (error) {
       console.error("並び順更新エラー:", error);
-      alert("並び順の更新に失敗しました");
+      showAlert("並び順の更新に失敗しました", "error");
       // エラー時は再読み込み
       const data = await getMemoTemplates(DEMO_CLINIC_ID);
       setMemoTemplates(data);
@@ -2978,51 +3478,56 @@ export default function SettingsPage() {
       setEditingCancelReason(null);
     } catch (error) {
       console.error("キャンセル理由更新エラー:", error);
-      alert("キャンセル理由の更新に失敗しました");
+      showAlert("キャンセル理由の更新に失敗しました", "error");
     } finally {
       setSaving(false);
     }
   };
 
   // スタッフ追加
-  const handleAddStaff = async () => {
-    try {
-      console.log("handleAddStaff開始");
-      console.log("newStaff:", newStaff);
-      
-      setStaffLoading(true);
-      await createStaff(DEMO_CLINIC_ID, newStaff);
-      
-      console.log("スタッフ作成成功");
-      
-      // データを再読み込み
-      const data = await getStaff(DEMO_CLINIC_ID);
-      console.log("再読み込みしたスタッフデータ:", data);
-      setStaff(data);
-      
-      // シフト表をリフレッシュ
-      setRefreshTrigger((prev) => prev + 1);
-      
-      setNewStaff({
-        name: "",
-        name_kana: "",
-        email: "",
-        phone: "",
-        role: "staff",
-        position_id: "",
-      });
-      setShowAddStaff(false);
-      console.log("モーダルを閉じました");
-    } catch (error) {
-      console.error("スタッフ追加エラー:", error);
-      alert(
-        "スタッフの追加に失敗しました: " +
-          (error instanceof Error ? error.message : "Unknown error"),
-      );
-    } finally {
-      setStaffLoading(false);
-      console.log("staffLoadingをfalseに設定");
-    }
+  const handleAddStaff = () => {
+    // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+    const newStaffMember = {
+      id: `temp-staff-${Date.now()}`,
+      clinic_id: DEMO_CLINIC_ID,
+      ...newStaff,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      // position情報を追加（表示用）
+      position: staffPositions.find(p => p.id === newStaff.position_id) || null,
+    };
+
+    setStaff([...staff, newStaffMember]);
+
+    setNewStaff({
+      name: "",
+      name_kana: "",
+      email: "",
+      phone: "",
+      role: "staff",
+      position_id: "",
+    });
+    setShowAddStaff(false);
+  };
+
+  // スタッフ編集
+  const handleUpdateStaff = () => {
+    if (!editingStaff) return;
+
+    // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+    // position情報を更新
+    const updatedStaff = {
+      ...editingStaff,
+      position: staffPositions.find(p => p.id === editingStaff.position_id) || editingStaff.position,
+    };
+
+    setStaff(
+      staff.map((s) =>
+        s.id === editingStaff.id ? updatedStaff : s
+      )
+    );
+
+    setEditingStaff(null);
   };
 
   const renderMasterSettings = () => (
@@ -3030,7 +3535,7 @@ export default function SettingsPage() {
       {/* サブタブ */}
       <div className="flex space-x-0 border-b border-gray-200">
         <button
-          onClick={() => setSelectedMasterTab("icons")}
+          onMouseEnter={() => setSelectedMasterTab("icons")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             selectedMasterTab === "icons"
               ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -3040,7 +3545,7 @@ export default function SettingsPage() {
           アイコン
         </button>
         <button
-          onClick={() => setSelectedMasterTab("staff")}
+          onMouseEnter={() => setSelectedMasterTab("staff")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             selectedMasterTab === "staff"
               ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -3050,7 +3555,7 @@ export default function SettingsPage() {
           スタッフ
         </button>
         <button
-          onClick={() => setSelectedMasterTab("files")}
+          onMouseEnter={() => setSelectedMasterTab("files")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             selectedMasterTab === "files"
               ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -3060,7 +3565,7 @@ export default function SettingsPage() {
           ファイル
         </button>
         <button
-          onClick={() => setSelectedMasterTab("cancel")}
+          onMouseEnter={() => setSelectedMasterTab("cancel")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             selectedMasterTab === "cancel"
               ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -3070,7 +3575,7 @@ export default function SettingsPage() {
           キャンセル
         </button>
         <button
-          onClick={() => setSelectedMasterTab("memo")}
+          onMouseEnter={() => setSelectedMasterTab("memo")}
           className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
             selectedMasterTab === "memo"
               ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -3377,16 +3882,16 @@ export default function SettingsPage() {
                   <button className="p-1 text-gray-400 hover:text-blue-600">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
-                      if (confirm("このノートタイプを削除しますか？")) {
+                      showConfirm("このノートタイプを削除しますか？", () => {
                         deletePatientNoteType(DEMO_CLINIC_ID, noteType.id).then(
                           () => {
                             const data = getPatientNoteTypes(DEMO_CLINIC_ID);
                             data.then((d) => setPatientNoteTypes(d));
                           },
                         );
-                      }
+                      }, { isDanger: true, confirmText: "削除" });
                     }}
                     className="p-1 text-gray-400 hover:text-red-600"
                   >
@@ -3835,7 +4340,7 @@ export default function SettingsPage() {
           <div className="flex items-center space-x-6">
             <div className="relative">
               <button 
-                onClick={() => setSelectedTab("menu1")}
+                onMouseEnter={() => setSelectedTab("menu1")}
                 className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
               >
                 <div
@@ -3862,7 +4367,7 @@ export default function SettingsPage() {
                     </div>
             
             <button 
-              onClick={() => setSelectedTab("menu2")}
+              onMouseEnter={() => setSelectedTab("menu2")}
               className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
             >
               <div
@@ -3886,7 +4391,7 @@ export default function SettingsPage() {
             </button>
             
             <button 
-              onClick={() => setSelectedTab("submenu")}
+              onMouseEnter={() => setSelectedTab("submenu")}
               className="flex items-center space-x-1 hover:bg-gray-50 p-1.5 rounded transition-colors"
             >
               <div
@@ -3915,8 +4420,8 @@ export default function SettingsPage() {
       </div>
 
       {/* メインコンテンツエリア */}
-      <div className="flex-1 overflow-y-auto bg-white">
-        <div className="p-4">
+      <div className="flex-1 overflow-y-auto bg-white flex items-center justify-start">
+        <div className="p-4 w-full max-w-2xl">
           {/* タブに応じたメニュー一覧（階層表示） */}
           <div className="space-y-1">
             <div className="space-y-1">
@@ -3925,7 +4430,7 @@ export default function SettingsPage() {
               ))}
 
               {/* メニュー-1を追加ボタン */}
-              <div className="ml-4 mt-12">
+              <div className="mt-4">
                 <Button
                   variant="outline"
                   size="sm"
@@ -3939,9 +4444,9 @@ export default function SettingsPage() {
                     }));
                     setShowTreatmentAddForm(true);
                   }}
-                  className="flex items-center space-x-1 text-xs px-2 py-1 h-7"
+                  className="flex items-center space-x-2 text-sm px-4 py-2"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-4 h-4" />
                   <span>メニュー1を追加</span>
                 </Button>
               </div>
@@ -4228,24 +4733,22 @@ export default function SettingsPage() {
   const handleAddTreatmentMenu = async () => {
     try {
       setSaving(true);
-      
+
       // 選択されたタブに応じてレベルを設定
       const menuData = {
         ...newTreatmentMenu,
+        id: `temp-${Date.now()}`, // 一時的なID
         level: selectedTab === "menu1" ? 1 : selectedTab === "menu2" ? 2 : 3,
-        parent_id: newTreatmentMenu.parent_id || undefined, // 空文字列の場合はundefinedに変換
+        parent_id: newTreatmentMenu.parent_id || null, // nullに統一
+        is_active: true,
+        clinic_id: DEMO_CLINIC_ID,
       };
 
-      console.log("メニュー追加開始:", menuData);
-      console.log("DEMO_CLINIC_ID:", DEMO_CLINIC_ID);
+      console.log("メニュー追加（ローカルのみ）:", menuData);
 
-      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
-      console.log("メニュー追加成功:", result);
-      
-      // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
-      setTreatmentMenus(data);
-      
+      // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+      setTreatmentMenus((prev) => [...prev, menuData]);
+
       setNewTreatmentMenu({
         name: "",
         level: selectedTab === "menu1" ? 1 : selectedTab === "menu2" ? 2 : 3,
@@ -4256,12 +4759,9 @@ export default function SettingsPage() {
       });
       setUseParentColor(true);
       setShowTreatmentAddForm(false);
-
-      alert("メニューを正常に追加しました");
     } catch (error) {
       console.error("メニュー追加エラー:", error);
-      console.error("エラーの詳細:", error);
-      alert("メニューの追加に失敗しました: " + (error as Error).message);
+      showAlert("メニューの追加に失敗しました: " + (error as Error).message, "error");
     } finally {
       setSaving(false);
     }
@@ -4271,32 +4771,32 @@ export default function SettingsPage() {
   const handleAddChildMenu = async () => {
     try {
       setSaving(true);
-      
+
       if (!parentMenuForChild) return;
-      
+
       // 親メニューのレベルに基づいて子メニューのレベルを決定
       const childLevel = parentMenuForChild.level + 1;
       if (childLevel > 3) {
-        alert("最大3階層までしか作成できません");
+        showAlert("最大3階層までしか作成できません", "error");
+        setSaving(false);
         return;
       }
-      
+
       const menuData = {
         ...newTreatmentMenu,
+        id: `temp-${Date.now()}`, // 一時的なID
         level: childLevel,
         parent_id: parentMenuForChild.id,
         standard_duration: newTreatmentMenu.standard_duration || 30,
+        is_active: true,
+        clinic_id: DEMO_CLINIC_ID,
       };
-      
-      console.log("子メニュー追加開始:", menuData);
-      
-      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
-      console.log("子メニュー追加成功:", result);
-      
-      // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
-      setTreatmentMenus(data);
-      
+
+      console.log("子メニュー追加（ローカルのみ）:", menuData);
+
+      // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+      setTreatmentMenus((prev) => [...prev, menuData]);
+
       setNewTreatmentMenu({
         name: "",
         level: childLevel,
@@ -4308,12 +4808,10 @@ export default function SettingsPage() {
       setParentMenuForChild(null);
       setUseParentColor(true);
       setShowTreatmentAddForm(false);
-
-      alert("子メニューを正常に追加しました");
     } catch (error) {
       console.error("子メニュー追加エラー:", error);
       console.error("エラーの詳細:", error);
-      alert("子メニューの追加に失敗しました: " + (error as Error).message);
+      showAlert("子メニューの追加に失敗しました: " + (error as Error).message, "error");
     } finally {
       setSaving(false);
     }
@@ -4322,39 +4820,47 @@ export default function SettingsPage() {
   const handleEditTreatmentMenu = async (menu: any) => {
     try {
       setSaving(true);
-      await updateTreatmentMenu(DEMO_CLINIC_ID, menu.id, {
-        name: menu.name,
-        standard_duration: menu.standard_duration,
-        color: menu.color,
-        sort_order: menu.sort_order,
-        is_active: menu.is_active,
-      });
-      
-      // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
-      setTreatmentMenus(data);
+
+      // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+      setTreatmentMenus((prev) =>
+        prev.map((m) => (m.id === menu.id ? menu : m))
+      );
       setEditingTreatmentMenu(null);
     } catch (error) {
       console.error("メニュー編集エラー:", error);
-      alert("メニューの編集に失敗しました");
+      showAlert("メニューの編集に失敗しました", "error");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteTreatmentMenu = async (menuId: string) => {
-    if (!confirm("このメニューを削除しますか？")) return;
-    
+    // カスタムモーダルを表示
+    setDeletingMenuId(menuId);
+    setShowDeleteConfirmModal(true);
+  };
+
+  // 削除確認モーダルでの削除実行
+  const confirmDeleteTreatmentMenu = async () => {
+    if (!deletingMenuId) return;
+
     try {
       setSaving(true);
-      await deleteTreatmentMenu(DEMO_CLINIC_ID, menuId);
-      
-      // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID);
-      setTreatmentMenus(data);
+
+      // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+      // 削除フラグを立てる（実際の削除は保存時）
+      setTreatmentMenus((prev) =>
+        prev.map((m) =>
+          m.id === deletingMenuId ? { ...m, _deleted: true } : m
+        )
+      );
+
+      // モーダルを閉じる
+      setShowDeleteConfirmModal(false);
+      setDeletingMenuId(null);
     } catch (error) {
       console.error("メニュー削除エラー:", error);
-      alert("メニューの削除に失敗しました");
+      showAlert("メニューの削除に失敗しました", "error");
     } finally {
       setSaving(false);
     }
@@ -4362,7 +4868,8 @@ export default function SettingsPage() {
 
   // タブに応じたメニューのフィルタリング（階層構造で表示）
   const getFilteredTreatmentMenus = () => {
-    const allMenus = treatmentMenus;
+    // 削除フラグが立っているメニューを除外
+    const allMenus = treatmentMenus.filter(m => !m._deleted);
     
     // レベル1のメニューを取得し、子メニューを追加
     const buildHierarchy = (
@@ -4370,7 +4877,11 @@ export default function SettingsPage() {
       parentId: string | null = null,
     ): any[] => {
       return menus
-        .filter((menu) => menu.parent_id === parentId)
+        .filter((menu) => {
+          // parent_idがnull、undefined、空文字列のいずれかの場合、ルートメニューとみなす
+          const menuParentId = menu.parent_id || null;
+          return menuParentId === parentId;
+        })
         .map((menu) => ({
           ...menu,
           children: buildHierarchy(menus, menu.id),
@@ -4499,19 +5010,21 @@ export default function SettingsPage() {
   };
 
   // 患者用URLの生成（問診票専用）
-  const getPatientUrl = () => {
+  const getPatientUrl = (questionnaireId?: string) => {
     const baseUrl =
       typeof window !== "undefined"
         ? window.location.origin
         : "http://localhost:3000";
-    return `${baseUrl}/questionnaire`;
+    return questionnaireId
+      ? `${baseUrl}/questionnaire/${questionnaireId}`
+      : `${baseUrl}/questionnaire`;
   };
 
   // URLをクリップボードにコピー
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert("URLをクリップボードにコピーしました");
+      showAlert("URLをクリップボードにコピーしました", "success");
     } catch (error) {
       console.error("コピーに失敗しました:", error);
       // フォールバック: テキストエリアを使用
@@ -4521,7 +5034,7 @@ export default function SettingsPage() {
       textArea.select();
       document.execCommand("copy");
       document.body.removeChild(textArea);
-      alert("URLをクリップボードにコピーしました");
+      showAlert("URLをクリップボードにコピーしました", "success");
     }
   };
 
@@ -4532,18 +5045,18 @@ export default function SettingsPage() {
         {/* タブ */}
         <div className="flex space-x-0 mb-6 border-b border-gray-200">
           <button
-            onClick={() => setUnitsActiveTab("units")}
+            onMouseEnter={() => setUnitsActiveTab("units")}
             className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
               unitsActiveTab === "units"
                 ? "border-blue-500 text-blue-600 bg-blue-50"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
-            <Grid3X3 className="w-4 h-4 inline mr-2" />
+            <RockingChair className="w-4 h-4 inline mr-2" />
             ユニット管理
           </button>
           <button
-            onClick={() => setUnitsActiveTab("priorities")}
+            onMouseEnter={() => setUnitsActiveTab("priorities")}
             className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
               unitsActiveTab === "priorities"
                 ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -4566,37 +5079,60 @@ export default function SettingsPage() {
                       ユニットが登録されていません
                     </div>
                   ) : (
-                    unitsData.map((unit) => (
-                      <div
-                        key={unit.id}
-                        className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <Grid3X3 className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {unit.name}
+                    unitsData
+                      .filter((u) => !u._deleted)
+                      .sort((a, b) => a.sort_order - b.sort_order)
+                      .map((unit, index) => (
+                        <div
+                          key={unit.id}
+                          draggable={true}
+                          onDragStart={() => setDraggedUnitIndex(index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDropUnit(index)}
+                          onDragEnd={() => setDraggedUnitIndex(null)}
+                          className={`flex items-center justify-between p-4 rounded-lg cursor-move transition-all ${
+                            draggedUnitIndex === index
+                              ? 'opacity-50 bg-blue-50 border-2 border-blue-300 scale-95'
+                              : draggedUnitIndex !== null
+                              ? 'bg-white border-2 border-dashed border-blue-300 hover:bg-blue-50'
+                              : 'bg-white border border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-4">
+                            <GripVertical className="w-4 h-4 text-gray-400" />
+                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <RockingChair className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {unit.name}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditUnit(unit);
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteUnit(unit);
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => handleEditUnit(unit)}
-                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUnit(unit)}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                      ))
                   )}
                   
                   {/* 新規追加ボタン */}
@@ -4619,13 +5155,7 @@ export default function SettingsPage() {
         {unitsActiveTab === "priorities" && (
           <div className="space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Users className="w-5 h-5" />
-                  <span>ユニット別スタッフ割り当て</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="space-y-6">
                   {unitsData.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
@@ -4639,7 +5169,7 @@ export default function SettingsPage() {
                       >
                         <div className="flex items-center space-x-3 mb-4">
                           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <Grid3X3 className="w-4 h-4 text-blue-600" />
+                            <RockingChair className="w-4 h-4 text-blue-600" />
                           </div>
                           <h3 className="text-lg font-medium text-gray-900">
                             {unit.name}
@@ -4651,7 +5181,7 @@ export default function SettingsPage() {
                           {staffUnitPriorities
                             .filter((priority) => priority.unit_id === unit.id)
                             .sort((a, b) => a.priority_order - b.priority_order)
-                            .map((priority) => (
+                            .map((priority, index) => (
                               <div
                                 key={priority.id}
                                 draggable
@@ -4663,6 +5193,11 @@ export default function SettingsPage() {
                                 className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg cursor-move hover:bg-gray-50"
                               >
                                 <GripVertical className="w-4 h-4 text-gray-400" />
+                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <span className="text-sm font-bold text-blue-600">
+                                    {index + 1}
+                                  </span>
+                                </div>
                                 <div className="flex-1">
                                   <div className="font-medium">
                                     {priority.staff?.name}
@@ -4762,21 +5297,6 @@ export default function SettingsPage() {
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="sort-order">並び順</Label>
-                  <Input
-                    id="sort-order"
-                    type="number"
-                    value={unitFormData.sort_order}
-                    onChange={(e) =>
-                      setUnitFormData({
-                        ...unitFormData,
-                        sort_order: parseInt(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="並び順を入力"
-                  />
-                </div>
               </div>
               
               <div className="flex justify-end space-x-2 mt-6">
@@ -4789,6 +5309,7 @@ export default function SettingsPage() {
                 <Button
                   onClick={handleSaveUnit}
                   disabled={saving || !unitFormData.name.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? "保存中..." : "保存"}
@@ -4806,23 +5327,23 @@ export default function SettingsPage() {
     return (
       <div className="p-6">
         {/* サブタブナビゲーション */}
-        <div className="flex gap-1 border-b border-gray-200 mb-6">
+        <div className="flex space-x-0 mb-6 border-b border-gray-200">
           <button
-            onClick={() => setQuestionnaireTab("list")}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            onMouseEnter={() => setQuestionnaireTab("list")}
+            className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
               questionnaireTab === "list"
-                ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                ? "border-blue-500 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             一覧
           </button>
           <button
-            onClick={() => setQuestionnaireTab("link-status")}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            onMouseEnter={() => setQuestionnaireTab("link-status")}
+            className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
               questionnaireTab === "link-status"
-                ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                ? "border-blue-500 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             連携状況
@@ -4831,84 +5352,148 @@ export default function SettingsPage() {
 
         {/* タブコンテンツ */}
         {questionnaireTab === "list" && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  問診票一覧
-                </h3>
-              <Button
-                onClick={() => setShowQuestionnaireModal(true)}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                新しい問診票を作成
-              </Button>
-            </div>
-
-            {questionnaires.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>問診票が登録されていません</p>
-                <p className="text-sm">
-                  「新しい問診票を作成」ボタンから問診票を追加してください
-                </p>
+          <div className="grid grid-cols-2 gap-6">
+            {/* 左カラム：問診表一覧 */}
+            <div className="space-y-4">
+              {/* 新規作成ボタン（枠外） */}
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    setSelectedQuestionnaire(null);
+                    setShowQuestionnaireModal(true);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  新しい問診票を作成
+                </Button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {questionnaires.map((questionnaire) => (
-                  <div
-                    key={questionnaire.id}
-                    className="border border-gray-200 rounded-lg p-2 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <h4 className="text-lg font-medium text-gray-900 mr-3">
-                            {questionnaire.name}
-                          </h4>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            questionnaire.is_active
-                                ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {questionnaire.is_active ? "有効" : "無効"}
-                          </span>
+
+              {/* 問診表一覧の枠 */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div className="p-6">
+                  {questionnaires.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>問診票が登録されていません</p>
+                    <p className="text-sm mt-2">
+                      「新しい問診票を作成」ボタンから問診票を追加してください
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {questionnaires.map((questionnaire) => (
+                      <div
+                        key={questionnaire.id}
+                        className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <div className="flex items-center">
+                              <h4 className="text-lg font-medium text-gray-900 mr-3">
+                                {questionnaire.name}
+                              </h4>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                questionnaire.is_active
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {questionnaire.is_active ? "有効" : "無効"}
+                              </span>
+                            </div>
+                            {questionnaire.description && (
+                              <p className="text-sm text-gray-600 mt-1">{questionnaire.description}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2 ml-4">
+                            {/* 問診票URLコピーボタン */}
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => copyToClipboard(getPatientUrl(questionnaire.id))}
+                              title="URLをコピー"
+                            >
+                              <Link2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                setPreviewQuestionnaireId(questionnaire.id);
+                              }}
+                              title="プレビュー"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedQuestionnaire(questionnaire);
+                                setShowQuestionnaireModal(true);
+                              }}
+                              title="編集"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                showConfirm("この問診票を削除しますか？", () => {
+                                  handleDeleteQuestionnaire(questionnaire.id);
+                                }, { isDanger: true, confirmText: "削除" });
+                              }}
+                              className="text-red-600 hover:text-red-700"
+                              title="削除"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex space-x-2 ml-4">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedQuestionnaire(questionnaire);
-                            setShowQuestionnaireModal(true);
-                          }}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm("この問診票を削除しますか？")) {
-                              handleDeleteQuestionnaire(questionnaire.id);
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 右カラム：プレビューエリア */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            {previewQuestionnaireId ? (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">プレビュー</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPreviewQuestionnaireId(null)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="border border-gray-200 rounded-lg p-4 max-h-[calc(100vh-300px)] overflow-y-auto">
+                  <QuestionnaireForm
+                    clinicId={DEMO_CLINIC_ID}
+                    questionnaireId={previewQuestionnaireId}
+                    onCancel={() => {}}
+                    onSave={() => {}}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                <Eye className="w-16 h-16 mb-4" />
+                <p className="text-lg font-medium">プレビュー</p>
+                <p className="text-sm mt-2">問診表の👁アイコンをクリックすると</p>
+                <p className="text-sm">ここにプレビューが表示されます</p>
               </div>
             )}
           </div>
-        </div>
+          </div>
         )}
 
         {/* 連携状況タブ */}
@@ -5090,7 +5675,7 @@ export default function SettingsPage() {
                         <Button
                           onClick={() => {
                             navigator.clipboard.writeText(item.url);
-                            alert("URLをコピーしました");
+                            showAlert("URLをコピーしました", "success");
                           }}
                           variant="outline"
                           size="sm"
@@ -5127,7 +5712,7 @@ export default function SettingsPage() {
         {/* タブナビゲーション */}
         <div className="flex space-x-2 border-b">
           <button
-            onClick={() => setDataImportTab('patients')}
+            onMouseEnter={() => setDataImportTab('patients')}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
               dataImportTab === 'patients'
                 ? 'border-blue-500 text-blue-600'
@@ -5138,7 +5723,7 @@ export default function SettingsPage() {
             患者データ
           </button>
           <button
-            onClick={() => setDataImportTab('appointments')}
+            onMouseEnter={() => setDataImportTab('appointments')}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
               dataImportTab === 'appointments'
                 ? 'border-blue-500 text-blue-600'
@@ -5149,7 +5734,7 @@ export default function SettingsPage() {
             予約データ
           </button>
           <button
-            onClick={() => setDataImportTab('history')}
+            onMouseEnter={() => setDataImportTab('history')}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
               dataImportTab === 'history'
                 ? 'border-blue-500 text-blue-600'
@@ -5549,7 +6134,7 @@ export default function SettingsPage() {
       setQuestionnaires((prev) => prev.filter((q) => q.id !== questionnaireId));
     } catch (error) {
       console.error("問診票削除エラー:", error);
-      alert("問診票の削除に失敗しました");
+      showAlert("問診票の削除に失敗しました", "error");
     }
   };
 
@@ -5563,7 +6148,7 @@ export default function SettingsPage() {
       setTimeout(() => setCopiedQuestionnaireId(null), 2000);
     } catch (err) {
       console.error("クリップボードへのコピーに失敗:", err);
-      alert("リンクのコピーに失敗しました");
+      showAlert("リンクのコピーに失敗しました", "error");
     }
   };
 
@@ -5601,23 +6186,21 @@ export default function SettingsPage() {
             <p className="text-gray-600">{category.description}</p>
           </div>
           <div className="flex items-center space-x-3">
-            {selectedCategory === "questionnaire" && (
-              <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-                <span className="text-sm font-medium text-blue-800">URL:</span>
-                <span className="text-xs text-blue-700 font-mono">
-                  {getPatientUrl()}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => copyToClipboard(getPatientUrl())}
-                  className="text-blue-600 border-blue-300 hover:bg-blue-100 h-6 px-2"
-                >
-                  <Copy className="w-3 h-3" />
-                </Button>
-              </div>
+            {hasUnsavedChanges && (
+              <span className="text-sm text-orange-600 font-medium">
+                ● 未保存の変更があります
+              </span>
             )}
-            <Button onClick={handleSave} disabled={saving} size="sm">
+            <Button
+              onClick={() => {
+                console.log("🔵 保存ボタンがクリックされました！");
+                console.log("現在のカテゴリ:", selectedCategory);
+                handleSave();
+              }}
+              disabled={saving}
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
               <Save className="w-4 h-4 mr-2" />
               {saving ? "保存中..." : "保存"}
             </Button>
@@ -5639,8 +6222,11 @@ export default function SettingsPage() {
                 {/* スタッフ一覧表示（役職別グループ化） */}
                 <div className="space-y-6">
                   {(() => {
+                    // 削除フラグが立っているスタッフを除外
+                    const activeStaff = staff.filter(s => !s._deleted);
+
                     // スタッフを役職別にグループ化
-                  const staffByPosition = staff.reduce(
+                  const staffByPosition = activeStaff.reduce(
                     (groups: { [key: string]: any[] }, member) => {
                       const positionName = member.position?.name || "その他";
                       if (!groups[positionName]) {
@@ -5717,25 +6303,16 @@ export default function SettingsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={async () => {
-                                  if (confirm("このスタッフを削除しますか？")) {
-                                    try {
-                                      await deleteStaff(
-                                        DEMO_CLINIC_ID,
-                                        member.id,
+                                  onClick={() => {
+                                    showConfirm("このスタッフを削除しますか？", () => {
+                                      // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+                                      // 削除フラグを立てる
+                                      setStaff(
+                                        staff.map((s) =>
+                                          s.id === member.id ? { ...s, _deleted: true } : s
+                                        )
                                       );
-                                      const data =
-                                        await getStaff(DEMO_CLINIC_ID);
-                                      setStaff(data);
-                                        // シフト表をリフレッシュ
-                                      setRefreshTrigger((prev) => prev + 1);
-                                      } catch (error) {
-                                      console.error(
-                                        "スタッフ削除エラー:",
-                                        error,
-                                      );
-                                      }
-                                    }
+                                    }, { isDanger: true, confirmText: "削除" });
                                   }}
                                   className="p-0.5 text-gray-400 hover:text-red-600"
                                 >
@@ -5758,30 +6335,6 @@ export default function SettingsPage() {
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
-                  
-                  {/* スタッフが登録されていない場合 */}
-                  {staff.length === 0 && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 relative">
-                      <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">スタッフが登録されていません</p>
-                      <Button 
-                        onClick={() => setShowAddStaff(true)}
-                        className="mt-2"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        最初のスタッフを追加
-                      </Button>
-                      {/* 受付の枠の左下に配置 */}
-                      <div className="absolute bottom-4 left-4">
-                      <Button
-                        onClick={() => setShowAddStaff(true)}
-                        className="rounded-full w-8 h-8 p-0"
-                      >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* スタッフ追加モーダル */}
@@ -5821,7 +6374,7 @@ export default function SettingsPage() {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="staff_email">メールアドレス</Label>
@@ -5879,7 +6432,7 @@ export default function SettingsPage() {
                         </p>
                       )}
                     </div>
-                    
+
                     <div className="flex justify-end space-x-2 pt-4">
                       <Button
                         variant="outline"
@@ -5906,6 +6459,134 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </Modal>
+
+                {/* スタッフ編集モーダル */}
+                <Modal
+                  isOpen={editingStaff !== null}
+                  onClose={() => setEditingStaff(null)}
+                  title="スタッフ情報を編集"
+                >
+                  {editingStaff && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="edit_staff_name">名前</Label>
+                          <Input
+                            id="edit_staff_name"
+                            value={editingStaff.name}
+                            onChange={(e) =>
+                              setEditingStaff((prev: any) => ({
+                                ...prev,
+                                name: e.target.value,
+                              }))
+                            }
+                            placeholder="例: 田中太郎"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="edit_staff_name_kana">フリガナ</Label>
+                          <Input
+                            id="edit_staff_name_kana"
+                            value={editingStaff.name_kana || ""}
+                            onChange={(e) =>
+                              setEditingStaff((prev: any) => ({
+                                ...prev,
+                                name_kana: e.target.value,
+                              }))
+                            }
+                            placeholder="例: タナカタロウ"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="edit_staff_email">メールアドレス</Label>
+                          <Input
+                            id="edit_staff_email"
+                            type="email"
+                            value={editingStaff.email || ""}
+                            onChange={(e) =>
+                              setEditingStaff((prev: any) => ({
+                                ...prev,
+                                email: e.target.value,
+                              }))
+                            }
+                            placeholder="例: tanaka@example.com"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="edit_staff_phone">電話番号</Label>
+                          <Input
+                            id="edit_staff_phone"
+                            value={editingStaff.phone || ""}
+                            onChange={(e) =>
+                              setEditingStaff((prev: any) => ({
+                                ...prev,
+                                phone: e.target.value,
+                              }))
+                            }
+                            placeholder="例: 03-1234-5678"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="edit_staff_position">役職</Label>
+                        <Select
+                          value={editingStaff.position_id || ""}
+                          onValueChange={(value) =>
+                            setEditingStaff((prev: any) => ({ ...prev, position_id: value }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="役職を選択してください" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staffPositions.map((position) => (
+                              <SelectItem key={position.id} value={position.id}>
+                                {position.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="edit_staff_status">ステータス</Label>
+                        <Select
+                          value={editingStaff.is_active ? "active" : "inactive"}
+                          onValueChange={(value) =>
+                            setEditingStaff((prev: any) => ({ ...prev, is_active: value === "active" }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">在籍</SelectItem>
+                            <SelectItem value="inactive">退職</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex justify-end space-x-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingStaff(null)}
+                        >
+                          キャンセル
+                        </Button>
+                        <Button
+                          onClick={handleUpdateStaff}
+                          disabled={staffLoading || !editingStaff.name}
+                        >
+                          {staffLoading ? "更新中..." : "更新"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </Modal>
               </div>
           </div>
         )}
@@ -5914,7 +6595,7 @@ export default function SettingsPage() {
             {/* サブタブ */}
             <div className="flex space-x-0 mb-6 border-b border-gray-200">
               <button
-                onClick={() => setSelectedShiftTab("table")}
+                onMouseEnter={() => setSelectedShiftTab("table")}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   selectedShiftTab === "table"
                     ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -5924,7 +6605,7 @@ export default function SettingsPage() {
                 シフト表
               </button>
               <button
-                onClick={() => setSelectedShiftTab("pattern")}
+                onMouseEnter={() => setSelectedShiftTab("pattern")}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   selectedShiftTab === "pattern"
                     ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -5958,7 +6639,7 @@ export default function SettingsPage() {
             {/* サブタブナビゲーション */}
             <div className="flex space-x-0 mb-6 border-b border-gray-200">
               <button
-                onClick={() => setSelectedWebTab('basic')}
+                onMouseEnter={() => setSelectedWebTab('basic')}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   selectedWebTab === 'basic'
                     ? 'text-blue-600 border-blue-600'
@@ -5969,7 +6650,7 @@ export default function SettingsPage() {
                 基本設定
               </button>
               <button
-                onClick={() => setSelectedWebTab('flow')}
+                onMouseEnter={() => setSelectedWebTab('flow')}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   selectedWebTab === 'flow'
                     ? 'text-blue-600 border-blue-600'
@@ -5980,7 +6661,7 @@ export default function SettingsPage() {
                 フロー設定
               </button>
               <button
-                onClick={() => setSelectedWebTab('menu')}
+                onMouseEnter={() => setSelectedWebTab('menu')}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   selectedWebTab === 'menu'
                     ? 'text-blue-600 border-blue-600'
@@ -6116,7 +6797,7 @@ export default function SettingsPage() {
                               ? `${window.location.origin}/web-booking`
                               : "/web-booking";
                           navigator.clipboard.writeText(url);
-                          alert("URLをコピーしました");
+                          showAlert("URLをコピーしました", "success");
                       }}
                       className="shrink-0"
                     >
@@ -6141,7 +6822,7 @@ export default function SettingsPage() {
                           const newValue = checked as boolean
                           // 両方OFFにならないようにチェック
                           if (!newValue && !webSettings.acceptReturningPatient) {
-                            alert('少なくとも1つは選択してください')
+                            showAlert('少なくとも1つは選択してください', 'error')
                             return
                           }
                           setWebSettings((prev) => ({
@@ -6163,7 +6844,7 @@ export default function SettingsPage() {
                           const newValue = checked as boolean
                           // 両方OFFにならないようにチェック
                           if (!newValue && !webSettings.acceptNewPatient) {
-                            alert('少なくとも1つは選択してください')
+                            showAlert('少なくとも1つは選択してください', 'error')
                             return
                           }
                           setWebSettings((prev) => ({
@@ -8218,14 +8899,14 @@ export default function SettingsPage() {
                   >
                     キャンセル
                   </Button>
-                  <Button onClick={handleSaveEditWebMenu}>保存</Button>
+                  <Button onClick={handleSaveEditWebMenu} className="bg-blue-600 hover:bg-blue-700 text-white">保存</Button>
                 </div>
               </div>
             </Modal>
 
           {/* Web予約設定保存ボタン */}
           <div className="flex justify-end pt-6 border-t border-gray-200">
-            <Button onClick={handleSaveWebSettings} size="lg">
+            <Button onClick={handleSaveWebSettings} size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
               <Save className="w-4 h-4 mr-2" />
               Web予約設定を保存
             </Button>
@@ -8235,63 +8916,63 @@ export default function SettingsPage() {
         {selectedCategory === "notification" && (
           <div className="space-y-6">
             {/* サブタブナビゲーション */}
-            <div className="flex gap-1 border-b border-gray-200">
+            <div className="flex space-x-0 mb-6 border-b border-gray-200">
               <button
-                onClick={() => setNotificationTab("connection")}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                onMouseEnter={() => setNotificationTab("connection")}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   notificationTab === "connection"
-                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 接続設定
               </button>
               <button
-                onClick={() => setNotificationTab("templates")}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                onMouseEnter={() => setNotificationTab("templates")}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   notificationTab === "templates"
-                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 テンプレート
               </button>
               <button
-                onClick={() => setNotificationTab("auto-reminder")}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                onMouseEnter={() => setNotificationTab("auto-reminder")}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   notificationTab === "auto-reminder"
-                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 自動リマインド
               </button>
               <button
-                onClick={() => setNotificationTab("schedules")}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                onMouseEnter={() => setNotificationTab("schedules")}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   notificationTab === "schedules"
-                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 スケジュール
               </button>
               <button
-                onClick={() => setNotificationTab("failures")}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                onMouseEnter={() => setNotificationTab("failures")}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   notificationTab === "failures"
-                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 送信失敗
               </button>
               <button
-                onClick={() => setNotificationTab("rich-menu")}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                onMouseEnter={() => setNotificationTab("rich-menu")}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   notificationTab === "rich-menu"
-                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 リッチメニュー
@@ -8690,7 +9371,7 @@ export default function SettingsPage() {
                               navigator.clipboard.writeText(
                                 notificationSettings.line.webhook_url,
                               );
-                              alert("Webhook URLをコピーしました");
+                              showAlert("Webhook URLをコピーしました", "success");
                             }}
                             variant="outline"
                           >
@@ -8758,7 +9439,7 @@ export default function SettingsPage() {
                         console.log("レスポンスデータ:", responseData);
 
                         if (response.ok) {
-                          alert("接続設定を保存しました");
+                          showAlert("接続設定を保存しました", "success");
                         } else {
                           throw new Error(
                             responseData.error ||
@@ -8768,8 +9449,9 @@ export default function SettingsPage() {
                         }
                       } catch (error) {
                         console.error("保存エラー詳細:", error);
-                        alert(
+                        showAlert(
                           `保存に失敗しました\n\n${error instanceof Error ? error.message : "不明なエラー"}`,
+                          "error"
                         );
                       } finally {
                         setSaving(false);
@@ -8879,10 +9561,8 @@ export default function SettingsPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={async () => {
-                                if (
-                                  confirm("このテンプレートを削除しますか?")
-                                ) {
+                              onClick={() => {
+                                showConfirm("このテンプレートを削除しますか?", async () => {
                                   try {
                                     const response = await fetch(
                                       `/api/notification-templates?id=${template.id}`,
@@ -8898,16 +9578,16 @@ export default function SettingsPage() {
                                         ),
                                       );
                                     } else {
-                                      alert("削除に失敗しました");
+                                      showAlert("削除に失敗しました", "error");
                                     }
                                   } catch (error) {
                                     console.error(
                                       "テンプレート削除エラー:",
                                       error,
                                     );
-                                    alert("削除に失敗しました");
+                                    showAlert("削除に失敗しました", "error");
                                   }
-                                }
+                                }, { isDanger: true, confirmText: "削除" });
                               }}
                               className="h-7 px-2"
                             >
@@ -9020,8 +9700,9 @@ export default function SettingsPage() {
                                 !templateForm.email_message &&
                                 !templateForm.sms_message
                               ) {
-                                alert(
+                                showAlert(
                                   "少なくとも1つのチャネルのメッセージを入力してください",
+                                  "error"
                                 );
                                 return;
                               }
@@ -9105,7 +9786,7 @@ export default function SettingsPage() {
                                 setShowTemplateModal(false);
                               } catch (error) {
                                 console.error("テンプレート保存エラー:", error);
-                                alert("保存に失敗しました");
+                                showAlert("保存に失敗しました", "error");
                               } finally {
                                 setSaving(false);
                               }
@@ -10128,9 +10809,9 @@ export default function SettingsPage() {
                             await new Promise((resolve) =>
                               setTimeout(resolve, 1000),
                             );
-                            alert("自動リマインドルールを保存しました");
+                            showAlert("自動リマインドルールを保存しました", "success");
                           } catch (error) {
-                            alert("保存に失敗しました");
+                            showAlert("保存に失敗しました", "error");
                           } finally {
                             setSaving(false);
                           }
@@ -10365,9 +11046,7 @@ export default function SettingsPage() {
                                 {schedule.status === "scheduled" && (
                                   <button
                                     onClick={() => {
-                                      if (
-                                        confirm("この通知をキャンセルしますか?")
-                                      ) {
+                                      showConfirm("この通知をキャンセルしますか?", () => {
                                         setNotificationSchedules(
                                           notificationSchedules.map((s) =>
                                             s.id === schedule.id
@@ -10375,7 +11054,7 @@ export default function SettingsPage() {
                                               : s,
                                           ),
                                         );
-                                      }
+                                      }, { isDanger: true });
                                     }}
                                     className="text-red-600 hover:text-red-900"
                                   >
@@ -10392,7 +11071,7 @@ export default function SettingsPage() {
                                             : s,
                                         ),
                                       );
-                                      alert("再送信を予定しました");
+                                      showAlert("再送信を予定しました", "success");
                                     }}
                                     className="text-blue-600 hover:text-blue-900"
                                   >
@@ -10544,14 +11223,14 @@ export default function SettingsPage() {
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  if (confirm("この通知を再送信しますか?")) {
+                                  showConfirm("この通知を再送信しますか?", () => {
                                     setNotificationFailures(
                                       notificationFailures.filter(
                                         (f) => f.id !== failure.id,
                                       ),
                                     );
-                                    alert("再送信を予定しました");
-                                  }
+                                    showAlert("再送信を予定しました", "success");
+                                  });
                                 }}
                               >
                                 <RefreshCw className="w-4 h-4 mr-1" />
@@ -10562,20 +11241,20 @@ export default function SettingsPage() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    if (
-                                      confirm(
-                                        `${failure.fallback_channel}で代替送信しますか?`,
-                                      )
-                                    ) {
-                                      setNotificationFailures(
-                                        notificationFailures.filter(
-                                          (f) => f.id !== failure.id,
-                                        ),
-                                      );
-                                      alert(
-                                        `${failure.fallback_channel}での送信を予定しました`,
-                                      );
-                                    }
+                                    showConfirm(
+                                      `${failure.fallback_channel}で代替送信しますか?`,
+                                      () => {
+                                        setNotificationFailures(
+                                          notificationFailures.filter(
+                                            (f) => f.id !== failure.id,
+                                          ),
+                                        );
+                                        showAlert(
+                                          `${failure.fallback_channel}での送信を予定しました`,
+                                          "success"
+                                        );
+                                      }
+                                    );
                                   }}
                                 >
                                   <ArrowRight className="w-4 h-4 mr-1" />
@@ -10586,15 +11265,13 @@ export default function SettingsPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  if (
-                                    confirm("このエラーログを削除しますか?")
-                                  ) {
+                                  showConfirm("このエラーログを削除しますか?", () => {
                                     setNotificationFailures(
                                       notificationFailures.filter(
                                         (f) => f.id !== failure.id,
                                       ),
                                     );
-                                  }
+                                  }, { isDanger: true, confirmText: "削除" });
                                 }}
                               >
                                 <Trash2 className="w-4 h-4 text-red-600" />
@@ -10649,9 +11326,9 @@ export default function SettingsPage() {
                       <Button
                         variant="outline"
                         onClick={() => {
-                          if (confirm("すべてのエラーログを削除しますか?")) {
+                          showConfirm("すべてのエラーログを削除しますか?", () => {
                             setNotificationFailures([]);
-                          }
+                          }, { isDanger: true, confirmText: "削除" });
                         }}
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
@@ -10659,10 +11336,10 @@ export default function SettingsPage() {
                       </Button>
                       <Button
                         onClick={() => {
-                          if (confirm("失敗した通知をすべて再送信しますか?")) {
+                          showConfirm("失敗した通知をすべて再送信しますか?", () => {
                             setNotificationFailures([]);
-                            alert("すべての通知を再送信予定に設定しました");
-                          }
+                            showAlert("すべての通知を再送信予定に設定しました", "success");
+                          });
                         }}
                       >
                         <RefreshCw className="w-4 h-4 mr-2" />
@@ -10895,7 +11572,7 @@ export default function SettingsPage() {
                             icon: "chat",
                           },
                         ]);
-                        alert("デフォルト設定にリセットしました");
+                        showAlert("デフォルト設定にリセットしました", "success");
                       }}
                     >
                       リセット
@@ -10915,10 +11592,10 @@ export default function SettingsPage() {
                             JSON.stringify(richMenuConfig),
                           );
 
-                          alert("リッチメニュー設定を保存しました！");
+                          showAlert("リッチメニュー設定を保存しました！", "success");
                         } catch (error) {
                           console.error("保存エラー:", error);
-                          alert("保存に失敗しました");
+                          showAlert("保存に失敗しました", "error");
                         } finally {
                           setSaving(false);
                         }
@@ -10931,8 +11608,9 @@ export default function SettingsPage() {
                     <Button
                       onClick={async () => {
                         if (!notificationSettings.line.channel_access_token) {
-                          alert(
+                          showAlert(
                             "LINE設定のChannel Access Tokenを入力してください",
+                            "error"
                           );
                           return;
                         }
@@ -10980,24 +11658,26 @@ export default function SettingsPage() {
                           console.log("Response result:", result);
 
                           if (response.ok) {
-                            alert("✅ " + result.message);
+                            showAlert("✅ " + result.message, "success");
                           } else {
                             console.error("エラー詳細:", result);
-                            alert(
+                            showAlert(
                               "❌ エラー: " +
                                 result.error +
                                 "\n詳細: " +
                                 (result.details || "なし"),
+                              "error"
                             );
                           }
                         } catch (error) {
                           console.error("LINEリッチメニュー反映エラー:", error);
-                          alert(
+                          showAlert(
                             "❌ LINEへの反映に失敗しました\n\nエラー: " +
                               (error instanceof Error
                                 ? error.message
                                 : String(error)) +
                               "\n\nブラウザのコンソール(F12)で詳細を確認してください",
+                            "error"
                           );
                         } finally {
                           setSaving(false);
@@ -11213,7 +11893,7 @@ export default function SettingsPage() {
     <div className="h-screen bg-gray-50">
       <div className="flex h-full">
         {/* 左サイドバー */}
-        <div className="w-48 bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div className="w-52 bg-gray-50 border-r border-gray-200 flex flex-col">
           {/* ヘッダー */}
           <div className="p-6 border-b border-gray-200">
             <h1 className="text-xl font-bold text-gray-900 flex items-center">
@@ -11232,9 +11912,9 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={category.id}
-                    onClick={() => handleCategoryClick(category.id)}
+                    onMouseEnter={() => handleCategoryClick(category.id)}
                     className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors rounded-lg ${
-                      isActive 
+                      isActive
                         ? "bg-blue-50 text-blue-600"
                         : "hover:bg-gray-50 text-gray-700"
                     }`}
@@ -11261,28 +11941,116 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 問診票編集モーダル */}
-      {selectedQuestionnaire && (
-        <QuestionnaireEditModal
-          isOpen={showQuestionnaireModal && !!selectedQuestionnaire}
-          onClose={() => {
-            setShowQuestionnaireModal(false);
-            setSelectedQuestionnaire(null);
-          }}
-          questionnaireId={selectedQuestionnaire.id}
-          clinicId={DEMO_CLINIC_ID}
-          onSave={(updatedQuestionnaire) => {
-            console.log("問診票を保存しました:", updatedQuestionnaire);
-            // リストを更新
-            setQuestionnaires((prev) =>
-              prev.map((q) =>
-                q.id === updatedQuestionnaire.id ? updatedQuestionnaire : q,
-              ),
-            );
-            setShowQuestionnaireModal(false);
-            setSelectedQuestionnaire(null);
-          }}
-        />
+      {/* 問診票作成・編集モーダル */}
+      {showQuestionnaireModal && (
+        selectedQuestionnaire ? (
+          <QuestionnaireEditModal
+            isOpen={showQuestionnaireModal}
+            onClose={() => {
+              setShowQuestionnaireModal(false);
+              setSelectedQuestionnaire(null);
+            }}
+            questionnaireId={selectedQuestionnaire.id}
+            clinicId={DEMO_CLINIC_ID}
+            onSave={(updatedQuestionnaire) => {
+              console.log("問診票を保存しました:", updatedQuestionnaire);
+              // リストを更新
+              setQuestionnaires((prev) =>
+                prev.map((q) =>
+                  q.id === updatedQuestionnaire.id ? updatedQuestionnaire : q,
+                ),
+              );
+              setShowQuestionnaireModal(false);
+              setSelectedQuestionnaire(null);
+            }}
+          />
+        ) : (
+          <Modal
+            isOpen={showQuestionnaireModal}
+            onClose={() => {
+              setShowQuestionnaireModal(false);
+            }}
+            title="新しい問診票を作成"
+          >
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="questionnaire-name">問診票名</Label>
+                <Input
+                  id="questionnaire-name"
+                  placeholder="例: 初診問診票"
+                  defaultValue=""
+                  onBlur={(e) => {
+                    const name = e.target.value;
+                    if (name.trim()) {
+                      (window as any).newQuestionnaireName = name;
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <Label htmlFor="questionnaire-description">説明（任意）</Label>
+                <Textarea
+                  id="questionnaire-description"
+                  placeholder="問診票の説明を入力"
+                  rows={3}
+                  onBlur={(e) => {
+                    (window as any).newQuestionnaireDescription = e.target.value;
+                  }}
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowQuestionnaireModal(false);
+                  }}
+                >
+                  キャンセル
+                </Button>
+                <Button
+                  onClick={async () => {
+                    const name = (window as any).newQuestionnaireName || '';
+                    const description = (window as any).newQuestionnaireDescription || '';
+
+                    if (!name.trim()) {
+                      showAlert('問診票名を入力してください', 'error');
+                      return;
+                    }
+
+                    try {
+                      setSaving(true);
+                      const newQuestionnaire = await createQuestionnaire(DEMO_CLINIC_ID, {
+                        name: name.trim(),
+                        description: description.trim(),
+                        is_active: true
+                      });
+
+                      // リストに追加
+                      setQuestionnaires((prev) => [...prev, newQuestionnaire]);
+                      setShowQuestionnaireModal(false);
+
+                      // 一時変数をクリア
+                      delete (window as any).newQuestionnaireName;
+                      delete (window as any).newQuestionnaireDescription;
+
+                      showAlert('問診票を作成しました', 'success');
+                    } catch (error) {
+                      console.error('問診票作成エラー:', error);
+                      const errorMessage = error instanceof Error ? error.message : '不明なエラー';
+                      showAlert(`問診票の作成に失敗しました\n\nエラー: ${errorMessage}`, 'error');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={saving}
+                >
+                  {saving ? '作成中...' : '作成'}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )
       )}
 
       {/* デフォルトテキスト追加・編集モーダル */}
@@ -11354,12 +12122,13 @@ export default function SettingsPage() {
               >
                 キャンセル
               </Button>
-              <Button 
+              <Button
                 onClick={
                   editingDefaultText
                     ? handleEditDefaultTextSave
                     : handleAddDefaultText
                 }
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Save className="w-4 h-4 mr-2" />
                 保存
@@ -11399,7 +12168,7 @@ export default function SettingsPage() {
             <Button variant="outline" onClick={handleCancelPolicyDialogClose}>
               キャンセル
             </Button>
-            <Button onClick={handleSaveCancelPolicy}>保存</Button>
+            <Button onClick={handleSaveCancelPolicy} className="bg-blue-600 hover:bg-blue-700 text-white">保存</Button>
           </div>
         </div>
       </Modal>
@@ -11553,6 +12322,185 @@ export default function SettingsPage() {
               キャンセル
             </Button>
             <Button onClick={handleSavePatientInfoFields}>保存</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 未保存の変更警告モーダル */}
+      <Modal
+        isOpen={showUnsavedWarning}
+        onClose={cancelNavigation}
+        title="未保存の変更があります"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            変更内容が保存されていません。このページから移動すると、変更内容が失われます。
+          </p>
+          <p className="text-gray-700 font-medium">
+            本当に移動しますか？
+          </p>
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <Button
+              variant="outline"
+              onClick={cancelNavigation}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={discardChanges}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              変更を破棄して移動
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 保存完了モーダル */}
+      <Modal
+        isOpen={showSaveSuccessModal}
+        onClose={() => setShowSaveSuccessModal(false)}
+        title="保存完了"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <CheckCircle className="w-12 h-12 text-green-500" />
+            </div>
+            <div>
+              <p className="text-gray-700 font-medium">
+                設定を保存しました
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                カレンダーページをリロードすると反映されます。
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => setShowSaveSuccessModal(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              OK
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 削除確認モーダル */}
+      <Modal
+        isOpen={showDeleteConfirmModal}
+        onClose={() => {
+          setShowDeleteConfirmModal(false);
+          setDeletingMenuId(null);
+        }}
+        title="メニュー削除確認"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <AlertCircle className="w-12 h-12 text-red-500" />
+            </div>
+            <div>
+              <p className="text-gray-700 font-medium">
+                このメニューを削除しますか？
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                この操作は「保存」ボタンを押すまで確定されません。
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => {
+                setShowDeleteConfirmModal(false);
+                setDeletingMenuId(null);
+              }}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700"
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={confirmDeleteTreatmentMenu}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              削除
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 汎用確認モーダル */}
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        title={confirmModalConfig.title}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <AlertCircle className={`w-12 h-12 ${confirmModalConfig.isDanger ? 'text-red-500' : 'text-blue-500'}`} />
+            </div>
+            <div>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {confirmModalConfig.message}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => setShowConfirmModal(false)}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700"
+            >
+              {confirmModalConfig.cancelText || "キャンセル"}
+            </Button>
+            <Button
+              onClick={() => {
+                confirmModalConfig.onConfirm();
+                setShowConfirmModal(false);
+              }}
+              className={confirmModalConfig.isDanger
+                ? "bg-red-600 hover:bg-red-700 text-white"
+                : "bg-blue-600 hover:bg-blue-700 text-white"}
+            >
+              {confirmModalConfig.confirmText || "OK"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 汎用通知モーダル */}
+      <Modal
+        isOpen={showAlertModal}
+        onClose={() => setShowAlertModal(false)}
+        title={alertModalConfig.title}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              {alertModalConfig.type === "success" && (
+                <CheckCircle className="w-12 h-12 text-green-500" />
+              )}
+              {alertModalConfig.type === "error" && (
+                <AlertCircle className="w-12 h-12 text-red-500" />
+              )}
+              {alertModalConfig.type === "info" && (
+                <Info className="w-12 h-12 text-blue-500" />
+              )}
+            </div>
+            <div>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {alertModalConfig.message}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => setShowAlertModal(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              OK
+            </Button>
           </div>
         </div>
       </Modal>

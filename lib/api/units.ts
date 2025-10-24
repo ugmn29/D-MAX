@@ -8,6 +8,7 @@ export interface Unit {
   sort_order: number
   is_active: boolean
   created_at: string
+  updated_at?: string
 }
 
 export interface StaffUnitPriority {
@@ -132,10 +133,7 @@ export async function updateUnit(clinicId: string, unitId: string, data: UpdateU
     const client = getSupabaseClient()
     const { data: updatedUnit, error } = await client
       .from('units')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString()
-      })
+      .update(data)
       .eq('id', unitId)
       .eq('clinic_id', clinicId)
       .select()
@@ -208,13 +206,10 @@ export async function getStaffUnitPriorities(clinicId: string, staffId?: string)
 
   try {
     const client = getSupabaseClient()
+
     let query = client
       .from('staff_unit_priorities')
-      .select(`
-        *,
-        staff:staff_id(id, name),
-        unit:unit_id(id, name)
-      `)
+      .select('*')
       .eq('clinic_id', clinicId)
       .eq('is_active', true)
 
@@ -222,16 +217,39 @@ export async function getStaffUnitPriorities(clinicId: string, staffId?: string)
       query = query.eq('staff_id', staffId)
     }
 
-    const { data, error } = await query.order('staff_id, priority_order')
+    const { data, error } = await query.order('priority_order')
 
+    // エラーがある場合でも、単に空配列を返す（テーブルが存在しない可能性がある）
     if (error) {
-      console.error('スタッフユニット優先順位取得エラー:', error)
-      throw error
+      console.warn('スタッフユニット優先順位テーブルが見つかりません。空配列を返します。', error.message)
+      return []
     }
 
-    return data || []
+    // データがない場合は空配列を返す
+    if (!data || data.length === 0) {
+      return []
+    }
+
+    // スタッフとユニットの情報を個別に取得して結合
+    const enrichedData = await Promise.all(
+      data.map(async (priority) => {
+        const [staffResult, unitResult] = await Promise.all([
+          client.from('staff').select('id, name').eq('id', priority.staff_id).single(),
+          client.from('units').select('id, name').eq('id', priority.unit_id).single()
+        ])
+
+        return {
+          ...priority,
+          staff: staffResult.data || undefined,
+          unit: unitResult.data || undefined
+        }
+      })
+    )
+
+    return enrichedData
   } catch (error) {
-    console.error('スタッフユニット優先順位取得エラー:', error)
+    // エラーが発生しても空配列を返す（機能を壊さない）
+    console.warn('スタッフユニット優先順位の取得中にエラーが発生しました。空配列を返します。')
     return []
   }
 }
@@ -282,22 +300,28 @@ export async function createStaffUnitPriority(clinicId: string, data: CreateStaf
         clinic_id: clinicId,
         is_active: data.is_active ?? true
       })
-      .select(`
-        *,
-        staff:staff_id(id, name),
-        unit:unit_id(id, name)
-      `)
+      .select('*')
       .single()
 
     if (error) {
       console.error('スタッフユニット優先順位作成エラー:', error)
-      throw error
+      throw new Error(`スタッフユニット優先順位の作成に失敗しました: ${error.message || 'テーブルが存在しないか、アクセス権限がありません'}`)
     }
 
-    return newPriority
+    // スタッフとユニットの情報を個別に取得
+    const [staffResult, unitResult] = await Promise.all([
+      client.from('staff').select('id, name').eq('id', newPriority.staff_id).single(),
+      client.from('units').select('id, name').eq('id', newPriority.unit_id).single()
+    ])
+
+    return {
+      ...newPriority,
+      staff: staffResult.data || undefined,
+      unit: unitResult.data || undefined
+    }
   } catch (error) {
     console.error('スタッフユニット優先順位作成エラー:', error)
-    throw error
+    throw error instanceof Error ? error : new Error('スタッフユニット優先順位の作成に失敗しました')
   }
 }
 
@@ -326,22 +350,28 @@ export async function updateStaffUnitPriority(clinicId: string, priorityId: stri
       })
       .eq('id', priorityId)
       .eq('clinic_id', clinicId)
-      .select(`
-        *,
-        staff:staff_id(id, name),
-        unit:unit_id(id, name)
-      `)
+      .select('*')
       .single()
 
     if (error) {
       console.error('スタッフユニット優先順位更新エラー:', error)
-      throw error
+      throw new Error(`スタッフユニット優先順位の更新に失敗しました: ${error.message || 'テーブルが存在しないか、アクセス権限がありません'}`)
     }
 
-    return updatedPriority
+    // スタッフとユニットの情報を個別に取得
+    const [staffResult, unitResult] = await Promise.all([
+      client.from('staff').select('id, name').eq('id', updatedPriority.staff_id).single(),
+      client.from('units').select('id, name').eq('id', updatedPriority.unit_id).single()
+    ])
+
+    return {
+      ...updatedPriority,
+      staff: staffResult.data || undefined,
+      unit: unitResult.data || undefined
+    }
   } catch (error) {
     console.error('スタッフユニット優先順位更新エラー:', error)
-    throw error
+    throw error instanceof Error ? error : new Error('スタッフユニット優先順位の更新に失敗しました')
   }
 }
 
@@ -363,11 +393,11 @@ export async function deleteStaffUnitPriority(clinicId: string, priorityId: stri
 
     if (error) {
       console.error('スタッフユニット優先順位削除エラー:', error)
-      throw error
+      throw new Error(`スタッフユニット優先順位の削除に失敗しました: ${error.message || 'テーブルが存在しないか、アクセス権限がありません'}`)
     }
   } catch (error) {
     console.error('スタッフユニット優先順位削除エラー:', error)
-    throw error
+    throw error instanceof Error ? error : new Error('スタッフユニット優先順位の削除に失敗しました')
   }
 }
 
@@ -403,10 +433,10 @@ export async function updateStaffUnitPriorities(clinicId: string, staffId: strin
 
     if (error) {
       console.error('スタッフユニット優先順位一括更新エラー:', error)
-      throw error
+      throw new Error(`スタッフユニット優先順位の一括更新に失敗しました: ${error.message || 'テーブルが存在しないか、アクセス権限がありません'}`)
     }
   } catch (error) {
     console.error('スタッフユニット優先順位一括更新エラー:', error)
-    throw error
+    throw error instanceof Error ? error : new Error('スタッフユニット優先順位の一括更新に失敗しました')
   }
 }

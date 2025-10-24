@@ -10,8 +10,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getQuestionnaires, type Questionnaire, type QuestionnaireQuestion } from '@/lib/api/questionnaires'
-import { Edit, Save, X, Plus, Trash2, GripVertical, Eye, EyeOff } from 'lucide-react'
+import { getQuestionnaires, updateQuestionnaire, type Questionnaire, type QuestionnaireQuestion } from '@/lib/api/questionnaires'
+import { Edit, Save, X, Plus, Trash2, GripVertical, Eye, EyeOff, AlertCircle, CheckCircle, Info } from 'lucide-react'
 
 interface QuestionnaireEditModalProps {
   isOpen: boolean
@@ -42,6 +42,14 @@ export function QuestionnaireEditModal({
   const [editingMode, setEditingMode] = useState<'view' | 'edit'>('view')
   const [editingQuestion, setEditingQuestion] = useState<QuestionnaireQuestion | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+
+  // 問診票基本情報の編集用state
+  const [editingBasicInfo, setEditingBasicInfo] = useState(false)
+  const [basicInfoData, setBasicInfoData] = useState({
+    name: '',
+    description: '',
+    is_active: true
+  })
   const [editData, setEditData] = useState<{
     question_text: string
     question_type: string
@@ -50,6 +58,7 @@ export function QuestionnaireEditModal({
     section_name: string
     sort_order: number
     linked_field?: string
+    conditional_logic?: any
   }>({
     question_text: '',
     question_type: 'text',
@@ -57,9 +66,39 @@ export function QuestionnaireEditModal({
     is_required: false,
     section_name: '',
     sort_order: 0,
-    linked_field: ''
+    linked_field: '',
+    conditional_logic: null
   })
 
+  // モーダル関連のstate
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    title: string
+    message: string
+    confirmText?: string
+    cancelText?: string
+    onConfirm: () => void
+    isDanger?: boolean
+  }>({
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  })
+
+  const [showAlertModal, setShowAlertModal] = useState(false)
+  const [alertModalConfig, setAlertModalConfig] = useState<{
+    title: string
+    message: string
+    type?: 'success' | 'error' | 'info'
+  }>({
+    title: '',
+    message: '',
+    type: 'info',
+  })
+
+  // 未保存変更の追跡
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [initialQuestions, setInitialQuestions] = useState<QuestionnaireQuestion[]>([])
 
   // データ読み込み
   useEffect(() => {
@@ -74,6 +113,15 @@ export function QuestionnaireEditModal({
         if (targetQuestionnaire) {
           setQuestionnaire(targetQuestionnaire)
           setQuestions(targetQuestionnaire.questions)
+          setInitialQuestions(JSON.parse(JSON.stringify(targetQuestionnaire.questions))) // 深いコピー
+          setHasUnsavedChanges(false) // 初期読み込み時は未保存フラグをリセット
+
+          // 基本情報の初期化
+          setBasicInfoData({
+            name: targetQuestionnaire.name,
+            description: targetQuestionnaire.description || '',
+            is_active: targetQuestionnaire.is_active
+          })
 
           // 最初のセクションを設定
           const firstSection = Array.from(new Set(targetQuestionnaire.questions.map(q => q.section_name).filter(Boolean)))[0]
@@ -102,6 +150,15 @@ export function QuestionnaireEditModal({
     loadQuestionnaire()
   }, [isOpen, questionnaireId, clinicId])
 
+  // 質問の変更を検知して未保存フラグを立てる
+  useEffect(() => {
+    if (initialQuestions.length === 0) return // 初期読み込み前はスキップ
+
+    // 質問の内容が変更されたかチェック
+    const hasChanged = JSON.stringify(questions) !== JSON.stringify(initialQuestions)
+    setHasUnsavedChanges(hasChanged)
+  }, [questions, initialQuestions])
+
   // 編集中の質問が変更されたらeditDataを更新
   useEffect(() => {
     if (editingQuestion) {
@@ -112,7 +169,8 @@ export function QuestionnaireEditModal({
         is_required: editingQuestion.is_required,
         section_name: editingQuestion.section_name,
         sort_order: editingQuestion.sort_order,
-        linked_field: (editingQuestion as any).linked_field || ''
+        linked_field: (editingQuestion as any).linked_field || '',
+        conditional_logic: editingQuestion.conditional_logic || null
       })
     }
   }, [editingQuestion])
@@ -268,6 +326,94 @@ export function QuestionnaireEditModal({
     return true
   }
 
+  // 汎用確認ダイアログヘルパー
+  const showConfirm = (
+    message: string,
+    onConfirm: () => void,
+    options?: {
+      title?: string
+      confirmText?: string
+      cancelText?: string
+      isDanger?: boolean
+    }
+  ) => {
+    setConfirmModalConfig({
+      title: options?.title || '確認',
+      message,
+      confirmText: options?.confirmText || 'OK',
+      cancelText: options?.cancelText || 'キャンセル',
+      onConfirm,
+      isDanger: options?.isDanger || false,
+    })
+    setShowConfirmModal(true)
+  }
+
+  // 汎用アラートヘルパー
+  const showAlert = (
+    message: string,
+    type: 'success' | 'error' | 'info' = 'info',
+    title?: string
+  ) => {
+    setAlertModalConfig({
+      title: title || (type === 'error' ? 'エラー' : type === 'success' ? '成功' : '通知'),
+      message,
+      type,
+    })
+    setShowAlertModal(true)
+  }
+
+  // 基本情報の保存
+  const handleSaveBasicInfo = async () => {
+    if (!questionnaire) return
+
+    try {
+      setSaving(true)
+      await updateQuestionnaire(clinicId, questionnaire.id, {
+        name: basicInfoData.name,
+        description: basicInfoData.description,
+        is_active: basicInfoData.is_active
+      })
+
+      // ローカルの問診票データを更新
+      const updatedQuestionnaire = {
+        ...questionnaire,
+        name: basicInfoData.name,
+        description: basicInfoData.description,
+        is_active: basicInfoData.is_active
+      }
+      setQuestionnaire(updatedQuestionnaire)
+
+      // 親コンポーネントに通知
+      if (onSave) {
+        onSave(updatedQuestionnaire)
+      }
+
+      setEditingBasicInfo(false)
+      showAlert('問診票の基本情報を更新しました', 'success')
+    } catch (error) {
+      console.error('基本情報の保存エラー:', error)
+      showAlert('基本情報の保存に失敗しました', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 未保存の変更があるかチェックしてモーダルを閉じる
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      showConfirm(
+        '保存されていない変更があります。\n変更を破棄してモーダルを閉じますか？',
+        () => {
+          setHasUnsavedChanges(false)
+          onClose()
+        },
+        { isDanger: true, confirmText: '破棄して閉じる' }
+      )
+    } else {
+      onClose()
+    }
+  }
+
   // 保存処理
   const handleSave = async () => {
     if (!questionnaire) {
@@ -294,7 +440,7 @@ export function QuestionnaireEditModal({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.details || errorData.error || '保存に失敗しました')
+        throw new Error(errorData.message || errorData.error || '保存に失敗しました')
       }
 
       const result = await response.json()
@@ -307,11 +453,16 @@ export function QuestionnaireEditModal({
         updated_at: new Date().toISOString()
       }
 
+      // 保存成功したら未保存フラグをクリア
+      setHasUnsavedChanges(false)
+      setInitialQuestions(JSON.parse(JSON.stringify(questions))) // 保存後の状態を新しい初期状態とする
+
       onSave?.(updatedQuestionnaire)
       onClose()
     } catch (error) {
       console.error('問診票保存エラー:', error)
-      alert('問診表の保存に失敗しました。エラー: ' + (error as Error).message)
+      const errorMessage = error instanceof Error ? error.message : '不明なエラー'
+      showAlert(`問診表の保存に失敗しました\n\nエラー: ${errorMessage}`, 'error')
     } finally {
       setSaving(false)
     }
@@ -396,7 +547,17 @@ export function QuestionnaireEditModal({
     const saveQuestion = () => {
       const updatedQuestions = questions.map(q =>
         q.id === question.id
-          ? { ...q, ...editData }
+          ? {
+              ...q,
+              question_text: editData.question_text,
+              question_type: editData.question_type,
+              options: editData.options,
+              is_required: editData.is_required,
+              section_name: editData.section_name,
+              conditional_logic: editData.conditional_logic,
+              linked_field: editData.linked_field,
+              // IDとsort_orderは保持
+            }
           : q
       )
       setQuestions(updatedQuestions)
@@ -404,8 +565,8 @@ export function QuestionnaireEditModal({
     }
 
     return (
-      <div className="fixed inset-0 z-60 bg-black bg-opacity-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-lg max-w-5xl w-full max-h-[85vh] overflow-y-auto">
+      <div className="fixed inset-0 z-[70] bg-black bg-opacity-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-lg max-w-5xl w-full max-h-[85vh] overflow-y-auto z-[71]">
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-semibold">質問を編集</h3>
@@ -483,7 +644,8 @@ export function QuestionnaireEditModal({
                 />
               </div>
 
-              {/* 患者情報フィールドとの連携 */}
+              {/* 患者情報フィールドとの連携 - システムテンプレートで自動設定されるため非表示 */}
+              {/*
               <div>
                 <Label htmlFor="linked_field">患者情報フィールドとの連携</Label>
                 <select
@@ -514,6 +676,7 @@ export function QuestionnaireEditModal({
                   患者情報と自動連携するフィールドを選択できます
                 </p>
               </div>
+              */}
 
               {/* 必須項目 */}
               <div className="flex items-center space-x-2">
@@ -643,19 +806,97 @@ export function QuestionnaireEditModal({
   if (!isOpen) return null
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="large">
-      <div className="p-6 space-y-6">
+    <>
+      <Modal isOpen={isOpen} onClose={handleClose} size="xlarge">
+      <div className="p-6 space-y-6 max-h-[90vh] overflow-hidden flex flex-col">
         {/* ヘッダー */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center">
-              {questionnaire?.name || '読み込み中...'}
-            </h2>
-            {questionnaire?.description && (
-              <p className="text-gray-600 mt-1">{questionnaire.description}</p>
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            {editingBasicInfo ? (
+              // 編集モード
+              <div className="space-y-4 pr-4">
+                <div>
+                  <Label htmlFor="questionnaire-name">問診票名</Label>
+                  <Input
+                    id="questionnaire-name"
+                    value={basicInfoData.name}
+                    onChange={(e) => setBasicInfoData({ ...basicInfoData, name: e.target.value })}
+                    placeholder="問診票名を入力"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="questionnaire-description">説明</Label>
+                  <Textarea
+                    id="questionnaire-description"
+                    value={basicInfoData.description}
+                    onChange={(e) => setBasicInfoData({ ...basicInfoData, description: e.target.value })}
+                    placeholder="説明を入力（任意）"
+                    rows={2}
+                  />
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Checkbox
+                    id="questionnaire-is-active"
+                    checked={basicInfoData.is_active}
+                    onCheckedChange={(checked) => setBasicInfoData({ ...basicInfoData, is_active: checked as boolean })}
+                  />
+                  <Label htmlFor="questionnaire-is-active" className="font-medium">
+                    この問診票を有効にする
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button onClick={handleSaveBasicInfo} disabled={saving} size="sm">
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? '保存中...' : '保存'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setBasicInfoData({
+                        name: questionnaire?.name || '',
+                        description: questionnaire?.description || '',
+                        is_active: questionnaire?.is_active || true
+                      })
+                      setEditingBasicInfo(false)
+                    }}
+                  >
+                    キャンセル
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              // 表示モード
+              <div>
+                <div className="flex items-center space-x-3">
+                  <h2 className="text-2xl font-bold">
+                    {questionnaire?.name || '読み込み中...'}
+                  </h2>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      questionnaire?.is_active
+                        ? "bg-green-100 text-green-800"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {questionnaire?.is_active ? "有効" : "無効"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingBasicInfo(true)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                </div>
+                {questionnaire?.description && (
+                  <p className="text-gray-600 mt-1">{questionnaire.description}</p>
+                )}
+              </div>
             )}
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={handleClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -666,27 +907,30 @@ export function QuestionnaireEditModal({
           </div>
         ) : questionnaire ? (
           <>
+            {/* 2カラムレイアウト */}
+            <div className="grid grid-cols-2 gap-6 flex-1 overflow-hidden">
+              {/* 左カラム：編集エリア */}
+              <div className="flex flex-col overflow-hidden">
+                {/* セクションナビゲーション */}
+                <div className="flex space-x-0 border-b border-gray-200 mb-4 overflow-x-auto">
+                  {sections.map((section) => (
+                    <button
+                      key={section}
+                      onClick={() => setCurrentSection(section)}
+                      className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+                        currentSection === section
+                          ? "border-blue-500 text-blue-600 bg-blue-50"
+                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      }`}
+                    >
+                      {section}
+                    </button>
+                  ))}
+                </div>
 
-            {/* セクションナビゲーション */}
-            <div className="flex space-x-0 border-b border-gray-200 mb-4">
-              {sections.map((section) => (
-                <button
-                  key={section}
-                  onClick={() => setCurrentSection(section)}
-                  className={`px-8 py-4 font-medium text-base transition-colors border-b-2 whitespace-nowrap ${
-                    currentSection === section
-                      ? "border-blue-500 text-blue-600 bg-blue-50"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  {section}
-                </button>
-              ))}
-            </div>
-
-            {/* 現在のセクションの質問 */}
-            <Card>
-        <CardContent className="space-y-6 pt-6 min-h-[400px]">
+                {/* 現在のセクションの質問 */}
+                <Card className="flex-1 overflow-hidden flex flex-col">
+                  <CardContent className="space-y-4 pt-6 flex-1 overflow-y-auto">
           {currentQuestions.map((question, index) => {
             const isRequired = isQuestionRequired(question)
             const isHidden = (question as any).is_hidden
@@ -722,7 +966,11 @@ export function QuestionnaireEditModal({
                   </div>
                   <div className="flex space-x-2 ml-2">
                     <button
-                      onClick={() => toggleQuestionVisibility(question.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleQuestionVisibility(question.id)
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
                       title={(question as any).is_hidden ? "表示する" : "非表示にする"}
                       className="hover:opacity-70 transition-opacity"
                     >
@@ -733,18 +981,28 @@ export function QuestionnaireEditModal({
                       )}
                     </button>
                     <button
-                      onClick={() => setEditingQuestion(question)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditingQuestion(question)
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
                       title="編集"
                       className="hover:opacity-70 transition-opacity"
                     >
                       <Edit className="w-4 h-4 text-gray-600" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm('この質問を削除しますか？')) {
-                          setQuestions(prev => prev.filter(q => q.id !== question.id))
-                        }
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        showConfirm(
+                          'この質問を削除しますか？',
+                          () => {
+                            setQuestions(prev => prev.filter(q => q.id !== question.id))
+                          },
+                          { isDanger: true, confirmText: '削除' }
+                        )
                       }}
+                      onMouseDown={(e) => e.stopPropagation()}
                       className="hover:opacity-70 transition-opacity"
                       title="削除"
                     >
@@ -781,16 +1039,106 @@ export function QuestionnaireEditModal({
               質問を追加
             </Button>
           </div>
-        </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 右カラム：プレビューエリア */}
+              <div className="flex flex-col overflow-hidden border-l border-gray-200 pl-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">プレビュー</h3>
+                <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg p-4">
+                  {/* 問診表プレビュー */}
+                  <div className="bg-white rounded-lg p-6 space-y-6">
+                    {questions.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <Info className="w-12 h-12 mx-auto mb-2" />
+                        <p>質問を追加するとここにプレビューが表示されます</p>
+                      </div>
+                    ) : (
+                      <>
+                        {sections.map((section) => {
+                          const sectionQuestions = questions
+                            .filter(q => q.section_name === section)
+                            .sort((a, b) => a.sort_order - b.sort_order)
+                            .filter(q => !(q as any).is_hidden)
+
+                          if (sectionQuestions.length === 0) return null
+
+                          return (
+                            <div key={section} className="space-y-4">
+                              <h4 className="text-lg font-bold text-gray-900 pb-2 border-b border-gray-200">
+                                {section}
+                              </h4>
+                              {sectionQuestions.map((question, idx) => (
+                                <div key={question.id} className="space-y-2">
+                                  <Label className="text-base font-medium">
+                                    {idx + 1}. {question.question_text}
+                                    {question.is_required && (
+                                      <span className="text-red-600 ml-1">*</span>
+                                    )}
+                                  </Label>
+                                  <div className="text-sm text-gray-500">
+                                    {/* プレビュー用の質問表示 */}
+                                    {question.question_type === 'text' && (
+                                      <Input placeholder="テキスト入力" disabled className="bg-gray-50" />
+                                    )}
+                                    {question.question_type === 'textarea' && (
+                                      <Textarea placeholder="テキストエリア" disabled className="bg-gray-50" rows={3} />
+                                    )}
+                                    {question.question_type === 'number' && (
+                                      <Input type="number" placeholder="数値入力" disabled className="bg-gray-50" />
+                                    )}
+                                    {question.question_type === 'date' && (
+                                      <Input type="date" disabled className="bg-gray-50" />
+                                    )}
+                                    {question.question_type === 'radio' && (
+                                      <div className="space-y-2">
+                                        {question.options?.map((option, idx) => (
+                                          <div key={idx} className="flex items-center space-x-2">
+                                            <input type="radio" disabled className="text-gray-400" />
+                                            <Label className="text-gray-600">{option}</Label>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {question.question_type === 'checkbox' && (
+                                      <div className="space-y-2">
+                                        {question.options?.map((option, idx) => (
+                                          <div key={idx} className="flex items-center space-x-2">
+                                            <Checkbox disabled />
+                                            <Label className="text-gray-600">{option}</Label>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {question.question_type === 'select' && (
+                                      <select disabled className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                                        <option>選択してください</option>
+                                        {question.options?.map((option, idx) => (
+                                          <option key={idx}>{option}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* フッター */}
-            <div className="flex justify-between items-center pt-4 border-t">
+            <div className="flex justify-between items-center pt-4 border-t mt-4">
               <div className="text-sm text-gray-500">
                 * 印の項目は必須です
               </div>
               <div className="flex space-x-2">
-                <Button variant="outline" onClick={onClose}>
+                <Button variant="outline" onClick={handleClose}>
                   キャンセル
                 </Button>
                 <Button onClick={handleSave} disabled={saving}>
@@ -806,9 +1154,87 @@ export function QuestionnaireEditModal({
           </div>
         )}
       </div>
-
-      {/* 質問編集フォーム */}
-      {editingQuestion && renderQuestionEditForm(editingQuestion)}
     </Modal>
+
+    {/* 質問編集フォーム */}
+    {editingQuestion && renderQuestionEditForm(editingQuestion)}
+
+    {/* 汎用確認モーダル */}
+    <Modal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        title={confirmModalConfig.title}
+        zIndex="z-[80]"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <AlertCircle className={`w-12 h-12 ${confirmModalConfig.isDanger ? 'text-red-500' : 'text-blue-500'}`} />
+            </div>
+            <div>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {confirmModalConfig.message}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => setShowConfirmModal(false)}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700"
+            >
+              {confirmModalConfig.cancelText || 'キャンセル'}
+            </Button>
+            <Button
+              onClick={() => {
+                confirmModalConfig.onConfirm()
+                setShowConfirmModal(false)
+              }}
+              className={confirmModalConfig.isDanger
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'}
+            >
+              {confirmModalConfig.confirmText || 'OK'}
+            </Button>
+          </div>
+        </div>
+    </Modal>
+
+    {/* 汎用通知モーダル */}
+    <Modal
+        isOpen={showAlertModal}
+        onClose={() => setShowAlertModal(false)}
+        title={alertModalConfig.title}
+        zIndex="z-[80]"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              {alertModalConfig.type === 'success' && (
+                <CheckCircle className="w-12 h-12 text-green-500" />
+              )}
+              {alertModalConfig.type === 'error' && (
+                <AlertCircle className="w-12 h-12 text-red-500" />
+              )}
+              {alertModalConfig.type === 'info' && (
+                <Info className="w-12 h-12 text-blue-500" />
+              )}
+            </div>
+            <div>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {alertModalConfig.message}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => setShowAlertModal(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              OK
+            </Button>
+          </div>
+        </div>
+    </Modal>
+  </>
   )
 }

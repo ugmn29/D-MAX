@@ -1497,10 +1497,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           {timeSlots.map((slot, index) => (
             <div
               key={index}
-              className={`h-10 flex items-center justify-center text-xs text-gray-500 ${
+              className={`flex items-center justify-center text-xs text-gray-500 ${
                 slot.minute === 0 ? 'font-medium' : ''
               }`}
               style={{
+                height: `${cellHeight}px`,
                 borderTop: slot.minute === 0 ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB'
               }}
             >
@@ -1671,18 +1672,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             return (
               <div
                 key={index}
-                className={`h-10 flex ${
+                className={`flex ${
                   isHovered
                     ? 'bg-blue-50 border-blue-200 border' // ホバー時の薄い青
                     : isHoliday
                       ? 'bg-gray-50' // 休診日は薄いグレー
-                      : isOutside 
+                      : isOutside
                         ? 'bg-gray-100' // 診療時間外はグレー
-                        : isBreak 
-                          ? 'bg-gray-200 cursor-pointer' 
+                        : isBreak
+                          ? 'bg-gray-200 cursor-pointer'
                           : 'bg-white'
                 }`}
                 style={{
+                  height: `${cellHeight}px`,
                   borderTop: isHourBoundary ? '0.5px solid #6B7280' : '0.25px solid #E5E7EB',
                   borderBottom: isBreak ? 'none' : undefined,
                   zIndex: isBreak ? 1 : 'auto'

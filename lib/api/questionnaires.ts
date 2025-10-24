@@ -689,6 +689,8 @@ export async function updateQuestionnaireQuestions(
   const client = getSupabaseClient()
 
   try {
+    console.log('受け取った質問データ:', questions)
+
     // 既存の質問を削除
     const { error: deleteError } = await client
       .from('questionnaire_questions')
@@ -702,18 +704,37 @@ export async function updateQuestionnaireQuestions(
 
     // 新しい質問を挿入
     if (questions.length > 0) {
-      const questionsToInsert = questions.map(q => ({
-        id: q.id.startsWith('temp-') ? undefined : q.id, // temp-で始まるIDは新規作成
-        questionnaire_id: questionnaireId,
-        section_name: q.section_name,
-        question_text: q.question_text,
-        question_type: q.question_type,
-        options: q.options || [],
-        is_required: q.is_required,
-        conditional_logic: q.conditional_logic,
-        sort_order: q.sort_order,
-        linked_field: (q as any).linked_field || null
-      }))
+      const questionsToInsert = questions.map((q, index) => {
+        console.log(`質問 ${index + 1}:`, { id: q.id, text: q.question_text, type: typeof q.id, hasId: 'id' in q })
+        const questionData: any = {
+          questionnaire_id: questionnaireId,
+          section_name: q.section_name,
+          question_text: q.question_text,
+          question_type: q.question_type,
+          options: q.options || [],
+          is_required: q.is_required,
+          conditional_logic: q.conditional_logic,
+          sort_order: q.sort_order,
+          linked_field: (q as any).linked_field || null
+        }
+
+        // temp-で始まるIDまたはIDがない場合は、DBに自動生成させる
+        if (q.id && !q.id.toString().startsWith('temp-')) {
+          console.log(`  -> IDを含める: ${q.id}`)
+          questionData.id = q.id
+        } else {
+          console.log(`  -> IDを含めない (temp-IDまたはIDなし)`)
+          // IDを設定しない（フィールド自体を含めない）
+        }
+
+        // デバッグ: 最終的なquestionDataを確認
+        console.log(`  -> questionData:`, questionData)
+        console.log(`  -> 'id' in questionData:`, 'id' in questionData)
+
+        return questionData
+      })
+
+      console.log('挿入する質問データ（全体）:', JSON.stringify(questionsToInsert, null, 2))
 
       const { error: insertError } = await client
         .from('questionnaire_questions')

@@ -347,10 +347,26 @@ export async function saveDailyMemo(
  */
 export async function getBusinessHours(clinicId: string) {
   console.log('getBusinessHours呼び出し:', clinicId)
-  
-  // モックモードの場合はデフォルトの診療時間を返す
+
+  // モックモードの場合はlocalStorageから読み込む
   if (MOCK_MODE) {
-    console.log('モックモード: 診療時間データを返します（デフォルト値）')
+    console.log('モックモード: 診療時間データを返します')
+
+    // localStorageから保存された設定を読み込む
+    try {
+      const savedData = localStorage.getItem('mock_clinic_settings')
+      if (savedData) {
+        const savedSettings = JSON.parse(savedData)
+        if (savedSettings.business_hours) {
+          console.log('モックモード: localStorageから取得した診療時間:', savedSettings.business_hours)
+          return savedSettings.business_hours
+        }
+      }
+    } catch (error) {
+      console.error('モックモード: localStorage読み込みエラー:', error)
+    }
+
+    // localStorageにない場合はデフォルト値
     const defaultBusinessHours = {
       monday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
       tuesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
@@ -360,6 +376,7 @@ export async function getBusinessHours(clinicId: string) {
       saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
       sunday: { isOpen: false, timeSlots: [] }
     }
+    console.log('モックモード: デフォルトの診療時間を返します:', defaultBusinessHours)
     return defaultBusinessHours
   }
   
@@ -391,45 +408,58 @@ export async function getBusinessHours(clinicId: string) {
 }
 
 /**
- * 休憩時間を取得（デフォルト値付き）
+ * 診療時間から休憩時間を自動計算
+ * 複数の診療時間スロットがある場合、その間のギャップを休憩時間として返す
+ */
+function calculateBreakTimesFromBusinessHours(businessHours: any) {
+  const breakTimes: any = {}
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+  days.forEach(day => {
+    const dayHours = businessHours[day]
+
+    // 休診日または診療時間スロットが2つ未満の場合は休憩時間なし
+    if (!dayHours?.isOpen || !dayHours?.timeSlots || dayHours.timeSlots.length < 2) {
+      breakTimes[day] = null
+      return
+    }
+
+    // 時間順にソート
+    const sortedSlots = [...dayHours.timeSlots].sort((a, b) => {
+      const aMinutes = parseInt(a.start.split(':')[0]) * 60 + parseInt(a.start.split(':')[1])
+      const bMinutes = parseInt(b.start.split(':')[0]) * 60 + parseInt(b.start.split(':')[1])
+      return aMinutes - bMinutes
+    })
+
+    // 最初のスロットの終了時刻と2番目のスロットの開始時刻の間を休憩時間とする
+    const firstSlotEnd = sortedSlots[0].end
+    const secondSlotStart = sortedSlots[1].start
+
+    breakTimes[day] = {
+      start: firstSlotEnd,
+      end: secondSlotStart
+    }
+  })
+
+  console.log('診療時間から計算された休憩時間:', breakTimes)
+  return breakTimes
+}
+
+/**
+ * 休憩時間を取得（診療時間から自動計算）
+ * 明示的に設定された休憩時間は無視し、常に診療時間から自動計算する
  */
 export async function getBreakTimes(clinicId: string) {
-  // モックモードの場合はデフォルトの休憩時間を返す
-  if (MOCK_MODE) {
-    console.log('モックモード: 休憩時間データを返します（デフォルト値）')
-    return {
-      monday: { start: '13:00', end: '14:30' },
-      tuesday: { start: '13:00', end: '14:30' },
-      wednesday: { start: '13:00', end: '14:30' },
-      thursday: { start: '13:00', end: '14:30' },
-      friday: { start: '13:00', end: '14:30' },
-      saturday: { start: '13:00', end: '14:30' },
-      sunday: null
-    }
-  }
+  console.log('getBreakTimes呼び出し - 診療時間から自動計算します:', clinicId)
 
-  try {
-    // まずclinic_settingsテーブルから取得を試行
-    const settingsBreakTimes = await getClinicSetting(clinicId, 'break_times')
-    if (settingsBreakTimes) {
-      console.log('clinic_settingsから取得した休憩時間:', settingsBreakTimes)
-      return settingsBreakTimes
-    }
-  } catch (error) {
-    console.log('clinic_settingsから取得失敗、clinicテーブルから取得を試行')
-  }
-  
-  // clinic_settingsにない場合はclinicテーブルから取得
-  const clinic = await getClinic(clinicId)
-  return clinic?.break_times || {
-    monday: { start: '13:00', end: '14:30' },
-    tuesday: { start: '13:00', end: '14:30' },
-    wednesday: { start: '13:00', end: '14:30' },
-    thursday: { start: '13:00', end: '14:30' },
-    friday: { start: '13:00', end: '14:30' },
-    saturday: { start: '13:00', end: '14:30' },
-    sunday: null
-  }
+  // 診療時間を取得
+  const businessHours = await getBusinessHours(clinicId)
+
+  // 診療時間から休憩時間を自動計算
+  const calculatedBreakTimes = calculateBreakTimesFromBusinessHours(businessHours)
+
+  console.log('診療時間から自動計算された休憩時間:', calculatedBreakTimes)
+  return calculatedBreakTimes
 }
 
 /**

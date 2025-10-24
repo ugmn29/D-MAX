@@ -346,8 +346,17 @@ export function SidebarCalendar({
           </div>
           <button
             onClick={() => {
-              // 患者ステータス管理ページに遷移
-              window.location.href = '/patients/status'
+              // 設定ページで未保存の変更があるかチェック
+              const hasUnsavedChanges = localStorage.getItem('settings_has_unsaved_changes') === 'true'
+              if (hasUnsavedChanges) {
+                if (confirm('設定ページに未保存の変更があります。このページから移動すると、変更内容が失われます。\n\n本当に移動しますか？')) {
+                  localStorage.removeItem('settings_has_unsaved_changes')
+                  window.location.href = '/patients/status'
+                }
+              } else {
+                // 患者ステータス管理ページに遷移
+                window.location.href = '/patients/status'
+              }
             }}
             className="bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 px-3 flex items-center space-x-1 transition-colors"
           >
@@ -437,7 +446,16 @@ export function SidebarCalendar({
         
         <button
           onClick={() => {
-            window.location.href = '/settings'
+            // 設定ページで未保存の変更があるかチェック
+            const hasUnsavedChanges = localStorage.getItem('settings_has_unsaved_changes') === 'true'
+            if (hasUnsavedChanges) {
+              if (confirm('設定ページに未保存の変更があります。このページから移動すると、変更内容が失われます。\n\n本当に移動しますか？')) {
+                localStorage.removeItem('settings_has_unsaved_changes')
+                window.location.href = '/settings'
+              }
+            } else {
+              window.location.href = '/settings'
+            }
           }}
           className="flex-1 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 px-3 flex items-center justify-center space-x-2 transition-colors"
         >
@@ -446,7 +464,16 @@ export function SidebarCalendar({
         </button>
         <button
           onClick={() => {
-            window.location.href = '/analytics'
+            // 設定ページで未保存の変更があるかチェック
+            const hasUnsavedChanges = localStorage.getItem('settings_has_unsaved_changes') === 'true'
+            if (hasUnsavedChanges) {
+              if (confirm('設定ページに未保存の変更があります。このページから移動すると、変更内容が失われます。\n\n本当に移動しますか？')) {
+                localStorage.removeItem('settings_has_unsaved_changes')
+                window.location.href = '/analytics'
+              }
+            } else {
+              window.location.href = '/analytics'
+            }
           }}
           className="flex-1 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 px-3 flex items-center justify-center space-x-2 transition-colors"
         >
