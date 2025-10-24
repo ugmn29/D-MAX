@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Papa from "papaparse";
 import { Button } from "@/components/ui/button";
@@ -566,6 +566,11 @@ export default function SettingsPage() {
   const [unitsData, setUnitsData] = useState<any[]>([]);
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [editingUnit, setEditingUnit] = useState<any>(null);
+
+  // 診療時間コピー用の状態
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copySourceDay, setCopySourceDay] = useState<string>('');
+  const [selectedDaysToCopy, setSelectedDaysToCopy] = useState<string[]>([]);
 
   // データ移行の状態
   const [dataImportTab, setDataImportTab] = useState<'patients' | 'appointments' | 'history'>('patients');
@@ -1962,6 +1967,67 @@ export default function SettingsPage() {
     }));
   };
 
+  // 曜日選択モーダルを開く
+  const openCopyModal = (sourceDay: string) => {
+    setCopySourceDay(sourceDay);
+    setSelectedDaysToCopy([]);
+    setShowCopyModal(true);
+  };
+
+  // 選択した曜日に適用
+  const applyToSelectedDays = () => {
+    const sourceSlots = businessHours[copySourceDay]?.timeSlots || [];
+    const isSourceHoliday = holidays.includes(copySourceDay);
+
+    setBusinessHours((prev) => {
+      const newBusinessHours = { ...prev };
+      selectedDaysToCopy.forEach((dayId) => {
+        // 新しいIDを生成してスロットをコピー
+        const copiedSlots = sourceSlots.map(slot => ({
+          ...slot,
+          id: `${dayId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        }));
+        newBusinessHours[dayId] = {
+          isOpen: !isSourceHoliday,
+          timeSlots: copiedSlots
+        };
+      });
+      return newBusinessHours;
+    });
+
+    // 休診日の設定も適用
+    setHolidays(prev => {
+      const newHolidays = [...prev];
+      if (isSourceHoliday) {
+        // 選択した曜日を休診日に追加
+        selectedDaysToCopy.forEach(dayId => {
+          if (!newHolidays.includes(dayId)) {
+            newHolidays.push(dayId);
+          }
+        });
+      } else {
+        // 選択した曜日を休診日から削除
+        return newHolidays.filter(h => !selectedDaysToCopy.includes(h));
+      }
+      return newHolidays;
+    });
+
+    // モーダルを閉じる
+    setShowCopyModal(false);
+    setSelectedDaysToCopy([]);
+  };
+
+  // 曜日選択のトグル
+  const toggleDaySelection = (dayId: string) => {
+    setSelectedDaysToCopy(prev => {
+      if (prev.includes(dayId)) {
+        return prev.filter(id => id !== dayId);
+      } else {
+        return [...prev, dayId];
+      }
+    });
+  };
+
   // 表示項目の変更
   const handleDisplayItemChange = (itemId: string, checked: boolean) => {
     if (checked) {
@@ -2957,6 +3023,7 @@ export default function SettingsPage() {
 
       {/* 診療時間タブ */}
       {selectedClinicTab === "hours" && (
+        <React.Fragment>
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="space-y-6">
             <div className="space-y-4">
@@ -3036,7 +3103,7 @@ export default function SettingsPage() {
                                 }
                                 disabled={isHoliday}
                                 className={`w-24 text-xs ${
-                                  isHoliday 
+                                  isHoliday
                                     ? "border-gray-200 bg-gray-100 text-gray-400"
                                     : "border-gray-200"
                                 }`}
@@ -3055,7 +3122,7 @@ export default function SettingsPage() {
                                 }
                                 disabled={isHoliday}
                                 className={`w-24 text-xs ${
-                                  isHoliday 
+                                  isHoliday
                                     ? "border-gray-200 bg-gray-100 text-gray-400"
                                     : "border-gray-200"
                                 }`}
@@ -3064,7 +3131,7 @@ export default function SettingsPage() {
                                 onClick={() => removeTimeSlot(day.id, slot.id)}
                                 disabled={isHoliday}
                                 className={`${
-                                  isHoliday 
+                                  isHoliday
                                     ? "text-gray-300 cursor-not-allowed"
                                     : "text-gray-400 hover:text-red-500"
                                 }`}
@@ -3073,7 +3140,7 @@ export default function SettingsPage() {
                               </button>
                             </div>
                           ))}
-                          
+
                           {!isHoliday && (
                             <button
                               onClick={() => addTimeSlot(day.id)}
@@ -3085,6 +3152,17 @@ export default function SettingsPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* 他の曜日にコピーボタン */}
+                      <div className="w-32 flex-shrink-0 flex items-center justify-end">
+                        <button
+                          onClick={() => openCopyModal(day.id)}
+                          className="flex items-center space-x-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>他の曜日へ</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -3092,6 +3170,50 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* 曜日選択モーダル */}
+        <Modal
+          isOpen={showCopyModal}
+          onClose={() => setShowCopyModal(false)}
+          title="コピー先の曜日を選択"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              {WEEKDAYS.find(d => d.id === copySourceDay)?.name}の設定をコピーする曜日を選択してください
+            </p>
+            <div className="space-y-2">
+              {WEEKDAYS.filter(day => day.id !== copySourceDay).map((day) => (
+                <label
+                  key={day.id}
+                  className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDaysToCopy.includes(day.id)}
+                    onChange={() => toggleDaySelection(day.id)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-900">{day.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowCopyModal(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                onClick={applyToSelectedDays}
+                disabled={selectedDaysToCopy.length === 0}
+              >
+                適用 ({selectedDaysToCopy.length}曜日)
+              </Button>
+            </div>
+          </div>
+        </Modal>
+        </React.Fragment>
       )}
     </div>
   );

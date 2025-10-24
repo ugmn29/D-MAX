@@ -381,3 +381,42 @@ export async function deleteStaffPosition(clinicId: string, positionId: string):
     throw error
   }
 }
+
+// 固定シフトパターンの型定義
+export interface WeeklySchedule {
+  monday: string | null
+  tuesday: string | null
+  wednesday: string | null
+  thursday: string | null
+  friday: string | null
+  saturday: string | null
+  sunday: string | null
+}
+
+// 固定シフトパターンを保存（localStorageに保存）
+export function saveStaffWeeklySchedule(clinicId: string, staffId: string, weeklySchedule: WeeklySchedule): void {
+  try {
+    const key = `staff_weekly_schedule_${clinicId}_${staffId}`
+    localStorage.setItem(key, JSON.stringify(weeklySchedule))
+    console.log('固定シフトパターンを保存しました:', { staffId, weeklySchedule })
+  } catch (error) {
+    console.error('固定シフトパターン保存エラー:', error)
+    throw error
+  }
+}
+
+// 固定シフトパターンを取得（localStorageから取得）
+export function getStaffWeeklySchedule(clinicId: string, staffId: string): WeeklySchedule | null {
+  try {
+    const key = `staff_weekly_schedule_${clinicId}_${staffId}`
+    const data = localStorage.getItem(key)
+    if (!data) return null
+
+    const schedule = JSON.parse(data) as WeeklySchedule
+    console.log('固定シフトパターンを取得しました:', { staffId, schedule })
+    return schedule
+  } catch (error) {
+    console.error('固定シフトパターン取得エラー:', error)
+    return null
+  }
+}

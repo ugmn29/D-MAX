@@ -40,13 +40,11 @@ export function ShiftModal({
     }
   }, [currentShift])
 
-  const handleSave = () => {
-    onSave(selectedPattern === 'none' ? null : selectedPattern, false)
-    onClose()
-  }
-
   const handlePatternChange = (patternId: string) => {
     setSelectedPattern(patternId)
+    // パターンが選択されたら自動で保存してモーダルを閉じる
+    onSave(patternId === 'none' ? null : patternId, false)
+    onClose()
   }
 
   const formatDate = (dateString: string) => {
@@ -87,17 +85,12 @@ export function ShiftModal({
           </Select>
         </div>
 
-        <div className="flex justify-end space-x-2 pt-4">
+        <div className="flex justify-end pt-4">
           <Button
             variant="outline"
             onClick={onClose}
           >
-            キャンセル
-          </Button>
-          <Button
-            onClick={handleSave}
-          >
-            保存
+            閉じる
           </Button>
         </div>
       </div>

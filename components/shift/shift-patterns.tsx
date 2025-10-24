@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/modal'
 import { Clock, Edit, Trash2, Plus } from 'lucide-react'
 import { ShiftPattern } from '@/types/database'
 import { getShiftPatterns, createShiftPattern, updateShiftPattern, deleteShiftPattern } from '@/lib/api/shift-patterns'
+import { getBusinessHours } from '@/lib/api/clinic'
 
 interface ShiftPatternsProps {
   clinicId: string
@@ -57,6 +58,68 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
   useEffect(() => {
     loadPatterns()
   }, [clinicId])
+
+  // 診療時間から自動入力
+  const loadBusinessHoursForPattern = async () => {
+    try {
+      console.log('診療時間を取得してパターンに自動入力')
+      const businessHours = await getBusinessHours(clinicId)
+
+      // 月曜日の診療時間を取得
+      const mondayHours = businessHours.monday
+
+      if (!mondayHours || !mondayHours.isOpen || !mondayHours.timeSlots || mondayHours.timeSlots.length === 0) {
+        console.log('月曜日の診療時間が設定されていません')
+        return
+      }
+
+      // 時間順にソート
+      const sortedSlots = [...mondayHours.timeSlots].sort((a, b) => {
+        const aMinutes = parseInt(a.start.split(':')[0]) * 60 + parseInt(a.start.split(':')[1])
+        const bMinutes = parseInt(b.start.split(':')[0]) * 60 + parseInt(b.start.split(':')[1])
+        return aMinutes - bMinutes
+      })
+
+      // 最初のスロットの開始時刻と最後のスロットの終了時刻を使用
+      const startTime = sortedSlots[0].start
+      const endTime = sortedSlots[sortedSlots.length - 1].end
+
+      // 複数スロットがある場合、その間を休憩時間とする
+      let breakStart = '12:00'
+      let breakEnd = '13:00'
+      let noBreak = false
+
+      if (sortedSlots.length >= 2) {
+        // 最初のスロットの終了時刻と2番目のスロットの開始時刻を休憩時間とする
+        breakStart = sortedSlots[0].end
+        breakEnd = sortedSlots[1].start
+        noBreak = false
+      } else {
+        // スロットが1つだけの場合は休憩なし
+        noBreak = true
+      }
+
+      console.log('自動入力する時間:', { startTime, endTime, breakStart, breakEnd, noBreak })
+
+      setNewPattern(prev => ({
+        ...prev,
+        start_time: startTime,
+        end_time: endTime,
+        break_start: breakStart,
+        break_end: breakEnd,
+        no_break: noBreak
+      }))
+    } catch (error) {
+      console.error('診療時間の取得エラー:', error)
+      // エラーの場合はデフォルト値のまま
+    }
+  }
+
+  // モーダルを開いたときに診療時間を自動入力
+  const handleOpenAddModal = () => {
+    setShowAddModal(true)
+    loadBusinessHoursForPattern()
+  }
 
   // 新規パターン追加
   const handleAddPattern = async () => {
@@ -159,12 +222,8 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
 
   return (
     <div className="space-y-6">
-      {/* 既存パターン */}
       <Card>
-        <CardHeader>
-          <CardTitle>既存パターン</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
@@ -178,8 +237,7 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
                     <th className="text-left py-3 px-4 font-medium text-gray-900">パターン名</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">勤務時間</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">休憩時間</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">メモ</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">操作</th>
+                    <th className="w-24"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -263,19 +321,6 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        {editingPattern?.id === pattern.id ? (
-                          <Input
-                            value={editingPattern.memo || ''}
-                            onChange={(e) => setEditingPattern(prev => 
-                              prev ? { ...prev, memo: e.target.value } : null
-                            )}
-                            placeholder="メモ"
-                          />
-                        ) : (
-                          pattern.memo || ''
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
                           {editingPattern?.id === pattern.id ? (
                             <>
@@ -329,7 +374,7 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
       {/* 新規パターン追加ボタン */}
       <div className="flex justify-end">
         <Button
-          onClick={() => setShowAddModal(true)}
+          onClick={handleOpenAddModal}
           className="flex items-center space-x-2"
         >
           <Plus className="w-4 h-4" />
@@ -430,17 +475,6 @@ export function ShiftPatterns({ clinicId }: ShiftPatternsProps) {
               </div>
             </div>
           )}
-
-          <div>
-            <Label htmlFor="memo">メモ</Label>
-            <Textarea
-              id="memo"
-              value={newPattern.memo}
-              onChange={(e) => setNewPattern(prev => ({ ...prev, memo: e.target.value }))}
-              placeholder="備考があれば入力"
-              rows={3}
-            />
-          </div>
 
           <div className="flex justify-end space-x-2 pt-4">
             <Button

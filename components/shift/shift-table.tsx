@@ -8,7 +8,7 @@ import { Download, Printer, Calendar, ChevronLeft, ChevronRight } from 'lucide-r
 import { ShiftPattern, StaffShift } from '@/types/database'
 import { getShiftPatterns } from '@/lib/api/shift-patterns'
 import { getStaffShifts, upsertStaffShift } from '@/lib/api/shifts'
-import { getStaff } from '@/lib/api/staff'
+import { getStaff, saveStaffWeeklySchedule, getStaffWeeklySchedule, WeeklySchedule } from '@/lib/api/staff'
 import { getStaffPositions } from '@/lib/api/staff-positions'
 import { getHolidays, setClinicSetting } from '@/lib/api/clinic'
 import { getIndividualHolidays, setIndividualHoliday } from '@/lib/api/individual-holidays'
@@ -18,6 +18,8 @@ import { StaffScheduleModal } from './staff-schedule-modal'
 import { DateHolidayModal } from './date-holiday-modal'
 import { BulkHolidayModal } from './bulk-holiday-modal'
 import { WorkingDayModal } from './working-day-modal'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { AlertDialog } from '@/components/ui/alert-dialog'
 
 interface ShiftTableProps {
   clinicId: string
@@ -53,6 +55,28 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
   const [showBulkHolidayModal, setShowBulkHolidayModal] = useState(false)
   const [showWorkingDayModal, setShowWorkingDayModal] = useState(false)
   const [selectedWorkingDate, setSelectedWorkingDate] = useState('')
+
+  // 確認ダイアログとアラート用のstate
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  })
+  const [alertDialog, setAlertDialog] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+  }>({
+    isOpen: false,
+    title: '',
+    message: ''
+  })
 
   // 現在の月の日付配列を生成
   const getDaysInMonth = (date: Date) => {
@@ -336,19 +360,13 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     
     console.log('固定シフト設定開始:', {
       staffName: staffMember.name,
-      year,
-      month: month + 1,
-      lastDay,
-      currentShiftsCount: shifts.length,
-      allShifts: shifts.map(s => ({
-        staff_id: s.staff_id,
-        date: s.date,
-        shift_pattern_id: s.shift_pattern_id
-      }))
+      staffId: staffMember.id
     })
-    
-    // 各曜日の代表的な日付を取得（月の最初の週の各曜日）
-    const weeklySchedule: any = {
+
+    // localStorageから保存された固定シフトパターンを取得
+    const savedSchedule = getStaffWeeklySchedule(clinicId, staffMember.id)
+
+    const weeklySchedule: WeeklySchedule = savedSchedule || {
       monday: null,
       tuesday: null,
       wednesday: null,
@@ -357,146 +375,128 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
       saturday: null,
       sunday: null
     }
-    
-    // 月の最初の週から各曜日のシフトパターンを取得
-    let hasAnyShiftData = false
-    for (let day = 1; day <= Math.min(7, lastDay); day++) {
-      const date = new Date(year, month, day)
-      const dayOfWeek = date.getDay()
-      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-      const dayKey = dayNames[dayOfWeek]
-      
-      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      const shift = getStaffShift(staffMember.id, dateString)
-      
-      console.log(`日付 ${day} (${dayKey}):`, JSON.stringify({
-        dateString,
-        shift: shift ? {
-          id: shift.id,
-          shift_pattern_id: shift.shift_pattern_id,
-          date: shift.date
-        } : null
-      }, null, 2))
-      
-      // 既に設定されていない場合のみ設定（nullも有効な値として扱う）
-      if (weeklySchedule[dayKey] === null && shift) {
-        weeklySchedule[dayKey] = shift.shift_pattern_id
-        hasAnyShiftData = true
-      }
-    }
-    
-    // 現在の月にシフトデータがない場合、デフォルトのパターンを設定
-    if (!hasAnyShiftData) {
-      console.log('現在の月にシフトデータがないため、デフォルトパターンを設定します')
-      
-      // 福永さんの場合、デフォルトで月・火・水をFパターンに設定
-      if (staffMember.name === '福永') {
-        weeklySchedule.monday = 'b7e5affd-3357-4cdf-a628-fb82834ea86f' // Fパターン
-        weeklySchedule.tuesday = 'b7e5affd-3357-4cdf-a628-fb82834ea86f'
-        weeklySchedule.wednesday = 'b7e5affd-3357-4cdf-a628-fb82834ea86f'
-        // 木・金・土・日は勤務なし（null）
-      }
-    }
-    
-    console.log('構築された週間スケジュール:', JSON.stringify(weeklySchedule, null, 2))
+
+    console.log('取得した固定シフトパターン:', JSON.stringify(weeklySchedule, null, 2))
     
     setSelectedStaffForSchedule({ id: staffMember.id, name: staffMember.name, weeklySchedule })
     setShowStaffScheduleModal(true)
   }
 
-  // 固定シフト保存
-  const handleWeeklyScheduleSave = async (weeklySchedule: any) => {
+  // 固定シフト保存（localStorageに保存するだけ、月への反映は別ボタン）
+  const handleWeeklyScheduleSave = async (weeklySchedule: WeeklySchedule) => {
     if (!selectedStaffForSchedule) return
 
     try {
-      setLoading(true)
-      
-      // 現在の月の全ての日付に対してシフトを設定
-      const year = currentDate.getFullYear()
-      const month = currentDate.getMonth()
-      const lastDay = new Date(year, month + 1, 0).getDate()
-      const today = new Date()
-      today.setHours(0, 0, 0, 0) // 時間を0時にリセット
-      
-      console.log('固定シフト保存開始:', {
-        year,
-        month: month + 1,
-        lastDay,
-        today: today.toISOString(),
-        weeklySchedule
-      })
-      
-      const promises = []
-      let futureDaysCount = 0
-      
-      for (let day = 1; day <= lastDay; day++) {
-        const date = new Date(year, month, day)
-        const dayOfWeek = date.getDay()
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-        const dayKey = dayNames[dayOfWeek]
-        
-        const patternId = weeklySchedule[dayKey]
-        
-        // 過去の日付はスキップ（今日より前は変更不可）
-        if (date < today) {
-          continue
-        }
-        
-        // patternIdがundefinedでない場合（nullも含む）は処理する
-        if (patternId !== undefined) {
-          const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          
-          const shiftData = {
-            staff_id: selectedStaffForSchedule.id,
-            date: dateString,
-            shift_pattern_id: patternId, // nullの場合はそのままnull、それ以外はそのまま
-            is_holiday: false,
-            clinic_id: clinicId
-          }
-          
-          console.log(`保存対象: ${dateString} (${dayKey}) = ${patternId}`)
-          
-          promises.push(
-            upsertStaffShift(clinicId, shiftData)
-          )
-          futureDaysCount++
-        }
-      }
-      
-      if (promises.length === 0) {
-        alert('保存するデータがありません。曜日を選択してください。')
-        return
-      }
-      
-      await Promise.all(promises)
-      
-      // データを再読み込み
-      const shiftsData = await getStaffShifts(clinicId, year, month + 1)
-      console.log('保存後のシフトデータ再読み込み:', {
-        count: shiftsData.length,
-        sampleData: shiftsData.slice(0, 3).map(s => ({
-          date: s.date,
-          staff_id: s.staff_id,
-          shift_pattern_id: s.shift_pattern_id
-        }))
-      })
-      setShifts(shiftsData)
-      
+      // localStorageに固定シフトパターンを保存
+      saveStaffWeeklySchedule(clinicId, selectedStaffForSchedule.id, weeklySchedule)
+
+      setShowStaffScheduleModal(false)
       setSelectedStaffForSchedule(null)
-      
-      // 過去の日付があった場合の通知
-      const pastDaysCount = lastDay - futureDaysCount
-      if (pastDaysCount > 0) {
-        alert(`固定シフトを保存しました。\n過去の日付（${pastDaysCount}日）は変更されませんでした。`)
-      } else {
-        alert('固定シフトを保存しました。')
-      }
+
+      setAlertDialog({
+        isOpen: true,
+        title: '保存完了',
+        message: '固定シフトパターンを保存しました。'
+      })
     } catch (error: any) {
-      console.error('固定シフト保存エラー:', error)
-      alert(`固定シフトの保存に失敗しました: ${error.message}`)
-    } finally {
-      setLoading(false)
+      console.error('固定シフトパターン保存エラー:', error)
+      setAlertDialog({
+        isOpen: true,
+        title: 'エラー',
+        message: `固定シフトパターンの保存に失敗しました: ${error.message}`
+      })
     }
+  }
+
+  // 固定シフトを現在の月に反映（モーダル内から呼ばれる）
+  const handleApplyWeeklyScheduleFromModal = async (weeklySchedule: WeeklySchedule) => {
+    if (!selectedStaffForSchedule) return
+
+    const staffId = selectedStaffForSchedule.id
+    const staffName = selectedStaffForSchedule.name
+
+    // 確認ダイアログを表示
+    setConfirmDialog({
+      isOpen: true,
+      title: '固定シフトを反映',
+      message: `${staffName}さんの固定シフトパターンを${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月に反映しますか？\n\n※ 今日以降の日付のシフトが上書きされます。`,
+      onConfirm: async () => {
+        try {
+          setLoading(true)
+
+          // まず保存
+          saveStaffWeeklySchedule(clinicId, staffId, weeklySchedule)
+
+          const year = currentDate.getFullYear()
+          const month = currentDate.getMonth()
+          const lastDay = new Date(year, month + 1, 0).getDate()
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+
+          console.log('固定シフト反映開始:', {
+            staffId,
+            staffName,
+            year,
+            month: month + 1,
+            weeklySchedule
+          })
+
+          const promises = []
+          let appliedDaysCount = 0
+
+          for (let day = 1; day <= lastDay; day++) {
+            const date = new Date(year, month, day)
+            const dayOfWeek = date.getDay()
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+            const dayKey = dayNames[dayOfWeek]
+
+            const patternId = weeklySchedule[dayKey as keyof WeeklySchedule]
+
+            // 過去の日付はスキップ
+            if (date < today) {
+              continue
+            }
+
+            const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+            const shiftData = {
+              staff_id: staffId,
+              date: dateString,
+              shift_pattern_id: patternId,
+              is_holiday: false,
+              clinic_id: clinicId
+            }
+
+            promises.push(upsertStaffShift(clinicId, shiftData))
+            appliedDaysCount++
+          }
+
+          await Promise.all(promises)
+
+          // データを再読み込み
+          const shiftsData = await getStaffShifts(clinicId, year, month + 1)
+          setShifts(shiftsData)
+
+          setShowStaffScheduleModal(false)
+          setSelectedStaffForSchedule(null)
+
+          setAlertDialog({
+            isOpen: true,
+            title: '反映完了',
+            message: `固定シフトを保存し、この月に反映しました。\n（${appliedDaysCount}日分を更新）`
+          })
+        } catch (error: any) {
+          console.error('固定シフト反映エラー:', error)
+          setAlertDialog({
+            isOpen: true,
+            title: 'エラー',
+            message: `固定シフトの反映に失敗しました: ${error.message}`
+          })
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
   }
 
   // 曜日の日本語名を取得
@@ -650,7 +650,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
                           {staffMember.position.name}
                         </td>
                       )}
-                      <td 
+                      <td
                         className="border border-gray-300 px-2 py-1 text-xs text-gray-700 bg-gray-50 min-w-[90px] cursor-pointer hover:bg-gray-100"
                         onClick={() => handleStaffNameClick(staffMember)}
                       >
@@ -725,6 +725,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
           patterns={patterns}
           initialSchedule={selectedStaffForSchedule?.weeklySchedule}
           onSave={handleWeeklyScheduleSave}
+          onApplyToMonth={handleApplyWeeklyScheduleFromModal}
         />
 
         {/* 個別休診日設定モーダル */}
@@ -757,6 +758,25 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
           clinicId={clinicId}
           date={selectedWorkingDate}
           onSave={handleWorkingDaySave}
+        />
+
+        {/* 確認ダイアログ */}
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+          onConfirm={confirmDialog.onConfirm}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText="反映する"
+          cancelText="キャンセル"
+        />
+
+        {/* アラートダイアログ */}
+        <AlertDialog
+          isOpen={alertDialog.isOpen}
+          onClose={() => setAlertDialog({ ...alertDialog, isOpen: false })}
+          title={alertDialog.title}
+          message={alertDialog.message}
         />
       </CardContent>
     </Card>

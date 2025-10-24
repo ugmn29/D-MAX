@@ -15,6 +15,7 @@ interface StaffScheduleModalProps {
   patterns: ShiftPattern[]
   initialSchedule?: WeeklySchedule
   onSave: (weeklySchedule: WeeklySchedule) => void
+  onApplyToMonth?: (weeklySchedule: WeeklySchedule) => void
 }
 
 interface WeeklySchedule {
@@ -43,7 +44,8 @@ export function StaffScheduleModal({
   staffName,
   patterns,
   initialSchedule,
-  onSave
+  onSave,
+  onApplyToMonth
 }: StaffScheduleModalProps) {
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>({
     monday: null,
@@ -82,7 +84,12 @@ export function StaffScheduleModal({
 
   const handleSave = () => {
     onSave(weeklySchedule)
-    onClose()
+  }
+
+  const handleApplyToMonth = () => {
+    if (onApplyToMonth) {
+      onApplyToMonth(weeklySchedule)
+    }
   }
 
   const handleClearAll = () => {
@@ -95,19 +102,6 @@ export function StaffScheduleModal({
       saturday: null,
       sunday: null
     })
-  }
-
-  const handleSetWeekdays = () => {
-    setWeeklySchedule(prev => ({
-      ...prev,
-      monday: null,
-      tuesday: null,
-      wednesday: null,
-      thursday: null,
-      friday: null,
-      saturday: null,
-      sunday: null
-    }))
   }
 
   return (
@@ -157,18 +151,19 @@ export function StaffScheduleModal({
         <div className="flex space-x-2 pt-4">
           <Button
             variant="outline"
-            onClick={handleSetWeekdays}
-            className="flex-1"
-          >
-            平日のみ設定
-          </Button>
-          <Button
-            variant="outline"
             onClick={handleClearAll}
             className="flex-1"
           >
             全てクリア
           </Button>
+          {onApplyToMonth && (
+            <Button
+              onClick={handleApplyToMonth}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              この月に反映
+            </Button>
+          )}
         </div>
 
         <div className="flex justify-end space-x-2 pt-4">
