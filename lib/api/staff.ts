@@ -54,21 +54,114 @@ export interface UpdateStaffPositionData {
   sort_order?: number
 }
 
-// スタッフ一覧取得
+// スタッフ一覧取得（全スタッフ - 退職者含む）
+export async function getAllStaff(clinicId: string): Promise<Staff[]> {
+  // モックモードの場合はモックデータを返す
+  if (MOCK_MODE) {
+    console.log('モックモード: 全スタッフデータを返します')
+
+    // モックデータを初期化
+    initializeMockData()
+
+    const staffData = getMockStaff().filter(item => item.clinic_id === clinicId)
+    const positions = getMockStaffPositions()
+
+    console.log('取得した全スタッフデータ:', staffData)
+    console.log('取得した役職データ:', positions)
+
+    // スタッフデータに役職情報を追加
+    return staffData.map(staff => ({
+      ...staff,
+      position: positions.find(pos => pos.id === staff.position_id) || {
+        id: staff.position_id || '',
+        name: '未設定',
+        sort_order: 999
+      }
+    }))
+  }
+
+  try {
+    const client = getSupabaseClient()
+    const { data, error } = await client
+      .from('staff')
+      .select(`
+        *,
+        position:staff_positions(*)
+      `)
+      .eq('clinic_id', clinicId)
+      .order('name')
+
+    if (error) {
+      console.error('全スタッフ取得エラー:', error)
+      throw error
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('全スタッフ取得エラー:', error)
+    // エラー時はダミーデータを返す
+    return [
+      {
+        id: '1',
+        name: '田中太郎',
+        name_kana: 'タナカタロウ',
+        email: 'tanaka@example.com',
+        phone: '03-1234-5678',
+        position_id: '1',
+        role: 'doctor',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        clinic_id: clinicId,
+        position: {
+          id: '1',
+          name: '院長',
+          sort_order: 1,
+          clinic_id: clinicId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      },
+      {
+        id: '2',
+        name: '佐藤花子',
+        name_kana: 'サトウハナコ',
+        email: 'sato@example.com',
+        phone: '03-1234-5679',
+        position_id: '2',
+        role: 'staff',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        clinic_id: clinicId,
+        position: {
+          id: '2',
+          name: '看護師',
+          sort_order: 2,
+          clinic_id: clinicId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      }
+    ]
+  }
+}
+
+// スタッフ一覧取得（アクティブなスタッフのみ）
 export async function getStaff(clinicId: string): Promise<Staff[]> {
   // モックモードの場合はモックデータを返す
   if (MOCK_MODE) {
     console.log('モックモード: スタッフデータを返します')
-    
+
     // モックデータを初期化
     initializeMockData()
-    
-    const staffData = getMockStaff().filter(item => item.clinic_id === clinicId)
+
+    const staffData = getMockStaff().filter(item => item.clinic_id === clinicId && item.is_active)
     const positions = getMockStaffPositions()
-    
+
     console.log('取得したスタッフデータ:', staffData)
     console.log('取得した役職データ:', positions)
-    
+
     // スタッフデータに役職情報を追加
     return staffData.map(staff => ({
       ...staff,

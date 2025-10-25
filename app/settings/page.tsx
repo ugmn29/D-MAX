@@ -835,7 +835,7 @@ export default function SettingsPage() {
     showCancelPolicy: false,
     cancelPolicyText: `◆当院のキャンセルポリシー◆
 
-数ある歯科医院の中から駒沢公園通り　西垣歯科・矯正歯科をお選びいただき誠にありがとうございます。
+数ある歯科医院の中から〇〇歯科・矯正歯科をお選びいただき誠にありがとうございます。
 当クリニックでは患者さま一人一人により良い医療を提供するため、30〜45分の長い治療時間を確保してお待ちしております。尚かつ適切な処置時間を確保するために予約制となっております。
 
 予約時間に遅れての来院は十分な時間が確保できず、予定通りの処置が行えない場合があります。
@@ -6841,51 +6841,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="allow_current_time"
-                        checked={webSettings.allowCurrentTime}
-                        onCheckedChange={(checked) =>
-                            setWebSettings((prev) => ({
-                              ...prev,
-                              allowCurrentTime: checked as boolean,
-                            }))
-                        }
-                      />
-                      <Label htmlFor="allow_current_time">
-                        現在時刻・日付以降のみ予約可
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="open_all_slots"
-                        checked={webSettings.openAllSlots}
-                        onCheckedChange={(checked) =>
-                            setWebSettings((prev) => ({
-                              ...prev,
-                              openAllSlots: checked as boolean,
-                            }))
-                        }
-                      />
-                        <Label htmlFor="open_all_slots">全空き枠開放</Label>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="allow_staff_selection"
-                        checked={webSettings.allowStaffSelection}
-                        onCheckedChange={(checked) =>
-                            setWebSettings((prev) => ({
-                              ...prev,
-                              allowStaffSelection: checked as boolean,
-                            }))
-                        }
-                      />
-                      <Label htmlFor="allow_staff_selection">
-                        担当者指定を許可
-                      </Label>
-                    </div>
                   </>
                 )}
               </CardContent>

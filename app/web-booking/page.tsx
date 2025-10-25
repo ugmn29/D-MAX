@@ -143,7 +143,7 @@ export default function WebBookingPage() {
         console.log('Web予約: 取得した設定', settings)
         console.log('Web予約: 取得した診療時間', clinic)
 
-        const webReservation = settings.web_reservation || {
+        const defaultSettings = {
           isEnabled: false,
           reservationPeriod: 30,
           allowCurrentTime: true,
@@ -153,7 +153,7 @@ export default function WebBookingPage() {
           showCancelPolicy: false,
           cancelPolicyText: `◆当院のキャンセルポリシー◆
 
-数ある歯科医院の中から駒沢公園通り　西垣歯科・矯正歯科をお選びいただき誠にありがとうございます。
+数ある歯科医院の中から〇〇歯科・矯正歯科をお選びいただき誠にありがとうございます。
 当クリニックでは患者さま一人一人により良い医療を提供するため、30〜45分の長い治療時間を確保してお待ちしております。尚かつ適切な処置時間を確保するために予約制となっております。
 
 予約時間に遅れての来院は十分な時間が確保できず、予定通りの処置が行えない場合があります。
@@ -175,6 +175,18 @@ export default function WebBookingPage() {
             patientInfo: true,
             confirmation: true
           }
+        }
+
+        // 既存設定とマージ
+        // 古いキャンセルポリシーテキスト（駒沢公園通り）を検出して新しいテキストに置き換え
+        const savedCancelPolicyText = settings.web_reservation?.cancelPolicyText
+        const shouldUpdateCancelPolicy = savedCancelPolicyText && savedCancelPolicyText.includes('駒沢公園通り')
+
+        const webReservation = {
+          ...defaultSettings,
+          ...(settings.web_reservation || {}),
+          // 古いテキストの場合は新しいデフォルトに置き換え
+          cancelPolicyText: shouldUpdateCancelPolicy ? defaultSettings.cancelPolicyText : (savedCancelPolicyText || defaultSettings.cancelPolicyText)
         }
 
         setWebSettings(webReservation)
@@ -310,11 +322,22 @@ export default function WebBookingPage() {
 
   // 週の移動
   const goToPreviousWeek = () => {
-    setWeekStartDate(prev => addWeeks(prev, -1))
+    const newDate = addWeeks(weekStartDate, -1)
+    const today = startOfWeek(new Date(), { weekStartsOn: 1 })
+    // 今週より前には戻れない
+    if (newDate >= today) {
+      setWeekStartDate(newDate)
+    }
   }
 
   const goToNextWeek = () => {
-    setWeekStartDate(prev => addWeeks(prev, 1))
+    const newDate = addWeeks(weekStartDate, 1)
+    const today = new Date()
+    const maxDate = addDays(today, webSettings?.reservationPeriod || 60)
+    // 予約可能期間を超えて進めない
+    if (newDate <= maxDate) {
+      setWeekStartDate(newDate)
+    }
   }
 
   // ステップ進行
@@ -948,14 +971,26 @@ export default function WebBookingPage() {
               <CardContent className="space-y-4">
                 {/* 週ナビゲーション */}
                 <div className="flex items-center justify-between gap-2">
-                  <Button variant="outline" size="sm" onClick={goToPreviousWeek} className="px-2 py-1 text-xs shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToPreviousWeek}
+                    className="px-2 py-1 text-xs shrink-0"
+                    disabled={weekStartDate <= startOfWeek(new Date(), { weekStartsOn: 1 })}
+                  >
                     <ChevronLeft className="w-3 h-3 mr-1" />
                     先週
                   </Button>
                   <div className="text-sm font-medium text-center flex-1">
                     {format(weekStartDate, 'MM月dd日', { locale: ja })} - {format(addDays(weekStartDate, 6), 'MM月dd日', { locale: ja })}
                   </div>
-                  <Button variant="outline" size="sm" onClick={goToNextWeek} className="px-2 py-1 text-xs shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToNextWeek}
+                    className="px-2 py-1 text-xs shrink-0"
+                    disabled={addWeeks(weekStartDate, 1) > addDays(new Date(), webSettings?.reservationPeriod || 60)}
+                  >
                     次週
                     <ChevronRight className="w-3 h-3 ml-1" />
                   </Button>
@@ -1033,8 +1068,12 @@ export default function WebBookingPage() {
                               )
                               const isSelected = bookingData.selectedDate === dateString && bookingData.selectedTime === time
 
+                              // 予約可能期間を超えているかチェック
+                              const maxDate = addDays(new Date(), webSettings?.reservationPeriod || 60)
+                              const isWithinPeriod = date <= maxDate
+
                               // スロットが存在しない、または利用不可の場合は❌
-                              const isAvailable = slot?.available === true
+                              const isAvailable = slot?.available === true && isWithinPeriod
 
                               return (
                                 <td key={dayOffset} className="border p-0.5 sm:p-1">

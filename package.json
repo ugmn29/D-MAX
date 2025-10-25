@@ -46,6 +46,7 @@
     "date-fns": "^2.30.0",
     "lucide-react": "^0.294.0",
     "moment": "^2.29.4",
+    "nanoid": "^5.1.6",
     "next": "^15.5.3",
     "papaparse": "^5.5.3",
     "qrcode": "^1.5.4",
