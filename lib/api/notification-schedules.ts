@@ -8,6 +8,7 @@ import {
 } from '@/types/notification'
 import { replaceTemplateVariables } from './notification-templates'
 import { canReceiveNotification } from './patient-notification-preferences'
+import { generateWebBookingToken, generateWebBookingUrl } from './web-booking-tokens'
 import crypto from 'crypto'
 
 /**
@@ -129,12 +130,61 @@ export async function createNotificationSchedule(
   // 送信日時を計算
   const sendDatetime = calculateSendDatetime(params.timing_value, params.timing_unit)
 
-  // Web予約トークンを生成
-  const webBookingToken = generateSecureToken()
-  const webBookingTokenExpiresAt = calculateTokenExpiry(sendDatetime)
+  // Web予約トークンを生成（新APIを使用）
+  let webBookingToken: string | null = null
+  let webBookingTokenExpiresAt: string | null = null
+  let bookingUrl: string | null = null
 
-  // テンプレートからメッセージを作成（カスタムメッセージがあればそれを使用）
-  const message = params.custom_message || ''
+  if (params.web_booking_menu_ids && params.web_booking_menu_ids.length > 0) {
+    try {
+      // メニューIDの階層を判定（配列の最初がlevel1、2番目がlevel2、3番目がlevel3）
+      const menuIds = params.web_booking_menu_ids
+      const treatmentMenuId = menuIds[0] || undefined
+      const treatmentMenuLevel2Id = menuIds[1] || undefined
+      const treatmentMenuLevel3Id = menuIds[2] || undefined
+
+      // スタッフIDを配列に変換
+      const staffIds = params.web_booking_staff_id ? [params.web_booking_staff_id] : []
+
+      // トークン有効期限を計算（送信日から30日後）
+      const expiresInDays = 30
+
+      const tokenData = await generateWebBookingToken({
+        clinicId: params.clinic_id,
+        patientId: params.patient_id,
+        treatmentMenuId,
+        treatmentMenuLevel2Id,
+        treatmentMenuLevel3Id,
+        staffIds,
+        expiresInDays,
+        createdBy: 'notification_schedule'
+      })
+
+      webBookingToken = tokenData.token
+      webBookingTokenExpiresAt = tokenData.expires_at
+      bookingUrl = generateWebBookingUrl(tokenData.token)
+
+      console.log('Web予約トークン生成成功:', {
+        token: webBookingToken,
+        expires_at: webBookingTokenExpiresAt,
+        booking_url: bookingUrl
+      })
+    } catch (error) {
+      console.error('Web予約トークン生成エラー:', error)
+      // トークン生成失敗してもスケジュール作成は続行
+    }
+  }
+
+  // テンプレートからメッセージを作成
+  let message = params.custom_message || ''
+
+  // テンプレート変数を置換（booking_urlを含む）
+  if (message && bookingUrl) {
+    const variables: Record<string, string> = {
+      booking_url: bookingUrl
+    }
+    message = replaceTemplateVariables(message, variables)
+  }
 
   const insertData: PatientNotificationScheduleInsert = {
     patient_id: params.patient_id,
@@ -165,19 +215,6 @@ export async function createNotificationSchedule(
   if (error) {
     console.error('通知スケジュール作成エラー:', error)
     throw new Error('通知スケジュールの作成に失敗しました')
-  }
-
-  // Web予約トークンを別テーブルに保存
-  if (data.web_booking_enabled) {
-    await createWebBookingToken({
-      token: webBookingToken,
-      notification_schedule_id: data.id,
-      patient_id: params.patient_id,
-      clinic_id: params.clinic_id,
-      allowed_menu_ids: params.web_booking_menu_ids || null,
-      preferred_staff_id: params.web_booking_staff_id,
-      expires_at: webBookingTokenExpiresAt
-    })
   }
 
   return data
@@ -329,28 +366,10 @@ function calculateTokenExpiry(sendDatetime: string): string {
 }
 
 /**
- * セキュアなトークンを生成
+ * セキュアなトークンを生成（レガシー - 後方互換性のために残す）
  */
 function generateSecureToken(): string {
   return crypto.randomBytes(32).toString('base64url')
-}
-
-/**
- * Web予約トークンを作成
- */
-async function createWebBookingToken(tokenData: any): Promise<void> {
-  const client = getSupabaseClient()
-  const { error } = await client
-    .from('web_booking_tokens')
-    .insert({
-      ...tokenData,
-      created_at: new Date().toISOString()
-    })
-
-  if (error) {
-    console.error('Web予約トークン作成エラー:', error)
-    // エラーでも通知スケジュールの作成は成功させる
-  }
 }
 
 /**

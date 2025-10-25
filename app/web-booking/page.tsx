@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,8 +13,9 @@ import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
 import { getWeeklySlots } from '@/lib/api/web-booking'
-import { authenticateReturningPatient } from '@/lib/api/patients'
+import { authenticateReturningPatient, getPatientById } from '@/lib/api/patients'
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { validateWebBookingToken, markTokenAsUsed } from '@/lib/api/web-booking-tokens'
 import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight, Phone } from 'lucide-react'
 import { format, addDays, startOfWeek, addWeeks } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -60,6 +62,7 @@ interface QuestionnaireSettings {
 }
 
 export default function WebBookingPage() {
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [currentStep, setCurrentStep] = useState(1)
   const [webSettings, setWebSettings] = useState<WebBookingSettings | null>(null)
@@ -75,6 +78,11 @@ export default function WebBookingPage() {
   const [timeSlotMinutes, setTimeSlotMinutes] = useState<number>(15)
   const [businessHours, setBusinessHours] = useState<any>({})
   const [allTimeSlots, setAllTimeSlots] = useState<string[]>([])
+
+  // トークンベースWeb予約用のstate
+  const [tokenData, setTokenData] = useState<any>(null)
+  const [tokenLoading, setTokenLoading] = useState(false)
+  const [tokenError, setTokenError] = useState<string>('')
 
   // 再診患者認証用のstate
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -234,6 +242,75 @@ export default function WebBookingPage() {
 
     loadData()
   }, [])
+
+  // トークンベースWeb予約の処理
+  useEffect(() => {
+    const token = searchParams.get('token')
+    if (!token) return
+
+    const validateToken = async () => {
+      try {
+        setTokenLoading(true)
+        setTokenError('')
+
+        console.log('トークンベースWeb予約: トークン検証開始', token)
+
+        // トークンを検証
+        const validatedToken = await validateWebBookingToken(token)
+
+        if (!validatedToken) {
+          setTokenError('このリンクは無効または期限切れです。')
+          return
+        }
+
+        console.log('トークンベースWeb予約: トークン検証成功', validatedToken)
+
+        // 患者情報を取得
+        const patient = await getPatientById(validatedToken.patient_id)
+        if (!patient) {
+          setTokenError('患者情報が見つかりません。')
+          return
+        }
+
+        console.log('トークンベースWeb予約: 患者情報取得成功', patient)
+
+        // トークンデータを保存
+        setTokenData(validatedToken)
+
+        // 患者を認証済みとしてセット
+        setAuthenticatedPatient(patient)
+        setIsAuthenticated(true)
+
+        // 予約データを自動設定
+        setBookingData(prev => ({
+          ...prev,
+          isNewPatient: false,
+          selectedMenu: validatedToken.treatment_menu_id || '',
+          selectedStaff: validatedToken.staff_ids?.[0] || '',
+          patientName: `${patient.last_name} ${patient.first_name}`,
+          patientPhone: patient.phone || '',
+          patientEmail: patient.email || ''
+        }))
+
+        // メニュー選択をスキップしてカレンダー画面に直接遷移
+        // （診療メニューが設定されている場合）
+        if (validatedToken.treatment_menu_id) {
+          setTimeout(() => {
+            scrollToSection(calendarSectionRef)
+          }, 500)
+        }
+
+        console.log('トークンベースWeb予約: 初期設定完了')
+      } catch (error) {
+        console.error('トークン検証エラー:', error)
+        setTokenError('予約リンクの処理中にエラーが発生しました。')
+      } finally {
+        setTokenLoading(false)
+      }
+    }
+
+    validateToken()
+  }, [searchParams])
 
   // 週間空き枠を取得
   const loadWeeklySlots = async () => {
@@ -530,6 +607,17 @@ export default function WebBookingPage() {
         // エラーが発生しても予約処理は継続
       }
 
+      // トークンベース予約の場合、トークンを使用済みにマーク
+      if (tokenData) {
+        try {
+          await markTokenAsUsed(tokenData.id)
+          console.log('トークンベースWeb予約: トークンを使用済みにマークしました')
+        } catch (error) {
+          console.error('トークン使用済みマークエラー:', error)
+          // エラーが発生しても予約処理は継続
+        }
+      }
+
       // 予約完了画面を表示
       setBookingCompleted(true)
 
@@ -560,6 +648,35 @@ export default function WebBookingPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+      </div>
+    )
+  }
+
+  // トークンエラー表示
+  if (tokenError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <h2 className="text-xl font-bold mb-4 text-red-600">予約リンクのエラー</h2>
+            <p className="text-gray-600 mb-6">
+              {tokenError}
+            </p>
+            <p className="text-sm text-gray-500">
+              お手数ですが、クリニックまでお問い合わせください。
+            </p>
+            {clinicPhone && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-center space-x-2">
+                  <Phone className="w-5 h-5 text-gray-600" />
+                  <a href={`tel:${clinicPhone}`} className="text-lg font-semibold text-blue-600">
+                    {clinicPhone}
+                  </a>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     )
   }

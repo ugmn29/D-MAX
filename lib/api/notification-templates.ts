@@ -168,7 +168,8 @@ export function getAvailableVariables(): Array<{ key: string; label: string; des
     { key: 'staff_name', label: '担当者名', description: '担当スタッフ名' },
     { key: 'treatment_name', label: '治療名', description: '治療内容' },
     { key: 'last_visit_date', label: '最終来院日', description: '最後にご来院いただいた日' },
-    { key: 'web_booking_link', label: 'Web予約リンク', description: 'Web予約ページのURL' },
+    { key: 'web_booking_link', label: 'Web予約リンク（通常）', description: 'Web予約ページのURL' },
+    { key: 'booking_url', label: 'Web予約リンク（トークン付き）', description: 'メニュー・担当者が事前設定されたWeb予約URL' },
     { key: 'recommended_date', label: '推奨日', description: '次回推奨日' }
   ]
 }
