@@ -11,8 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Modal } from '@/components/ui/modal'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Save, Plus, Trash2, Edit3, Settings, ArrowRight, Stethoscope } from 'lucide-react'
-import { getClinicSettings, setClinicSetting } from '@/lib/api/clinic'
+import { ArrowLeft, Save, Plus, Trash2, Edit3, Settings, ArrowRight, Stethoscope, Copy, ExternalLink } from 'lucide-react'
+import { getClinicSettings, setClinicSetting, getClinicById } from '@/lib/api/clinic'
 import { getTreatmentMenus, updateTreatmentMenu } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 
@@ -26,6 +26,7 @@ export default function WebReservationSettingsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [clinic, setClinic] = useState<any>(null)
 
   // Web予約設定
   const [webSettings, setWebSettings] = useState({
@@ -84,11 +85,14 @@ export default function WebReservationSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        const [settings, menus, staffData] = await Promise.all([
+        const [clinicData, settings, menus, staffData] = await Promise.all([
+          getClinicById(DEMO_CLINIC_ID),
           getClinicSettings(DEMO_CLINIC_ID),
           getTreatmentMenus(DEMO_CLINIC_ID),
           getStaff(DEMO_CLINIC_ID)
         ])
+
+        setClinic(clinicData)
 
         const defaultWebReservation = {
           isEnabled: false,
@@ -283,10 +287,38 @@ export default function WebReservationSettingsPage() {
                 <h2 className="text-2xl font-bold text-gray-900">Web予約設定</h2>
                 <p className="text-gray-600">Web予約システムの設定を行います</p>
               </div>
-              <Button onClick={handleSave} disabled={saving}>
-                <Save className="w-4 h-4 mr-2" />
-                {saving ? '保存中...' : '保存'}
-              </Button>
+              <div className="flex items-center space-x-4">
+                {/* Web予約URL */}
+                {clinic?.slug && (
+                  <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2">
+                    <div className="flex items-center space-x-2">
+                      <ExternalLink className="w-4 h-4 text-gray-500" />
+                      <a
+                        href={`${window.location.origin}/web-booking?clinic=${clinic.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
+                      >
+                        {`${window.location.origin}/web-booking?clinic=${clinic.slug}`}
+                      </a>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/web-booking?clinic=${clinic.slug}`)
+                        alert('URLをコピーしました')
+                      }}
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      title="URLをコピー"
+                    >
+                      <Copy className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                )}
+                <Button onClick={handleSave} disabled={saving}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {saving ? '保存中...' : '保存'}
+                </Button>
+              </div>
             </div>
 
             {/* サブタブナビゲーション */}

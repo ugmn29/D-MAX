@@ -243,9 +243,77 @@ export default function WebBookingPage() {
     loadData()
   }, [])
 
+  // LINEからのWeb予約処理
+  useEffect(() => {
+    const fromLine = searchParams.get('from_line')
+    const patientId = searchParams.get('patient_id')
+    const patientNumber = searchParams.get('patient_number')
+    const phone = searchParams.get('phone')
+    const birthDate = searchParams.get('birth_date')
+
+    if (fromLine === 'true' && patientId && patientNumber && phone && birthDate) {
+      const loadLinePatient = async () => {
+        try {
+          setTokenLoading(true)
+          setTokenError('')
+
+          console.log('LINE Web予約: 患者情報読み込み開始', { patientId, patientNumber })
+
+          // 患者情報を取得
+          const patient = await getPatientById(patientId)
+          if (!patient) {
+            setTokenError('患者情報が見つかりません。')
+            return
+          }
+
+          console.log('LINE Web予約: 患者情報取得成功', patient)
+
+          // 認証データをセット（再診患者として扱う）
+          setAuthData({
+            patientNumber: patientNumber,
+            phone: phone,
+            email: patient.email || '',
+            birthYear: birthDate.split('-')[0],
+            birthMonth: birthDate.split('-')[1],
+            birthDay: birthDate.split('-')[2]
+          })
+
+          // 患者を認証済みとしてセット
+          setAuthenticatedPatient(patient)
+          setIsAuthenticated(true)
+
+          // 予約データを自動設定
+          setBookingData(prev => ({
+            ...prev,
+            isNewPatient: false,
+            patientName: `${patient.last_name} ${patient.first_name}`,
+            patientPhone: phone,
+            patientEmail: patient.email || ''
+          }))
+
+          // ステップを進める（メニュー選択から開始）
+          setCurrentStep(2)
+
+        } catch (error) {
+          console.error('LINE Web予約エラー:', error)
+          setTokenError('患者情報の読み込みに失敗しました。')
+        } finally {
+          setTokenLoading(false)
+        }
+      }
+
+      loadLinePatient()
+      return
+    }
+  }, [searchParams])
+
   // トークンベースWeb予約の処理
   useEffect(() => {
     const token = searchParams.get('token')
+    const fromLine = searchParams.get('from_line')
+
+    // LINEからの場合は処理しない
+    if (fromLine === 'true') return
     if (!token) return
 
     const validateToken = async () => {

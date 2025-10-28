@@ -40,6 +40,7 @@ import {
   upsertPatientWebBookingSettings,
   PatientWebBookingSettings
 } from '@/lib/api/patient-web-booking-settings'
+import { LineLinkageSection } from './line-linkage-section'
 
 interface BasicInfoTabProps {
   patientId: string
@@ -59,6 +60,8 @@ interface FamilyMember {
   relation: string
   patient_number: number
 }
+
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   const [patient, setPatient] = useState<Patient | null>(null)
@@ -1472,6 +1475,9 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* LINE連携セクション */}
+        <LineLinkageSection patientId={patientId} clinicId={DEMO_CLINIC_ID} />
 
       </div>
     </div>

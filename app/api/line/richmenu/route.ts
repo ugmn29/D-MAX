@@ -45,30 +45,35 @@ export async function POST(request: NextRequest) {
       name: 'D-MAX Clinic Rich Menu',
       chatBarText: 'メニュー',
       areas: [
-        // QRコード (左上) - メッセージで画像送信
+        // Webサイト (左列・1段目) - 外部URL
         {
-          bounds: { x: 0, y: 0, width: 833, height: 843 },
-          action: { type: 'message' as const, text: 'QR_CODE_REQUEST' }
-        },
-        // 予約確認 (中央上) - メッセージで予約情報表示
-        {
-          bounds: { x: 833, y: 0, width: 834, height: 843 },
-          action: { type: 'message' as const, text: 'APPOINTMENT_CHECK' }
-        },
-        // Webサイト (右上) - 外部URL
-        {
-          bounds: { x: 1667, y: 0, width: 833, height: 843 },
+          bounds: { x: 0, y: 0, width: 833, height: 542 },
           action: { type: 'uri' as const, uri: buttons[3]?.url || 'https://example.com' }
         },
-        // 家族登録 (左下) - LIFF URL
+        // 家族登録 (左列・2段目) - LIFF URL
         {
-          bounds: { x: 0, y: 843, width: 833, height: 843 },
+          bounds: { x: 0, y: 562, width: 833, height: 542 },
           action: { type: 'uri' as const, uri: buttons[2]?.url || 'https://liff.line.me/family-register' }
         },
-        // お問合せ (右下2枠分) - メッセージ送信
+        // お問合せ (左列・3段目) - メッセージ送信
+        {
+          bounds: { x: 0, y: 1124, width: 833, height: 562 },
+          action: { type: 'message' as const, text: 'CONTACT_REQUEST' }
+        },
+        // QRコード (中央上) - メッセージで画像送信
+        {
+          bounds: { x: 833, y: 0, width: 834, height: 843 },
+          action: { type: 'message' as const, text: 'QR_CODE_REQUEST' }
+        },
+        // 予約確認 (右上) - メッセージで予約情報表示
+        {
+          bounds: { x: 1667, y: 0, width: 833, height: 843 },
+          action: { type: 'message' as const, text: 'APPOINTMENT_CHECK' }
+        },
+        // 予約を取る (中央下+右下の2マス分) - 新規予約URL
         {
           bounds: { x: 833, y: 843, width: 1667, height: 843 },
-          action: { type: 'message' as const, text: 'CONTACT_REQUEST' }
+          action: { type: 'uri' as const, uri: buttons[5]?.url || 'https://liff.line.me/appointment' }
         }
       ]
     }

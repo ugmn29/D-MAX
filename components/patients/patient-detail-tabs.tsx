@@ -18,7 +18,8 @@ import {
   Search,
   FileClock,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Bell
 } from 'lucide-react'
 import { BasicInfoTab } from './basic-info-tab'
 import { QuestionnaireTab } from './questionnaire-tab'
@@ -28,10 +29,13 @@ import { SubKarteTab } from './subkarte-tab'
 import PatientTrainingTabs from '@/components/training/PatientTrainingTabs'
 import { PeriodontalExamTab } from './periodontal-exam-tab'
 import { VisualExamTab } from './visual/visual-exam-tab'
+import { PatientNotificationTab } from './patient-notification-tab'
 
 interface PatientDetailTabsProps {
   patientId: string
 }
+
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 // タブ定義
 const tabs = [
@@ -42,6 +46,7 @@ const tabs = [
   { id: 'training', label: 'トレーニング', icon: Target, available: true },
   { id: 'history', label: '診療履歴', icon: History, available: true },
   { id: 'appointments', label: '予約', icon: Calendar, available: true },
+  { id: 'notification', label: '通知', icon: Bell, available: true },
   { id: 'questionnaire', label: '問診', icon: ClipboardList, available: true },
   { id: 'insurance', label: '保険・公費', icon: Shield, available: true },
   { id: 'files', label: 'ファイル', icon: Folder, available: true },
@@ -71,6 +76,8 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
       case 'appointments':
         console.log('PatientDetailTabs: 予約タブをレンダリング', { patientId })
         return <AppointmentsTab patientId={patientId} />
+      case 'notification':
+        return <PatientNotificationTab patientId={patientId} clinicId={DEMO_CLINIC_ID} />
       case 'questionnaire':
         return <QuestionnaireTab patientId={patientId} />
       case 'insurance':

@@ -83,6 +83,7 @@ import {
   Dumbbell,
   Eye,
   RockingChair,
+  Smartphone,
 } from "lucide-react";
 import {
   updateClinicSettings,
@@ -356,7 +357,7 @@ export default function SettingsPage() {
   const [selectedMasterTab, setSelectedMasterTab] = useState("icons");
   const [selectedClinicTab, setSelectedClinicTab] = useState("info");
   const [selectedShiftTab, setSelectedShiftTab] = useState("table");
-  const [selectedWebTab, setSelectedWebTab] = useState<'basic' | 'flow' | 'menu'>('basic');
+  const [selectedWebTab, setSelectedWebTab] = useState<'basic' | 'flow' | 'menu' | 'notification-flow'>('basic');
   const [previewPatientType, setPreviewPatientType] = useState<'new' | 'returning'>('new'); // 右側プレビューで選択された患者タイプ
   const [notificationTab, setNotificationTab] = useState("connection");
   const [questionnaireTab, setQuestionnaireTab] = useState("list");
@@ -440,6 +441,11 @@ export default function SettingsPage() {
         typeof window !== "undefined"
           ? `${window.location.origin}/api/line/webhook`
           : "",
+      liff_id_initial_link: "",
+      liff_id_qr_code: "",
+      liff_id_family_register: "",
+      liff_id_appointments: "",
+      liff_id_web_booking: "",
     },
   });
 
@@ -466,19 +472,12 @@ export default function SettingsPage() {
   // 自動リマインドルールの状態
   const [autoReminderRule, setAutoReminderRule] = useState({
     enabled: false,
-    first_interval_months: 3,
-    second_interval_months: 3,
-    third_interval_months: 6,
+    intervals: [
+      { sequence: 1, months: 3 },
+      { sequence: 2, months: 3 },
+      { sequence: 3, months: 6 },
+    ],
     template_id: "",
-    channel: "line",
-  });
-
-  // 通知スケジュールの状態
-  const [notificationSchedules, setNotificationSchedules] = useState<any[]>([]);
-  const [scheduleFilter, setScheduleFilter] = useState({
-    status: "all",
-    type: "all",
-    channel: "all",
   });
 
   // リッチメニューの状態
@@ -497,7 +496,7 @@ export default function SettingsPage() {
       id: 4,
       label: "Webサイト",
       action: "url",
-      url: "https://clinic-website.com",
+      url: "",
       icon: "web",
     },
     {
@@ -507,11 +506,15 @@ export default function SettingsPage() {
       url: "お問い合わせ",
       icon: "chat",
     },
+    {
+      id: 6,
+      label: "予約を取る",
+      action: "url",
+      url: "/appointment",
+      icon: "booking",
+    },
   ]);
   const [editingButton, setEditingButton] = useState<number | null>(null);
-
-  // 送信失敗管理の状態
-  const [notificationFailures, setNotificationFailures] = useState<any[]>([]);
 
   // 問診票の状態
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
@@ -1405,6 +1408,12 @@ export default function SettingsPage() {
               line: {
                 ...settings.line,
                 webhook_url: webhookUrl,
+                // LIFF IDフィールドのデフォルト値を保証
+                liff_id_initial_link: settings.line?.liff_id_initial_link || "",
+                liff_id_qr_code: settings.line?.liff_id_qr_code || "",
+                liff_id_family_register: settings.line?.liff_id_family_register || "",
+                liff_id_appointments: settings.line?.liff_id_appointments || "",
+                liff_id_web_booking: settings.line?.liff_id_web_booking || "",
               },
             });
 
@@ -1424,24 +1433,89 @@ export default function SettingsPage() {
           );
           if (templatesResponse.ok) {
             const templatesData = await templatesResponse.json();
-            setTemplates(
-              templatesData.map((t: any) => ({
-              id: t.id,
-              name: t.name,
-              notification_type: t.notification_type,
-                line_message: t.line_message || "",
-                email_subject: t.email_subject || "",
-                email_message: t.email_message || "",
-                sms_message: t.sms_message || "",
-                auto_send_enabled: t.auto_send_enabled || false,
-                auto_send_trigger: t.auto_send_trigger || "manual",
-                auto_send_timing_value: t.auto_send_timing_value || 3,
-                auto_send_timing_unit: t.auto_send_timing_unit || "days_before",
-              })),
-            );
+
+            // テンプレートが空の場合、システムテンプレートを初期化
+            if (templatesData.length === 0) {
+              console.log("テンプレートが空です。システムテンプレートを初期化します。");
+              try {
+                const initResponse = await fetch('/api/notification-templates/init', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ clinic_id: DEMO_CLINIC_ID }),
+                });
+
+                if (initResponse.ok) {
+                  const initData = await initResponse.json();
+                  console.log("システムテンプレート初期化成功:", initData);
+
+                  // 再度テンプレートを読み込み
+                  const reloadResponse = await fetch(
+                    `/api/notification-templates?clinic_id=${DEMO_CLINIC_ID}`,
+                  );
+                  if (reloadResponse.ok) {
+                    const reloadData = await reloadResponse.json();
+                    setTemplates(
+                      reloadData.map((t: any) => ({
+                        id: t.id,
+                        name: t.name,
+                        notification_type: t.notification_type,
+                        line_message: t.line_message || "",
+                        email_subject: t.email_subject || "",
+                        email_message: t.email_message || "",
+                        sms_message: t.sms_message || "",
+                        auto_send_enabled: t.auto_send_enabled || false,
+                        auto_send_trigger: t.auto_send_trigger || "manual",
+                        auto_send_timing_value: t.auto_send_timing_value || 3,
+                        auto_send_timing_unit: t.auto_send_timing_unit || "days_before",
+                      })),
+                    );
+                  }
+                }
+              } catch (initError) {
+                console.error("システムテンプレート初期化エラー:", initError);
+              }
+            } else {
+              setTemplates(
+                templatesData.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                notification_type: t.notification_type,
+                  line_message: t.line_message || "",
+                  email_subject: t.email_subject || "",
+                  email_message: t.email_message || "",
+                  sms_message: t.sms_message || "",
+                  auto_send_enabled: t.auto_send_enabled || false,
+                  auto_send_trigger: t.auto_send_trigger || "manual",
+                  auto_send_timing_value: t.auto_send_timing_value || 3,
+                  auto_send_timing_unit: t.auto_send_timing_unit || "days_before",
+                })),
+              );
+            }
           }
         } catch (error) {
           console.error("テンプレートの読み込みエラー:", error);
+        }
+
+        // 自動リマインドルールの読み込み
+        try {
+          const autoReminderResponse = await fetch(
+            `/api/auto-reminder-rules?clinic_id=${DEMO_CLINIC_ID}`,
+          );
+          if (autoReminderResponse.ok) {
+            const autoReminderData = await autoReminderResponse.json();
+
+            setAutoReminderRule({
+              enabled: autoReminderData.enabled || false,
+              intervals: autoReminderData.intervals || [
+                { sequence: 1, months: 3 },
+                { sequence: 2, months: 3 },
+                { sequence: 3, months: 6 },
+              ],
+              template_id: autoReminderData.on_cancel_resend_template_id || "",
+            });
+          }
+        } catch (error) {
+          console.error("自動リマインドルールの読み込みエラー:", error);
         }
       }
     };
@@ -1705,6 +1779,19 @@ export default function SettingsPage() {
 
     loadTreatmentMenus();
   }, []);
+
+  // clinicInfo.website_urlが変更されたら、リッチメニューのWebサイトボタンのURLを更新
+  useEffect(() => {
+    if (clinicInfo.website_url) {
+      setRichMenuButtons((prevButtons) =>
+        prevButtons.map((button) =>
+          button.id === 4
+            ? { ...button, url: clinicInfo.website_url }
+            : button
+        )
+      );
+    }
+  }, [clinicInfo.website_url]);
 
   // 設定変更を監視して未保存フラグを立てる
   useEffect(() => {
@@ -2951,6 +3038,9 @@ export default function SettingsPage() {
                   placeholder="例: https://example.com"
                   className="mt-1"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  ※ このURLはLINEリッチメニューの「Webサイト」ボタンにも自動的に反映されます
+                </p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6793,6 +6883,17 @@ export default function SettingsPage() {
                 <Stethoscope className="w-4 h-4 inline mr-2" />
                 メニュー設定
               </button>
+              <button
+                onMouseEnter={() => setSelectedWebTab('notification-flow')}
+                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+                  selectedWebTab === 'notification-flow'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Bell className="w-4 h-4 inline mr-2" />
+                通知予約フロー
+              </button>
             </div>
 
             {/* 基本設定タブ */}
@@ -7946,6 +8047,673 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {/* 通知予約フロータブ */}
+            {selectedWebTab === 'notification-flow' && (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>通知からのWeb予約フロー</CardTitle>
+                    <p className="text-sm text-gray-600 mt-2">
+                      患者さんに送る通知から直接Web予約へ誘導する仕組みです。メニューや担当者が事前に設定されたURLを送信できます。
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-8">
+                      {/* ステップ1: 通知スケジュール作成 */}
+                      <div className="relative">
+                        <div className="flex items-start space-x-4">
+                          <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 font-bold">1</span>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              通知スケジュール作成
+                            </h3>
+
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-5 mb-4">
+                              <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
+                                <Bell className="w-4 h-4 mr-2" />
+                                通知を作成できる場所（2つの入口）
+                              </h4>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* 入口1: 患者一覧から */}
+                                <div className="bg-white border-2 border-blue-300 rounded-lg p-4">
+                                  <div className="flex items-start space-x-2 mb-2">
+                                    <div className="flex-shrink-0 w-7 h-7 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">A</div>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-semibold text-gray-900">患者一覧から作成</p>
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-gray-600 mt-3 mb-3">
+                                    <span className="inline-flex items-center">
+                                      <User className="w-3 h-3 mr-1" />
+                                      患者一覧
+                                    </span>
+                                    <span className="mx-1">→</span>
+                                    <span className="inline-flex items-center">
+                                      患者を選択
+                                    </span>
+                                    <span className="mx-1">→</span>
+                                    <span className="inline-flex items-center">
+                                      <Bell className="w-3 h-3 mr-1" />
+                                      通知タブ
+                                    </span>
+                                  </p>
+                                  <div className="bg-blue-50 rounded px-3 py-2">
+                                    <p className="text-xs text-blue-700">💡 予約がない患者さんに定期検診の案内を送る時に使用</p>
+                                  </div>
+                                </div>
+
+                                {/* 入口2: 予約編集モーダルから */}
+                                <div className="bg-white border-2 border-green-300 rounded-lg p-4">
+                                  <div className="flex items-start space-x-2 mb-2">
+                                    <div className="flex-shrink-0 w-7 h-7 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">B</div>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-semibold text-gray-900">予約編集モーダルから作成</p>
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-gray-600 mt-3 mb-3">
+                                    <span className="inline-flex items-center">
+                                      <Calendar className="w-3 h-3 mr-1" />
+                                      カレンダー
+                                    </span>
+                                    <span className="mx-1">→</span>
+                                    <span className="inline-flex items-center">
+                                      予約枠をクリック
+                                    </span>
+                                    <span className="mx-1">→</span>
+                                    <span className="inline-flex items-center">
+                                      <Bell className="w-3 h-3 mr-1" />
+                                      通知設定タブ
+                                    </span>
+                                  </p>
+                                  <div className="bg-green-50 rounded px-3 py-2">
+                                    <p className="text-xs text-green-700">💡 予約作成と同時に次回の予約を促す通知を設定する時に使用</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 実際の通知作成フォームUI */}
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                                <Edit className="w-4 h-4 mr-2 text-blue-600" />
+                                実際の作成フォーム画面
+                              </h4>
+
+                              {/* 実際のフォームを模したUI */}
+                              <div className="bg-white border-2 border-gray-300 rounded-lg p-5 shadow-sm space-y-4">
+                                {/* 通知タイプ */}
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1.5">通知タイプ</label>
+                                  <div className="flex items-center space-x-2 h-10 px-3 border-2 border-gray-300 rounded-md bg-white text-sm">
+                                    <MessageSquare className="w-4 h-4 text-gray-500" />
+                                    <span className="text-gray-900">定期検診リマインド</span>
+                                    <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
+                                  </div>
+                                </div>
+
+                                {/* 診療メニュー */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">診療メニュー1（任意）</label>
+                                    <div className="flex items-center space-x-2 h-10 px-3 border-2 border-gray-300 rounded-md bg-white text-sm">
+                                      <Stethoscope className="w-4 h-4 text-gray-500" />
+                                      <span className="text-gray-900">定期検診</span>
+                                      <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">診療メニュー2（任意）</label>
+                                    <div className="flex items-center space-x-2 h-10 px-3 border-2 border-gray-200 rounded-md bg-gray-50 text-sm">
+                                      <span className="text-gray-400">選択しない</span>
+                                      <ChevronRight className="w-4 h-4 text-gray-300 ml-auto" />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 担当スタッフ */}
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1.5">担当スタッフ（複数選択可）</label>
+                                  <div className="border-2 border-gray-300 rounded-md p-3 bg-white max-h-[100px] overflow-y-auto space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <div className="w-4 h-4 border-2 border-blue-600 bg-blue-600 rounded flex items-center justify-center">
+                                        <Check className="w-3 h-3 text-white" />
+                                      </div>
+                                      <span className="text-sm text-gray-900">福永</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <div className="w-4 h-4 border-2 border-gray-300 rounded bg-white"></div>
+                                      <span className="text-sm text-gray-900">早水</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 通知チャネル */}
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1.5">通知チャネル</label>
+                                  <div className="flex items-center space-x-2 h-10 px-3 border-2 border-gray-300 rounded-md bg-white text-sm">
+                                    <MessageSquare className="w-4 h-4 text-green-500" />
+                                    <span className="text-gray-900">LINE</span>
+                                    <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-1">デフォルト: LINE</p>
+                                </div>
+
+                                {/* Web予約を有効化 - 重要 */}
+                                <div className="border-2 border-green-300 bg-green-50 rounded-lg p-3">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-5 h-5 border-2 border-green-600 bg-green-600 rounded flex items-center justify-center">
+                                      <Check className="w-4 h-4 text-white font-bold" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="text-sm font-semibold text-green-900">Web予約を有効化</div>
+                                      <div className="text-xs text-green-700 mt-0.5">
+                                        ✓ トークン付きURLが自動生成されます
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* ボタン */}
+                                <div className="flex justify-end space-x-2 pt-2 border-t">
+                                  <button className="px-4 py-2 text-sm border-2 border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                                    キャンセル
+                                  </button>
+                                  <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">
+                                    作成
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-5 mt-4 mb-4 border-l-2 border-blue-300 h-8"></div>
+                      </div>
+
+                      {/* ステップ2: トークン自動生成 */}
+                      <div className="relative">
+                        <div className="flex items-start space-x-4">
+                          <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                            <span className="text-green-600 font-bold">2</span>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              トークン自動生成
+                            </h3>
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <p className="text-sm text-gray-700 mb-3">
+                                「Web予約を有効化」をオンにすると、システムが自動的にトークン付きURLを生成します。
+                              </p>
+                              <div className="bg-gradient-to-r from-green-50 to-teal-50 border border-green-200 rounded-lg p-4 mb-3">
+                                <div className="text-xs font-semibold text-green-800 mb-2">生成されるURL例:</div>
+                                <div className="bg-white border border-gray-300 rounded p-3 text-sm font-mono text-xs break-all text-gray-700">
+                                  http://localhost:3000/web-booking?token=a1b2c3d4e5f6...
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                                <div className="bg-white border border-green-200 rounded p-2">
+                                  <div className="flex items-center space-x-1 text-green-700">
+                                    <CheckCircle className="w-3 h-3" />
+                                    <span className="font-medium">メニュー・担当者情報</span>
+                                  </div>
+                                  <p className="text-gray-600 mt-1">トークンに埋め込み済み</p>
+                                </div>
+                                <div className="bg-white border border-green-200 rounded p-2">
+                                  <div className="flex items-center space-x-1 text-green-700">
+                                    <Clock className="w-3 h-3" />
+                                    <span className="font-medium">有効期限: 30日間</span>
+                                  </div>
+                                  <p className="text-gray-600 mt-1">期限切れ後は無効化</p>
+                                </div>
+                                <div className="bg-white border border-green-200 rounded p-2">
+                                  <div className="flex items-center space-x-1 text-green-700">
+                                    <CheckCircle className="w-3 h-3" />
+                                    <span className="font-medium">1回限り使用可能</span>
+                                  </div>
+                                  <p className="text-gray-600 mt-1">予約後は使用済みに</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-5 mt-4 mb-4 border-l-2 border-green-300 h-8"></div>
+                      </div>
+
+                      {/* ステップ3: 通知メッセージ送信 */}
+                      <div className="relative">
+                        <div className="flex items-start space-x-4">
+                          <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                            <span className="text-purple-600 font-bold">3</span>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              通知メッセージ送信
+                            </h3>
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <p className="text-sm text-gray-700 mb-3">
+                                設定した送信タイミングになると、テンプレート内の <code className="bg-gray-200 px-1 rounded text-xs">{`{{booking_url}}`}</code> が実際のトークン付きURLに自動置換されて送信されます。
+                              </p>
+
+                              {/* スマホ画面風のデザイン */}
+                              <div className="bg-gradient-to-b from-gray-100 to-gray-200 rounded-lg p-4">
+                                <div className="flex items-center space-x-2 mb-3">
+                                  <Smartphone className="w-5 h-5 text-purple-600" />
+                                  <span className="text-sm font-semibold text-purple-900">実際のiPhone画面イメージ</span>
+                                </div>
+
+                                {/* iPhoneサイズのスマホフレーム */}
+                                <div className="max-w-[280px] mx-auto">
+                                  {/* iPhone本体 */}
+                                  <div className="bg-black rounded-[2rem] p-2 shadow-2xl">
+                                    {/* 画面 */}
+                                    <div className="bg-white rounded-[1.5rem] overflow-hidden">
+                                      {/* ステータスバー */}
+                                      <div className="bg-gray-50 px-3 py-1.5 flex items-center justify-between text-[10px]">
+                                        <span className="font-semibold">9:41</span>
+                                        <div className="flex items-center space-x-1">
+                                          <div className="w-3 h-2.5 border border-gray-400 rounded-sm"></div>
+                                        </div>
+                                      </div>
+
+                                      {/* LINEヘッダー */}
+                                      <div className="bg-[#06C755] px-3 py-2 flex items-center space-x-2">
+                                        <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                                          <MessageSquare className="w-4 h-4 text-[#06C755]" />
+                                        </div>
+                                        <span className="text-white font-semibold text-xs">○○歯科クリニック</span>
+                                      </div>
+
+                                      {/* メッセージ内容 */}
+                                      <div className="p-3 bg-gray-50 min-h-[220px]">
+                                        {/* 吹き出し */}
+                                        <div className="flex items-start space-x-1.5">
+                                          <div className="w-6 h-6 bg-gray-300 rounded-full flex-shrink-0"></div>
+                                          <div className="flex-1">
+                                            <div className="bg-white rounded-xl rounded-tl-none p-2.5 shadow-sm">
+                                              <p className="text-[11px] text-gray-900 mb-1.5">山田太郎様</p>
+                                              <p className="text-[11px] text-gray-800 mb-1">いつもありがとうございます。</p>
+                                              <p className="text-[11px] text-gray-800 mb-1">前回のご来院から3ヶ月が経過しました。</p>
+                                              <p className="text-[11px] text-gray-900 font-medium mb-1.5">定期検診のご予約はこちらから↓</p>
+                                              <div className="bg-blue-500 hover:bg-blue-600 rounded-md p-2 mt-1">
+                                                <div className="text-white text-[9px] font-mono break-all leading-tight">
+                                                  http://localhost:3000/web-booking?token=a1b2c3...
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <p className="text-[9px] text-gray-400 mt-0.5 ml-1.5">9:41</p>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* 入力エリア（参考） */}
+                                      <div className="border-t border-gray-200 p-2 bg-white">
+                                        <div className="flex items-center space-x-1.5">
+                                          <div className="flex-1 bg-gray-100 rounded-full px-2.5 py-1.5">
+                                            <span className="text-[10px] text-gray-400">メッセージを入力</span>
+                                          </div>
+                                          <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-5 mt-4 mb-4 border-l-2 border-purple-300 h-8"></div>
+                      </div>
+
+                      {/* ステップ4: 患者がリンククリック */}
+                      <div className="relative">
+                        <div className="flex items-start space-x-4">
+                          <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                            <span className="text-yellow-600 font-bold">4</span>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              患者さんがリンクをタップ
+                            </h3>
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <p className="text-sm text-gray-700 mb-3">
+                                患者さんがスマホで通知内のURLをタップして、Web予約ページを開きます。
+                              </p>
+
+                              {/* iPhoneサイズのスマホ画面 - URLタップ時 */}
+                              <div className="bg-gradient-to-b from-gray-100 to-gray-200 rounded-lg p-4">
+                                <div className="flex items-center space-x-2 mb-3">
+                                  <Smartphone className="w-5 h-5 text-yellow-600" />
+                                  <span className="text-sm font-semibold text-yellow-900">実際のiPhone画面イメージ（リンクをタップする瞬間）</span>
+                                </div>
+
+                                <div className="max-w-[280px] mx-auto">
+                                  {/* iPhone本体 */}
+                                  <div className="bg-black rounded-[2rem] p-2 shadow-2xl">
+                                    {/* 画面 */}
+                                    <div className="bg-white rounded-[1.5rem] overflow-hidden">
+                                      {/* ステータスバー */}
+                                      <div className="bg-gray-50 px-3 py-1.5 flex items-center justify-between text-[10px]">
+                                        <span className="font-semibold">9:41</span>
+                                        <div className="flex items-center space-x-1">
+                                          <div className="w-3 h-2.5 border border-gray-400 rounded-sm"></div>
+                                        </div>
+                                      </div>
+
+                                      {/* LINEヘッダー */}
+                                      <div className="bg-[#06C755] px-3 py-2 flex items-center space-x-2">
+                                        <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                                          <MessageSquare className="w-4 h-4 text-[#06C755]" />
+                                        </div>
+                                        <span className="text-white font-semibold text-xs">○○歯科クリニック</span>
+                                      </div>
+
+                                      {/* メッセージ内容 - URLタップ状態 */}
+                                      <div className="p-3 bg-gray-50 min-h-[220px]">
+                                        <div className="flex items-start space-x-1.5">
+                                          <div className="w-6 h-6 bg-gray-300 rounded-full flex-shrink-0"></div>
+                                          <div className="flex-1">
+                                            <div className="bg-white rounded-xl rounded-tl-none p-2.5 shadow-sm">
+                                              <p className="text-[11px] text-gray-900 mb-1.5">山田太郎様</p>
+                                              <p className="text-[11px] text-gray-800 mb-1">いつもありがとうございます。</p>
+                                              <p className="text-[11px] text-gray-800 mb-1">前回のご来院から3ヶ月が経過しました。</p>
+                                              <p className="text-[11px] text-gray-900 font-medium mb-1.5">定期検診のご予約はこちらから↓</p>
+
+                                              {/* タップ中のURL - ハイライト状態 */}
+                                              <div className="relative">
+                                                <div className="bg-blue-600 rounded-md p-2 mt-1 animate-pulse ring-4 ring-yellow-400">
+                                                  <div className="text-white text-[9px] font-mono break-all leading-tight">
+                                                    http://localhost:3000/web-booking?token=a1b2c3...
+                                                  </div>
+                                                </div>
+                                                {/* タップエフェクト */}
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                  <div className="w-16 h-16 rounded-full bg-yellow-400 opacity-30 animate-ping"></div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <p className="text-[9px] text-gray-400 mt-0.5 ml-1.5">9:41</p>
+                                          </div>
+                                        </div>
+
+                                        {/* タップ時のヒント */}
+                                        <div className="mt-3 flex items-center justify-center">
+                                          <div className="bg-yellow-100 border-2 border-yellow-400 rounded-full px-3 py-1.5 flex items-center space-x-1.5">
+                                            <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                                            <span className="text-[10px] font-semibold text-yellow-900">タップ！</span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* 入力エリア */}
+                                      <div className="border-t border-gray-200 p-2 bg-white">
+                                        <div className="flex items-center space-x-1.5">
+                                          <div className="flex-1 bg-gray-100 rounded-full px-2.5 py-1.5">
+                                            <span className="text-[10px] text-gray-400">メッセージを入力</span>
+                                          </div>
+                                          <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 矢印とブラウザへの遷移 */}
+                                <div className="flex items-center justify-center my-3">
+                                  <ArrowRight className="w-6 h-6 text-yellow-600 animate-bounce" />
+                                </div>
+
+                                {/* ブラウザが開く様子 */}
+                                <div className="text-center">
+                                  <div className="inline-block bg-white border-2 border-yellow-400 rounded-lg px-4 py-2 shadow-lg">
+                                    <div className="flex items-center space-x-2">
+                                      <Globe className="w-4 h-4 text-blue-600" />
+                                      <span className="text-xs font-semibold text-gray-900">ブラウザでWeb予約ページを開く</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-5 mt-4 mb-4 border-l-2 border-yellow-300 h-8"></div>
+                      </div>
+
+                      {/* ステップ5: Web予約ページ表示 */}
+                      <div className="relative">
+                        <div className="flex items-start space-x-4">
+                          <div className="flex-shrink-0 w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <span className="text-indigo-600 font-bold">5</span>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              Web予約ページ表示（情報プリセット済み）
+                            </h3>
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <p className="text-sm text-gray-700 mb-3">
+                                トークンに含まれる情報が自動的に反映され、患者さんは日時を選ぶだけで予約完了できます。
+                              </p>
+                              {/* 実際のWeb予約画面 */}
+                              <div className="bg-gradient-to-b from-gray-100 to-gray-200 rounded-lg p-4">
+                                <div className="flex items-center space-x-2 mb-3">
+                                  <Smartphone className="w-5 h-5 text-indigo-600" />
+                                  <span className="text-sm font-semibold text-indigo-900">実際のiPhone画面イメージ</span>
+                                </div>
+
+                                {/* iPhoneサイズのスマホフレーム */}
+                                <div className="max-w-[280px] mx-auto">
+                                  {/* iPhone本体 */}
+                                  <div className="bg-black rounded-[2rem] p-2 shadow-2xl">
+                                    {/* 画面 */}
+                                    <div className="bg-white rounded-[1.5rem] overflow-hidden">
+                                      {/* ステータスバー */}
+                                      <div className="bg-gray-50 px-3 py-1.5 flex items-center justify-between text-[10px]">
+                                        <span className="font-semibold">9:41</span>
+                                        <div className="flex items-center space-x-1">
+                                          <div className="w-3 h-2.5 border border-gray-400 rounded-sm"></div>
+                                        </div>
+                                      </div>
+
+                                      {/* Web予約ページコンテンツ */}
+                                      <div className="p-2 bg-gray-50 space-y-2 max-h-[350px] overflow-y-auto">
+                                        {/* ヘッダー */}
+                                        <div className="text-center mb-1">
+                                          <h2 className="text-sm font-bold text-gray-900">Web予約</h2>
+                                          <p className="text-[9px] text-gray-600">簡単にオンラインで予約できます</p>
+                                        </div>
+
+                                        {/* ステップ1: 初診/再診選択（トークンで自動スキップされる） */}
+                                        <div className="bg-white rounded border border-gray-200 p-2 opacity-50">
+                                          <h3 className="font-medium text-gray-900 mb-1.5 text-[10px]">初診/再診の選択</h3>
+                                          <div className="p-2 border border-blue-500 bg-blue-50 rounded">
+                                            <h4 className="font-medium text-[9px]">再診</h4>
+                                            <p className="text-[8px] text-gray-600">過去にご来院されたことがある方</p>
+                                          </div>
+                                          <div className="mt-1 flex items-center justify-center">
+                                            <div className="bg-green-100 border border-green-300 rounded-full px-2 py-0.5">
+                                              <span className="text-[8px] font-semibold text-green-800">✓ 自動選択済み</span>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* ステップ2: 診療メニュー選択（トークンで自動選択） */}
+                                        <div className="bg-white rounded border-2 border-green-400 p-2">
+                                          <div className="flex items-center justify-between mb-1.5">
+                                            <h3 className="font-medium text-gray-900 text-[10px]">診療メニューの選択</h3>
+                                            <div className="bg-green-100 border border-green-300 rounded-full px-1.5 py-0.5">
+                                              <span className="text-[8px] font-semibold text-green-800">✓ 選択済み</span>
+                                            </div>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-1.5">
+                                            <div className="p-2 rounded border-2 border-blue-500 bg-blue-50">
+                                              <h4 className="font-medium text-[9px] text-gray-900">定期検診</h4>
+                                              <p className="text-[8px] text-gray-600">45分</p>
+                                            </div>
+                                            <div className="p-2 rounded border border-gray-200 bg-white opacity-40">
+                                              <h4 className="font-medium text-[9px] text-gray-900">一般歯科</h4>
+                                              <p className="text-[8px] text-gray-600">30分</p>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* ステップ3: 日時選択（患者が選択する部分） */}
+                                        <div className="bg-white rounded border-2 border-blue-500 p-2 relative">
+                                          <div className="absolute -top-2 left-2 bg-blue-500 text-white px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg animate-pulse">
+                                            患者さんが選択！
+                                          </div>
+                                          <h3 className="font-medium text-gray-900 mb-1 text-[10px]">日時選択</h3>
+                                          <p className="text-[8px] text-gray-600 mb-1.5">⭕️をタップして選択</p>
+
+                                          {/* 週ナビゲーション */}
+                                          <div className="flex items-center justify-between mb-1.5 gap-1">
+                                            <button className="px-1.5 py-0.5 text-[8px] border border-gray-300 rounded flex items-center">
+                                              <ChevronLeft className="w-2 h-2" />
+                                              先週
+                                            </button>
+                                            <div className="text-[8px] font-medium text-center">
+                                              01/15 - 01/21
+                                            </div>
+                                            <button className="px-1.5 py-0.5 text-[8px] border border-gray-300 rounded flex items-center">
+                                              次週
+                                              <ChevronRight className="w-2 h-2" />
+                                            </button>
+                                          </div>
+
+                                          {/* 週間カレンダー */}
+                                          <div className="border border-gray-200 rounded overflow-hidden">
+                                            <div className="grid grid-cols-7 bg-gray-100">
+                                              {['月', '火', '水', '木', '金', '土', '日'].map((day, i) => (
+                                                <div key={i} className="text-center text-[8px] font-medium p-0.5 border-r border-gray-200 last:border-r-0">
+                                                  <div className="text-gray-600">{day}</div>
+                                                  <div className="text-[7px] text-gray-500">{15 + i}</div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                            {/* 時間スロット */}
+                                            <div className="grid grid-cols-7">
+                                              {[...Array(7)].map((_, dayIndex) => (
+                                                <div key={dayIndex} className="border-r border-gray-200 last:border-r-0">
+                                                  {/* 午前枠 */}
+                                                  <div className="border-b border-gray-100 p-0.5">
+                                                    <div className="text-[7px] text-center text-gray-500">AM</div>
+                                                    {dayIndex === 3 ? (
+                                                      <button className="w-full text-[8px] bg-blue-600 text-white rounded py-0.5 font-medium">
+                                                        10:00
+                                                      </button>
+                                                    ) : dayIndex < 5 ? (
+                                                      <button className="w-full text-[8px] bg-white border border-gray-300 rounded py-0.5">
+                                                        ⭕️
+                                                      </button>
+                                                    ) : (
+                                                      <div className="text-[8px] text-center text-gray-400">×</div>
+                                                    )}
+                                                  </div>
+                                                  {/* 午後枠 */}
+                                                  <div className="p-0.5">
+                                                    <div className="text-[7px] text-center text-gray-500">PM</div>
+                                                    {dayIndex < 5 ? (
+                                                      <button className="w-full text-[8px] bg-white border border-gray-300 rounded py-0.5">
+                                                        ⭕️
+                                                      </button>
+                                                    ) : (
+                                                      <div className="text-[8px] text-center text-gray-400">×</div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* ステップ4: 患者情報入力（トークンで自動入力） */}
+                                        <div className="bg-white rounded border-2 border-green-400 p-2">
+                                          <div className="flex items-center justify-between mb-1.5">
+                                            <h3 className="font-medium text-gray-900 text-[10px]">患者情報の入力</h3>
+                                            <div className="bg-green-100 border border-green-300 rounded-full px-1.5 py-0.5">
+                                              <span className="text-[8px] font-semibold text-green-800">✓ 入力済み</span>
+                                            </div>
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <div>
+                                              <label className="block text-[8px] text-gray-700 mb-0.5">お名前</label>
+                                              <div className="px-2 py-1 border-2 border-green-500 bg-green-50 rounded text-[9px] text-gray-900 font-medium">
+                                                山田 太郎
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <label className="block text-[8px] text-gray-700 mb-0.5">電話番号</label>
+                                              <div className="px-2 py-1 border-2 border-green-500 bg-green-50 rounded text-[9px] text-gray-900 font-medium">
+                                                090-1234-5678
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* 予約確定ボタン */}
+                                        <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-[10px] shadow-lg">
+                                          予約を確定する
+                                        </button>
+                                      </div>
+
+                                      {/* 入力エリア */}
+                                      <div className="border-t border-gray-200 p-2 bg-white">
+                                        <div className="h-6 bg-gray-100 rounded-full"></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-5 mt-4 mb-4 border-l-2 border-indigo-300 h-8"></div>
+                      </div>
+
+                      {/* ステップ6: 予約確定 */}
+                      <div className="relative">
+                        <div className="flex items-start space-x-4">
+                          <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-600 to-green-500 rounded-full flex items-center justify-center">
+                            <Check className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              予約完了
+                            </h3>
+                            <div className="bg-gradient-to-r from-blue-50 via-green-50 to-teal-50 border-2 border-green-300 rounded-lg p-5">
+                              <div className="flex items-center space-x-3 mb-3">
+                                <CheckCircle className="w-6 h-6 text-green-600" />
+                                <span className="text-base font-semibold text-green-900">予約が完了しました！</span>
+                              </div>
+                              <div className="bg-white border border-green-200 rounded-lg p-4 space-y-2 text-sm">
+                                <div className="flex items-start space-x-2">
+                                  <span className="text-green-600">✓</span>
+                                  <span className="text-gray-700">患者さんが日時を選択して予約確定ボタンをクリック</span>
+                                </div>
+                                <div className="flex items-start space-x-2">
+                                  <span className="text-green-600">✓</span>
+                                  <span className="text-gray-700">予約がカレンダーに自動登録されます</span>
+                                </div>
+                                <div className="flex items-start space-x-2">
+                                  <span className="text-green-600">✓</span>
+                                  <span className="text-gray-700">トークンは「使用済み」となり、再利用できなくなります</span>
+                                </div>
+                                <div className="flex items-start space-x-2">
+                                  <span className="text-blue-600">📧</span>
+                                  <span className="text-gray-700">患者さんに予約完了の通知が送信されます</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Web予約メニュー追加ダイアログ */}
             <Modal
               isOpen={isAddWebMenuDialogOpen}
@@ -9025,26 +9793,6 @@ export default function SettingsPage() {
                 自動リマインド
               </button>
               <button
-                onMouseEnter={() => setNotificationTab("schedules")}
-                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  notificationTab === "schedules"
-                    ? "border-blue-500 text-blue-600 bg-blue-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                スケジュール
-              </button>
-              <button
-                onMouseEnter={() => setNotificationTab("failures")}
-                className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
-                  notificationTab === "failures"
-                    ? "border-blue-500 text-blue-600 bg-blue-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                送信失敗
-              </button>
-              <button
                 onMouseEnter={() => setNotificationTab("rich-menu")}
                 className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
                   notificationTab === "rich-menu"
@@ -9052,7 +9800,7 @@ export default function SettingsPage() {
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
-                リッチメニュー
+                LINEリッチメニュー
               </button>
             </div>
 
@@ -9480,6 +10228,153 @@ export default function SettingsPage() {
                             のようなURLをLINE
                             Developersコンソールに設定してください。
                           </p>
+                        </div>
+                      </div>
+
+                      {/* LIFF ID / ミニアプリID 設定 */}
+                      <div className="col-span-2 mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+                          </svg>
+                          LIFF ID / LINEミニアプリID
+                        </h4>
+                        <p className="text-xs text-blue-800 mb-4">
+                          LINE Developers Console で作成した5つのLIFF（またはLINEミニアプリ）のIDを入力してください。<br/>
+                          設定後は <code className="bg-blue-100 px-1 rounded">.env.local</code> ファイルへの手動設定は不要になります。
+                        </p>
+
+                        <div className="grid grid-cols-1 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              初回連携 LIFF ID
+                            </label>
+                            <input
+                              type="text"
+                              value={notificationSettings.line.liff_id_initial_link}
+                              onChange={(e) =>
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  line: {
+                                    ...notificationSettings.line,
+                                    liff_id_initial_link: e.target.value,
+                                  },
+                                })
+                              }
+                              placeholder="1234567890-abcdefgh"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              環境変数: NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              QRコード LIFF ID
+                            </label>
+                            <input
+                              type="text"
+                              value={notificationSettings.line.liff_id_qr_code}
+                              onChange={(e) =>
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  line: {
+                                    ...notificationSettings.line,
+                                    liff_id_qr_code: e.target.value,
+                                  },
+                                })
+                              }
+                              placeholder="1234567890-xxxxxxxx"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              環境変数: NEXT_PUBLIC_LIFF_ID_QR_CODE
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              家族登録 LIFF ID
+                            </label>
+                            <input
+                              type="text"
+                              value={notificationSettings.line.liff_id_family_register}
+                              onChange={(e) =>
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  line: {
+                                    ...notificationSettings.line,
+                                    liff_id_family_register: e.target.value,
+                                  },
+                                })
+                              }
+                              placeholder="1234567890-yyyyyyyy"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              環境変数: NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              予約確認 LIFF ID
+                            </label>
+                            <input
+                              type="text"
+                              value={notificationSettings.line.liff_id_appointments}
+                              onChange={(e) =>
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  line: {
+                                    ...notificationSettings.line,
+                                    liff_id_appointments: e.target.value,
+                                  },
+                                })
+                              }
+                              placeholder="1234567890-zzzzzzzz"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              環境変数: NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Web予約 LIFF ID
+                            </label>
+                            <input
+                              type="text"
+                              value={notificationSettings.line.liff_id_web_booking}
+                              onChange={(e) =>
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  line: {
+                                    ...notificationSettings.line,
+                                    liff_id_web_booking: e.target.value,
+                                  },
+                                })
+                              }
+                              placeholder="1234567890-wwwwwwww"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              環境変数: NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 p-3 bg-white border border-blue-200 rounded-lg">
+                          <p className="text-xs text-blue-900 font-medium mb-2">
+                            💡 設定のヒント
+                          </p>
+                          <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                            <li>LINE Developers Console の「LIFF」または「LINEミニアプリ」タブで作成</li>
+                            <li>各LIFFアプリ作成後に表示されるIDをコピーして貼り付け</li>
+                            <li>保存後、サーバーを再起動すると設定が反映されます</li>
+                          </ul>
                         </div>
                       </div>
                     </div>
@@ -10673,7 +11568,7 @@ export default function SettingsPage() {
                       自動リマインドルール
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      段階的な自動通知の設定（3ヶ月→3ヶ月→6ヶ月→停止）
+                      段階的な自動通知の設定（間隔は自由に追加・編集できます）
                     </p>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -10698,182 +11593,173 @@ export default function SettingsPage() {
                   <div className="space-y-6">
                     {/* 送信間隔設定 */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                      <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-blue-600" />
-                        送信間隔設定
-                      </h4>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-blue-600" />
+                          送信間隔設定
+                        </h4>
+                        <button
+                          onClick={() => {
+                            const newSequence = autoReminderRule.intervals.length + 1;
+                            setAutoReminderRule({
+                              ...autoReminderRule,
+                              intervals: [
+                                ...autoReminderRule.intervals,
+                                { sequence: newSequence, months: 3 },
+                              ],
+                            });
+                          }}
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
+                        >
+                          <Plus className="w-4 h-4" />
+                          間隔を追加
+                        </button>
+                      </div>
                       <div className="space-y-4">
-                        <div className="flex items-center gap-4">
-                          <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              1回目（最終来院から）
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                value={autoReminderRule.first_interval_months}
-                                onChange={(e) =>
-                                  setAutoReminderRule({
-                                  ...autoReminderRule,
-                                    first_interval_months: parseInt(
-                                      e.target.value,
-                                    ),
-                                  })
-                                }
-                                min="1"
-                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                              <span className="text-sm text-gray-600">
-                                ヶ月後
-                              </span>
+                        {autoReminderRule.intervals.map((interval, index) => (
+                          <div key={index} className="flex items-center gap-3">
+                            <div className="flex-1 bg-white rounded-lg p-4 border border-gray-200">
+                              <div className="flex items-center gap-3">
+                                <div className="flex-shrink-0">
+                                  <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-full font-semibold text-sm">
+                                    {index + 1}
+                                  </span>
+                                </div>
+                                <div className="flex-1">
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    {index === 0 ? "最終来院から" : `${index}回目の通知から`}
+                                  </label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      value={interval.months}
+                                      onChange={(e) => {
+                                        const newIntervals = [...autoReminderRule.intervals];
+                                        newIntervals[index] = {
+                                          ...newIntervals[index],
+                                          months: parseInt(e.target.value) || 1,
+                                        };
+                                        setAutoReminderRule({
+                                          ...autoReminderRule,
+                                          intervals: newIntervals,
+                                        });
+                                      }}
+                                      min="1"
+                                      className="w-20 px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                    />
+                                    <span className="text-sm text-gray-600">ヶ月後</span>
+                                  </div>
+                                </div>
+                                {autoReminderRule.intervals.length > 1 && (
+                                  <button
+                                    onClick={() => {
+                                      const newIntervals = autoReminderRule.intervals
+                                        .filter((_, i) => i !== index)
+                                        .map((interval, i) => ({
+                                          ...interval,
+                                          sequence: i + 1,
+                                        }));
+                                      setAutoReminderRule({
+                                        ...autoReminderRule,
+                                        intervals: newIntervals,
+                                      });
+                                    }}
+                                    className="flex-shrink-0 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="この間隔を削除"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
+                            {index < autoReminderRule.intervals.length - 1 && (
+                              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                            )}
                           </div>
-                          <ArrowRight className="w-5 h-5 text-gray-400 mt-6" />
-                          <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              2回目（1回目から）
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                value={autoReminderRule.second_interval_months}
-                                onChange={(e) =>
-                                  setAutoReminderRule({
-                                  ...autoReminderRule,
-                                    second_interval_months: parseInt(
-                                      e.target.value,
-                                    ),
-                                  })
-                                }
-                                min="1"
-                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                              <span className="text-sm text-gray-600">
-                                ヶ月後
-                              </span>
-                            </div>
-                          </div>
-                          <ArrowRight className="w-5 h-5 text-gray-400 mt-6" />
-                          <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              3回目（2回目から）
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                value={autoReminderRule.third_interval_months}
-                                onChange={(e) =>
-                                  setAutoReminderRule({
-                                  ...autoReminderRule,
-                                    third_interval_months: parseInt(
-                                      e.target.value,
-                                    ),
-                                  })
-                                }
-                                min="1"
-                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                              <span className="text-sm text-gray-600">
-                                ヶ月後
-                              </span>
-                            </div>
-                          </div>
-                          <ArrowRight className="w-5 h-5 text-gray-400 mt-6" />
-                          <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              4回目以降
-                            </label>
-                            <div className="px-3 py-2 bg-gray-100 rounded-lg text-center">
-                              <span className="text-sm font-medium text-gray-600">
-                                停止
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                        ))}
 
-                        <div className="bg-white rounded-lg p-4 border border-gray-200">
-                          <div className="flex items-start gap-2">
-                            <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                            <div className="text-sm text-gray-600">
-                              <p className="font-medium text-gray-900 mb-1">
-                                自動リマインドの流れ
-                              </p>
-                              <ul className="space-y-1 list-disc list-inside">
-                                <li>
-                                  最終来院日から設定した間隔で自動的に通知を送信
-                                </li>
-                                <li>
-                                  患者様が予約を入れた場合、自動的にリマインドをキャンセル
-                                </li>
-                                <li>
-                                  3回目の通知後、それ以降の自動送信は停止します
-                                </li>
-                              </ul>
+                        {/* 停止の表示 */}
+                        {autoReminderRule.intervals.length > 0 && (
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-300">
+                              <div className="flex items-center gap-3">
+                                <div className="flex-shrink-0">
+                                  <span className="inline-flex items-center justify-center w-8 h-8 bg-gray-200 text-gray-600 rounded-full font-semibold text-sm">
+                                    ✓
+                                  </span>
+                                </div>
+                                <div className="flex-1">
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    {autoReminderRule.intervals.length}回目以降
+                                  </label>
+                                  <div className="text-sm font-medium text-gray-700">
+                                    自動送信を停止
+                                  </div>
+                                </div>
+                              </div>
                             </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <div className="flex items-start gap-2">
+                          <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm text-gray-600">
+                            <p className="font-medium text-gray-900 mb-1">
+                              自動リマインドの流れ
+                            </p>
+                            <ul className="space-y-1 list-disc list-inside">
+                              <li>
+                                最終来院日から設定した間隔で自動的に通知を送信
+                              </li>
+                              <li>
+                                患者様が予約を入れた場合、自動的にリマインドをキャンセル
+                              </li>
+                              <li>
+                                設定した回数の通知後、それ以降の自動送信は停止します
+                              </li>
+                              <li>
+                                「間隔を追加」ボタンで送信回数を増やせます
+                              </li>
+                            </ul>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* テンプレート・チャンネル設定 */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          送信チャンネル
-                        </label>
-                        <select
-                          value={autoReminderRule.channel}
-                          onChange={(e) =>
-                            setAutoReminderRule({
-                              ...autoReminderRule,
-                              channel: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="line">LINE</option>
-                          <option value="email">メール</option>
-                          <option value="sms">SMS</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          使用テンプレート
-                        </label>
-                        <select
-                          value={autoReminderRule.template_id}
-                          onChange={(e) =>
-                            setAutoReminderRule({
-                              ...autoReminderRule,
-                              template_id: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">テンプレートを選択</option>
-                          {templates
-                            .filter(
-                              (t) =>
-                                t.channel === autoReminderRule.channel &&
-                                t.notification_type === "periodic_checkup",
-                            )
-                            .map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name}
-                              </option>
-                            ))}
-                        </select>
-                        {templates.filter(
-                          (t) =>
-                            t.channel === autoReminderRule.channel &&
-                            t.notification_type === "periodic_checkup",
-                        ).length === 0 && (
-                          <p className="text-xs text-orange-600 mt-1">
-                            ※
-                            先にテンプレートタブで「定期検診」タイプのテンプレートを作成してください
-                          </p>
-                        )}
-                      </div>
+                    {/* テンプレート設定 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        使用テンプレート
+                      </label>
+                      <p className="text-xs text-gray-600 mb-3">
+                        送信チャンネル（LINE/メール/SMS）は、各患者の連絡希望設定に基づいて自動的に選択されます
+                      </p>
+                      <select
+                        value={autoReminderRule.template_id}
+                        onChange={(e) =>
+                          setAutoReminderRule({
+                            ...autoReminderRule,
+                            template_id: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">テンプレートを選択</option>
+                        {templates
+                          .filter((t) => t.notification_type === "periodic_checkup")
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                      </select>
+                      {templates.filter((t) => t.notification_type === "periodic_checkup").length === 0 && (
+                        <p className="text-xs text-orange-600 mt-2">
+                          ※ 先にテンプレートタブで「定期検診」タイプのテンプレートを作成してください
+                        </p>
+                      )}
                     </div>
 
                     {/* 保存ボタン */}
@@ -10882,12 +11768,29 @@ export default function SettingsPage() {
                         onClick={async () => {
                           setSaving(true);
                           try {
-                            // TODO: API呼び出しで保存
-                            await new Promise((resolve) =>
-                              setTimeout(resolve, 1000),
-                            );
+                            // 自動リマインドルールを保存
+                            const response = await fetch('/api/auto-reminder-rules', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                clinic_id: DEMO_CLINIC_ID,
+                                enabled: autoReminderRule.enabled,
+                                intervals: autoReminderRule.intervals,
+                                template_id: autoReminderRule.template_id || null,
+                                on_cancel_resend_enabled: false,
+                                fallback_enabled: false,
+                                optimize_send_time: true,
+                                default_send_hour: 18,
+                              }),
+                            });
+
+                            if (!response.ok) {
+                              throw new Error('保存に失敗しました');
+                            }
+
                             showAlert("自動リマインドルールを保存しました", "success");
                           } catch (error) {
+                            console.error("自動リマインドルール保存エラー:", error);
                             showAlert("保存に失敗しました", "error");
                           } finally {
                             setSaving(false);
@@ -10914,586 +11817,12 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {notificationTab === "schedules" && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    通知スケジュール
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    患者別の通知スケジュール一覧
-                  </p>
-                </div>
-
-                {/* フィルター */}
-                <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      ステータス
-                    </label>
-                    <select
-                      value={scheduleFilter.status}
-                      onChange={(e) =>
-                        setScheduleFilter({
-                          ...scheduleFilter,
-                          status: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="all">すべて</option>
-                      <option value="scheduled">送信予定</option>
-                      <option value="sent">送信済み</option>
-                      <option value="failed">送信失敗</option>
-                      <option value="cancelled">キャンセル</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      通知種類
-                    </label>
-                    <select
-                      value={scheduleFilter.type}
-                      onChange={(e) =>
-                        setScheduleFilter({
-                          ...scheduleFilter,
-                          type: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="all">すべて</option>
-                      <option value="appointment_reminder">
-                        予約リマインド
-                      </option>
-                      <option value="periodic_checkup">定期検診</option>
-                      <option value="treatment_reminder">治療リマインド</option>
-                      <option value="appointment_change">予約変更</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      チャンネル
-                    </label>
-                    <select
-                      value={scheduleFilter.channel}
-                      onChange={(e) =>
-                        setScheduleFilter({
-                          ...scheduleFilter,
-                          channel: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="all">すべて</option>
-                      <option value="line">LINE</option>
-                      <option value="email">メール</option>
-                      <option value="sms">SMS</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* スケジュール一覧 */}
-                {notificationSchedules.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                    <p>通知スケジュールがありません</p>
-                    <p className="text-sm mt-1">
-                      予約や自動リマインドから通知が登録されると表示されます
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            患者名
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            送信日時
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            通知種類
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            チャンネル
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            ステータス
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            操作
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {notificationSchedules
-                          .filter(
-                            (s) =>
-                              scheduleFilter.status === "all" ||
-                              s.status === scheduleFilter.status,
-                          )
-                          .filter(
-                            (s) =>
-                              scheduleFilter.type === "all" ||
-                              s.notification_type === scheduleFilter.type,
-                          )
-                          .filter(
-                            (s) =>
-                              scheduleFilter.channel === "all" ||
-                              s.channel === scheduleFilter.channel,
-                          )
-                          .map((schedule) => (
-                            <tr key={schedule.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {schedule.patient_name}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  ID: {schedule.patient_id.slice(0, 8)}
-                                </div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">
-                                  {schedule.send_datetime}
-                                </div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                                  {schedule.notification_type ===
-                                  "appointment_reminder"
-                                    ? "予約リマインド"
-                                    : schedule.notification_type ===
-                                        "periodic_checkup"
-                                      ? "定期検診"
-                                      : schedule.notification_type ===
-                                          "treatment_reminder"
-                                        ? "治療リマインド"
-                                        : schedule.notification_type ===
-                                            "appointment_change"
-                                          ? "予約変更"
-                                          : "カスタム"}
-                                </span>
-                                {schedule.is_auto_reminder && (
-                                  <span className="ml-1 text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                    自動{schedule.auto_reminder_sequence}回目
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full ${
-                                    schedule.channel === "line"
-                                      ? "bg-green-100 text-green-700"
-                                      : schedule.channel === "email"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : "bg-purple-100 text-purple-700"
-                                  }`}
-                                >
-                                  {schedule.channel === "line"
-                                    ? "LINE"
-                                    : schedule.channel === "email"
-                                      ? "メール"
-                                      : "SMS"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full ${
-                                    schedule.status === "scheduled"
-                                      ? "bg-yellow-100 text-yellow-700"
-                                      : schedule.status === "sent"
-                                        ? "bg-green-100 text-green-700"
-                                        : schedule.status === "failed"
-                                          ? "bg-red-100 text-red-700"
-                                          : "bg-gray-100 text-gray-700"
-                                  }`}
-                                >
-                                  {schedule.status === "scheduled"
-                                    ? "送信予定"
-                                    : schedule.status === "sent"
-                                      ? "送信済み"
-                                      : schedule.status === "failed"
-                                        ? "送信失敗"
-                                        : "キャンセル"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                {schedule.status === "scheduled" && (
-                                  <button
-                                    onClick={() => {
-                                      showConfirm("この通知をキャンセルしますか?", () => {
-                                        setNotificationSchedules(
-                                          notificationSchedules.map((s) =>
-                                            s.id === schedule.id
-                                              ? { ...s, status: "cancelled" }
-                                              : s,
-                                          ),
-                                        );
-                                      }, { isDanger: true });
-                                    }}
-                                    className="text-red-600 hover:text-red-900"
-                                  >
-                                    キャンセル
-                                  </button>
-                                )}
-                                {schedule.status === "failed" && (
-                                  <button
-                                    onClick={() => {
-                                      setNotificationSchedules(
-                                        notificationSchedules.map((s) =>
-                                          s.id === schedule.id
-                                            ? { ...s, status: "scheduled" }
-                                            : s,
-                                        ),
-                                      );
-                                      showAlert("再送信を予定しました", "success");
-                                    }}
-                                    className="text-blue-600 hover:text-blue-900"
-                                  >
-                                    再送信
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {notificationTab === "failures" && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    送信失敗管理
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    エラーログと再送信
-                  </p>
-                </div>
-
-                {notificationFailures.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
-                    <p>送信失敗はありません</p>
-                    <p className="text-sm mt-1">
-                      すべての通知が正常に送信されています
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* 統計情報 */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <AlertCircle className="w-5 h-5 text-red-600" />
-                          <span className="text-sm font-medium text-gray-700">
-                            送信失敗数
-                          </span>
-                        </div>
-                        <p className="text-2xl font-bold text-red-600">
-                          {notificationFailures.length}
-                        </p>
-                      </div>
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Clock className="w-5 h-5 text-yellow-600" />
-                          <span className="text-sm font-medium text-gray-700">
-                            再送待ち
-                          </span>
-                        </div>
-                        <p className="text-2xl font-bold text-yellow-600">
-                          {
-                            notificationFailures.filter(
-                              (f) => f.retry_scheduled,
-                            ).length
-                          }
-                        </p>
-                      </div>
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <RefreshCw className="w-5 h-5 text-blue-600" />
-                          <span className="text-sm font-medium text-gray-700">
-                            代替送信設定
-                          </span>
-                        </div>
-                        <p className="text-2xl font-bold text-blue-600">
-                          {
-                            notificationFailures.filter(
-                              (f) => f.fallback_enabled,
-                            ).length
-                          }
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 失敗ログ一覧 */}
-                    <div className="space-y-3">
-                      {notificationFailures.map((failure) => (
-                        <div
-                          key={failure.id}
-                          className="border border-red-200 rounded-lg p-4 bg-red-50"
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <AlertCircle className="w-5 h-5 text-red-600" />
-                                <h4 className="font-semibold text-gray-900">
-                                  {failure.patient_name}
-                                </h4>
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full ${
-                                    failure.channel === "line"
-                                      ? "bg-green-100 text-green-700"
-                                      : failure.channel === "email"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : "bg-purple-100 text-purple-700"
-                                  }`}
-                                >
-                                  {failure.channel === "line"
-                                    ? "LINE"
-                                    : failure.channel === "email"
-                                      ? "メール"
-                                      : "SMS"}
-                                </span>
-                              </div>
-                              <div className="text-sm text-gray-700 mb-2">
-                                <p className="mb-1">
-                                  <span className="font-medium">
-                                    失敗日時：
-                                  </span>
-                                  {failure.failed_at}
-                                </p>
-                                <p className="mb-1">
-                                  <span className="font-medium">
-                                    通知種類：
-                                  </span>
-                                  {failure.notification_type ===
-                                  "appointment_reminder"
-                                    ? "予約リマインド"
-                                    : failure.notification_type ===
-                                        "periodic_checkup"
-                                      ? "定期検診"
-                                      : failure.notification_type ===
-                                          "treatment_reminder"
-                                        ? "治療リマインド"
-                                        : "その他"}
-                                </p>
-                                <p>
-                                  <span className="font-medium">
-                                    エラー内容：
-                                  </span>
-                                  {failure.error_message}
-                                </p>
-                              </div>
-                              {failure.retry_count > 0 && (
-                                <p className="text-xs text-orange-600">
-                                  再送信試行回数：{failure.retry_count}回
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex flex-col gap-2 ml-4">
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  showConfirm("この通知を再送信しますか?", () => {
-                                    setNotificationFailures(
-                                      notificationFailures.filter(
-                                        (f) => f.id !== failure.id,
-                                      ),
-                                    );
-                                    showAlert("再送信を予定しました", "success");
-                                  });
-                                }}
-                              >
-                                <RefreshCw className="w-4 h-4 mr-1" />
-                                再送信
-                              </Button>
-                              {failure.fallback_channel && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    showConfirm(
-                                      `${failure.fallback_channel}で代替送信しますか?`,
-                                      () => {
-                                        setNotificationFailures(
-                                          notificationFailures.filter(
-                                            (f) => f.id !== failure.id,
-                                          ),
-                                        );
-                                        showAlert(
-                                          `${failure.fallback_channel}での送信を予定しました`,
-                                          "success"
-                                        );
-                                      }
-                                    );
-                                  }}
-                                >
-                                  <ArrowRight className="w-4 h-4 mr-1" />
-                                  {failure.fallback_channel}で送信
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  showConfirm("このエラーログを削除しますか?", () => {
-                                    setNotificationFailures(
-                                      notificationFailures.filter(
-                                        (f) => f.id !== failure.id,
-                                      ),
-                                    );
-                                  }, { isDanger: true, confirmText: "削除" });
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* 代替送信設定 */}
-                          {!failure.fallback_channel && (
-                            <div className="mt-3 pt-3 border-t border-red-300">
-                              <p className="text-xs text-gray-600 mb-2">
-                                代替送信チャンネルを選択：
-                              </p>
-                              <div className="flex gap-2">
-                                {["line", "email", "sms"]
-                                  .filter((ch) => ch !== failure.channel)
-                                  .map((channel) => (
-                                  <Button
-                                    key={channel}
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                        setNotificationFailures(
-                                          notificationFailures.map((f) =>
-                                        f.id === failure.id
-                                              ? {
-                                                  ...f,
-                                                  fallback_channel: channel,
-                                                  fallback_enabled: true,
-                                                }
-                                              : f,
-                                          ),
-                                        );
-                                      }}
-                                    >
-                                      {channel === "line"
-                                        ? "LINE"
-                                        : channel === "email"
-                                          ? "メール"
-                                          : "SMS"}
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* 一括操作 */}
-                    <div className="flex justify-end gap-2 pt-4 border-t">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          showConfirm("すべてのエラーログを削除しますか?", () => {
-                            setNotificationFailures([]);
-                          }, { isDanger: true, confirmText: "削除" });
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        すべて削除
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          showConfirm("失敗した通知をすべて再送信しますか?", () => {
-                            setNotificationFailures([]);
-                            showAlert("すべての通知を再送信予定に設定しました", "success");
-                          });
-                        }}
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        すべて再送信
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* リッチメニュータブ */}
             {notificationTab === "rich-menu" && (
               <div className="grid grid-cols-2 gap-6">
                 {/* 左側: 設定エリア */}
                 <div className="space-y-6">
-                  {/* リッチメニュー概要 */}
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                        <svg
-                          className="w-6 h-6 text-white"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                          推奨リッチメニュー構成
-                        </h3>
-                        <p className="text-sm text-gray-700 mb-3">
-                          歯科クリニックに最適な5つの機能を厳選しました
-                        </p>
-                        <div className="grid grid-cols-5 gap-2 text-xs">
-                          <div className="bg-white rounded p-2 text-center border border-blue-100">
-                            <div className="text-lg mb-1">📱</div>
-                            <div className="font-medium text-gray-700">
-                              QRコード
-                            </div>
-                          </div>
-                          <div className="bg-white rounded p-2 text-center border border-blue-100">
-                            <div className="text-lg mb-1">📅</div>
-                            <div className="font-medium text-gray-700">
-                              予約確認
-                            </div>
-                          </div>
-                          <div className="bg-white rounded p-2 text-center border border-blue-100">
-                            <div className="text-lg mb-1">👨‍👩‍👧</div>
-                            <div className="font-medium text-gray-700">
-                              家族登録
-                            </div>
-                          </div>
-                          <div className="bg-white rounded p-2 text-center border border-blue-100">
-                            <div className="text-lg mb-1">🌐</div>
-                            <div className="font-medium text-gray-700">
-                              Webサイト
-                            </div>
-                          </div>
-                          <div className="bg-white rounded p-2 text-center border border-blue-100">
-                            <div className="text-lg mb-1">💬</div>
-                            <div className="font-medium text-gray-700">
-                              お問合せ
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* ボタン設定 */}
                   <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -11580,6 +11909,11 @@ export default function SettingsPage() {
                                       ? "メッセージ"
                                       : "データ"}
                                 </label>
+                                {button.id === 4 && (
+                                  <p className="text-xs text-blue-600 mb-2">
+                                    ℹ️ WebサイトURLはクリニック設定タブで設定したURLが自動的に反映されます
+                                  </p>
+                                )}
                                 <input
                                   type="text"
                                   value={button.url}
@@ -11596,6 +11930,7 @@ export default function SettingsPage() {
                                         ? "予約したいです"
                                         : "action=booking"
                                   }
+                                  disabled={button.id === 4}
                                 />
                               </div>
                             </div>
@@ -11638,7 +11973,7 @@ export default function SettingsPage() {
                             id: 4,
                             label: "Webサイト",
                             action: "url",
-                            url: "https://clinic-website.com",
+                            url: clinicInfo.website_url || "",
                             icon: "web",
                           },
                           {
@@ -11647,6 +11982,13 @@ export default function SettingsPage() {
                             action: "message",
                             url: "お問い合わせ",
                             icon: "chat",
+                          },
+                          {
+                            id: 6,
+                            label: "予約を取る",
+                            action: "url",
+                            url: "/appointment",
+                            icon: "booking",
                           },
                         ]);
                         showAlert("デフォルト設定にリセットしました", "success");
@@ -11815,72 +12157,149 @@ export default function SettingsPage() {
                           </div>
                         </div>
 
-                        {/* トーク履歴 */}
-                        <div className="bg-gray-100 p-3 flex-1 overflow-y-auto">
-                          <div className="space-y-2">
+                        {/* トーク履歴エリア */}
+                        <div className="bg-[#E8F0F2] p-3 flex-1 overflow-y-auto relative">
+                          <div className="space-y-2 pb-16">
                             <div className="flex justify-start">
-                              <div className="bg-white rounded-xl rounded-tl-sm px-3 py-1.5 max-w-[70%] shadow-sm">
-                                <p className="text-[10px] text-gray-800">
-                                  こんにちは！ご予約ありがとうございます。
+                              <div className="bg-white rounded-2xl rounded-tl-none px-3 py-2 max-w-[70%] shadow-sm">
+                                <p className="text-[10px] text-gray-900 leading-relaxed">
+                                  こんにちは！<br/>ご予約ありがとうございます。
                                 </p>
                               </div>
                             </div>
                             <div className="flex justify-end">
-                              <div className="bg-[#00B900] rounded-xl rounded-tr-sm px-3 py-1.5 max-w-[70%] shadow-sm">
-                                <p className="text-[10px] text-white">
+                              <div className="bg-[#00B900] rounded-2xl rounded-tr-none px-3 py-2 max-w-[70%] shadow-sm">
+                                <p className="text-[10px] text-white leading-relaxed">
                                   よろしくお願いします
                                 </p>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* リッチメニュー */}
-                        <div className="border-t-2 border-gray-300 flex-shrink-0 bg-gradient-to-b from-gray-50 to-white">
-                          <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
-                            {/* 1段目: QRコード、予約確認、Webサイト */}
-                            <button className="h-[90px] bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border-blue-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
-                                📱
-                              </div>
+                          {/* リッチメニュー - トーク画面の上にオーバーレイ */}
+                          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+                            <div className="bg-gradient-to-b from-gray-100 to-gray-50 p-1.5">
+                          <div className="grid grid-cols-3 grid-rows-2 gap-2">
+                            {/* 左列を3段に分割 - リッチメニュー全体の高さを3等分 */}
+                            <div className="row-span-2 flex flex-col gap-2">
+                              {/* Webサイト (1段目) - アイコンなし、テキストのみ */}
+                              <button className="flex-1 bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border border-orange-200 transition-all duration-200 p-2 flex items-center justify-center active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                                <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                  Webサイト
+                                </span>
+                              </button>
+                              {/* 家族登録 (2段目) - アイコンなし、テキストのみ */}
+                              <button className="flex-1 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border border-purple-200 transition-all duration-200 p-2 flex items-center justify-center active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                                <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                  家族登録
+                                </span>
+                              </button>
+                              {/* お問合せ (3段目) - アイコンなし、テキストのみ */}
+                              <button className="flex-1 bg-gradient-to-br from-pink-50 to-pink-100 hover:from-pink-100 hover:to-pink-200 border border-pink-200 transition-all duration-200 p-2 flex items-center justify-center active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                                <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                  お問合せ
+                                </span>
+                              </button>
+                            </div>
+                            <button className="h-[90px] bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border border-blue-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                              <svg className="w-8 h-8" viewBox="0 0 100 100" fill="none">
+                                <rect x="20" y="20" width="60" height="60" fill="#1F2937"/>
+                                <rect x="24" y="24" width="52" height="52" fill="white"/>
+                                <rect x="28" y="28" width="16" height="16" fill="#1F2937"/>
+                                <rect x="30" y="30" width="12" height="12" fill="white"/>
+                                <rect x="34" y="34" width="4" height="4" fill="#1F2937"/>
+                                <rect x="56" y="28" width="16" height="16" fill="#1F2937"/>
+                                <rect x="58" y="30" width="12" height="12" fill="white"/>
+                                <rect x="62" y="34" width="4" height="4" fill="#1F2937"/>
+                                <rect x="28" y="56" width="16" height="16" fill="#1F2937"/>
+                                <rect x="30" y="58" width="12" height="12" fill="white"/>
+                                <rect x="34" y="62" width="4" height="4" fill="#1F2937"/>
+                                <rect x="56" y="56" width="3" height="3" fill="#1F2937"/>
+                                <rect x="61" y="56" width="3" height="3" fill="#1F2937"/>
+                                <rect x="66" y="56" width="3" height="3" fill="#1F2937"/>
+                                <rect x="56" y="61" width="3" height="3" fill="#1F2937"/>
+                                <rect x="66" y="61" width="3" height="3" fill="#1F2937"/>
+                                <rect x="56" y="66" width="3" height="3" fill="#1F2937"/>
+                                <rect x="61" y="66" width="3" height="3" fill="#1F2937"/>
+                                <rect x="66" y="66" width="3" height="3" fill="#1F2937"/>
+                              </svg>
                               <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
                                 QRコード
                               </span>
                             </button>
-                            <button className="h-[90px] bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 border-green-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
-                                📅
-                              </div>
+                            <button className="h-[90px] bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 border border-green-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-0.5 active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                              <svg className="w-8 h-8" viewBox="0 0 100 100" fill="none">
+                                <rect x="17" y="23" width="66" height="62" rx="4" fill="#1F2937"/>
+                                <rect x="17" y="23" width="66" height="14" fill="#1F2937"/>
+                                <circle cx="33" cy="30" r="3.5" fill="white" stroke="#1F2937" strokeWidth="2"/>
+                                <circle cx="50" cy="30" r="3.5" fill="white" stroke="#1F2937" strokeWidth="2"/>
+                                <circle cx="67" cy="30" r="3.5" fill="white" stroke="#1F2937" strokeWidth="2"/>
+                                <rect x="23" y="42" width="54" height="38" fill="white"/>
+                                <rect x="27" y="48" width="46" height="2" fill="#E5E7EB"/>
+                                <rect x="27" y="58" width="46" height="2" fill="#E5E7EB"/>
+                                <rect x="27" y="68" width="46" height="2" fill="#E5E7EB"/>
+                                <path d="M 28 54 L 32 58 L 40 48" stroke="#10B981" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
                               <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
                                 予約確認
                               </span>
-                            </button>
-                            <button className="h-[90px] bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-orange-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
-                                🌐
-                              </div>
-                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
-                                Webサイト
+                              <span className="text-[8px] font-semibold text-gray-500 leading-tight text-center">
+                                変更/キャンセル
                               </span>
                             </button>
-                            {/* 2段目: 家族登録、お問合せ（2枠分） */}
-                            <button className="h-[90px] bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border-purple-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
-                                👥
-                              </div>
+                            {/* 2段目: 予約を取る(2マス分) */}
+                            {/* 予約を取る - 2マス分 */}
+                            <button className="h-[90px] col-span-2 bg-gradient-to-br from-yellow-50 to-yellow-100 hover:from-yellow-100 hover:to-yellow-200 border border-yellow-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                              <svg className="w-8 h-8" viewBox="0 0 100 100" fill="none">
+                                <rect x="23" y="20" width="2" height="2" fill="rgba(0,0,0,0.1)" transform="translate(2, 2)"/>
+                                <rect x="23" y="20" width="54" height="60" rx="3" fill="#1F2937"/>
+                                <rect x="27" y="24" width="46" height="52" fill="white"/>
+                                <rect x="32" y="30" width="36" height="3" fill="#1F2937"/>
+                                <rect x="32" y="38" width="12" height="2" fill="#1F2937"/>
+                                <rect x="48" y="38" width="20" height="2" fill="#E5E7EB"/>
+                                <rect x="32" y="44" width="12" height="2" fill="#1F2937"/>
+                                <rect x="48" y="44" width="20" height="2" fill="#E5E7EB"/>
+                                <rect x="32" y="50" width="12" height="2" fill="#1F2937"/>
+                                <rect x="48" y="50" width="20" height="2" fill="#E5E7EB"/>
+                                <rect x="32" y="56" width="12" height="2" fill="#1F2937"/>
+                                <rect x="48" y="56" width="20" height="2" fill="#E5E7EB"/>
+                                <rect x="32" y="62" width="12" height="2" fill="#1F2937"/>
+                                <rect x="48" y="62" width="20" height="2" fill="#E5E7EB"/>
+                                <g transform="translate(64, 60) rotate(36)">
+                                  <rect x="-2" y="-20" width="4" height="24" rx="1" fill="#1F2937"/>
+                                  <polygon points="-2,4 0,9 2,4" fill="#FCD34D"/>
+                                  <line x1="2" y1="-15" x2="4" y2="-18" stroke="white" strokeWidth="1.2"/>
+                                </g>
+                              </svg>
                               <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
-                                家族登録
-                              </span>
-                            </button>
-                            <button className="col-span-2 h-[90px] bg-gradient-to-br from-pink-50 to-pink-100 hover:from-pink-100 hover:to-pink-200 border-pink-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 border-b-2 active:scale-95">
-                              <div className="w-8 h-8 flex items-center justify-center text-3xl drop-shadow-sm">
-                                💬
-                              </div>
-                              <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
-                                お問合せ
+                                予約を取る
                               </span>
                             </button>
                           </div>
+                        </div>
+                          </div>
+                        </div>
+
+                        {/* 入力欄 */}
+                        <div className="bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 flex-shrink-0">
+                          <button className="w-6 h-6 text-gray-500 flex items-center justify-center">
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2"/>
+                              <circle cx="8" cy="10" r="1.5"/>
+                              <circle cx="16" cy="10" r="1.5"/>
+                              <path d="M8 14 Q12 17 16 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                          <div className="flex-1 bg-gray-100 rounded-full px-4 py-1.5">
+                            <span className="text-[10px] text-gray-400">メッセージ</span>
+                          </div>
+                          <button className="w-6 h-6 text-gray-500 flex items-center justify-center">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10"/>
+                              <line x1="12" y1="8" x2="12" y2="16"/>
+                              <line x1="8" y1="12" x2="16" y2="12"/>
+                            </svg>
+                          </button>
                         </div>
                       </div>
                     </div>

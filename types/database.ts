@@ -965,6 +965,111 @@ export type Database = {
           updated_at?: string
         }
       }
+      line_invitation_codes: {
+        Row: {
+          id: string
+          clinic_id: string
+          patient_id: string
+          invitation_code: string
+          status: 'pending' | 'used' | 'expired'
+          expires_at: string
+          used_at: string | null
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          patient_id: string
+          invitation_code: string
+          status?: 'pending' | 'used' | 'expired'
+          expires_at: string
+          used_at?: string | null
+          created_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          patient_id?: string
+          invitation_code?: string
+          status?: 'pending' | 'used' | 'expired'
+          expires_at?: string
+          used_at?: string | null
+          created_by?: string
+          created_at?: string
+        }
+      }
+      line_patient_linkages: {
+        Row: {
+          id: string
+          line_user_id: string
+          patient_id: string
+          clinic_id: string
+          relationship: 'self' | 'parent' | 'spouse' | 'child' | 'other'
+          is_primary: boolean
+          linked_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          line_user_id: string
+          patient_id: string
+          clinic_id: string
+          relationship?: 'self' | 'parent' | 'spouse' | 'child' | 'other'
+          is_primary?: boolean
+          linked_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          line_user_id?: string
+          patient_id?: string
+          clinic_id?: string
+          relationship?: 'self' | 'parent' | 'spouse' | 'child' | 'other'
+          is_primary?: boolean
+          linked_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      patient_qr_codes: {
+        Row: {
+          id: string
+          patient_id: string
+          clinic_id: string
+          qr_token: string
+          expires_at: string | null
+          last_used_at: string | null
+          usage_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          clinic_id: string
+          qr_token: string
+          expires_at?: string | null
+          last_used_at?: string | null
+          usage_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          clinic_id?: string
+          qr_token?: string
+          expires_at?: string | null
+          last_used_at?: string | null
+          usage_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -1042,6 +1147,18 @@ export type TreatmentMenuUpdate = Database['public']['Tables']['treatment_menus'
 export type DailyMemo = Database['public']['Tables']['daily_memos']['Row']
 export type DailyMemoInsert = Database['public']['Tables']['daily_memos']['Insert']
 export type DailyMemoUpdate = Database['public']['Tables']['daily_memos']['Update']
+
+export type LineInvitationCode = Database['public']['Tables']['line_invitation_codes']['Row']
+export type LineInvitationCodeInsert = Database['public']['Tables']['line_invitation_codes']['Insert']
+export type LineInvitationCodeUpdate = Database['public']['Tables']['line_invitation_codes']['Update']
+
+export type LinePatientLinkage = Database['public']['Tables']['line_patient_linkages']['Row']
+export type LinePatientLinkageInsert = Database['public']['Tables']['line_patient_linkages']['Insert']
+export type LinePatientLinkageUpdate = Database['public']['Tables']['line_patient_linkages']['Update']
+
+export type PatientQRCode = Database['public']['Tables']['patient_qr_codes']['Row']
+export type PatientQRCodeInsert = Database['public']['Tables']['patient_qr_codes']['Insert']
+export type PatientQRCodeUpdate = Database['public']['Tables']['patient_qr_codes']['Update']
 
 // 拡張型定義（JOIN結果など）
 export type AppointmentWithPatient = Appointment & {
