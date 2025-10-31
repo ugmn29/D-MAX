@@ -11,10 +11,10 @@ import {
   User,
   CheckCircle,
   AlertCircle,
-  Eye,
-  EyeOff,
   ClipboardList,
-  Unlink
+  Unlink,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import {
   getLinkedQuestionnaireResponses,
@@ -31,6 +31,23 @@ interface QuestionnaireTabProps {
 
 type QuestionnaireType = 'display' | 'habit'
 
+// 患者情報フィールドのラベルマップ
+const patientFieldLabels: { [key: string]: string } = {
+  name: '氏名',
+  furigana_kana: 'フリガナ',
+  birth_date: '生年月日',
+  gender: '性別',
+  phone: '電話番号',
+  email: 'メールアドレス',
+  postal_code: '郵便番号',
+  address: '住所',
+  referral_source: '紹介元',
+  preferred_contact_method: '希望連絡方法',
+  allergies: 'アレルギー',
+  medical_history: '既往歴',
+  medications: '服用薬'
+}
+
 export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -43,8 +60,8 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
   const [questionnaireResponses, setQuestionnaireResponses] = useState<QuestionnaireResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedResponse, setExpandedResponse] = useState<string | null>(null)
   const [questionnaireDefinitions, setQuestionnaireDefinitions] = useState<Map<string, any>>(new Map())
+  const [expandedResponses, setExpandedResponses] = useState<Set<string>>(new Set())
 
   // URLパラメータが変更されたら activeType を更新
   useEffect(() => {
@@ -53,7 +70,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
 
   useEffect(() => {
     loadQuestionnaireResponses()
-  }, [patientId, activeType])
+  }, [patientId])
 
   // タブ切り替え時にURLを更新
   const handleTypeChange = (type: QuestionnaireType) => {
@@ -70,38 +87,43 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       // この患者に連携済みの問診票回答を取得
       const patientResponses = await getLinkedQuestionnaireResponses(patientId)
       console.log('連携済み問診票:', patientResponses)
+      console.log('連携済み問診票の件数:', patientResponses.length)
+      console.log('連携済み問診票の詳細:', patientResponses.map(r => ({
+        id: r.id,
+        questionnaire_id: r.questionnaire_id,
+        patient_id: r.patient_id,
+        response_data_keys: Object.keys(r.response_data || {})
+      })))
 
       // 問診票の定義を取得（質問IDから質問文を取得するため）
       // 仮のclinicIdを使用（実際の実装では適切なclinicIdを使用）
       const questionnaires = await getQuestionnaires('11111111-1111-1111-1111-111111111111')
+      console.log('問診票定義の取得:', questionnaires.length, '件')
 
       // 問診票IDをキーとして質問のマップを作成
       const questionMap = new Map()
       questionnaires.forEach(q => {
         const qMap = new Map()
-        q.questions.forEach((question: any) => {
-          qMap.set(question.id, question)
-        })
+        if (q.questions) {
+          q.questions.forEach((question: any) => {
+            qMap.set(question.id, question)
+          })
+        }
         questionMap.set(q.id, qMap)
+        console.log(`問診票 ${q.name} (${q.id}): ${q.questions?.length || 0}件の質問`)
       })
       setQuestionnaireDefinitions(questionMap)
 
       setQuestionnaireResponses(patientResponses)
 
-      // 最初の問診票をデフォルトで展開
-      if (patientResponses.length > 0 && !expandedResponse) {
-        setExpandedResponse(patientResponses[0].id)
-      }
+      // 全ての問診票をデフォルトで展開状態にする
+      // expandedResponseは使用しないので設定不要
     } catch (err) {
       console.error('問診票回答の読み込みエラー:', err)
       setError('問診票回答の読み込みに失敗しました')
     } finally {
       setLoading(false)
     }
-  }
-
-  const toggleExpanded = (responseId: string) => {
-    setExpandedResponse(expandedResponse === responseId ? null : responseId)
   }
 
   // 問診票の連携を解除
@@ -121,26 +143,76 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
     }
   }
 
+  // 折りたたみ状態を切り替え
+  const toggleExpanded = (responseId: string) => {
+    setExpandedResponses(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(responseId)) {
+        newSet.delete(responseId)
+      } else {
+        newSet.add(responseId)
+      }
+      return newSet
+    })
+  }
+
   const formatResponseData = (response: QuestionnaireResponse) => {
-    if (!response.response_data) return {}
+    if (!response.response_data) {
+      console.log('response_dataが空です:', response.id)
+      return []
+    }
 
     const data = response.response_data
-    const formattedData: { [key: string]: any } = {}
+
+    console.log('問診票回答データを整形中:', {
+      responseId: response.id,
+      questionnaireId: response.questionnaire_id,
+      dataKeys: Object.keys(data),
+      dataKeysCount: Object.keys(data).length
+    })
 
     // 問診票の定義を取得
     const questionDefinitions = questionnaireDefinitions.get(response.questionnaire_id)
+    console.log('問診票定義:', {
+      questionnaireId: response.questionnaire_id,
+      hasDefinitions: !!questionDefinitions,
+      definitionsCount: questionDefinitions?.size || 0
+    })
 
-    // 全ての回答をループして、質問文と回答をペアにする
-    Object.entries(data).forEach(([questionId, answer]) => {
-      // メタデータ（patient_name等）はスキップ
-      if (!questionId.startsWith('q')) return
+    // 質問定義を配列に変換してsort_orderでソート
+    const sortedQuestions: any[] = []
+    if (questionDefinitions) {
+      questionDefinitions.forEach((questionDef, questionId) => {
+        sortedQuestions.push({ ...questionDef, id: questionId })
+      })
+      sortedQuestions.sort((a, b) => a.sort_order - b.sort_order)
+    }
 
-      // 質問定義を取得
-      const questionDef = questionDefinitions?.get(questionId)
+    console.log('ソート済み質問:', sortedQuestions.map(q => ({
+      id: q.id,
+      text: q.question_text,
+      sort_order: q.sort_order
+    })))
 
-      if (questionDef) {
+    // ソートされた質問順序に従って回答を整形
+    const formattedDataArray: Array<{
+      questionId: string
+      questionText: string
+      sectionName: string
+      answer: any
+      sortOrder: number
+      linkedField?: string
+    }> = []
+
+    sortedQuestions.forEach((questionDef) => {
+      const questionId = questionDef.id
+      const answer = data[questionId]
+
+      // 回答がある場合のみ追加
+      if (answer !== undefined && answer !== null && answer !== '') {
         const questionText = questionDef.question_text
-        const sectionName = questionDef.section_name
+        const sectionName = questionDef.section_name || ''
+        const linkedField = questionDef.linked_field
 
         // 回答を整形
         let formattedAnswer = answer
@@ -150,16 +222,24 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
           formattedAnswer = answer.join(', ')
         }
 
-        // セクション名付きでキーを作成
-        const key = sectionName ? `【${sectionName}】${questionText}` : questionText
-        formattedData[key] = formattedAnswer || '（未回答）'
-      } else {
-        // 定義が見つからない場合はそのまま表示
-        formattedData[questionId] = answer
+        formattedDataArray.push({
+          questionId,
+          questionText,
+          sectionName,
+          answer: formattedAnswer || '（未回答）',
+          sortOrder: questionDef.sort_order,
+          linkedField
+        })
       }
     })
 
-    return formattedData
+    console.log('整形後のデータ:', {
+      responseId: response.id,
+      formattedDataCount: formattedDataArray.length,
+      formattedData: formattedDataArray
+    })
+
+    return formattedDataArray
   }
 
   const renderContent = () => {
@@ -188,7 +268,14 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
         <div className="text-center py-8">
           <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">問診票回答がありません</h3>
-          <p className="text-gray-500 mb-4">この患者に関連する問診票回答が見つかりませんでした。</p>
+          <p className="text-gray-500 mb-4">
+            この患者に連携された問診票回答が見つかりませんでした。
+            <br />
+            患者登録時に問診票が自動連携されます。
+          </p>
+          <div className="text-xs text-gray-400 mb-4">
+            患者ID: {patientId}
+          </div>
           <Button
             onClick={loadQuestionnaireResponses}
             variant="outline"
@@ -203,19 +290,29 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
     return (
       <div className="space-y-4">
         {questionnaireResponses.map((response) => {
-          const isExpanded = expandedResponse === response.id
           const formattedData = formatResponseData(response)
+          const isExpanded = expandedResponses.has(response.id)
 
           return (
             <Card key={response.id} className="border border-gray-200">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                  <div
+                    className="flex items-center space-x-3 flex-1 cursor-pointer"
+                    onClick={() => toggleExpanded(response.id)}
+                  >
                     <FileText className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <CardTitle className="text-base">
-                        問診票回答
-                      </CardTitle>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <CardTitle className="text-base">
+                          問診票回答
+                        </CardTitle>
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
                       <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1" />
@@ -249,78 +346,85 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                         <span className="text-xs">連携解除</span>
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleExpanded(response.id)}
-                      className="p-1"
-                    >
-                      {isExpanded ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </Button>
                   </div>
                 </div>
               </CardHeader>
 
               {isExpanded && (
                 <CardContent className="pt-0">
-                  <div className="space-y-6">
-                    {/* セクションごとにグループ化 */}
-                    {(() => {
-                      const sections = new Map<string, Array<[string, any]>>()
+                <div className="space-y-6">
+                  {/* セクションごとにグループ化（質問順序を保持） */}
+                  {(() => {
+                    // セクション名でグループ化しつつ、順序を保持
+                    const sections = new Map<string, Array<{
+                      questionText: string
+                      answer: any
+                      sortOrder: number
+                      linkedField?: string
+                    }>>()
 
-                      // セクションごとに質問をグループ化
-                      Object.entries(formattedData).forEach(([key, value]) => {
-                        const match = key.match(/^【(.+?)】(.+)$/)
-                        if (match) {
-                          const [, sectionName, questionText] = match
-                          if (!sections.has(sectionName)) {
-                            sections.set(sectionName, [])
-                          }
-                          sections.get(sectionName)!.push([questionText, value])
-                        } else {
-                          if (!sections.has('その他')) {
-                            sections.set('その他', [])
-                          }
-                          sections.get('その他')!.push([key, value])
-                        }
+                    formattedData.forEach((item) => {
+                      const sectionName = item.sectionName || 'その他'
+                      if (!sections.has(sectionName)) {
+                        sections.set(sectionName, [])
+                      }
+                      sections.get(sectionName)!.push({
+                        questionText: item.questionText,
+                        answer: item.answer,
+                        sortOrder: item.sortOrder,
+                        linkedField: item.linkedField
                       })
+                    })
 
-                      return Array.from(sections.entries()).map(([sectionName, questions]) => (
-                        <div key={sectionName} className="border-l-4 border-blue-500 pl-4">
-                          <h4 className="text-base font-semibold text-gray-900 mb-3">
-                            {sectionName}
-                          </h4>
-                          <div className="space-y-3">
-                            {questions.map(([questionText, answer], index) => (
-                              <div key={index} className="bg-white">
-                                <dt className="text-sm font-medium text-gray-700 mb-1">
-                                  {questionText}
-                                </dt>
-                                <dd className="text-sm text-gray-900 pl-4 py-2 bg-gray-50 rounded border-l-2 border-gray-300">
-                                  {typeof answer === 'string' ? answer : JSON.stringify(answer, null, 2)}
-                                </dd>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                    })()}
+                    // セクション内でsort_orderでソート（既にソート済みだが念のため）
+                    sections.forEach((questions, sectionName) => {
+                      questions.sort((a, b) => a.sortOrder - b.sortOrder)
+                    })
 
-                    {response.patient_id && (
-                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
-                          <span className="text-sm text-green-800">
-                            この問診票は患者情報と連携されています
-                          </span>
+                    // セクションを最初の質問のsort_orderでソート
+                    const sortedSections = Array.from(sections.entries()).sort((a, b) => {
+                      const aFirstOrder = a[1][0]?.sortOrder || 0
+                      const bFirstOrder = b[1][0]?.sortOrder || 0
+                      return aFirstOrder - bFirstOrder
+                    })
+
+                    return sortedSections.map(([sectionName, questions]) => (
+                      <div key={sectionName} className="border-l-4 border-blue-500 pl-4">
+                        <h4 className="text-base font-semibold text-gray-900 mb-3">
+                          {sectionName}
+                        </h4>
+                        <div className="space-y-3">
+                          {questions.map((item, index) => (
+                            <div key={index} className="bg-white">
+                              <dt className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                                <span>{item.questionText}</span>
+                                {item.linkedField && (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                    {patientFieldLabels[item.linkedField] || item.linkedField}と連携
+                                  </Badge>
+                                )}
+                              </dt>
+                              <dd className="text-sm text-gray-900 pl-4 py-2 bg-gray-50 rounded border-l-2 border-gray-300">
+                                {typeof item.answer === 'string' ? item.answer : JSON.stringify(item.answer, null, 2)}
+                              </dd>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    )}
-                  </div>
+                    ))
+                  })()}
+
+                  {response.patient_id && (
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                      <div className="flex items-center">
+                        <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                        <span className="text-sm text-green-800">
+                          この問診票は患者情報と連携されています
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 </CardContent>
               )}
             </Card>

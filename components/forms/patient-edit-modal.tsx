@@ -305,7 +305,7 @@ export function PatientEditModal({ isOpen, onClose, patient, onSave }: PatientEd
 
   const loadStaffData = async () => {
     try {
-      const staffData = await getStaff('clinic-1')
+      const staffData = await getStaff(DEMO_CLINIC_ID)
       setStaff(staffData)
       
       // 歯科医師をフィルタリング

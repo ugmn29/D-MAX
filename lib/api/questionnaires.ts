@@ -96,6 +96,19 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
   console.log('問診表取得成功 - マッピング後:', mappedData)
   console.log('問診表取得成功 - マッピング後件数:', mappedData.length)
 
+  // 初診問診票の質問を詳細ログ
+  const initialQuestionnaire = mappedData.find((q: any) => q.name === '初診問診票')
+  if (initialQuestionnaire) {
+    console.log('初診問診票の質問詳細:', {
+      questionCount: initialQuestionnaire.questions.length,
+      first5Questions: initialQuestionnaire.questions.slice(0, 5).map((q: any) => ({
+        id: q.id,
+        text: q.question_text,
+        sort_order: q.sort_order
+      }))
+    })
+  }
+
   return mappedData
 }
 
@@ -361,14 +374,34 @@ export async function createQuestionnaireResponse(responseData: {
 
 /**
  * 未連携の問診票回答を取得
+ * patient_idがnull、または患者が仮登録状態(is_registered=false)の問診票を取得
  */
 export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Promise<QuestionnaireResponse[]> {
   if (MOCK_MODE) {
     try {
-      const responses = JSON.parse(localStorage.getItem('questionnaire_responses') || '[]')
+      const responsesStr = localStorage.getItem('questionnaire_responses') || '[]'
+      console.log('MOCK_MODE: localStorageから取得した生データ:', responsesStr)
+      const responses = JSON.parse(responsesStr)
+      console.log('MOCK_MODE: パース後の全問診票:', {
+        count: responses.length,
+        responses: responses.map((r: QuestionnaireResponse) => ({
+          id: r.id,
+          patient_id: r.patient_id,
+          name: r.response_data?.patient_name || r.response_data?.['q1-1'] || '名前なし',
+          phone: r.response_data?.patient_phone || r.response_data?.['q1-10'] || '電話なし'
+        }))
+      })
       // patient_idがnullまたは未定義のものを未連携として扱う
       const unlinked = responses.filter((r: QuestionnaireResponse) => !r.patient_id)
-      console.log('MOCK_MODE: 未連携問診票取得成功', { count: unlinked.length, responses: unlinked })
+      console.log('MOCK_MODE: 未連携問診票取得成功', {
+        count: unlinked.length,
+        unlinked: unlinked.map((r: QuestionnaireResponse) => ({
+          id: r.id,
+          patient_id: r.patient_id,
+          name: r.response_data?.patient_name || r.response_data?.['q1-1'] || '名前なし',
+          phone: r.response_data?.patient_phone || r.response_data?.['q1-10'] || '電話なし'
+        }))
+      })
       return unlinked
     } catch (error) {
       console.error('MOCK_MODE: 未連携問診票取得エラー', error)
@@ -377,29 +410,58 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
   }
 
   const client = getSupabaseClient()
-  const query = client
+
+  console.log('🔍 未連携問診票取得開始 - clinicId:', clinicId)
+
+  // 1. patient_idがnullの問診票を取得
+  const { data: nullPatientResponses, error: nullError } = await client
     .from('questionnaire_responses')
     .select('*')
     .is('patient_id', null)
     .order('created_at', { ascending: false })
 
-  if (clinicId) {
-    // questionnairesテーブルと結合してクリニックIDでフィルタ
-    const { data, error } = await query
-    if (error) {
-      console.error('未連携問診票取得エラー:', error)
-      throw error
-    }
-    return data || []
+  if (nullError) {
+    console.error('❌ patient_id=nullの問診票取得エラー:', nullError)
+    throw nullError
   }
 
-  const { data, error } = await query
-  if (error) {
-    console.error('未連携問診票取得エラー:', error)
-    throw error
+  console.log('✅ patient_id=nullの問診票:', nullPatientResponses?.length || 0, '件')
+
+  // 2. 仮登録患者(is_registered=false)に紐づいている問診票を取得
+  const { data: tempPatientResponses, error: tempError } = await client
+    .from('questionnaire_responses')
+    .select(`
+      *,
+      patients!inner (
+        id,
+        is_registered
+      )
+    `)
+    .eq('patients.is_registered', false)
+    .not('patient_id', 'is', null)
+    .order('created_at', { ascending: false })
+
+  if (tempError) {
+    console.error('❌ 仮登録患者の問診票取得エラー:', tempError)
+    throw tempError
   }
 
-  return data || []
+  console.log('✅ 仮登録患者の問診票:', tempPatientResponses?.length || 0, '件')
+
+  // 3. 両方を結合（重複を除外）
+  const allResponses = [
+    ...(nullPatientResponses || []),
+    ...(tempPatientResponses || [])
+  ]
+
+  // IDで重複を除外
+  const uniqueResponses = Array.from(
+    new Map(allResponses.map(r => [r.id, r])).values()
+  )
+
+  console.log('📦 未連携問診票合計:', uniqueResponses.length, '件')
+
+  return uniqueResponses
 }
 
 /**
@@ -422,14 +484,21 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
 
         const medicalData: any = {}
 
-        // 診察券番号を自動生成
+        // 既存の患者情報を取得
         const patients = getMockPatients()
-        const clinicId = '11111111-1111-1111-1111-111111111111'
-        const patientNumber = generatePatientNumber(clinicId, patients)
-        medicalData.patient_number = patientNumber
+        const existingPatient = patients.find(p => p.id === patientId)
 
-        // 本登録完了フラグを設定
-        medicalData.is_registered = true
+        // 診察券番号を設定（既に持っている場合は保持、持っていない場合は生成）
+        if (existingPatient && !existingPatient.patient_number) {
+          const clinicId = '11111111-1111-1111-1111-111111111111'
+          const patientNumber = generatePatientNumber(clinicId, patients)
+          medicalData.patient_number = patientNumber
+        }
+
+        // 本登録完了フラグを設定（既に本登録済みの場合は上書きしない）
+        if (existingPatient && !existingPatient.is_registered) {
+          medicalData.is_registered = true
+        }
 
         // アレルギー情報を取得
         // 初診問診票の場合:
@@ -518,15 +587,129 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
   }
 
   const client = getSupabaseClient()
-  const { error } = await client
+
+  // 1. 問診票のpatient_idを更新
+  const { error: linkError } = await client
     .from('questionnaire_responses')
     .update({ patient_id: patientId, updated_at: new Date().toISOString() })
     .eq('id', responseId)
 
-  if (error) {
-    console.error('問診票連携エラー:', error)
-    throw error
+  if (linkError) {
+    console.error('問診票連携エラー:', linkError)
+    throw linkError
   }
+
+  // 2. 問診票の回答データを取得
+  const { data: responseData, error: fetchError } = await client
+    .from('questionnaire_responses')
+    .select('response_data, questionnaire_id')
+    .eq('id', responseId)
+    .single()
+
+  if (fetchError) {
+    console.error('問診票データ取得エラー:', fetchError)
+    throw fetchError
+  }
+
+  // 3. 問診票の質問定義を取得（linked_fieldを確認するため）
+  const { data: questionnaireData, error: questionnaireError } = await client
+    .from('questionnaires')
+    .select('questionnaire_questions(*)')
+    .eq('id', responseData.questionnaire_id)
+    .single()
+
+  if (questionnaireError) {
+    console.error('問診票定義取得エラー:', questionnaireError)
+    throw questionnaireError
+  }
+
+  // 4. linked_fieldに基づいて患者情報を抽出
+  const patientUpdate: any = {
+    is_registered: true,
+    updated_at: new Date().toISOString()
+  }
+
+  const questions = questionnaireData.questionnaire_questions || []
+  const answers = responseData.response_data || {}
+
+  console.log('問診票回答データから患者情報を抽出:', { questionCount: questions.length, answerKeys: Object.keys(answers).length })
+
+  questions.forEach((question: any) => {
+    const { id: questionId, linked_field } = question
+    const answer = answers[questionId]
+
+    if (linked_field && answer !== undefined && answer !== null && answer !== '') {
+      console.log(`linked_field: ${linked_field} = ${answer}`)
+
+      switch (linked_field) {
+        case 'name':
+          // 氏名は既に設定されている場合はスキップ（姓名分割済みのため）
+          break
+        case 'furigana_kana':
+          // フリガナも既に設定されている場合はスキップ
+          break
+        case 'birth_date':
+          patientUpdate.birth_date = answer
+          break
+        case 'gender':
+          patientUpdate.gender = answer
+          break
+        case 'phone':
+          patientUpdate.phone = answer
+          break
+        case 'email':
+          patientUpdate.email = answer
+          break
+        case 'postal_code':
+          patientUpdate.postal_code = answer
+          break
+        case 'address':
+          patientUpdate.address = answer
+          break
+        case 'referral_source':
+          patientUpdate.referral_source = answer
+          break
+        case 'preferred_contact_method':
+          patientUpdate.preferred_contact_method = answer
+          break
+        case 'allergies':
+          // アレルギー情報の処理
+          if (Array.isArray(answer)) {
+            patientUpdate.allergies = answer.join(', ')
+          } else if (answer === 'ない') {
+            patientUpdate.allergies = 'なし'
+          } else {
+            patientUpdate.allergies = answer
+          }
+          break
+        case 'medical_history':
+          // 既往歴情報の処理
+          if (Array.isArray(answer)) {
+            patientUpdate.medical_history = answer.join(', ')
+          } else if (answer === 'ない' || answer.includes('なし')) {
+            patientUpdate.medical_history = 'なし'
+          } else {
+            patientUpdate.medical_history = answer
+          }
+          break
+      }
+    }
+  })
+
+  console.log('抽出した患者情報:', patientUpdate)
+
+  // 5. 患者情報を更新
+  const { error: patientError } = await client
+    .from('patients')
+    .update(patientUpdate)
+    .eq('id', patientId)
+
+  if (patientError) {
+    console.error('患者情報更新エラー:', patientError)
+    throw patientError
+  }
+
+  console.log('問診票連携完了 - 患者情報を更新:', patientId)
 }
 
 /**
@@ -594,14 +777,21 @@ export async function getLinkedQuestionnaireResponse(patientId: string): Promise
     .eq('patient_id', patientId)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
 
   if (error) {
-    console.error('連携済み問診票取得エラー:', error)
+    console.error('連携済み問診票取得エラー詳細:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      patientId: patientId,
+      appointmentId: appointmentId
+    })
     return null
   }
 
-  return data
+  // データが0件の場合はnull、1件の場合はその要素を返す
+  return data && data.length > 0 ? data[0] : null
 }
 
 /**

@@ -207,129 +207,174 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
       console.log('BasicInfoTab: 患者データを取得しました', patientData)
 
-      // 問診票の情報を取得（住所、アレルギー、既往歴）
+      // 問診票の情報を取得（linked_fieldを使用して自動転記）
       try {
-        const questionnaireResponse = await getLinkedQuestionnaireResponse(patientId)
-        if (questionnaireResponse) {
-          const responseData = questionnaireResponse.response_data
+        // 全ての連携済み問診票を取得
+        const { getLinkedQuestionnaireResponses } = await import('@/lib/api/questionnaires')
+        const questionnaireResponses = await getLinkedQuestionnaireResponses(patientId)
+
+        console.log('連携済み問診票を取得:', questionnaireResponses.length, '件')
+
+        if (questionnaireResponses && questionnaireResponses.length > 0) {
+          // 最新の問診票を使用
+          const latestResponse = questionnaireResponses[0]
+          const responseData = latestResponse.response_data
+          const questionnaireId = latestResponse.questionnaire_id
+
           console.log('問診票データ全体:', responseData)
+          console.log('問診票ID:', questionnaireId)
 
-          // 問診票から情報を抽出
-          // 初診問診票の場合:
-          // q1-5: 郵便番号
-          // q1-6: 住所
-          // q1-9: 携帯電話番号
-          // q1-10: Eメールアドレス
-          // q1-11: 来院のきっかけ（配列）
+          // 問診票の定義を取得（linked_fieldを確認するため）
+          const { getQuestionnaires } = await import('@/lib/api/questionnaires')
+          const questionnaires = await getQuestionnaires(DEMO_CLINIC_ID)
+          const questionnaire = questionnaires.find(q => q.id === questionnaireId)
 
-          const postalCode = responseData['q1-5'] || ''
-          const address = responseData['q1-6'] || ''
-          const phone = responseData['q1-9'] || ''
-          const email = responseData['q1-10'] || ''
-          const visitReason = responseData['q1-11'] || []
+          if (questionnaire && questionnaire.questions) {
+            console.log('問診票定義を取得:', questionnaire.name, '質問数:', questionnaire.questions.length)
 
-          // 郵便番号と住所を統合
-          const fullAddress = [postalCode, address]
-            .filter(part => part && part.trim() !== '')
-            .join(' ')
+            // linked_fieldに基づいて患者情報を抽出
+            questionnaire.questions.forEach((question: any) => {
+              const questionId = question.id
+              const linkedField = question.linked_field
+              const answer = responseData[questionId]
 
-          // 患者データに反映
-          if (fullAddress) {
-            patientData.address = fullAddress
-          }
-          if (phone) {
-            patientData.phone = phone
-          }
-          // メールアドレスは明示的に設定（空文字列も含む）
-          patientData.email = email
+              if (linkedField && answer !== undefined && answer !== null && answer !== '') {
+                console.log(`連携フィールド発見: ${linkedField} = ${answer}`)
 
-          // 来院理由を患者データに追加（配列を文字列に変換）
-          if (Array.isArray(visitReason) && visitReason.length > 0) {
-            patientData.visit_reason = visitReason.join('、')
-          } else if (typeof visitReason === 'string' && visitReason) {
-            // 文字列の場合もサポート
-            patientData.visit_reason = visitReason
-          }
-
-          // アレルギー情報を取得
-          let allergiesInfo = ''
-          if (responseData.allergies) {
-            allergiesInfo = responseData.allergies
-          } else if (responseData['q1-19'] === 'ある' && responseData['q1-19b']) {
-            allergiesInfo = responseData['q1-19b']
-          } else if (responseData['q1-19'] === 'ない') {
-            allergiesInfo = 'なし'
-          }
-
-          if (allergiesInfo) {
-            patientData.allergies = allergiesInfo
-          }
-
-          // 既往歴（持病・通院中の病気）を取得
-          let medicalHistoryInfo = ''
-          if (responseData.medical_history) {
-            medicalHistoryInfo = responseData.medical_history
-          } else if (responseData['q1-23'] === 'ある' && responseData['q1-23b']) {
-            // q1-23bが配列の場合は結合
-            if (Array.isArray(responseData['q1-23b'])) {
-              medicalHistoryInfo = responseData['q1-23b'].join('、')
-            } else {
-              medicalHistoryInfo = responseData['q1-23b']
-            }
-          } else if (responseData['q1-23'] === 'ない') {
-            medicalHistoryInfo = 'なし'
-          }
-
-          if (medicalHistoryInfo) {
-            patientData.medical_history = medicalHistoryInfo
-          }
-
-          // 服用薬情報を取得
-          let medicationsInfo = ''
-          // 問診票の質問を探す（質問テキストで検索）
-          for (const key in responseData) {
-            const value = responseData[key]
-            // 「現在服用しているお薬」の回答をチェック
-            if (key.includes('現在服用') || key.includes('薬')) {
-              if (value === 'ある' || value === 'あり') {
-                // 薬剤名の詳細を探す
-                const detailKeys = Object.keys(responseData).filter(k =>
-                  k.includes('薬剤名') || k.includes('お薬手帳') || k.includes('点滴') || k.includes('注射')
-                )
-                if (detailKeys.length > 0) {
-                  medicationsInfo = responseData[detailKeys[0]]
-                } else {
-                  medicationsInfo = 'あり（詳細未記入）'
+                switch (linkedField) {
+                  case 'birth_date':
+                    patientData.birth_date = answer
+                    console.log('生年月日を設定:', answer)
+                    break
+                  case 'gender':
+                    patientData.gender = answer
+                    console.log('性別を設定:', answer)
+                    break
+                  case 'phone':
+                    patientData.phone = answer
+                    console.log('電話番号を設定:', answer)
+                    break
+                  case 'email':
+                    patientData.email = answer
+                    console.log('メールアドレスを設定:', answer)
+                    break
+                  case 'postal_code':
+                    // 郵便番号は住所の一部として扱う
+                    const currentAddress = (patientData as any).address || ''
+                    if (!currentAddress.includes(answer)) {
+                      (patientData as any).postal_code = answer
+                    }
+                    console.log('郵便番号を設定:', answer)
+                    break
+                  case 'address':
+                    // 郵便番号が既にある場合は結合
+                    const postalCode = (patientData as any).postal_code || ''
+                    const fullAddress = postalCode ? `${postalCode} ${answer}` : answer
+                    patientData.address = fullAddress
+                    console.log('住所を設定:', fullAddress)
+                    break
+                  case 'referral_source':
+                    // 来院理由として設定
+                    if (Array.isArray(answer)) {
+                      (patientData as any).visit_reason = answer.join('、')
+                    } else {
+                      (patientData as any).visit_reason = answer
+                    }
+                    console.log('来院理由を設定:', answer)
+                    break
+                  case 'preferred_contact_method':
+                    // 希望連絡方法を設定
+                    // 配列の場合は最初の要素を使用
+                    let contactMethod = Array.isArray(answer) ? answer[0] : answer
+                    // 値を小文字に正規化（表示用の値に合わせる）
+                    if (contactMethod === 'LINE') contactMethod = 'line'
+                    else if (contactMethod === 'メール' || contactMethod === 'Email') contactMethod = 'email'
+                    else if (contactMethod === 'SMS') contactMethod = 'sms'
+                    (patientData as any).preferred_contact_method = contactMethod
+                    console.log('希望連絡方法を設定:', (patientData as any).preferred_contact_method)
+                    break
+                  case 'allergies':
+                    if (Array.isArray(answer)) {
+                      patientData.allergies = answer.join(', ')
+                    } else if (answer === 'ない' || answer === 'なし') {
+                      patientData.allergies = 'なし'
+                    } else {
+                      patientData.allergies = answer
+                    }
+                    console.log('アレルギーを設定:', patientData.allergies)
+                    break
+                  case 'medical_history':
+                    if (Array.isArray(answer)) {
+                      patientData.medical_history = answer.join('、')
+                    } else if (answer === 'ない' || answer === 'なし') {
+                      patientData.medical_history = 'なし'
+                    } else {
+                      patientData.medical_history = answer
+                    }
+                    console.log('既往歴を設定:', patientData.medical_history)
+                    break
+                  case 'medications':
+                    if (Array.isArray(answer)) {
+                      (patientData as any).medications = answer.join('、')
+                    } else if (answer === 'ない' || answer === 'なし') {
+                      (patientData as any).medications = 'なし'
+                    } else {
+                      (patientData as any).medications = answer
+                    }
+                    console.log('服用薬を設定:', (patientData as any).medications)
+                    break
                 }
-                break
-              } else if (value === 'ない' || value === 'なし') {
-                medicationsInfo = 'なし'
-                break
               }
+            })
+
+            console.log('問診票から転記完了:', {
+              birth_date: patientData.birth_date,
+              gender: patientData.gender,
+              phone: patientData.phone,
+              email: patientData.email,
+              address: patientData.address,
+              visit_reason: (patientData as any).visit_reason,
+              preferred_contact_method: (patientData as any).preferred_contact_method,
+              allergies: patientData.allergies,
+              medical_history: patientData.medical_history,
+              medications: (patientData as any).medications
+            })
+
+            // 問診票から転記したデータをデータベースに自動保存
+            try {
+              const { updatePatient } = await import('@/lib/api/patients')
+              const updateData: any = {}
+
+              // 転記されたフィールドのみ更新
+              if (patientData.birth_date) updateData.birth_date = patientData.birth_date
+              if (patientData.gender) updateData.gender = patientData.gender
+              if (patientData.phone) updateData.phone = patientData.phone
+              if (patientData.email) updateData.email = patientData.email
+              if (patientData.address) updateData.address = patientData.address
+              if ((patientData as any).preferred_contact_method) {
+                updateData.preferred_contact_method = (patientData as any).preferred_contact_method
+              }
+              if (patientData.allergies) updateData.allergies = patientData.allergies
+              if (patientData.medical_history) updateData.medical_history = patientData.medical_history
+
+              // 更新するデータがある場合のみDBに保存
+              if (Object.keys(updateData).length > 0) {
+                console.log('問診票データをDBに自動保存:', updateData)
+                await updatePatient(DEMO_CLINIC_ID, patientId, updateData)
+                console.log('問診票データの自動保存完了')
+              }
+            } catch (saveError) {
+              console.error('問診票データの自動保存エラー:', saveError)
+              // 保存に失敗してもページの表示は続行
             }
+          } else {
+            console.log('問診票定義が見つかりません')
           }
-
-          // 代替: responseData.medicationsが存在する場合
-          if (!medicationsInfo && responseData.medications) {
-            medicationsInfo = responseData.medications
-          }
-
-          if (medicationsInfo) {
-            patientData.medications = medicationsInfo
-          }
-
-          console.log('問診票から情報を取得:', {
-            postalCode,
-            address,
-            fullAddress,
-            allergies: allergiesInfo,
-            medicalHistory: medicalHistoryInfo,
-            medications: medicationsInfo,
-            keys: Object.keys(responseData)
-          })
+        } else {
+          console.log('連携済み問診票がありません')
         }
       } catch (questionnaireError) {
-        console.log('問診票の情報取得エラー（無視）:', questionnaireError)
+        console.error('問診票の情報取得エラー:', questionnaireError)
         // 問診票の取得に失敗しても患者データの読み込みは続行
       }
 
@@ -418,7 +463,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
   const loadStaffData = async () => {
     try {
-      const staffData = await getStaff('clinic-1')
+      const staffData = await getStaff(DEMO_CLINIC_ID)
       setStaff(staffData)
       
       // 歯科医師をフィルタリング（役職名で判定）
@@ -923,7 +968,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     <SelectValue placeholder="選択してください" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">指定なし</SelectItem>
+                    <SelectItem value="none">指定なし</SelectItem>
                     <SelectItem value="line">LINE</SelectItem>
                     <SelectItem value="email">メール</SelectItem>
                     <SelectItem value="sms">SMS</SelectItem>
@@ -935,7 +980,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     {editData.preferred_contact_method === 'line' && 'LINE'}
                     {editData.preferred_contact_method === 'email' && 'メール'}
                     {editData.preferred_contact_method === 'sms' && 'SMS'}
-                    {!editData.preferred_contact_method && '--'}
+                    {(!editData.preferred_contact_method || editData.preferred_contact_method === 'none') && '--'}
                   </div>
                 </div>
               )}

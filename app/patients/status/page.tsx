@@ -14,6 +14,7 @@ import { ja } from 'date-fns/locale'
 import { getAppointments, updateAppointmentStatus } from '@/lib/api/appointments'
 import { getStaff } from '@/lib/api/staff'
 import { Staff } from '@/types/database'
+import { startAutoStatusUpdateTimer } from '@/lib/utils/auto-status-update'
 
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
@@ -40,6 +41,21 @@ export default function PatientStatusPage() {
   useEffect(() => {
     loadData()
   }, [selectedDate, selectedStaff])
+
+  // 自動ステータス更新タイマー（30秒ごとに遅刻チェック）
+  useEffect(() => {
+    const cleanup = startAutoStatusUpdateTimer(
+      () => appointments,
+      DEMO_CLINIC_ID,
+      async () => {
+        // ステータス更新後、予約データを再読み込み
+        await loadData()
+      }
+    )
+
+    // コンポーネントのアンマウント時にタイマーをクリア
+    return cleanup
+  }, [selectedDate, selectedStaff, appointments])
 
   const loadData = async () => {
     try {

@@ -186,7 +186,13 @@ export async function getStaff(clinicId: string): Promise<Staff[]> {
       .order('name')
 
     if (error) {
-      console.error('スタッフ取得エラー:', error)
+      console.error('スタッフ取得エラー詳細:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        clinicId: clinicId
+      })
       throw error
     }
 

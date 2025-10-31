@@ -21,6 +21,8 @@ import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { getAppointments } from '@/lib/api/appointments'
 
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+
 interface Appointment {
   id: string
   patient_id: string
@@ -143,7 +145,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
       console.log('AppointmentsTab: 予約履歴を読み込み中', { patientId })
       
       // 予約編集モーダルと同じ方法で予約データを取得
-      const allAppointments = await getAppointments('clinic-1')
+      const allAppointments = await getAppointments(DEMO_CLINIC_ID)
       console.log('AppointmentsTab: 取得した全予約データ:', allAppointments)
       
       // この患者の予約履歴をフィルタリング（予約編集モーダルと同じロジック）

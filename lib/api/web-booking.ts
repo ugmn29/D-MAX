@@ -179,7 +179,7 @@ export async function getAvailableSlots(
       }
 
       // 休憩時間を取得
-      const dayBreakTimes = breakTimes[dayOfWeek] || []
+      const dayBreakTimes = Array.isArray(breakTimes?.[dayOfWeek]) ? breakTimes[dayOfWeek] : []
 
       // 各診療時間枠について
       for (const timeSlot of dayBusinessHours.timeSlots) {

@@ -185,7 +185,14 @@ export async function getAppointments(
     throw new Error('予約データの取得に失敗しました')
   }
 
-  return data || []
+  // 時間フィールドから秒数を削除 (HH:MM:SS -> HH:MM)
+  const appointments = (data || []).map(appointment => ({
+    ...appointment,
+    start_time: appointment.start_time?.slice(0, 5) || appointment.start_time,
+    end_time: appointment.end_time?.slice(0, 5) || appointment.end_time
+  }))
+
+  return appointments
 }
 
 /**
@@ -235,6 +242,15 @@ export async function getAppointmentById(
     }
     console.error('予約詳細取得エラー:', error)
     throw new Error('予約情報の取得に失敗しました')
+  }
+
+  // 時間フィールドから秒数を削除 (HH:MM:SS -> HH:MM)
+  if (data) {
+    return {
+      ...data,
+      start_time: data.start_time?.slice(0, 5) || data.start_time,
+      end_time: data.end_time?.slice(0, 5) || data.end_time
+    }
   }
 
   return data
@@ -355,8 +371,18 @@ export async function createAppointment(
 
   const newAppointment: AppointmentInsert = {
     ...appointmentData,
-    clinic_id: clinicId
+    clinic_id: clinicId,
+    // 空文字列のUUIDをnullに変換
+    menu1_id: appointmentData.menu1_id || null,
+    menu2_id: appointmentData.menu2_id || null,
+    menu3_id: appointmentData.menu3_id || null,
+    staff1_id: appointmentData.staff1_id || null,
+    staff2_id: appointmentData.staff2_id || null,
+    staff3_id: appointmentData.staff3_id || null,
+    unit_id: appointmentData.unit_id || null
   }
+
+  console.log('予約作成データ:', JSON.stringify(newAppointment, null, 2))
 
   const client = getSupabaseClient()
   const { data, error } = await client
@@ -366,8 +392,13 @@ export async function createAppointment(
     .single()
 
   if (error) {
-    console.error('予約作成エラー:', error)
-    throw new Error('予約の登録に失敗しました')
+    console.error('予約作成エラー詳細:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    })
+    throw new Error(`予約の登録に失敗しました: ${error.message}`)
   }
 
   return data

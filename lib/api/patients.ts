@@ -230,22 +230,28 @@ export async function createPatient(
   if (MOCK_MODE) {
     // モックモードの場合
     const { getMockPatients, addMockPatient } = await import('@/lib/utils/mock-mode')
-    
-    // 新しい患者番号を生成
-    const existingPatients = getMockPatients()
-    const maxNumber = existingPatients.length > 0 
-      ? Math.max(...existingPatients.map(p => p.patient_number || 0))
-      : 0
-    const patientNumber = maxNumber + 1
+
+    // is_registeredを判定
+    const isRegistered = patientData.is_registered !== undefined
+      ? patientData.is_registered
+      : (patientData.patient_number ? true : false)
+
+    // 本登録の場合のみ患者番号を生成
+    let patientNumber = null
+    if (isRegistered) {
+      const existingPatients = getMockPatients()
+      const maxNumber = existingPatients.length > 0
+        ? Math.max(...existingPatients.map(p => p.patient_number || 0))
+        : 0
+      patientNumber = maxNumber + 1
+    }
 
     const newPatient = {
       id: `patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       clinic_id: clinicId,
       ...patientData,
-      // patientDataのis_registeredを優先、なければpatient_numberの有無で判定
-      is_registered: patientData.is_registered !== undefined 
-        ? patientData.is_registered 
-        : (patientData.patient_number ? true : false),
+      patient_number: patientNumber,
+      is_registered: isRegistered,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -254,14 +260,33 @@ export async function createPatient(
   }
 
   // 通常モードの場合
+  // is_registeredを判定
+  const isRegistered = patientData.is_registered !== undefined
+    ? patientData.is_registered
+    : (patientData.patient_number ? true : false)
+
+  // 本登録の場合のみ患者番号を生成
+  let patientNumber = null
+  if (isRegistered) {
+    if (patientData.patient_number) {
+      patientNumber = patientData.patient_number
+    } else {
+      patientNumber = await generatePatientNumber(clinicId)
+    }
+  }
+
   const newPatient: PatientInsert = {
     ...patientData,
     clinic_id: clinicId,
-    // patientDataのis_registeredを優先
-    is_registered: patientData.is_registered !== undefined 
-      ? patientData.is_registered 
-      : (patientData.patient_number ? true : false)
+    patient_number: patientNumber,
+    // 空文字列をnullに変換（日付型・ENUM型フィールド対策）
+    birth_date: patientData.birth_date || null,
+    email: patientData.email || null,
+    gender: patientData.gender || null,
+    is_registered: isRegistered
   }
+
+  console.log('患者作成データ:', JSON.stringify(newPatient, null, 2))
 
   const client = getSupabaseClient()
   const { data, error } = await client
@@ -271,8 +296,15 @@ export async function createPatient(
     .single()
 
   if (error) {
-    console.error('患者作成エラー:', error)
-    throw new Error('患者の登録に失敗しました')
+    console.error('患者作成エラー詳細:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      patient_number: patientNumber,
+      clinic_id: clinicId
+    })
+    throw new Error(`患者の登録に失敗しました: ${error.message}`)
   }
 
   return data
@@ -324,8 +356,15 @@ export async function updatePatient(
     .single()
 
   if (error) {
-    console.error('患者更新エラー:', error)
-    throw new Error('患者情報の更新に失敗しました')
+    console.error('患者更新エラー詳細:', {
+      error,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      patientData
+    })
+    throw new Error(`患者情報の更新に失敗しました: ${error.message}`)
   }
 
   return data
@@ -391,7 +430,9 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
   linkedPatients: any[]
 }> {
   const client = getSupabaseClient()
-  
+
+  console.log('🔍 連携状況データ取得開始 - clinicId:', clinicId)
+
   try {
     // 仮登録患者（未連携）を取得
     const { data: unlinkedPatients, error: unlinkedError } = await client
@@ -414,6 +455,11 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
 
     if (unlinkedError) {
       console.error('未連携患者取得エラー:', unlinkedError)
+    }
+
+    console.log('✅ 未連携患者取得:', unlinkedPatients?.length || 0, '件')
+    if (unlinkedPatients && unlinkedPatients.length > 0) {
+      console.log('未連携患者サンプル:', unlinkedPatients[0])
     }
 
     // 本登録患者（連携済み）を取得
@@ -439,10 +485,22 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
       console.error('連携済み患者取得エラー:', linkedError)
     }
 
-    return {
+    console.log('✅ 連携済み患者取得:', linkedPatients?.length || 0, '件')
+    if (linkedPatients && linkedPatients.length > 0) {
+      console.log('連携済み患者サンプル:', linkedPatients[0])
+    }
+
+    const result = {
       unlinkedPatients: unlinkedPatients || [],
       linkedPatients: linkedPatients || []
     }
+
+    console.log('📦 最終結果:', {
+      unlinkedCount: result.unlinkedPatients.length,
+      linkedCount: result.linkedPatients.length
+    })
+
+    return result
   } catch (error) {
     console.error('連携状況取得エラー:', error)
     return {
@@ -457,19 +515,24 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
  */
 export async function linkPatientToQuestionnaire(patientId: string): Promise<void> {
   const client = getSupabaseClient()
-  
+
   try {
+    console.log('🔗 患者連携開始 - patientId:', patientId)
+
     const { error } = await client
       .from('patients')
-      .update({ 
+      .update({
         is_registered: true,
-        registered_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', patientId)
 
     if (error) {
+      console.error('❌ Supabaseエラー:', error)
       throw error
     }
+
+    console.log('✅ 患者連携完了 - patientId:', patientId)
   } catch (error) {
     console.error('患者連携エラー:', error)
     throw error
@@ -481,19 +544,42 @@ export async function linkPatientToQuestionnaire(patientId: string): Promise<voi
  */
 export async function unlinkPatientFromQuestionnaire(patientId: string): Promise<void> {
   const client = getSupabaseClient()
-  
+
   try {
-    const { error } = await client
+    console.log('🔓 患者連携解除開始 - patientId:', patientId)
+
+    // 1. 患者を仮登録に戻す
+    const { error: patientError } = await client
       .from('patients')
-      .update({ 
+      .update({
         is_registered: false,
-        registered_at: null
+        updated_at: new Date().toISOString()
       })
       .eq('id', patientId)
 
-    if (error) {
-      throw error
+    if (patientError) {
+      console.error('❌ 患者更新エラー:', patientError)
+      throw patientError
     }
+
+    console.log('✅ 患者を仮登録に戻しました')
+
+    // 2. この患者に紐づいている問診票のpatient_idをnullに戻す
+    const { error: questionnaireError } = await client
+      .from('questionnaire_responses')
+      .update({
+        patient_id: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('patient_id', patientId)
+
+    if (questionnaireError) {
+      console.error('❌ 問診票連携解除エラー:', questionnaireError)
+      throw questionnaireError
+    }
+
+    console.log('✅ 問診票の連携を解除しました')
+    console.log('✅ 患者連携解除完了 - patientId:', patientId)
   } catch (error) {
     console.error('患者連携解除エラー:', error)
     throw error

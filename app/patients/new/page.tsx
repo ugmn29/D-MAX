@@ -20,8 +20,11 @@ export default function NewPatientPage() {
     setIsSubmitting(true)
 
     try {
-      // Supabaseに患者データを保存
-      await createPatient(DEMO_CLINIC_ID, formData)
+      // Supabaseに患者データを保存（本登録として作成）
+      await createPatient(DEMO_CLINIC_ID, {
+        ...formData,
+        is_registered: true  // 本登録として作成
+      })
 
       // 成功したら患者一覧に戻る
       router.push('/patients')

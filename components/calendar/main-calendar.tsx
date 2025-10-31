@@ -14,6 +14,7 @@ import { formatDateForDB } from '@/lib/utils/date'
 import { initializeMockData } from '@/lib/utils/mock-mode'
 import { timeToMinutes, minutesToTime } from '@/lib/utils/time-validation'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
+import { startAutoStatusUpdateTimer } from '@/lib/utils/auto-status-update'
 
 interface MainCalendarProps {
   clinicId: string
@@ -87,6 +88,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [dropTargetTime, setDropTargetTime] = useState<string | null>(null)
   const [isDropTargetValid, setIsDropTargetValid] = useState<boolean>(true)
   const [hasMoved, setHasMoved] = useState(false)
+  const [justFinishedDragOrResize, setJustFinishedDragOrResize] = useState(false)
 
   // コピータブ機能関連
   const [copiedAppointment, setCopiedAppointment] = useState<Appointment | null>(null)
@@ -238,16 +240,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   }
 
   const handleAppointmentMouseUp = async (e: React.MouseEvent) => {
+    let didDrag = false
+
     if (isDragging && draggedAppointment && dragStartPosition) {
       // ドロップ先の時間スロットとスタッフインデックスを計算
       const dropTarget = calculateDropTarget(e.clientX, e.clientY)
-      
+
       if (dropTarget.timeSlot) {
         // 予約を移動（スタッフ間移動も含む）
         await moveAppointment(draggedAppointment, dropTarget.timeSlot, dropTarget.staffIndex)
+        didDrag = true
       }
     }
-    
+
     // ドラッグ状態をリセット
     setIsDragging(false)
     setDraggedAppointment(null)
@@ -258,6 +263,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     setIsDropTargetValid(true)
     setDragDelta(null)
     setHasMoved(false)
+
+    // 実際にドラッグが発生した場合のみ、一時的にクリックイベントを無視
+    if (didDrag) {
+      setJustFinishedDragOrResize(true)
+      setTimeout(() => {
+        setJustFinishedDragOrResize(false)
+      }, 100)
+    }
   }
 
   // ドロップ先の時間スロットと列インデックスを計算（displayMode対応、スクロール位置考慮）
@@ -631,34 +644,45 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
   // リサイズ終了（1枠ごとに制限）
   const handleResizeMouseUp = async (e: React.MouseEvent) => {
-    if (!isResizing || !resizingAppointment || !resizeStartY || !resizeStartHeight) return
-    
+    if (!isResizing || !resizingAppointment || !resizeStartY || !resizeStartHeight) {
+      resetResizeState(false)
+      return
+    }
+
     const deltaY = e.clientY - resizeStartY
     const newHeight = Math.max(cellHeight, resizeStartHeight + deltaY)
-    
+
     // 1枠ごとの制限：時間スロット単位で高さを調整
     const slotCount = Math.round(newHeight / cellHeight)
     const adjustedHeight = slotCount * cellHeight
     const newDuration = slotCount * timeSlotMinutes
-    
+
     // 新しい終了時間を計算
     const startMinutes = timeToMinutes(resizingAppointment.start_time)
     const newEndMinutes = startMinutes + newDuration
     const newEndTime = minutesToTime(newEndMinutes)
-    
+
     console.log('リサイズ終了（1枠ごと）:', {
       deltaY,
       newHeight,
       slotCount,
       adjustedHeight,
       newDuration,
-      newEndTime
+      newEndTime,
+      originalEndTime: resizingAppointment.end_time
     })
-    
+
+    // 終了時間が変わっていない場合はリサイズしない
+    if (newEndTime === resizingAppointment.end_time) {
+      console.log('リサイズなし: 終了時間が変わっていません')
+      resetResizeState(false)
+      return
+    }
+
     // 重複チェック
     if (checkAppointmentConflict(resizingAppointment, resizingAppointment.start_time, newEndTime)) {
       alert(`選択された時間帯（${resizingAppointment.start_time} - ${newEndTime}）には既に他の予約があります`)
-      resetResizeState()
+      resetResizeState(false) // リサイズ失敗
       return
     }
 
@@ -674,7 +698,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       const dateString = formatDateForDB(selectedDate)
       const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
       setAppointments(updatedAppointments)
-      
+
       console.log('予約の診療時間を変更しました（1枠ごと）:', {
         id: resizingAppointment.id,
         from: resizingAppointment.end_time,
@@ -684,9 +708,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     } catch (error) {
       console.error('予約リサイズエラー:', error)
       alert('予約の診療時間変更に失敗しました')
+      resetResizeState(false) // リサイズ失敗
+      return
     }
-    
-    resetResizeState()
+
+    resetResizeState(true) // リサイズ成功
   }
 
   // リサイズ更新の実際の処理
@@ -715,7 +741,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   }
 
   // リサイズ状態をリセット
-  const resetResizeState = () => {
+  const resetResizeState = (didResize: boolean = false) => {
     setIsResizing(false)
     setResizingAppointment(null)
     setResizeStartY(null)
@@ -723,6 +749,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     setResizePreviewHeight(null)
     setResizePreviewEndTime(null)
     setHasMoved(false)
+
+    // 実際にリサイズが発生した場合のみ、一時的にクリックイベントを無視
+    if (didResize) {
+      setJustFinishedDragOrResize(true)
+      setTimeout(() => {
+        setJustFinishedDragOrResize(false)
+      }, 100)
+    }
   }
 
   // コピー機能
@@ -1121,6 +1155,23 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
     loadData()
   }, [clinicId, selectedDate])
+
+  // 自動ステータス更新タイマー（30秒ごとに遅刻チェック）
+  useEffect(() => {
+    const cleanup = startAutoStatusUpdateTimer(
+      () => appointments,
+      clinicId,
+      async () => {
+        // ステータス更新後、予約データを再読み込み
+        const dateString = formatDateForDB(selectedDate)
+        const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+        setAppointments(updatedAppointments)
+      }
+    )
+
+    // コンポーネントのアンマウント時にタイマーをクリア
+    return cleanup
+  }, [clinicId, selectedDate, appointments])
 
   // スタッフデータを読み込み（日付変更時）
   useEffect(() => {
@@ -2101,7 +2152,27 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     return
                   }
 
+                  // ドラッグ中の場合はモーダルを開かない
+                  if (isDragging) {
+                    console.log('ドラッグ中のクリックを無視')
+                    e.stopPropagation()
+                    return
+                  }
+
+                  // リサイズ中の場合はモーダルを開かない
+                  if (isResizing) {
+                    console.log('リサイズ中のクリックを無視')
+                    e.stopPropagation()
+                    return
+                  }
+
                   e.stopPropagation()
+
+                  // ドラッグまたはリサイズ直後の場合はモーダルを開かない
+                  if (justFinishedDragOrResize) {
+                    console.log('ドラッグ/リサイズ直後のクリックを無視')
+                    return
+                  }
 
                   // 貼り付けモードの場合は、予約ブロックのクリックを無視して背景のセルに処理を委譲
                   if (isPasteMode && copiedAppointment) {
@@ -2331,6 +2402,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 <div
                     className="absolute bottom-0 left-0 right-0 cursor-ns-resize opacity-0 hover:opacity-100 transition-opacity"
                     onMouseDown={(e) => handleResizeMouseDown(e, block.appointment)}
+                    onClick={(e) => {
+                      // リサイズハンドルのクリックが予約ブロックに伝播しないようにする
+                      e.stopPropagation()
+                    }}
                     style={{
                       backgroundColor: 'rgba(59, 130, 246, 0.6)',
                       height: '4px'

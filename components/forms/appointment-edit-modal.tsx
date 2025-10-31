@@ -28,9 +28,11 @@ import {
   CheckCircle,
   Type,
   Highlighter,
-  FileCode
+  FileCode,
+  Info
 } from 'lucide-react'
 import { getPatients, createPatient } from '@/lib/api/patients'
+import { PatientForm } from '@/components/patients/patient-form'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import Link from 'next/link'
 import { getStaff } from '@/lib/api/staff'
@@ -249,10 +251,21 @@ export function AppointmentEditModal({
 
   // 本登録モーダル関連の状態
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
-  const [registrationStep, setRegistrationStep] = useState<'select' | 'questionnaire' | 'insurance'>('select')
+  const [useQuestionnaire, setUseQuestionnaire] = useState(true) // 問診票利用設定（初期値true、後でlocalStorageから読み込む）
+  const [registrationTab, setRegistrationTab] = useState<'questionnaire' | 'manual'>('questionnaire')
   const [unlinkedQuestionnaires, setUnlinkedQuestionnaires] = useState<QuestionnaireResponse[]>([])
   const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState<string | null>(null)
   const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false)
+
+  // 問診票利用設定をlocalStorageから読み込む
+  useEffect(() => {
+    const storedSetting = localStorage.getItem('useQuestionnaire')
+    if (storedSetting !== null) {
+      const parsedSetting = JSON.parse(storedSetting)
+      console.log('問診票利用設定をlocalStorageから読み込み:', parsedSetting)
+      setUseQuestionnaire(parsedSetting)
+    }
+  }, [])
 
   // 未連携問診票を取得
   const fetchUnlinkedQuestionnaires = async () => {
@@ -342,9 +355,9 @@ export function AppointmentEditModal({
       // 患者情報を更新
       try {
         if (MOCK_MODE) {
-          // 本登録時にIDを割り振る
+          // 本登録時にIDを割り振る（既に患者番号がある場合はそれを使う）
           const { generatePatientNumber } = await import('@/lib/api/patients')
-          const patientNumber = await generatePatientNumber(clinicId)
+          const patientNumber = selectedPatient.patient_number || await generatePatientNumber(clinicId)
 
           // モックモードではlocalStorageに保存
           const { updateMockPatient, getMockPatients } = await import('@/lib/utils/mock-mode')
@@ -359,10 +372,10 @@ export function AppointmentEditModal({
             first_name: firstName,
             last_name_kana: lastNameKana,
             first_name_kana: firstNameKana,
-            gender: genderValue,
-            birth_date: birthDate,
-            phone: phone,
-            email: email,
+            gender: genderValue || null,
+            birth_date: birthDate || null,
+            phone: phone || null,
+            email: email || null,
             patient_number: patientNumber,
             is_registered: true
           })
@@ -380,9 +393,9 @@ export function AppointmentEditModal({
 
           setSelectedPatient(updated)
         } else {
-          // 本登録時にIDを割り振る
+          // 本登録時にIDを割り振る（既に患者番号がある場合はそれを使う）
           const { generatePatientNumber } = await import('@/lib/api/patients')
-          const patientNumber = await generatePatientNumber(clinicId)
+          const patientNumber = selectedPatient.patient_number || await generatePatientNumber(clinicId)
 
           // 本番モードではデータベースに保存
           const { updatePatient } = await import('@/lib/api/patients')
@@ -391,10 +404,10 @@ export function AppointmentEditModal({
             first_name: firstName,
             last_name_kana: lastNameKana,
             first_name_kana: firstNameKana,
-            gender: genderValue,
-            birth_date: birthDate,
-            phone: phone,
-            email: email,
+            gender: genderValue || null,
+            birth_date: birthDate || null,
+            phone: phone || null,
+            email: email || null,
             patient_number: patientNumber,
             is_registered: true
           })
@@ -415,12 +428,20 @@ export function AppointmentEditModal({
       )
 
       // 患者情報を再取得して表示を更新
+      let finalPatient = selectedPatient
       try {
         const { getPatients } = await import('@/lib/api/patients')
         const updatedPatients = await getPatients(clinicId)
         const updatedPatient = updatedPatients.find(p => p.id === selectedPatient.id)
         if (updatedPatient) {
+          console.log('問診票連携後の患者情報:', {
+            id: updatedPatient.id,
+            name: `${updatedPatient.last_name} ${updatedPatient.first_name}`,
+            is_registered: updatedPatient.is_registered,
+            patient_number: updatedPatient.patient_number
+          })
           setSelectedPatient(updatedPatient)
+          finalPatient = updatedPatient
 
           // 強制的にコンポーネントを再レンダリング
           setTimeout(() => {
@@ -431,13 +452,13 @@ export function AppointmentEditModal({
       } catch (error) {
         console.error('患者情報の再取得エラー:', error)
       }
-      
+
       // 予約データも更新して患者情報を反映
-      if (editingAppointment && updatedPatient) {
+      if (editingAppointment && finalPatient) {
         try {
           const { updateAppointment } = await import('@/lib/api/appointments')
           await updateAppointment(editingAppointment.id, {
-            patient_id: updatedPatient.id
+            patient_id: finalPatient.id
           })
           console.log('予約データに患者情報を反映しました')
         } catch (error) {
@@ -447,6 +468,11 @@ export function AppointmentEditModal({
 
       alert('問診票を患者に紐付けました。患者情報が自動更新されました。')
       setShowRegistrationModal(false)
+
+      // onSaveコールバックを呼び出して親コンポーネントを更新
+      if (onSave) {
+        onSave()
+      }
 
       // モーダルは閉じずに患者情報の表示を更新
       console.log('問診票連携完了: モーダルを開いたまま患者情報を更新')
@@ -539,27 +565,30 @@ export function AppointmentEditModal({
           console.log('コピー元の患者情報を設定:', editingAppointment.patient)
           setSelectedPatient(editingAppointment.patient)
           console.log('selectedPatientに設定完了:', editingAppointment.patient)
-          
-          // 本登録済みの患者の場合のみ最新情報を再取得
-          if (editingAppointment.patient.is_registered) {
-            const refreshPatientInfo = async () => {
-              try {
-                console.log('本登録済み患者情報の再取得開始:', editingAppointment.patient.id)
-                const { getPatients } = await import('@/lib/api/patients')
-                const updatedPatients = await getPatients(clinicId)
-                
-                const updatedPatient = updatedPatients.find(p => p.id === editingAppointment.patient.id)
-                if (updatedPatient) {
-                  setSelectedPatient(updatedPatient)
-                  console.log('患者情報を最新の状態で再取得:', updatedPatient)
-                }
-              } catch (error) {
-                console.error('患者情報の再取得エラー:', error)
-                // エラーの場合は元の患者情報を使用（既に設定済み）
+
+          // 常に最新の患者情報を再取得（is_registeredなどの最新状態を反映）
+          const refreshPatientInfo = async () => {
+            try {
+              console.log('患者情報の再取得開始:', editingAppointment.patient.id)
+              const { getPatients } = await import('@/lib/api/patients')
+              const updatedPatients = await getPatients(clinicId)
+
+              const updatedPatient = updatedPatients.find(p => p.id === editingAppointment.patient.id)
+              if (updatedPatient) {
+                setSelectedPatient(updatedPatient)
+                console.log('患者情報を最新の状態で再取得:', {
+                  id: updatedPatient.id,
+                  name: `${updatedPatient.last_name} ${updatedPatient.first_name}`,
+                  is_registered: updatedPatient.is_registered,
+                  patient_number: updatedPatient.patient_number
+                })
               }
+            } catch (error) {
+              console.error('患者情報の再取得エラー:', error)
+              // エラーの場合は元の患者情報を使用（既に設定済み）
             }
-            refreshPatientInfo()
           }
+          refreshPatientInfo()
         } else if (editingAppointment.patient_id) {
           // patient_idのみの場合は再取得が必要
           const refreshPatientInfo = async () => {
@@ -944,9 +973,22 @@ export function AppointmentEditModal({
         setAvailableUnits(available)
       }
     }
-    
+
     checkAvailableUnits()
   }, [showUnitModal, selectedDate, appointmentData.start_time, appointmentData.end_time])
+
+  // 本登録モーダルが開いた時の処理
+  useEffect(() => {
+    if (showRegistrationModal) {
+      // 問診票利用ON時は問診票連携タブをデフォルト、OFF時は手動入力タブをデフォルト
+      if (useQuestionnaire) {
+        setRegistrationTab('questionnaire')
+        fetchUnlinkedQuestionnaires()
+      } else {
+        setRegistrationTab('manual')
+      }
+    }
+  }, [showRegistrationModal, useQuestionnaire])
 
   // メニュー選択
   const handleMenu1Select = (menu: TreatmentMenu) => {
@@ -1208,7 +1250,7 @@ export function AppointmentEditModal({
         staff2_id: appointmentData.staff2_id,
         staff3_id: appointmentData.staff3_id,
         memo: currentMemo,
-        status: editingAppointment ? editingAppointment.status : '予約済み'
+        status: editingAppointment ? editingAppointment.status : '未来院'
       }
 
       // 時間検証を実行
@@ -2611,53 +2653,42 @@ export function AppointmentEditModal({
               </p>
             </div>
 
-            {/* 連携選択 */}
-            {registrationStep === 'select' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">連携する情報を選択してください</h3>
-                
-                <Button
-                  onClick={() => {
-                    console.log('問診票選択ボタンクリック')
-                    setRegistrationStep('questionnaire')
-                    fetchUnlinkedQuestionnaires()
-                  }}
-                  className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center space-x-3"
-                >
-                  <FileText className="w-6 h-6" />
-                  <div className="text-left">
-                    <div className="font-medium">問診票を連携</div>
-                    <div className="text-sm opacity-90">患者の問診票を選択して連携</div>
-                  </div>
-                </Button>
-
-                <Button
-                  onClick={() => setRegistrationStep('insurance')}
-                  className="w-full h-16 bg-green-600 hover:bg-green-700 text-white flex items-center justify-center space-x-3"
-                >
-                  <CreditCard className="w-6 h-6" />
-                  <div className="text-left">
-                    <div className="font-medium">保険証を連携</div>
-                    <div className="text-sm opacity-90">保険証をスキャンして情報を取得</div>
-                  </div>
-                </Button>
-              </div>
-            )}
-
-            {/* 問診票選択 */}
-            {registrationStep === 'questionnaire' && (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2 mb-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setRegistrationStep('select')}
+            {/* タブバー */}
+            <div className="mb-6 border-b border-gray-200">
+              <div className="flex space-x-1">
+                {useQuestionnaire && (
+                  <button
+                    onClick={() => {
+                      setRegistrationTab('questionnaire')
+                      fetchUnlinkedQuestionnaires()
+                    }}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+                      registrationTab === 'questionnaire'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
                   >
-                    ← 戻る
-                  </Button>
-                  <h3 className="text-lg font-medium text-gray-900">問診票を選択</h3>
-                </div>
-                
+                    問診票連携
+                  </button>
+                )}
+                <button
+                  onClick={() => setRegistrationTab('manual')}
+                  className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+                    registrationTab === 'manual'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  手動入力
+                </button>
+              </div>
+            </div>
+
+            {/* 問診票連携タブ */}
+            {registrationTab === 'questionnaire' && useQuestionnaire && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">問診票を選択</h3>
+
                 {loadingQuestionnaires ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -2673,9 +2704,18 @@ export function AppointmentEditModal({
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {unlinkedQuestionnaires.map((response) => {
                       const responseData = response.response_data
-                      const name = responseData.patient_name || responseData['q1-1'] || '名前不明'
-                      const phone = responseData.patient_phone || responseData['q1-10'] || ''
-                      const completedDate = response.completed_at ? 
+                      console.log('問診票候補表示:', {
+                        response_id: response.id,
+                        response_data: responseData,
+                        response_data_keys: Object.keys(responseData || {}),
+                        patient_name: responseData?.patient_name,
+                        q1_1: responseData?.['q1-1'],
+                        patient_phone: responseData?.patient_phone,
+                        q1_10: responseData?.['q1-10']
+                      })
+                      const name = responseData?.patient_name || responseData?.['q1-1'] || '名前不明'
+                      const phone = responseData?.patient_phone || responseData?.['q1-10'] || ''
+                      const completedDate = response.completed_at ?
                         new Date(response.completed_at).toLocaleDateString('ja-JP') : '不明'
                       
                       return (
@@ -2719,57 +2759,81 @@ export function AppointmentEditModal({
               </div>
             )}
 
-            {/* 保険証スキャン */}
-            {registrationStep === 'insurance' && (
+            {/* 手動入力タブ */}
+            {registrationTab === 'manual' && (
               <div className="space-y-4">
-                <div className="flex items-center space-x-2 mb-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setRegistrationStep('select')}
-                  >
-                    ← 戻る
-                  </Button>
-                  <h3 className="text-lg font-medium text-gray-900">保険証をスキャン</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">患者情報を入力</h3>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <Info className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-blue-700">
+                        患者情報を入力して本登録します。診察券番号は自動で採番されます。
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                
-                <div className="text-center py-8 text-gray-500">
-                  <CreditCard className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>保険証スキャン機能は開発中です</p>
-                  <p className="text-sm">保険証リーダーとの連携を準備中</p>
-                </div>
+
+                <PatientForm
+                  initialData={{
+                    last_name: selectedPatient.last_name || '',
+                    first_name: selectedPatient.first_name || '',
+                    phone: selectedPatient.phone || '',
+                    email: selectedPatient.email || '',
+                  }}
+                  onSubmit={async (formData: any) => {
+                    try {
+                      const { createPatient } = await import('@/lib/api/patients')
+                      const { generatePatientNumber, updatePatient } = await import('@/lib/api/patients')
+
+                      // 患者番号を生成
+                      const patientNumber = await generatePatientNumber(clinicId)
+
+                      // 既存患者を更新
+                      await updatePatient(clinicId, selectedPatient.id, {
+                        ...formData,
+                        patient_number: patientNumber,
+                        is_registered: true
+                      })
+
+                      setShowRegistrationModal(false)
+                      alert('本登録が完了しました。')
+
+                      // 予約を再読み込み
+                      if (onSave) onSave()
+                    } catch (error) {
+                      console.error('本登録エラー:', error)
+                      alert('本登録に失敗しました。')
+                    }
+                  }}
+                  onCancel={() => setShowRegistrationModal(false)}
+                  isEditing={false}
+                />
               </div>
             )}
 
-            {/* フッター */}
-            <div className="mt-6 flex justify-end space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowRegistrationModal(false)}
-              >
-                キャンセル
-              </Button>
-              {registrationStep === 'questionnaire' && selectedQuestionnaireId && (
+            {/* フッター（問診票連携タブのみ） */}
+            {registrationTab === 'questionnaire' && (
+              <div className="mt-6 flex justify-end space-x-3">
                 <Button
-                  onClick={linkQuestionnaireToPatient}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  variant="outline"
+                  onClick={() => setShowRegistrationModal(false)}
                 >
-                  問診票を紐付け
+                  キャンセル
                 </Button>
-              )}
-              {registrationStep === 'insurance' && (
-                <Button
-                  onClick={() => {
-                    // TODO: 保険証OCR処理
-                    alert('保険証機能は開発中です')
-                    setShowRegistrationModal(false)
-                  }}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  保険証を読み取り
-                </Button>
-              )}
-            </div>
+                {selectedQuestionnaireId && (
+                  <Button
+                    onClick={linkQuestionnaireToPatient}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    問診票を紐付け
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

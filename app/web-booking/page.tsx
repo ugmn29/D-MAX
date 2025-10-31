@@ -596,7 +596,7 @@ export default function WebBookingPage() {
         // 最初のステップの担当者を使用
         const firstStep = selectedMenuData.steps[0]
         if (firstStep.staff_assignments && firstStep.staff_assignments.length > 0) {
-          staffId = firstStep.staff_assignments[0]
+          staffId = firstStep.staff_assignments[0].staff_id
         }
       }
 
@@ -608,29 +608,25 @@ export default function WebBookingPage() {
         patientId = authenticatedPatient.id
         console.log('Web予約: 再診患者として予約', authenticatedPatient)
       } else {
-        // 初診の場合: Web予約用の仮患者IDを作成
-        const tempPatientId = `web-booking-temp-${Date.now()}`
-
-        // 仮患者データをlocalStorageに保存（本登録時に更新するため）
-        const { addMockPatient } = await import('@/lib/utils/mock-mode')
+        // 初診の場合: 患者データをデータベースに登録
+        const { createPatient } = await import('@/lib/api/patients')
         const nameParts = bookingData.patientName.split(' ')
-        const tempPatient = {
-          id: tempPatientId,
-          clinic_id: DEMO_CLINIC_ID,
-          last_name: nameParts[0] || '',
+
+        const newPatient = await createPatient(DEMO_CLINIC_ID, {
+          last_name: nameParts[0] || bookingData.patientName,
           first_name: nameParts[1] || '',
           last_name_kana: '',
           first_name_kana: '',
           phone: bookingData.patientPhone,
-          email: bookingData.patientEmail,
-          patient_number: null,
-          is_registered: false, // 仮登録状態
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-        addMockPatient(tempPatient)
-        console.log('Web予約: 仮患者データを作成しました', tempPatient)
-        patientId = tempPatientId
+          email: bookingData.patientEmail || '',
+          birth_date: null,
+          gender: null,
+          postal_code: null,
+          address: null
+        })
+
+        console.log('Web予約: 新規患者を登録しました', newPatient)
+        patientId = newPatient.id
       }
 
       // 実際の予約作成APIを呼び出す
@@ -642,8 +638,7 @@ export default function WebBookingPage() {
         menu1_id: bookingData.selectedMenu,
         staff1_id: staffId,
         status: '未来院', // 初回ステータスを「未来院」に設定
-        memo: `Web予約${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`,
-        is_new_patient: bookingData.isNewPatient
+        memo: `Web予約${bookingData.isNewPatient ? '(初診)' : '(再診)'}${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`
       }
 
       console.log('Web予約: 予約作成データ', appointmentData)

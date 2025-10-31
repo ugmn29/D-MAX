@@ -257,16 +257,46 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
     try {
       setSaving(true)
       console.log('送信処理開始')
-      
+
+      // linked_fieldから患者情報を抽出
+      let patientName = ''
+      let patientNameKana = ''
+      let patientPhone = ''
+      let patientEmail = ''
+
+      console.log('患者情報抽出開始 - 質問数:', questions.length)
+      console.log('フォームデータのキー数:', Object.keys(formData).length)
+
+      // 質問のlinked_fieldを確認して、患者情報を抽出
+      questions.forEach(q => {
+        const value = formData[q.id]
+
+        if (q.linked_field === 'name' && value) {
+          patientName = String(value)
+          console.log('✅ 患者名を設定:', patientName, '(質問ID:', q.id, ')')
+        } else if (q.linked_field === 'furigana_kana' && value) {
+          patientNameKana = String(value)
+          console.log('✅ フリガナを設定:', patientNameKana, '(質問ID:', q.id, ')')
+        } else if (q.linked_field === 'phone' && value) {
+          patientPhone = String(value)
+          console.log('✅ 電話番号を設定:', patientPhone, '(質問ID:', q.id, ')')
+        } else if (q.linked_field === 'email' && value) {
+          patientEmail = String(value)
+          console.log('✅ メールを設定:', patientEmail, '(質問ID:', q.id, ')')
+        }
+      })
+
+      console.log('抽出結果 - 名前:', patientName, ', 電話:', patientPhone)
+
       // 患者情報を自動で追加
       const enhancedFormData = {
         ...formData,
-        patient_name: formData['q1-1'] || '',
-        patient_name_kana: formData['q1-2'] || '',
-        patient_phone: formData['q1-10'] || formData['q1-9'] || '',
-        patient_email: formData['q1-11'] || ''
+        patient_name: patientName,
+        patient_name_kana: patientNameKana,
+        patient_phone: patientPhone,
+        patient_email: patientEmail
       }
-      
+
       console.log('拡張フォームデータ:', enhancedFormData)
       console.log('患者名:', enhancedFormData.patient_name)
       console.log('電話番号:', enhancedFormData.patient_phone)

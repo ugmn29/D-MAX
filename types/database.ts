@@ -320,7 +320,7 @@ export type Database = {
         Row: {
           id: string
           clinic_id: string
-          patient_number: number
+          patient_number: number | null
           global_uuid: string
           last_name: string
           first_name: string
@@ -334,6 +334,8 @@ export type Database = {
           prefecture?: string
           city?: string
           address_line?: string
+          address?: string
+          preferred_contact_method?: string
           allergies?: string
           medical_history?: string
           primary_doctor_id?: string
@@ -350,7 +352,7 @@ export type Database = {
         Insert: {
           id?: string
           clinic_id: string
-          patient_number: number
+          patient_number?: number | null
           global_uuid?: string
           last_name: string
           first_name: string
@@ -364,6 +366,8 @@ export type Database = {
           prefecture?: string
           city?: string
           address_line?: string
+          address?: string
+          preferred_contact_method?: string
           allergies?: string
           medical_history?: string
           primary_doctor_id?: string
@@ -380,7 +384,7 @@ export type Database = {
         Update: {
           id?: string
           clinic_id?: string
-          patient_number?: number
+          patient_number?: number | null
           global_uuid?: string
           last_name?: string
           first_name?: string
@@ -394,6 +398,8 @@ export type Database = {
           prefecture?: string
           city?: string
           address_line?: string
+          address?: string
+          preferred_contact_method?: string
           allergies?: string
           medical_history?: string
           primary_doctor_id?: string

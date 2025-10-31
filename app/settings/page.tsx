@@ -28,6 +28,7 @@ import {
   QuestionnaireQuestion
 } from "@/lib/api/questionnaires";
 import { QuestionnaireForm } from "@/components/forms/questionnaire-form";
+import { PatientForm } from "@/components/patients/patient-form";
 import { ShiftPatterns } from "@/components/shift/shift-patterns";
 import { ShiftTable } from "@/components/shift/shift-table";
 import { CalendarMiniPreview } from "@/components/calendar/calendar-mini-preview";
@@ -84,6 +85,12 @@ import {
   Eye,
   RockingChair,
   Smartphone,
+  Search,
+  Phone,
+  CreditCard,
+  AlertTriangle,
+  Gift,
+  Shield,
 } from "lucide-react";
 import {
   updateClinicSettings,
@@ -196,9 +203,6 @@ const ICON_MASTER_DATA = [
     enabled: true,
   },
   { id: "parking", icon: Car, title: "駐車券利用する", enabled: true },
-  { id: "taxi", icon: Car, title: "タクシーを呼ばれる方", enabled: true },
-  { id: "accompanied", icon: User, title: "付き添い者あり", enabled: true },
-  { id: "caution", icon: AlertCircle, title: "要注意!", enabled: true },
   {
     id: "money_caution",
     icon: DollarSign,
@@ -217,11 +221,40 @@ const ICON_MASTER_DATA = [
     title: "要介助必要",
     enabled: true,
   },
-  { id: "referrer", icon: User, title: "紹介者", enabled: true },
   {
     id: "time_specified",
     icon: Calendar,
     title: "時間指定あり",
+    enabled: true,
+  },
+  {
+    id: "phone_contact",
+    icon: Phone,
+    title: "電話連絡希望",
+    enabled: true,
+  },
+  {
+    id: "payment_plan",
+    icon: CreditCard,
+    title: "分割払い",
+    enabled: true,
+  },
+  {
+    id: "allergy",
+    icon: AlertTriangle,
+    title: "アレルギー有り",
+    enabled: true,
+  },
+  {
+    id: "gift_certificate",
+    icon: Gift,
+    title: "ギフト券利用",
+    enabled: true,
+  },
+  {
+    id: "insurance",
+    icon: Shield,
+    title: "保険適用",
     enabled: true,
   },
 ];
@@ -335,6 +368,11 @@ const settingCategories = [
     href: "/settings/training",
   },
   {
+    id: "patient-list",
+    name: "患者一覧",
+    icon: Users,
+  },
+  {
     id: "data-import",
     name: "データ移行",
     icon: RefreshCw,
@@ -360,7 +398,8 @@ export default function SettingsPage() {
   const [selectedWebTab, setSelectedWebTab] = useState<'basic' | 'flow' | 'menu' | 'notification-flow'>('basic');
   const [previewPatientType, setPreviewPatientType] = useState<'new' | 'returning'>('new'); // 右側プレビューで選択された患者タイプ
   const [notificationTab, setNotificationTab] = useState("connection");
-  const [questionnaireTab, setQuestionnaireTab] = useState("list");
+  const [questionnaireTab, setQuestionnaireTab] = useState("basic");
+  const [useQuestionnaire, setUseQuestionnaire] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -574,6 +613,13 @@ export default function SettingsPage() {
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [copySourceDay, setCopySourceDay] = useState<string>('');
   const [selectedDaysToCopy, setSelectedDaysToCopy] = useState<string[]>([]);
+
+  // 患者一覧の状態
+  const [patients, setPatients] = useState<any[]>([]);
+  const [filteredPatients, setFilteredPatients] = useState<any[]>([]);
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  const [patientFilter, setPatientFilter] = useState<'all' | 'registered' | 'temporary'>('all');
+  const [showNewPatientModal, setShowNewPatientModal] = useState(false);
 
   // データ移行の状態
   const [dataImportTab, setDataImportTab] = useState<'patients' | 'appointments' | 'history'>('patients');
@@ -1272,8 +1318,13 @@ export default function SettingsPage() {
   // 連携状況データを取得
   const loadLinkStatusData = async () => {
     try {
+      console.log('📋 連携状況データ取得開始（設定画面）')
       const data = await getPatientLinkStatus(DEMO_CLINIC_ID);
+      console.log('📋 受信データ:', data)
+      console.log('📋 未連携:', data.unlinkedPatients.length, '件')
+      console.log('📋 連携済み:', data.linkedPatients.length, '件')
       setLinkStatusData(data);
+      console.log('📋 状態更新完了')
     } catch (error) {
       console.error('連携状況データ取得エラー:', error);
     }
@@ -1297,11 +1348,15 @@ export default function SettingsPage() {
   const handleUnlinkPatient = async (patientId: string) => {
     showConfirm('この患者を仮登録に戻しますか？\n過去の問診データは保持されます。', async () => {
       try {
+        console.log('🔓 連携解除処理開始 - patientId:', patientId)
         await unlinkPatientFromQuestionnaire(patientId);
+        console.log('✅ 連携解除成功')
         showAlert('患者を仮登録に戻しました', 'success');
-        loadLinkStatusData(); // データを再取得
+        await loadLinkStatusData(); // データを再取得
+        console.log('✅ データ再取得完了')
       } catch (error) {
-        console.error('患者連携解除エラー:', error);
+        console.error('❌ 患者連携解除エラー:', error);
+        console.error('❌ エラー詳細:', JSON.stringify(error, null, 2));
         showAlert('患者の連携解除に失敗しました', 'error');
       }
     });
@@ -1313,6 +1368,49 @@ export default function SettingsPage() {
       loadLinkStatusData();
     }
   }, [selectedCategory, questionnaireTab]);
+
+  // 患者一覧データの読み込み
+  useEffect(() => {
+    const loadPatients = async () => {
+      if (selectedCategory === "patient-list") {
+        try {
+          const data = await getPatients(DEMO_CLINIC_ID);
+          setPatients(data);
+          setFilteredPatients(data);
+        } catch (error) {
+          console.error("患者データの読み込みエラー:", error);
+        }
+      }
+    };
+    loadPatients();
+  }, [selectedCategory]);
+
+  // 患者フィルタリングと検索
+  useEffect(() => {
+    let filtered = [...patients];
+
+    // 登録状態でフィルタ
+    if (patientFilter === 'registered') {
+      filtered = filtered.filter(p => p.is_registered);
+    } else if (patientFilter === 'temporary') {
+      filtered = filtered.filter(p => !p.is_registered);
+    }
+
+    // 検索クエリでフィルタ
+    if (patientSearchQuery.trim()) {
+      const query = patientSearchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.last_name?.toLowerCase().includes(query) ||
+        p.first_name?.toLowerCase().includes(query) ||
+        p.last_name_kana?.toLowerCase().includes(query) ||
+        p.first_name_kana?.toLowerCase().includes(query) ||
+        p.phone?.includes(query) ||
+        p.patient_number?.toString().includes(query)
+      );
+    }
+
+    setFilteredPatients(filtered);
+  }, [patients, patientFilter, patientSearchQuery]);
 
   // 問診票データの読み込み
   useEffect(() => {
@@ -1384,6 +1482,16 @@ export default function SettingsPage() {
     const savedTexts = localStorage.getItem("default_texts");
     if (savedTexts) {
       setDefaultTexts(JSON.parse(savedTexts));
+    }
+  }, []);
+
+  // 問診票利用設定の読み込み
+  useEffect(() => {
+    const savedSetting = localStorage.getItem("useQuestionnaire");
+    if (savedSetting !== null) {
+      const parsedSetting = JSON.parse(savedSetting);
+      console.log("問診票利用設定をlocalStorageから読み込み:", parsedSetting);
+      setUseQuestionnaire(parsedSetting);
     }
   }, []);
 
@@ -2811,8 +2919,9 @@ export default function SettingsPage() {
         return;
       } else if (selectedCategory === "questionnaire") {
         console.log("=== 問診表設定を保存中 ===");
-        // 問診表は個別のAPIで管理されているため、ここでは何もしない
-        console.log("問診表は個別に保存されています");
+        // 問診票利用設定をlocalStorageに保存
+        localStorage.setItem('useQuestionnaire', JSON.stringify(useQuestionnaire));
+        console.log("問診票利用設定を保存しました:", useQuestionnaire);
       } else if (selectedCategory === "units") {
         console.log("=== ユニット設定を保存中 ===");
 
@@ -5541,6 +5650,16 @@ export default function SettingsPage() {
         {/* サブタブナビゲーション */}
         <div className="flex space-x-0 mb-6 border-b border-gray-200">
           <button
+            onMouseEnter={() => setQuestionnaireTab("basic")}
+            className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+              questionnaireTab === "basic"
+                ? "border-blue-500 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            基本設定
+          </button>
+          <button
             onMouseEnter={() => setQuestionnaireTab("list")}
             className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
               questionnaireTab === "list"
@@ -5563,6 +5682,94 @@ export default function SettingsPage() {
         </div>
 
         {/* タブコンテンツ */}
+        {questionnaireTab === "basic" && (
+          <div className="max-w-4xl space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>問診票の利用設定</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="use-questionnaire"
+                      checked={useQuestionnaire}
+                      onCheckedChange={(checked) => {
+                        setUseQuestionnaire(checked as boolean);
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="use-questionnaire"
+                        className="text-base font-medium cursor-pointer"
+                      >
+                        問診票を利用する
+                      </Label>
+                      <p className="text-sm text-gray-600">
+                        問診票機能を有効にします。チェックを入れると、患者さんに問診票を送信して回答を受け取ることができます。
+                      </p>
+                    </div>
+                  </div>
+
+                  {useQuestionnaire && (
+                    <div className="ml-7 pl-6 border-l-2 border-blue-200 space-y-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                        <div className="flex">
+                          <div className="flex-shrink-0">
+                            <Info className="h-5 w-5 text-blue-400" />
+                          </div>
+                          <div className="ml-3">
+                            <h3 className="text-sm font-medium text-blue-800">
+                              本登録について
+                            </h3>
+                            <div className="mt-2 text-sm text-blue-700">
+                              <p>
+                                問診票を利用する場合、仮登録患者は問診票と連携することで自動的に本登録されます。
+                              </p>
+                              <ul className="list-disc pl-5 mt-2 space-y-1">
+                                <li>問診票回答後、連携ボタンをクリック</li>
+                                <li>患者情報が自動入力されます</li>
+                                <li>診察券番号が自動採番されます</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!useQuestionnaire && (
+                    <div className="ml-7 pl-6 border-l-2 border-gray-200 space-y-4">
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                        <div className="flex">
+                          <div className="flex-shrink-0">
+                            <Info className="h-5 w-5 text-gray-400" />
+                          </div>
+                          <div className="ml-3">
+                            <h3 className="text-sm font-medium text-gray-800">
+                              問診票なしの場合
+                            </h3>
+                            <div className="mt-2 text-sm text-gray-700">
+                              <p>
+                                問診票を利用しない場合、以下の方法で本登録を行います：
+                              </p>
+                              <ul className="list-disc pl-5 mt-2 space-y-1">
+                                <li><strong>直接本登録</strong>：患者情報を入力して直接本登録</li>
+                                <li><strong>カルテ連携</strong>：カルテシステムと連携して本登録（今後実装予定）</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {questionnaireTab === "list" && (
           <div className="grid grid-cols-2 gap-6">
             {/* 左カラム：問診表一覧 */}
@@ -5787,7 +5994,7 @@ export default function SettingsPage() {
                             <div className="text-sm text-gray-500 mt-1">
                               {patient.questionnaire_responses && patient.questionnaire_responses.length > 0 ? (
                                 <>
-                                  {patient.questionnaire_responses[0].questionnaires?.name} - 
+                                  {patient.questionnaire_responses[0].questionnaires?.name} -
                                   回答完了: {new Date(patient.questionnaire_responses[0].completed_at).toLocaleDateString('ja-JP')}
                                 </>
                               ) : (
@@ -5803,6 +6010,56 @@ export default function SettingsPage() {
                               className="bg-blue-600 text-white hover:bg-blue-700"
                             >
                               連携
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* 患者一覧（連携済み） */}
+              <div className="mb-6">
+                <h4 className="text-md font-medium text-gray-900 mb-3">
+                  連携済み患者 ({linkStatusData.linkedPatients.length}件)
+                </h4>
+                <div className="space-y-3">
+                  {linkStatusData.linkedPatients.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>連携済みの患者はありません</p>
+                    </div>
+                  ) : (
+                    linkStatusData.linkedPatients.map((patient: any) => (
+                      <div key={patient.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <div className="flex items-center">
+                              <h5 className="text-md font-medium text-gray-900 mr-3">
+                                {patient.last_name} {patient.first_name}
+                              </h5>
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                連携済み
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              患者番号: {patient.patient_number || 'なし'}
+                              {patient.questionnaire_responses && patient.questionnaire_responses.length > 0 && (
+                                <>
+                                  {' '}| {patient.questionnaire_responses[0].questionnaires?.name} -
+                                  回答完了: {new Date(patient.questionnaire_responses[0].completed_at).toLocaleDateString('ja-JP')}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex space-x-2 ml-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUnlinkPatient(patient.id)}
+                              className="text-red-600 border-red-600 hover:bg-red-50"
+                            >
+                              連携解除
                             </Button>
                           </div>
                         </div>
@@ -5913,6 +6170,305 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+    );
+  };
+
+  // 患者一覧設定のレンダリング
+  const renderPatientListSettings = () => {
+    const registeredCount = filteredPatients.filter(p => p.is_registered).length;
+    const temporaryCount = filteredPatients.filter(p => !p.is_registered).length;
+
+    return (
+      <div className="space-y-6">
+        {/* ヘッダー */}
+        <div className="flex justify-end items-center">
+          <Button
+            onClick={() => setShowNewPatientModal(true)}
+            className="shrink-0"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            新規患者登録
+          </Button>
+        </div>
+
+        {/* 統計カード */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">全患者</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{patients.length}人</p>
+                </div>
+                <Users className="w-8 h-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">本登録</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">{patients.filter(p => p.is_registered).length}人</p>
+                </div>
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">仮登録</p>
+                  <p className="text-2xl font-bold text-orange-600 mt-1">{patients.filter(p => !p.is_registered).length}人</p>
+                </div>
+                <AlertCircle className="w-8 h-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* データ修正アクション */}
+        {patients.filter(p => !p.is_registered && p.patient_number).length > 0 && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
+                  <div>
+                    <h3 className="font-medium text-orange-900">データ修正が必要です</h3>
+                    <p className="text-sm text-orange-700 mt-1">
+                      {patients.filter(p => !p.is_registered && p.patient_number).length}件の仮登録患者に診察券番号が設定されています。
+                      仮登録患者には診察券番号を設定しないため、クリアすることをおすすめします。
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!confirm('仮登録患者の診察券番号をクリアしますか？この操作は元に戻せません。')) {
+                      return;
+                    }
+                    try {
+                      const { MOCK_MODE } = await import('@/lib/utils/mock-mode');
+                      const temporaryPatientsWithNumber = patients.filter(p => !p.is_registered && p.patient_number);
+
+                      if (MOCK_MODE) {
+                        // モックモードの場合: localStorageを直接更新
+                        const { updateMockPatient } = await import('@/lib/utils/mock-mode');
+                        for (const patient of temporaryPatientsWithNumber) {
+                          updateMockPatient(patient.id, {
+                            ...patient,
+                            patient_number: null
+                          });
+                        }
+                      } else {
+                        // 本番モードの場合: Supabase経由で更新
+                        const { getSupabaseClient } = await import('@/lib/utils/supabase-client');
+                        const client = getSupabaseClient();
+                        for (const patient of temporaryPatientsWithNumber) {
+                          await client
+                            .from('patients')
+                            .update({ patient_number: null })
+                            .eq('id', patient.id);
+                        }
+                      }
+
+                      // データ再読み込み
+                      const data = await getPatients(DEMO_CLINIC_ID);
+                      setPatients(data);
+                      setFilteredPatients(data);
+
+                      alert(`${temporaryPatientsWithNumber.length}件の仮登録患者の診察券番号をクリアしました。`);
+                    } catch (error) {
+                      console.error('診察券番号クリアエラー:', error);
+                      alert('診察券番号のクリアに失敗しました。');
+                    }
+                  }}
+                  className="shrink-0"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  診察券番号をクリア
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* フィルター */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="患者名、電話番号、診察券番号で検索..."
+                value={patientSearchQuery}
+                onChange={(e) => setPatientSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={patientFilter === 'all' ? 'default' : 'outline'}
+              onClick={() => setPatientFilter('all')}
+              size="sm"
+            >
+              すべて ({patients.length})
+            </Button>
+            <Button
+              variant={patientFilter === 'registered' ? 'default' : 'outline'}
+              onClick={() => setPatientFilter('registered')}
+              size="sm"
+            >
+              本登録 ({patients.filter(p => p.is_registered).length})
+            </Button>
+            <Button
+              variant={patientFilter === 'temporary' ? 'default' : 'outline'}
+              onClick={() => setPatientFilter('temporary')}
+              size="sm"
+            >
+              仮登録 ({patients.filter(p => !p.is_registered).length})
+            </Button>
+          </div>
+        </div>
+
+        {/* 患者一覧テーブル */}
+        <Card>
+          <CardContent className="p-0">
+            {filteredPatients.length === 0 ? (
+              <div className="p-12 text-center">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">患者が見つかりませんでした</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        診察券番号
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        氏名
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        フリガナ
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        電話番号
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        登録状態
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        登録日
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredPatients.map((patient) => (
+                      <tr key={patient.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {patient.patient_number || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {patient.last_name} {patient.first_name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {patient.last_name_kana} {patient.first_name_kana}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {patient.phone || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {patient.is_registered ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              本登録
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              仮登録
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {patient.created_at ? new Date(patient.created_at).toLocaleDateString('ja-JP') : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 表示件数 */}
+        <div className="text-sm text-gray-600 text-center">
+          {filteredPatients.length}件 / {patients.length}件中
+        </div>
+
+        {/* 新規患者登録モーダル */}
+        {showNewPatientModal && (
+          <Modal
+            isOpen={showNewPatientModal}
+            onClose={() => setShowNewPatientModal(false)}
+            title="新規患者登録"
+          >
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Info className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      登録について
+                    </h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>本登録として患者を作成します</li>
+                        <li>診察券番号は自動で採番されます</li>
+                        <li>氏名と電話番号は必須項目です</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <PatientForm
+                onSubmit={async (formData: any) => {
+                  try {
+                    const { createPatient } = await import('@/lib/api/patients');
+                    await createPatient(DEMO_CLINIC_ID, {
+                      ...formData,
+                      is_registered: true
+                    });
+
+                    // データ再読み込み
+                    const data = await getPatients(DEMO_CLINIC_ID);
+                    setPatients(data);
+                    setFilteredPatients(data);
+
+                    setShowNewPatientModal(false);
+                    alert('患者を登録しました。');
+                  } catch (error) {
+                    console.error('患者登録エラー:', error);
+                    alert('患者の登録に失敗しました。');
+                  }
+                }}
+                onCancel={() => setShowNewPatientModal(false)}
+                isEditing={false}
+              />
+            </div>
+          </Modal>
+        )}
       </div>
     );
   };
@@ -6426,6 +6982,7 @@ export default function SettingsPage() {
         {selectedCategory === "questionnaire" && renderQuestionnaireSettings()}
         {selectedCategory === "units" && renderUnitsSettings()}
         {selectedCategory === "training" && renderTrainingSettings()}
+        {selectedCategory === "patient-list" && renderPatientListSettings()}
         {selectedCategory === "data-import" && renderDataImportSettings()}
         {selectedCategory === "staff" && (
           <div className="space-y-6">
@@ -7945,8 +8502,7 @@ export default function SettingsPage() {
                                         >
                                       <div className="flex items-center justify-between mb-1">
                                         <span className="font-medium text-gray-700">
-                                              ステップ{index + 1}:{" "}
-                                              {step.description || "未設定"}
+                                              ステップ{index + 1}
                                         </span>
                                         <span className="text-xs text-gray-500">
                                               {step.start_time}分～
@@ -8995,28 +9551,6 @@ export default function SettingsPage() {
                             </div>
                           </div>
 
-                          {/* 処置内容 */}
-                          <div className="mb-3">
-                            <Label className="text-xs">処置内容</Label>
-                            <Input
-                              value={step.description}
-                              onChange={(e) => {
-                                const updatedSteps = newWebMenu.steps.map(
-                                  (s) =>
-                                    s.id === step.id
-                                      ? { ...s, description: e.target.value }
-                                      : s,
-                                );
-                                setNewWebMenu((prev) => ({
-                                  ...prev,
-                                  steps: updatedSteps,
-                                }));
-                              }}
-                              placeholder="例: 準備・検査"
-                              className="text-sm"
-                            />
-                          </div>
-
                           {/* 配置タイプ */}
                           <div className="mb-3">
                             <Label className="text-xs mb-2 block">
@@ -9510,28 +10044,6 @@ export default function SettingsPage() {
                                 className="text-sm bg-gray-50"
                               />
                             </div>
-                          </div>
-
-                          {/* 処置内容 */}
-                          <div className="mb-3">
-                            <Label className="text-xs">処置内容</Label>
-                            <Input
-                              value={step.description}
-                              onChange={(e) => {
-                                const updatedSteps = newWebMenu.steps.map(
-                                  (s) =>
-                                    s.id === step.id
-                                      ? { ...s, description: e.target.value }
-                                      : s,
-                                );
-                                setNewWebMenu((prev) => ({
-                                  ...prev,
-                                  steps: updatedSteps,
-                                }));
-                              }}
-                              placeholder="例: 準備・検査"
-                              className="text-sm"
-                            />
                           </div>
 
                           {/* 配置タイプ */}

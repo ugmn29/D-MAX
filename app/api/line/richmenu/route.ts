@@ -35,6 +35,12 @@ export async function POST(request: NextRequest) {
       console.log('No existing default rich menu to delete')
     }
 
+    // LIFF IDを環境変数から取得
+    const liffIdQrCode = process.env.NEXT_PUBLIC_LIFF_ID_QR_CODE
+    const liffIdFamilyRegister = process.env.NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
+    const liffIdAppointments = process.env.NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+    const liffIdWebBooking = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+
     // 2. リッチメニューオブジェクトを作成
     const richMenu = {
       size: {
@@ -53,27 +59,47 @@ export async function POST(request: NextRequest) {
         // 家族登録 (左列・2段目) - LIFF URL
         {
           bounds: { x: 0, y: 562, width: 833, height: 542 },
-          action: { type: 'uri' as const, uri: buttons[2]?.url || 'https://liff.line.me/family-register' }
+          action: {
+            type: 'uri' as const,
+            uri: liffIdFamilyRegister
+              ? `https://liff.line.me/${liffIdFamilyRegister}`
+              : buttons[2]?.url || 'https://liff.line.me/family-register'
+          }
         },
         // お問合せ (左列・3段目) - メッセージ送信
         {
           bounds: { x: 0, y: 1124, width: 833, height: 562 },
           action: { type: 'message' as const, text: 'CONTACT_REQUEST' }
         },
-        // QRコード (中央上) - メッセージで画像送信
+        // QRコード (中央上) - LIFF URL
         {
           bounds: { x: 833, y: 0, width: 834, height: 843 },
-          action: { type: 'message' as const, text: 'QR_CODE_REQUEST' }
+          action: {
+            type: 'uri' as const,
+            uri: liffIdQrCode
+              ? `https://liff.line.me/${liffIdQrCode}`
+              : 'https://liff.line.me/qr-code'
+          }
         },
-        // 予約確認 (右上) - メッセージで予約情報表示
+        // 予約確認 (右上) - LIFF URL
         {
           bounds: { x: 1667, y: 0, width: 833, height: 843 },
-          action: { type: 'message' as const, text: 'APPOINTMENT_CHECK' }
+          action: {
+            type: 'uri' as const,
+            uri: liffIdAppointments
+              ? `https://liff.line.me/${liffIdAppointments}`
+              : 'https://liff.line.me/appointments'
+          }
         },
-        // 予約を取る (中央下+右下の2マス分) - 新規予約URL
+        // 予約を取る (中央下+右下の2マス分) - LIFF URL
         {
           bounds: { x: 833, y: 843, width: 1667, height: 843 },
-          action: { type: 'uri' as const, uri: buttons[5]?.url || 'https://liff.line.me/appointment' }
+          action: {
+            type: 'uri' as const,
+            uri: liffIdWebBooking
+              ? `https://liff.line.me/${liffIdWebBooking}`
+              : buttons[5]?.url || 'https://liff.line.me/web-booking'
+          }
         }
       ]
     }
