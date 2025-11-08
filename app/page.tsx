@@ -19,10 +19,13 @@ export default function HomePage() {
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState<number>(40)
   const [displayMode, setDisplayMode] = useState<'staff' | 'units' | 'both'>('staff')
-  
+
   // コピータブ機能関連
   const [copiedAppointment, setCopiedAppointment] = useState<any>(null)
   const [isPasteMode, setIsPasteMode] = useState(false)
+
+  // プライバシーモード（セッション中のみ有効、ページリロードで元に戻る）
+  const [privacyMode, setPrivacyMode] = useState(false)
 
   // timeSlotMinutesの変更をログ出力
   useEffect(() => {
@@ -239,6 +242,7 @@ export default function HomePage() {
           cellHeight={cellHeight}
           displayMode={displayMode}
           onDisplayModeChange={setDisplayMode}
+          privacyMode={privacyMode}
           onCopyStateChange={(copied, pasteMode) => {
             setCopiedAppointment(copied)
             setIsPasteMode(pasteMode)
@@ -256,6 +260,8 @@ export default function HomePage() {
           onPasteToDate={handlePasteToDate}
           displayMode={displayMode}
           onDisplayModeChange={setDisplayMode}
+          privacyMode={privacyMode}
+          onPrivacyModeChange={setPrivacyMode}
         />
     </div>
   )

@@ -60,7 +60,20 @@ export default function FamilyRegisterPage() {
     const initializeLiff = async () => {
       try {
         if (typeof window !== 'undefined' && window.liff) {
-          const liffId = process.env.NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
+          let liffId = process.env.NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
+
+          // localStorageから設定画面の値を取得
+          try {
+            const savedSettings = localStorage.getItem('notificationSettings')
+            if (savedSettings) {
+              const settings = JSON.parse(savedSettings)
+              if (settings.line?.liff_id_family_register) {
+                liffId = settings.line.liff_id_family_register
+              }
+            }
+          } catch (e) {
+            console.warn('localStorage読み込みエラー:', e)
+          }
 
           if (!liffId) {
             setError('LIFF IDが設定されていません')

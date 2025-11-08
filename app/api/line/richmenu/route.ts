@@ -5,12 +5,20 @@ import { generateRichMenuImage, RichMenuButton } from '@/lib/line/richmenu-image
 interface RichMenuRequest {
   channelAccessToken: string
   buttons: RichMenuButton[]
+  menuType?: 'registered' | 'unregistered'
+  liffIds?: {
+    initial_link?: string
+    qr_code?: string
+    family_register?: string
+    appointments?: string
+    web_booking?: string
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: RichMenuRequest = await request.json()
-    const { channelAccessToken, buttons } = body
+    const { channelAccessToken, buttons, menuType = 'registered', liffIds } = body
 
     if (!channelAccessToken) {
       return NextResponse.json(
@@ -35,80 +43,119 @@ export async function POST(request: NextRequest) {
       console.log('No existing default rich menu to delete')
     }
 
-    // LIFF IDを環境変数から取得
-    const liffIdQrCode = process.env.NEXT_PUBLIC_LIFF_ID_QR_CODE
-    const liffIdFamilyRegister = process.env.NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
-    const liffIdAppointments = process.env.NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
-    const liffIdWebBooking = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+    // LIFF IDを取得（設定画面の値 > 環境変数の順で優先）
+    const liffIdQrCode = liffIds?.qr_code || process.env.NEXT_PUBLIC_LIFF_ID_QR_CODE
+    const liffIdFamilyRegister = liffIds?.family_register || process.env.NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
+    const liffIdAppointments = liffIds?.appointments || process.env.NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+    const liffIdWebBooking = liffIds?.web_booking || process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+    const liffIdInitialLink = liffIds?.initial_link || process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
 
     // 2. リッチメニューオブジェクトを作成
-    const richMenu = {
-      size: {
-        width: 2500,
-        height: 1686
-      },
-      selected: true,
-      name: 'D-MAX Clinic Rich Menu',
-      chatBarText: 'メニュー',
-      areas: [
-        // Webサイト (左列・1段目) - 外部URL
-        {
-          bounds: { x: 0, y: 0, width: 833, height: 542 },
-          action: { type: 'uri' as const, uri: buttons[3]?.url || 'https://example.com' }
+    let richMenu
+
+    if (menuType === 'unregistered') {
+      // 未連携ユーザー用リッチメニュー（3ボタン・横並び）
+      richMenu = {
+        size: {
+          width: 2500,
+          height: 843  // 1行分の高さ
         },
-        // 家族登録 (左列・2段目) - LIFF URL
-        {
-          bounds: { x: 0, y: 562, width: 833, height: 542 },
-          action: {
-            type: 'uri' as const,
-            uri: liffIdFamilyRegister
-              ? `https://liff.line.me/${liffIdFamilyRegister}`
-              : buttons[2]?.url || 'https://liff.line.me/family-register'
+        selected: true,
+        name: 'D-MAX Clinic Rich Menu (Unregistered)',
+        chatBarText: 'メニュー',
+        areas: [
+          // 初回登録 (左) - LIFF URL
+          {
+            bounds: { x: 0, y: 0, width: 833, height: 843 },
+            action: {
+              type: 'uri' as const,
+              uri: liffIdInitialLink
+                ? `https://liff.line.me/${liffIdInitialLink}`
+                : buttons[0]?.url || '/liff/initial-link'
+            }
+          },
+          // Webサイト (中央) - 外部URL
+          {
+            bounds: { x: 833, y: 0, width: 834, height: 843 },
+            action: { type: 'uri' as const, uri: buttons[1]?.url || 'https://example.com' }
+          },
+          // お問合せ (右) - メッセージ送信
+          {
+            bounds: { x: 1667, y: 0, width: 833, height: 843 },
+            action: { type: 'message' as const, text: buttons[2]?.url || 'CONTACT_REQUEST' }
           }
+        ]
+      }
+    } else {
+      // 連携済みユーザー用リッチメニュー（6ボタン）
+      richMenu = {
+        size: {
+          width: 2500,
+          height: 1686
         },
-        // お問合せ (左列・3段目) - メッセージ送信
-        {
-          bounds: { x: 0, y: 1124, width: 833, height: 562 },
-          action: { type: 'message' as const, text: 'CONTACT_REQUEST' }
-        },
-        // QRコード (中央上) - LIFF URL
-        {
-          bounds: { x: 833, y: 0, width: 834, height: 843 },
-          action: {
-            type: 'uri' as const,
-            uri: liffIdQrCode
-              ? `https://liff.line.me/${liffIdQrCode}`
-              : 'https://liff.line.me/qr-code'
+        selected: true,
+        name: 'D-MAX Clinic Rich Menu (Registered)',
+        chatBarText: 'メニュー',
+        areas: [
+          // Webサイト (左列・1段目) - 外部URL
+          {
+            bounds: { x: 0, y: 0, width: 833, height: 542 },
+            action: { type: 'uri' as const, uri: buttons[3]?.url || 'https://example.com' }
+          },
+          // 家族登録 (左列・2段目) - LIFF URL
+          {
+            bounds: { x: 0, y: 562, width: 833, height: 542 },
+            action: {
+              type: 'uri' as const,
+              uri: liffIdFamilyRegister
+                ? `https://liff.line.me/${liffIdFamilyRegister}`
+                : 'https://liff.line.me/family-register'
+            }
+          },
+          // お問合せ (左列・3段目) - メッセージ送信
+          {
+            bounds: { x: 0, y: 1124, width: 833, height: 562 },
+            action: { type: 'message' as const, text: buttons[4]?.url || 'CONTACT_REQUEST' }
+          },
+          // QRコード (中央上) - LIFF URL
+          {
+            bounds: { x: 833, y: 0, width: 834, height: 843 },
+            action: {
+              type: 'uri' as const,
+              uri: liffIdQrCode
+                ? `https://liff.line.me/${liffIdQrCode}`
+                : 'https://liff.line.me/qr-code'
+            }
+          },
+          // 予約確認 (右上) - LIFF URL
+          {
+            bounds: { x: 1667, y: 0, width: 833, height: 843 },
+            action: {
+              type: 'uri' as const,
+              uri: liffIdAppointments
+                ? `https://liff.line.me/${liffIdAppointments}`
+                : 'https://liff.line.me/appointments'
+            }
+          },
+          // 予約を取る (中央下+右下の2マス分) - LIFF URL
+          {
+            bounds: { x: 833, y: 843, width: 1667, height: 843 },
+            action: {
+              type: 'uri' as const,
+              uri: liffIdWebBooking
+                ? `https://liff.line.me/${liffIdWebBooking}`
+                : 'https://liff.line.me/web-booking'
+            }
           }
-        },
-        // 予約確認 (右上) - LIFF URL
-        {
-          bounds: { x: 1667, y: 0, width: 833, height: 843 },
-          action: {
-            type: 'uri' as const,
-            uri: liffIdAppointments
-              ? `https://liff.line.me/${liffIdAppointments}`
-              : 'https://liff.line.me/appointments'
-          }
-        },
-        // 予約を取る (中央下+右下の2マス分) - LIFF URL
-        {
-          bounds: { x: 833, y: 843, width: 1667, height: 843 },
-          action: {
-            type: 'uri' as const,
-            uri: liffIdWebBooking
-              ? `https://liff.line.me/${liffIdWebBooking}`
-              : buttons[5]?.url || 'https://liff.line.me/web-booking'
-          }
-        }
-      ]
+        ]
+      }
     }
 
     const richMenuId = await client.createRichMenu(richMenu)
     console.log('Created rich menu:', richMenuId)
 
     // 3. リッチメニュー画像を生成
-    const imageBuffer = await generateRichMenuImage(buttons)
+    const imageBuffer = await generateRichMenuImage(buttons, menuType)
 
     // 4. 画像をアップロード
     await client.setRichMenuImage(richMenuId, imageBuffer, 'image/png')

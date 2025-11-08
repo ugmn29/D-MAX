@@ -822,15 +822,16 @@ export default function WebReservationSettingsPage() {
                 {/* 担当者選択 */}
                 <div>
                   <Label className="mb-2 block">担当者（複数選択可）</Label>
-                  <div className="grid grid-cols-2 gap-2 border rounded-lg p-3">
+                  <div className="grid grid-cols-3 gap-2 border rounded-lg p-3">
                     {staff.map(s => (
-                      <div key={s.id} className="flex items-center space-x-2">
+                      <div key={s.id} className="flex items-center space-x-2 min-w-0">
                         <Checkbox
                           id={`new_menu_staff_${s.id}`}
                           checked={newWebMenu.staff_ids.includes(s.id)}
                           onCheckedChange={() => toggleStaffSelection(s.id)}
+                          className="shrink-0"
                         />
-                        <Label htmlFor={`new_menu_staff_${s.id}`}>
+                        <Label htmlFor={`new_menu_staff_${s.id}`} className="text-sm truncate cursor-pointer">
                           {s.name}
                         </Label>
                       </div>

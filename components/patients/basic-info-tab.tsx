@@ -23,7 +23,9 @@ import {
   X,
   Plus,
   Trash2,
-  Search
+  Search,
+  Bell,
+  Settings
 } from 'lucide-react'
 import { calculateAge } from '@/lib/utils/date'
 import { Patient } from '@/types/database'
@@ -40,7 +42,9 @@ import {
   upsertPatientWebBookingSettings,
   PatientWebBookingSettings
 } from '@/lib/api/patient-web-booking-settings'
+import { getPatientIcons, upsertPatientIcons } from '@/lib/api/patient-icons'
 import { LineLinkageSection } from './line-linkage-section'
+import { PatientEditModal } from '@/components/forms/patient-edit-modal'
 
 interface BasicInfoTabProps {
   patientId: string
@@ -67,6 +71,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   const [patient, setPatient] = useState<Patient | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showPatientEditModal, setShowPatientEditModal] = useState(false)
   
   // 編集用の状態
   const [editData, setEditData] = useState({
@@ -111,27 +116,32 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   // 選択されたアイコン
   const [selectedIconIds, setSelectedIconIds] = useState<string[]>([])
 
-  // 患者IDが変わったらローカルストレージからアイコンを読み込む
-  useEffect(() => {
-    if (patientId) {
-      const savedIcons = localStorage.getItem(`patient_icons_${patientId}`)
-      if (savedIcons) {
-        try {
-          const iconIds = JSON.parse(savedIcons)
-          setSelectedIconIds(iconIds)
-        } catch (e) {
-          console.error('アイコンデータの読み込みエラー:', e)
-        }
-      }
-    }
-  }, [patientId])
+  // アイコンを選択/解除してデータベースに保存する関数
+  const toggleIcon = async (iconId: string) => {
+    const newIconIds = selectedIconIds.includes(iconId)
+      ? selectedIconIds.filter(id => id !== iconId)
+      : [...selectedIconIds, iconId]
 
-  // アイコンが変更されたらローカルストレージに保存
-  useEffect(() => {
-    if (patientId && selectedIconIds.length >= 0) {
-      localStorage.setItem(`patient_icons_${patientId}`, JSON.stringify(selectedIconIds))
+    setSelectedIconIds(newIconIds)
+
+    // データベースに即座に保存
+    try {
+      await upsertPatientIcons(patientId, DEMO_CLINIC_ID, newIconIds)
+      console.log('アイコンをデータベースに保存しました:', newIconIds)
+
+      // 他のタブやコンポーネントに更新を通知
+      const event = new CustomEvent('patientIconsUpdated', {
+        detail: { patientId, iconIds: newIconIds }
+      })
+      window.dispatchEvent(event)
+      console.log('patientIconsUpdatedイベントを発行しました:', { patientId, iconIds: newIconIds })
+    } catch (error) {
+      console.error('アイコンの保存エラー:', error)
+      // エラーの場合は元に戻す
+      setSelectedIconIds(selectedIconIds)
+      alert('アイコンの保存に失敗しました')
     }
-  }, [patientId, selectedIconIds])
+  }
 
   // 保険証情報
   const [insuranceInfo, setInsuranceInfo] = useState<InsuranceInfo[]>([])
@@ -183,6 +193,53 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     }
   }, [patientId])
 
+  // 他のコンポーネントでの患者データ変更を検知
+  useEffect(() => {
+    const handlePatientDataUpdate = async (event: any) => {
+      console.log('BasicInfoTab: 患者データが更新されました', event.detail)
+      // 患者データを再読み込み
+      try {
+        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+        const updatedPatient = await getPatientById(DEMO_CLINIC_ID, patientId)
+        if (updatedPatient) {
+          console.log('BasicInfoTab: イベント受信 - データベースから取得した primary_doctor_id:', (updatedPatient as any).primary_doctor_id)
+          console.log('BasicInfoTab: イベント受信 - データベースから取得した primary_hygienist_id:', (updatedPatient as any).primary_hygienist_id)
+          setPatient(updatedPatient)
+          // editDataも更新
+          setEditData({
+            last_name: updatedPatient.last_name,
+            first_name: updatedPatient.first_name,
+            last_name_kana: updatedPatient.last_name_kana || '',
+            first_name_kana: updatedPatient.first_name_kana || '',
+            birth_date: updatedPatient.birth_date || '',
+            gender: updatedPatient.gender || '',
+            phone: updatedPatient.phone || '',
+            email: updatedPatient.email || '',
+            address: updatedPatient.address || '',
+            visit_reason: (updatedPatient as any).visit_reason || '',
+            preferred_contact_method: (updatedPatient as any).preferred_contact_method || '',
+            allergies: updatedPatient.allergies || '',
+            medical_history: updatedPatient.medical_history || '',
+            medications: (updatedPatient as any).medications || '',
+            special_notes: '',
+            primary_doctor: (updatedPatient as any).primary_doctor_id || '',
+            assigned_dh: (updatedPatient as any).primary_hygienist_id || ''
+          })
+          console.log('BasicInfoTab: 患者データを再読み込みしました', updatedPatient)
+          console.log('BasicInfoTab: イベント受信 - editDataにセットした primary_doctor:', (updatedPatient as any).primary_doctor_id || '')
+          console.log('BasicInfoTab: イベント受信 - editDataにセットした assigned_dh:', (updatedPatient as any).primary_hygienist_id || '')
+        }
+      } catch (error) {
+        console.error('BasicInfoTab: 患者データの再読み込みエラー:', error)
+      }
+    }
+
+    window.addEventListener('patientDataUpdated', handlePatientDataUpdate)
+    return () => {
+      window.removeEventListener('patientDataUpdated', handlePatientDataUpdate)
+    }
+  }, [patientId])
+
   // 患者データが読み込まれたら家族候補を検索
   useEffect(() => {
     if (patient) {
@@ -206,178 +263,233 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       }
 
       console.log('BasicInfoTab: 患者データを取得しました', patientData)
+      console.log('BasicInfoTab: 患者のis_registered値:', patientData.is_registered)
 
       // 問診票の情報を取得（linked_fieldを使用して自動転記）
+      // ただし、既にデータベースに保存されているデータは上書きしない
       try {
-        // 全ての連携済み問診票を取得
-        const { getLinkedQuestionnaireResponses } = await import('@/lib/api/questionnaires')
-        const questionnaireResponses = await getLinkedQuestionnaireResponses(patientId)
+        // データベースに既にデータが保存されているかチェック
+        const hasExistingData = patientData.phone || patientData.email || patientData.address
 
-        console.log('連携済み問診票を取得:', questionnaireResponses.length, '件')
+        if (!hasExistingData) {
+          console.log('データベースにデータがないため、問診票から転記します')
+          // 全ての連携済み問診票を取得
+          const { getLinkedQuestionnaireResponses } = await import('@/lib/api/questionnaires')
+          const questionnaireResponses = await getLinkedQuestionnaireResponses(patientId)
 
-        if (questionnaireResponses && questionnaireResponses.length > 0) {
-          // 最新の問診票を使用
-          const latestResponse = questionnaireResponses[0]
-          const responseData = latestResponse.response_data
-          const questionnaireId = latestResponse.questionnaire_id
+          console.log('連携済み問診票を取得:', questionnaireResponses.length, '件')
 
-          console.log('問診票データ全体:', responseData)
-          console.log('問診票ID:', questionnaireId)
+          if (questionnaireResponses && questionnaireResponses.length > 0) {
+            // 最新の問診票を使用
+            const latestResponse = questionnaireResponses[0]
+            const responseData = latestResponse.response_data
+            const questionnaireId = latestResponse.questionnaire_id
 
-          // 問診票の定義を取得（linked_fieldを確認するため）
-          const { getQuestionnaires } = await import('@/lib/api/questionnaires')
-          const questionnaires = await getQuestionnaires(DEMO_CLINIC_ID)
-          const questionnaire = questionnaires.find(q => q.id === questionnaireId)
+            console.log('問診票データ全体:', responseData)
+            console.log('問診票ID:', questionnaireId)
 
-          if (questionnaire && questionnaire.questions) {
-            console.log('問診票定義を取得:', questionnaire.name, '質問数:', questionnaire.questions.length)
+            // 問診票の定義を取得（linked_fieldを確認するため）
+            const { getQuestionnaires } = await import('@/lib/api/questionnaires')
+            const questionnaires = await getQuestionnaires(DEMO_CLINIC_ID)
+            const questionnaire = questionnaires.find(q => q.id === questionnaireId)
 
-            // linked_fieldに基づいて患者情報を抽出
-            questionnaire.questions.forEach((question: any) => {
-              const questionId = question.id
-              const linkedField = question.linked_field
-              const answer = responseData[questionId]
+            if (questionnaire && questionnaire.questions) {
+              console.log('問診票定義を取得:', questionnaire.name, '質問数:', questionnaire.questions.length)
 
-              if (linkedField && answer !== undefined && answer !== null && answer !== '') {
-                console.log(`連携フィールド発見: ${linkedField} = ${answer}`)
+              // linked_fieldに基づいて患者情報を抽出
+              questionnaire.questions.forEach((question: any) => {
+                const questionId = question.id
+                const linkedField = question.linked_field
+                const answer = responseData[questionId]
 
-                switch (linkedField) {
-                  case 'birth_date':
-                    patientData.birth_date = answer
-                    console.log('生年月日を設定:', answer)
-                    break
-                  case 'gender':
-                    patientData.gender = answer
-                    console.log('性別を設定:', answer)
-                    break
-                  case 'phone':
-                    patientData.phone = answer
-                    console.log('電話番号を設定:', answer)
-                    break
-                  case 'email':
-                    patientData.email = answer
-                    console.log('メールアドレスを設定:', answer)
-                    break
-                  case 'postal_code':
-                    // 郵便番号は住所の一部として扱う
-                    const currentAddress = (patientData as any).address || ''
-                    if (!currentAddress.includes(answer)) {
-                      (patientData as any).postal_code = answer
-                    }
-                    console.log('郵便番号を設定:', answer)
-                    break
-                  case 'address':
-                    // 郵便番号が既にある場合は結合
-                    const postalCode = (patientData as any).postal_code || ''
-                    const fullAddress = postalCode ? `${postalCode} ${answer}` : answer
-                    patientData.address = fullAddress
-                    console.log('住所を設定:', fullAddress)
-                    break
-                  case 'referral_source':
-                    // 来院理由として設定
-                    if (Array.isArray(answer)) {
-                      (patientData as any).visit_reason = answer.join('、')
-                    } else {
-                      (patientData as any).visit_reason = answer
-                    }
-                    console.log('来院理由を設定:', answer)
-                    break
-                  case 'preferred_contact_method':
-                    // 希望連絡方法を設定
-                    // 配列の場合は最初の要素を使用
-                    let contactMethod = Array.isArray(answer) ? answer[0] : answer
-                    // 値を小文字に正規化（表示用の値に合わせる）
-                    if (contactMethod === 'LINE') contactMethod = 'line'
-                    else if (contactMethod === 'メール' || contactMethod === 'Email') contactMethod = 'email'
-                    else if (contactMethod === 'SMS') contactMethod = 'sms'
-                    (patientData as any).preferred_contact_method = contactMethod
-                    console.log('希望連絡方法を設定:', (patientData as any).preferred_contact_method)
-                    break
-                  case 'allergies':
-                    if (Array.isArray(answer)) {
-                      patientData.allergies = answer.join(', ')
-                    } else if (answer === 'ない' || answer === 'なし') {
-                      patientData.allergies = 'なし'
-                    } else {
-                      patientData.allergies = answer
-                    }
-                    console.log('アレルギーを設定:', patientData.allergies)
-                    break
-                  case 'medical_history':
-                    if (Array.isArray(answer)) {
-                      patientData.medical_history = answer.join('、')
-                    } else if (answer === 'ない' || answer === 'なし') {
-                      patientData.medical_history = 'なし'
-                    } else {
-                      patientData.medical_history = answer
-                    }
-                    console.log('既往歴を設定:', patientData.medical_history)
-                    break
-                  case 'medications':
-                    if (Array.isArray(answer)) {
-                      (patientData as any).medications = answer.join('、')
-                    } else if (answer === 'ない' || answer === 'なし') {
-                      (patientData as any).medications = 'なし'
-                    } else {
-                      (patientData as any).medications = answer
-                    }
-                    console.log('服用薬を設定:', (patientData as any).medications)
-                    break
+                if (linkedField && answer !== undefined && answer !== null && answer !== '') {
+                  console.log(`連携フィールド発見: ${linkedField} = ${answer}`)
+
+                  switch (linkedField) {
+                    case 'birth_date':
+                      if (!patientData.birth_date) patientData.birth_date = answer
+                      console.log('生年月日を設定:', answer)
+                      break
+                    case 'gender':
+                      if (!patientData.gender) {
+                        // 性別を正規化（データベースのenum値に合わせる）
+                        let genderValue = answer
+                        if (genderValue === '男' || genderValue === '男性' || genderValue === 'male') {
+                          genderValue = 'male'
+                        } else if (genderValue === '女' || genderValue === '女性' || genderValue === 'female') {
+                          genderValue = 'female'
+                        } else {
+                          genderValue = 'other'
+                        }
+                        patientData.gender = genderValue
+                        console.log('性別を設定:', genderValue)
+                      }
+                      break
+                    case 'phone':
+                      if (!patientData.phone) patientData.phone = answer
+                      console.log('電話番号を設定:', answer)
+                      break
+                    case 'email':
+                      if (!patientData.email) patientData.email = answer
+                      console.log('メールアドレスを設定:', answer)
+                      break
+                    case 'postal_code':
+                      // 郵便番号は住所の一部として扱う
+                      const currentAddress = (patientData as any).address || ''
+                      if (!currentAddress.includes(answer)) {
+                        (patientData as any).postal_code = answer
+                      }
+                      console.log('郵便番号を設定:', answer)
+                      break
+                    case 'address':
+                      if (!patientData.address) {
+                        // 郵便番号が既にある場合は結合
+                        const postalCode = (patientData as any).postal_code || ''
+                        const fullAddress = postalCode ? `${postalCode} ${answer}` : answer
+                        patientData.address = fullAddress
+                        console.log('住所を設定:', fullAddress)
+                      }
+                      break
+                    case 'referral_source':
+                      if (!(patientData as any).visit_reason) {
+                        // 来院理由として設定
+                        if (Array.isArray(answer)) {
+                          (patientData as any).visit_reason = answer.join('、')
+                        } else {
+                          (patientData as any).visit_reason = answer
+                        }
+                        console.log('来院理由を設定:', answer)
+                      }
+                      break
+                    case 'preferred_contact_method':
+                      if (!(patientData as any).preferred_contact_method) {
+                        // 希望連絡方法を設定
+                        // 配列の場合は最初の要素を使用
+                        let contactMethod = Array.isArray(answer) ? answer[0] : answer
+                        console.log('希望連絡方法の生の値:', contactMethod, 'タイプ:', typeof contactMethod)
+                        // 値を小文字に正規化（表示用の値に合わせる）
+                        if (contactMethod === 'LINE' || contactMethod === 'line') {
+                          contactMethod = 'line'
+                        } else if (contactMethod === 'メール' || contactMethod === 'Email' || contactMethod === 'email') {
+                          contactMethod = 'email'
+                        } else if (contactMethod === 'SMS' || contactMethod === 'sms') {
+                          contactMethod = 'sms'
+                        } else {
+                          // 想定外の値の場合はログを出力
+                          console.warn('想定外の希望連絡方法の値:', contactMethod)
+                          contactMethod = null
+                        }
+                        (patientData as any).preferred_contact_method = contactMethod
+                        console.log('希望連絡方法を設定:', (patientData as any).preferred_contact_method)
+                      }
+                      break
+                    case 'allergies':
+                      if (!patientData.allergies) {
+                        if (Array.isArray(answer)) {
+                          patientData.allergies = answer.join(', ')
+                        } else if (answer === 'ない' || answer === 'なし') {
+                          patientData.allergies = 'なし'
+                        } else {
+                          patientData.allergies = answer
+                        }
+                        console.log('アレルギーを設定:', patientData.allergies)
+                      }
+                      break
+                    case 'medical_history':
+                      if (!patientData.medical_history) {
+                        if (Array.isArray(answer)) {
+                          patientData.medical_history = answer.join('、')
+                        } else if (answer === 'ない' || answer === 'なし') {
+                          patientData.medical_history = 'なし'
+                        } else {
+                          patientData.medical_history = answer
+                        }
+                        console.log('既往歴を設定:', patientData.medical_history)
+                      }
+                      break
+                    case 'medications':
+                      if (!(patientData as any).medications) {
+                        if (Array.isArray(answer)) {
+                          (patientData as any).medications = answer.join('、')
+                        } else if (answer === 'ない' || answer === 'なし') {
+                          (patientData as any).medications = 'なし'
+                        } else {
+                          (patientData as any).medications = answer
+                        }
+                        console.log('服用薬を設定:', (patientData as any).medications)
+                      }
+                      break
+                  }
                 }
+              })
+
+              console.log('問診票から転記完了:', {
+                birth_date: patientData.birth_date,
+                gender: patientData.gender,
+                phone: patientData.phone,
+                email: patientData.email,
+                address: patientData.address,
+                visit_reason: (patientData as any).visit_reason,
+                preferred_contact_method: (patientData as any).preferred_contact_method,
+                allergies: patientData.allergies,
+                medical_history: patientData.medical_history,
+                medications: (patientData as any).medications
+              })
+
+              // 問診票から転記したデータをデータベースに自動保存
+              try {
+                const { updatePatient } = await import('@/lib/api/patients')
+                const updateData: any = {}
+
+                // 転記されたフィールドのみ更新
+                if (patientData.birth_date) updateData.birth_date = patientData.birth_date
+                if (patientData.gender) updateData.gender = patientData.gender
+                if (patientData.phone) updateData.phone = patientData.phone
+                if (patientData.email) updateData.email = patientData.email
+                if (patientData.address) updateData.address = patientData.address
+                if ((patientData as any).preferred_contact_method) {
+                  updateData.preferred_contact_method = (patientData as any).preferred_contact_method
+                }
+                if (patientData.allergies) updateData.allergies = patientData.allergies
+                if (patientData.medical_history) updateData.medical_history = patientData.medical_history
+                if ((patientData as any).visit_reason) updateData.visit_reason = (patientData as any).visit_reason
+                if ((patientData as any).medications) updateData.medications = (patientData as any).medications
+
+                // IMPORTANT: is_registeredを明示的に保持（問診連携を維持）
+                if (patientData.is_registered !== undefined) {
+                  updateData.is_registered = patientData.is_registered
+                  console.log('is_registeredを保持:', patientData.is_registered)
+                }
+
+                // 更新するデータがある場合のみDBに保存
+                if (Object.keys(updateData).length > 0) {
+                  console.log('問診票データをDBに自動保存:', updateData)
+                  console.log('問診票データ保存前のpatientData.is_registered:', patientData.is_registered)
+                  await updatePatient(DEMO_CLINIC_ID, patientId, updateData)
+                  console.log('問診票データの自動保存完了')
+                  console.log('問診票データ保存後のpatientData.is_registered:', patientData.is_registered)
+                }
+              } catch (saveError) {
+                console.error('問診票データの自動保存エラー:', saveError)
+                // 保存に失敗してもページの表示は続行
               }
-            })
-
-            console.log('問診票から転記完了:', {
-              birth_date: patientData.birth_date,
-              gender: patientData.gender,
-              phone: patientData.phone,
-              email: patientData.email,
-              address: patientData.address,
-              visit_reason: (patientData as any).visit_reason,
-              preferred_contact_method: (patientData as any).preferred_contact_method,
-              allergies: patientData.allergies,
-              medical_history: patientData.medical_history,
-              medications: (patientData as any).medications
-            })
-
-            // 問診票から転記したデータをデータベースに自動保存
-            try {
-              const { updatePatient } = await import('@/lib/api/patients')
-              const updateData: any = {}
-
-              // 転記されたフィールドのみ更新
-              if (patientData.birth_date) updateData.birth_date = patientData.birth_date
-              if (patientData.gender) updateData.gender = patientData.gender
-              if (patientData.phone) updateData.phone = patientData.phone
-              if (patientData.email) updateData.email = patientData.email
-              if (patientData.address) updateData.address = patientData.address
-              if ((patientData as any).preferred_contact_method) {
-                updateData.preferred_contact_method = (patientData as any).preferred_contact_method
-              }
-              if (patientData.allergies) updateData.allergies = patientData.allergies
-              if (patientData.medical_history) updateData.medical_history = patientData.medical_history
-
-              // 更新するデータがある場合のみDBに保存
-              if (Object.keys(updateData).length > 0) {
-                console.log('問診票データをDBに自動保存:', updateData)
-                await updatePatient(DEMO_CLINIC_ID, patientId, updateData)
-                console.log('問診票データの自動保存完了')
-              }
-            } catch (saveError) {
-              console.error('問診票データの自動保存エラー:', saveError)
-              // 保存に失敗してもページの表示は続行
+            } else {
+              console.log('問診票定義が見つかりません')
             }
           } else {
-            console.log('問診票定義が見つかりません')
+            console.log('連携済み問診票がありません')
           }
         } else {
-          console.log('連携済み問診票がありません')
+          console.log('データベースに既にデータがあるため、問診票からの転記をスキップします')
         }
       } catch (questionnaireError) {
         console.error('問診票の情報取得エラー:', questionnaireError)
         // 問診票の取得に失敗しても患者データの読み込みは続行
       }
 
+      console.log('BasicInfoTab: setPatient前のis_registered値:', patientData.is_registered)
+      console.log('BasicInfoTab: データベースから取得した primary_doctor_id:', (patientData as any).primary_doctor_id)
+      console.log('BasicInfoTab: データベースから取得した primary_hygienist_id:', (patientData as any).primary_hygienist_id)
       setPatient(patientData)
       setEditData({
         last_name: patientData.last_name,
@@ -395,9 +507,12 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         medical_history: patientData.medical_history || '',
         medications: (patientData as any).medications || '',
         special_notes: '',
-        primary_doctor: '',
-        assigned_dh: ''
+        primary_doctor: (patientData as any).primary_doctor_id || '',
+        assigned_dh: (patientData as any).primary_hygienist_id || '',
+        is_registered: patientData.is_registered // IMPORTANT: 問診連携状態を保持
       })
+      console.log('BasicInfoTab: editDataにセットした primary_doctor:', (patientData as any).primary_doctor_id || '')
+      console.log('BasicInfoTab: editDataにセットした assigned_dh:', (patientData as any).primary_hygienist_id || '')
 
       // 通知受信設定を読み込む
       try {
@@ -432,22 +547,19 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         console.log('Web予約設定の取得エラー（デフォルト値を使用）:', webBookingError)
       }
 
-      // 保存されているアイコンデータを読み込む
-      if ((patientData as any).patient_icons) {
-        setSelectedIconIds((patientData as any).patient_icons)
-        // ローカルストレージにも保存
-        localStorage.setItem(`patient_icons_${patientId}`, JSON.stringify((patientData as any).patient_icons))
-      } else {
-        // データベースに保存されていない場合は、ローカルストレージから読み込む
-        const savedIcons = localStorage.getItem(`patient_icons_${patientId}`)
-        if (savedIcons) {
-          try {
-            const iconIds = JSON.parse(savedIcons)
-            setSelectedIconIds(iconIds)
-          } catch (e) {
-            console.error('アイコンデータの読み込みエラー:', e)
-          }
+      // 保存されているアイコンデータをデータベースから読み込む
+      try {
+        const patientIconsData = await getPatientIcons(patientId, DEMO_CLINIC_ID)
+        if (patientIconsData && patientIconsData.icon_ids) {
+          setSelectedIconIds(patientIconsData.icon_ids)
+          console.log('アイコンをデータベースから読み込みました:', patientIconsData.icon_ids)
+        } else {
+          setSelectedIconIds([])
+          console.log('アイコンデータがありません')
         }
+      } catch (error) {
+        console.error('アイコンデータの読み込みエラー:', error)
+        setSelectedIconIds([])
       }
 
       // 保存されている家族連携データを読み込む
@@ -643,10 +755,34 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
       // 患者データの更新
-      const updateData = {
-        ...editData,
-        patient_icons: selectedIconIds, // 特記事項アイコンを含める
-        family_members: familyMembers // 家族連携を含める
+      const updateData: any = {
+        ...editData
+      }
+
+      // データベースに存在しないフィールドを削除
+      delete updateData.patient_icons  // 特記事項アイコンは別テーブル
+      delete updateData.family_members // 家族連携は別テーブル
+      delete updateData.visit_reason   // 来院理由は別テーブルまたは未実装
+      delete updateData.medications    // 服用薬は別テーブルまたは未実装
+      delete updateData.special_notes  // 特記事項は別テーブルまたは未実装
+
+      // フィールド名をデータベースのカラム名にマッピング
+      if (updateData.assigned_dh !== undefined) {
+        updateData.primary_hygienist_id = updateData.assigned_dh || null
+        delete updateData.assigned_dh
+      }
+      if (updateData.primary_doctor !== undefined) {
+        updateData.primary_doctor_id = updateData.primary_doctor || null
+        delete updateData.primary_doctor
+      }
+
+      // IMPORTANT: is_registeredを明示的に保持（問診連携を維持）
+      // editDataに既に含まれているが、念のため確認して設定
+      if (updateData.is_registered === undefined && patient && patient.is_registered !== undefined) {
+        updateData.is_registered = patient.is_registered
+        console.log('is_registeredをpatientステートから保持:', patient.is_registered)
+      } else {
+        console.log('is_registeredはeditDataから取得:', updateData.is_registered)
       }
 
       console.log('患者データを保存:', updateData)
@@ -682,9 +818,6 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         // エラーでも患者データの保存は続行
       }
 
-      // ローカルストレージにアイコンを保存
-      localStorage.setItem(`patient_icons_${patientId}`, JSON.stringify(selectedIconIds))
-
       // 患者データを再読み込み
       await loadPatientData()
 
@@ -714,7 +847,8 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         medications: (patient as any).medications || '',
         special_notes: '',
         primary_doctor: '',
-        assigned_dh: ''
+        assigned_dh: '',
+        is_registered: patient.is_registered // IMPORTANT: 問診連携状態を保持
       })
     }
     setIsEditing(false)
@@ -746,7 +880,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
               </Button>
             </>
           ) : (
-            <Button onClick={() => setIsEditing(true)} size="sm">
+            <Button onClick={() => setShowPatientEditModal(true)} size="sm">
               <Edit className="w-4 h-4 mr-2" />
               編集
             </Button>
@@ -764,7 +898,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 氏名（漢字） */}
               <div>
                 <Label htmlFor="full_name">氏名</Label>
@@ -777,14 +911,14 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                       const fullName = e.target.value
                       const parts = fullName.split(' ')
                       if (parts.length >= 2) {
-                        setEditData({ 
-                          ...editData, 
+                        setEditData({
+                          ...editData,
                           last_name: parts[0],
                           first_name: parts.slice(1).join(' ')
                         })
                       } else {
-                        setEditData({ 
-                          ...editData, 
+                        setEditData({
+                          ...editData,
                           last_name: fullName,
                           first_name: ''
                         })
@@ -792,14 +926,14 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     }}
                   />
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-md">
-                    <div className="text-lg font-medium">
+                  <div className="p-3 bg-gray-50 rounded-md" title={`${editData.last_name} ${editData.first_name}`}>
+                    <div className="text-lg font-medium truncate">
                       {editData.last_name} {editData.first_name}
                     </div>
                   </div>
                 )}
               </div>
-              
+
               {/* 氏名（フリガナ） */}
               <div>
                 <Label htmlFor="full_name_kana">氏名（フリガナ）</Label>
@@ -812,14 +946,14 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                       const fullNameKana = e.target.value
                       const parts = fullNameKana.split(' ')
                       if (parts.length >= 2) {
-                        setEditData({ 
-                          ...editData, 
+                        setEditData({
+                          ...editData,
                           last_name_kana: parts[0],
                           first_name_kana: parts.slice(1).join(' ')
                         })
                       } else {
-                        setEditData({ 
-                          ...editData, 
+                        setEditData({
+                          ...editData,
                           last_name_kana: fullNameKana,
                           first_name_kana: ''
                         })
@@ -827,8 +961,8 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     }}
                   />
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-md">
-                    <div className="text-sm text-gray-600">
+                  <div className="p-3 bg-gray-50 rounded-md" title={`${editData.last_name_kana} ${editData.first_name_kana}`}>
+                    <div className="text-sm text-gray-600 truncate">
                       {editData.last_name_kana} {editData.first_name_kana}
                     </div>
                   </div>
@@ -900,8 +1034,8 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
                   />
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-md">
-                    <div className="text-sm text-gray-600">
+                  <div className="p-3 bg-gray-50 rounded-md" title={editData.phone || '--'}>
+                    <div className="text-sm text-gray-600 truncate">
                       {editData.phone || '--'}
                     </div>
                   </div>
@@ -917,8 +1051,8 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     onChange={(e) => setEditData({ ...editData, email: e.target.value })}
                   />
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-md">
-                    <div className="text-sm text-gray-600">
+                  <div className="p-3 bg-gray-50 rounded-md" title={editData.email || '--'}>
+                    <div className="text-sm text-gray-600 truncate">
                       {editData.email || '--'}
                     </div>
                   </div>
@@ -937,7 +1071,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   className="min-h-[80px]"
                 />
               ) : (
-                <div className="p-3 bg-gray-50 rounded-md">
+                <div className="p-3 bg-gray-50 rounded-md max-h-[100px] overflow-y-auto" title={editData.address || '--'}>
                   <div className="text-sm text-gray-600">
                     {editData.address || '--'}
                   </div>
@@ -945,45 +1079,47 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
               )}
             </div>
 
-            <div>
-              <Label htmlFor="visit_reason">来院理由</Label>
-              <div className="p-3 bg-gray-50 rounded-md">
-                <div className="text-sm text-gray-600">
-                  {editData.visit_reason || '--'}
-                </div>
-              </div>
-            </div>
-
-            {/* 希望連絡方法 */}
-            <div>
-              <Label htmlFor="preferred_contact_method">希望連絡方法</Label>
-              {isEditing ? (
-                <Select
-                  value={editData.preferred_contact_method}
-                  onValueChange={(value) =>
-                    setEditData({ ...editData, preferred_contact_method: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="選択してください" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">指定なし</SelectItem>
-                    <SelectItem value="line">LINE</SelectItem>
-                    <SelectItem value="email">メール</SelectItem>
-                    <SelectItem value="sms">SMS</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="p-3 bg-gray-50 rounded-md">
-                  <div className="text-sm text-gray-600">
-                    {editData.preferred_contact_method === 'line' && 'LINE'}
-                    {editData.preferred_contact_method === 'email' && 'メール'}
-                    {editData.preferred_contact_method === 'sms' && 'SMS'}
-                    {(!editData.preferred_contact_method || editData.preferred_contact_method === 'none') && '--'}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="visit_reason">来院理由</Label>
+                <div className="p-3 bg-gray-50 rounded-md" title={editData.visit_reason || '--'}>
+                  <div className="text-sm text-gray-600 truncate">
+                    {editData.visit_reason || '--'}
                   </div>
                 </div>
-              )}
+              </div>
+
+              {/* 希望連絡方法 */}
+              <div>
+                <Label htmlFor="preferred_contact_method">希望連絡方法</Label>
+                {isEditing ? (
+                  <Select
+                    value={editData.preferred_contact_method}
+                    onValueChange={(value) =>
+                      setEditData({ ...editData, preferred_contact_method: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="選択してください" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">指定なし</SelectItem>
+                      <SelectItem value="line">LINE</SelectItem>
+                      <SelectItem value="email">メール</SelectItem>
+                      <SelectItem value="sms">SMS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <div className="text-sm text-gray-600 truncate">
+                      {editData.preferred_contact_method === 'line' && 'LINE'}
+                      {editData.preferred_contact_method === 'email' && 'メール'}
+                      {editData.preferred_contact_method === 'sms' && 'SMS'}
+                      {(!editData.preferred_contact_method || editData.preferred_contact_method === 'none') && '--'}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 家族連携 */}
@@ -1155,10 +1291,10 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-md">
-                    <div className="text-sm text-gray-600">
-                      {editData.primary_doctor ? 
-                        doctors.find(d => d.id === editData.primary_doctor)?.name || '--' 
+                  <div className="p-3 bg-gray-50 rounded-md" title={editData.primary_doctor ? doctors.find(d => d.id === editData.primary_doctor)?.name || '--' : '--'}>
+                    <div className="text-sm text-gray-600 truncate">
+                      {editData.primary_doctor ?
+                        doctors.find(d => d.id === editData.primary_doctor)?.name || '--'
                         : '--'
                       }
                     </div>
@@ -1191,10 +1327,10 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-md">
-                    <div className="text-sm text-gray-600">
-                      {editData.assigned_dh ? 
-                        dentalHygienists.find(dh => dh.id === editData.assigned_dh)?.name || '--' 
+                  <div className="p-3 bg-gray-50 rounded-md" title={editData.assigned_dh ? dentalHygienists.find(dh => dh.id === editData.assigned_dh)?.name || '--' : '--'}>
+                    <div className="text-sm text-gray-600 truncate">
+                      {editData.assigned_dh ?
+                        dentalHygienists.find(dh => dh.id === editData.assigned_dh)?.name || '--'
                         : '--'
                       }
                     </div>
@@ -1225,7 +1361,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   className="h-[80px] resize-none overflow-y-auto"
                 />
               ) : (
-                <div className="p-3 bg-gray-50 rounded-md">
+                <div className="p-3 bg-gray-50 rounded-md max-h-[80px] overflow-y-auto" title={editData.medical_history || '--'}>
                   <div className="text-sm text-gray-600">
                     {editData.medical_history || '--'}
                   </div>
@@ -1244,7 +1380,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   className="h-[80px] resize-none overflow-y-auto"
                 />
               ) : (
-                <div className="p-3 bg-gray-50 rounded-md">
+                <div className="p-3 bg-gray-50 rounded-md max-h-[80px] overflow-y-auto" title={editData.medications || '--'}>
                   <div className="text-sm text-gray-600">
                     {editData.medications || '--'}
                   </div>
@@ -1263,7 +1399,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   className="h-[80px] resize-none overflow-y-auto"
                 />
               ) : (
-                <div className="p-3 bg-gray-50 rounded-md">
+                <div className="p-3 bg-gray-50 rounded-md max-h-[80px] overflow-y-auto" title={editData.allergies || '--'}>
                   <div className="text-sm text-gray-600">
                     {editData.allergies || '--'}
                   </div>
@@ -1271,89 +1407,151 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
               )}
             </div>
 
-            {/* 通知受信設定 */}
             <div>
-              <Label>通知受信設定</Label>
-              <div className="p-3 bg-gray-50 rounded-md space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="notif_appointment_reminder"
-                    checked={notificationPreferences.appointment_reminder}
-                    onCheckedChange={(checked) => setNotificationPreferences({
-                      ...notificationPreferences,
-                      appointment_reminder: checked as boolean
-                    })}
-                    disabled={!isEditing}
-                  />
-                  <Label htmlFor="notif_appointment_reminder" className="cursor-pointer font-normal text-sm">
-                    予約リマインド通知を受け取る
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="notif_periodic_checkup"
-                    checked={notificationPreferences.periodic_checkup}
-                    onCheckedChange={(checked) => setNotificationPreferences({
-                      ...notificationPreferences,
-                      periodic_checkup: checked as boolean
-                    })}
-                    disabled={!isEditing}
-                  />
-                  <Label htmlFor="notif_periodic_checkup" className="cursor-pointer font-normal text-sm">
-                    定期検診リマインド通知を受け取る
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="notif_treatment_reminder"
-                    checked={notificationPreferences.treatment_reminder}
-                    onCheckedChange={(checked) => setNotificationPreferences({
-                      ...notificationPreferences,
-                      treatment_reminder: checked as boolean
-                    })}
-                    disabled={!isEditing}
-                  />
-                  <Label htmlFor="notif_treatment_reminder" className="cursor-pointer font-normal text-sm">
-                    治療リマインド通知を受け取る
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="notif_appointment_change"
-                    checked={notificationPreferences.appointment_change}
-                    onCheckedChange={(checked) => setNotificationPreferences({
-                      ...notificationPreferences,
-                      appointment_change: checked as boolean
-                    })}
-                    disabled={!isEditing}
-                  />
-                  <Label htmlFor="notif_appointment_change" className="cursor-pointer font-normal text-sm">
-                    予約変更通知を受け取る
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="notif_custom"
-                    checked={notificationPreferences.custom}
-                    onCheckedChange={(checked) => setNotificationPreferences({
-                      ...notificationPreferences,
-                      custom: checked as boolean
-                    })}
-                    disabled={!isEditing}
-                  />
-                  <Label htmlFor="notif_custom" className="cursor-pointer font-normal text-sm">
-                    カスタム通知を受け取る
-                  </Label>
+              <Label htmlFor="special_notes">特記事項</Label>
+
+              {/* アイコン選択UI（常に表示・編集可能） */}
+              <div className="mb-3">
+                <Label className="text-sm text-gray-600 mb-2 block">該当するアイコンを選択</Label>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 rounded-lg">
+                  {PATIENT_ICONS.filter(icon => icon.enabled).map(iconData => {
+                    const IconComponent = iconData.icon
+                    const isSelected = selectedIconIds.includes(iconData.id)
+                    return (
+                      <button
+                        key={iconData.id}
+                        type="button"
+                        onClick={() => toggleIcon(iconData.id)}
+                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md border transition-colors ${
+                          isSelected
+                            ? 'bg-yellow-100 border-yellow-500 text-yellow-900'
+                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                        }`}
+                        title={iconData.title}
+                      >
+                        <IconComponent className="w-3.5 h-3.5" />
+                        <span className="text-xs truncate max-w-[100px]">{iconData.title}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
-            </div>
 
+              {isEditing ? (
+                <Textarea
+                  id="special_notes"
+                  value={editData.special_notes}
+                  onChange={(e) => setEditData({ ...editData, special_notes: e.target.value })}
+                  placeholder="その他の特記事項を入力してください"
+                  className="min-h-[100px]"
+                />
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-md max-h-[100px] overflow-y-auto" title={editData.special_notes || '--'}>
+                  <div className="text-sm text-gray-600">
+                    {editData.special_notes || '--'}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+      </div>
+
+      {/* 通知・予約設定 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Bell className="w-5 h-5 mr-2" />
+            通知・予約設定
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* 通知受信設定 */}
+          <div className="p-4 border border-gray-200 rounded-lg bg-blue-50/30">
+            <Label className="text-base font-semibold text-gray-800 mb-3 block">通知受信設定</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="notif_appointment_reminder"
+                  checked={notificationPreferences.appointment_reminder}
+                  onCheckedChange={(checked) => setNotificationPreferences({
+                    ...notificationPreferences,
+                    appointment_reminder: checked as boolean
+                  })}
+                  disabled={!isEditing}
+                />
+                <Label htmlFor="notif_appointment_reminder" className="cursor-pointer font-normal text-sm">
+                  予約リマインド通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="notif_periodic_checkup"
+                  checked={notificationPreferences.periodic_checkup}
+                  onCheckedChange={(checked) => setNotificationPreferences({
+                    ...notificationPreferences,
+                    periodic_checkup: checked as boolean
+                  })}
+                  disabled={!isEditing}
+                />
+                <Label htmlFor="notif_periodic_checkup" className="cursor-pointer font-normal text-sm">
+                  定期検診リマインド通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="notif_treatment_reminder"
+                  checked={notificationPreferences.treatment_reminder}
+                  onCheckedChange={(checked) => setNotificationPreferences({
+                    ...notificationPreferences,
+                    treatment_reminder: checked as boolean
+                  })}
+                  disabled={!isEditing}
+                />
+                <Label htmlFor="notif_treatment_reminder" className="cursor-pointer font-normal text-sm">
+                  治療リマインド通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="notif_appointment_change"
+                  checked={notificationPreferences.appointment_change}
+                  onCheckedChange={(checked) => setNotificationPreferences({
+                    ...notificationPreferences,
+                    appointment_change: checked as boolean
+                  })}
+                  disabled={!isEditing}
+                />
+                <Label htmlFor="notif_appointment_change" className="cursor-pointer font-normal text-sm">
+                  予約変更通知を受け取る
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="notif_custom"
+                  checked={notificationPreferences.custom}
+                  onCheckedChange={(checked) => setNotificationPreferences({
+                    ...notificationPreferences,
+                    custom: checked as boolean
+                  })}
+                  disabled={!isEditing}
+                />
+                <Label htmlFor="notif_custom" className="cursor-pointer font-normal text-sm">
+                  カスタム通知を受け取る
+                </Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Web予約設定とLINE連携 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Web予約設定 */}
-            <div>
-              <Label>Web予約設定</Label>
-              <div className="p-3 bg-gray-50 rounded-md space-y-3">
+            <div className="p-4 border border-gray-200 rounded-lg bg-green-50/30">
+              <Label className="text-base font-semibold text-gray-800 mb-3 block">Web予約設定</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 基本設定 */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="web_booking_enabled"
@@ -1399,7 +1597,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                 </div>
 
                 {/* 制限設定 */}
-                <div className="border-t pt-3 space-y-3">
+                <div className="space-y-3">
                   <div>
                     <Label htmlFor="web_cancel_limit" className="text-sm">月間キャンセル回数制限</Label>
                     <select
@@ -1467,64 +1665,61 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="special_notes">特記事項</Label>
-              
-              {/* アイコン選択UI（常に表示・編集可能） */}
-              <div className="mb-3">
-                <Label className="text-sm text-gray-600 mb-2 block">該当するアイコンを選択</Label>
-                <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg max-h-48 overflow-y-auto">
-                  {PATIENT_ICONS.filter(icon => icon.enabled).map(iconData => {
-                    const IconComponent = iconData.icon
-                    const isSelected = selectedIconIds.includes(iconData.id)
-                    return (
-                      <button
-                        key={iconData.id}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedIconIds(prev => prev.filter(id => id !== iconData.id))
-                          } else {
-                            setSelectedIconIds(prev => [...prev, iconData.id])
-                          }
-                        }}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${
-                          isSelected
-                            ? 'bg-yellow-100 border-yellow-500 text-yellow-900'
-                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        <IconComponent className="w-4 h-4" />
-                        <span className="text-sm">{iconData.title}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+            {/* LINE連携 */}
+            <div className="p-4 border border-gray-200 rounded-lg bg-purple-50/30">
+              <Label className="text-base font-semibold text-gray-800 mb-3 block">LINE連携</Label>
+              <div>
+                <LineLinkageSection patientId={patientId} clinicId={DEMO_CLINIC_ID} />
               </div>
-
-              {isEditing ? (
-                <Textarea
-                  id="special_notes"
-                  value={editData.special_notes}
-                  onChange={(e) => setEditData({ ...editData, special_notes: e.target.value })}
-                  placeholder="その他の特記事項を入力してください"
-                  className="min-h-[100px]"
-                />
-              ) : (
-                <div className="p-3 bg-gray-50 rounded-md">
-                  <div className="text-sm text-gray-600">
-                    {editData.special_notes || '--'}
-                  </div>
-                </div>
-              )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* LINE連携セクション */}
-        <LineLinkageSection patientId={patientId} clinicId={DEMO_CLINIC_ID} />
+      {/* 患者編集モーダル */}
+      <PatientEditModal
+        isOpen={showPatientEditModal}
+        onClose={() => setShowPatientEditModal(false)}
+        patient={patient}
+        clinicId={DEMO_CLINIC_ID}
+        onSave={async () => {
+          // 患者情報を再取得して表示を更新
+          try {
+            const updatedPatient = await getPatientById(DEMO_CLINIC_ID, patientId)
+            if (updatedPatient) {
+              console.log('BasicInfoTab: onSave - データベースから取得した primary_doctor_id:', (updatedPatient as any).primary_doctor_id)
+              console.log('BasicInfoTab: onSave - データベースから取得した primary_hygienist_id:', (updatedPatient as any).primary_hygienist_id)
+              setPatient(updatedPatient)
+              // editDataも更新して表示に反映
+              setEditData({
+                last_name: updatedPatient.last_name,
+                first_name: updatedPatient.first_name,
+                last_name_kana: updatedPatient.last_name_kana || '',
+                first_name_kana: updatedPatient.first_name_kana || '',
+                birth_date: updatedPatient.birth_date || '',
+                gender: updatedPatient.gender || '',
+                phone: updatedPatient.phone || '',
+                email: updatedPatient.email || '',
+                address: updatedPatient.address || '',
+                visit_reason: (updatedPatient as any).visit_reason || '',
+                preferred_contact_method: (updatedPatient as any).preferred_contact_method || '',
+                allergies: updatedPatient.allergies || '',
+                medical_history: updatedPatient.medical_history || '',
+                medications: (updatedPatient as any).medications || '',
+                special_notes: '',
+                primary_doctor: (updatedPatient as any).primary_doctor_id || '',
+                assigned_dh: (updatedPatient as any).primary_hygienist_id || ''
+              })
+              console.log('BasicInfoTab: 患者情報を再取得しました:', updatedPatient)
+              console.log('BasicInfoTab: onSave - editDataにセットした primary_doctor:', (updatedPatient as any).primary_doctor_id || '')
+              console.log('BasicInfoTab: onSave - editDataにセットした assigned_dh:', (updatedPatient as any).primary_hygienist_id || '')
+            }
+          } catch (error) {
+            console.error('BasicInfoTab: 患者情報の再取得エラー:', error)
+          }
+        }}
+      />
 
-      </div>
     </div>
   )
 }

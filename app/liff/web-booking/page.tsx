@@ -42,7 +42,20 @@ export default function WebBookingLiffPage() {
     const initializeLiff = async () => {
       try {
         if (typeof window !== 'undefined' && window.liff) {
-          const liffId = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+          let liffId = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+
+          // localStorageから設定画面の値を取得
+          try {
+            const savedSettings = localStorage.getItem('notificationSettings')
+            if (savedSettings) {
+              const settings = JSON.parse(savedSettings)
+              if (settings.line?.liff_id_web_booking) {
+                liffId = settings.line.liff_id_web_booking
+              }
+            }
+          } catch (e) {
+            console.warn('localStorage読み込みエラー:', e)
+          }
 
           if (!liffId) {
             setError('LIFF IDが設定されていません')

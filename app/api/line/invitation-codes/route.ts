@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { Database } from '@/types/database'
 import { generateInvitationCode, calculateExpiration } from '@/lib/line/invitation-code'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
 
 /**
  * POST /api/line/invitation-codes
@@ -10,7 +9,7 @@ import { generateInvitationCode, calculateExpiration } from '@/lib/line/invitati
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    const supabase = getSupabaseClient()
 
     // リクエストボディを取得
     const body = await request.json()
@@ -146,7 +145,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    const supabase = getSupabaseClient()
     const searchParams = request.nextUrl.searchParams
     const patient_id = searchParams.get('patient_id')
 
@@ -189,7 +188,7 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    const supabase = getSupabaseClient()
     const searchParams = request.nextUrl.searchParams
     const id = searchParams.get('id')
 

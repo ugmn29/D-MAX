@@ -567,9 +567,11 @@ export default function WebBookingPage() {
   // 予約確定
   const handleConfirmBooking = async () => {
     try {
-      // 選択されたメニュー情報を取得（treatmentMenusから取得）
+      // 選択されたメニュー情報を取得（webBookingMenusから取得してsteps情報を含める）
+      const selectedWebBookingMenu = webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)
       const selectedMenuData = treatmentMenus.find(m => m.id === bookingData.selectedMenu)
-      if (!selectedMenuData) {
+
+      if (!selectedMenuData || !selectedWebBookingMenu) {
         console.error('メニュー情報が見つかりません', {
           selectedMenuId: bookingData.selectedMenu,
           webBookingMenus,
@@ -580,25 +582,20 @@ export default function WebBookingPage() {
       }
 
       console.log('Web予約: 選択されたメニュー', selectedMenuData)
+      console.log('Web予約: Web予約メニュー設定', selectedWebBookingMenu)
+
+      // stepsから複数ステップの情報を取得
+      const steps = selectedWebBookingMenu.steps || []
+      console.log('Web予約: ステップ情報', steps)
 
       // 所要時間から終了時間を計算
       const [startHour, startMinute] = bookingData.selectedTime.split(':').map(Number)
       const startMinutes = startHour * 60 + startMinute
-      const duration = selectedMenuData.duration || 30 // デフォルト30分
+      const duration = selectedWebBookingMenu.duration || selectedMenuData.duration_minutes || 30 // デフォルト30分
       const endMinutes = startMinutes + duration
       const endHour = Math.floor(endMinutes / 60)
       const endMinute = endMinutes % 60
       const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`
-
-      // 担当スタッフを決定（選択されていない場合はメニューの担当者から取得）
-      let staffId = bookingData.selectedStaff
-      if (!staffId && selectedMenuData.steps && selectedMenuData.steps.length > 0) {
-        // 最初のステップの担当者を使用
-        const firstStep = selectedMenuData.steps[0]
-        if (firstStep.staff_assignments && firstStep.staff_assignments.length > 0) {
-          staffId = firstStep.staff_assignments[0].staff_id
-        }
-      }
 
       // 患者IDを決定
       let patientId: string
@@ -629,16 +626,43 @@ export default function WebBookingPage() {
         patientId = newPatient.id
       }
 
-      // 実際の予約作成APIを呼び出す
-      const appointmentData = {
+      // 複数ステップに対応した予約データを作成
+      const appointmentData: any = {
         patient_id: patientId,
         appointment_date: bookingData.selectedDate,
         start_time: bookingData.selectedTime,
         end_time: endTime,
-        menu1_id: bookingData.selectedMenu,
-        staff1_id: staffId,
         status: '未来院', // 初回ステータスを「未来院」に設定
         memo: `Web予約${bookingData.isNewPatient ? '(初診)' : '(再診)'}${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`
+      }
+
+      // 各ステップのメニューとスタッフを設定
+      if (steps.length > 0) {
+        steps.forEach((step: any, index: number) => {
+          if (index >= 3) return // 最大3ステップまで
+
+          const menuNumber = index + 1
+          const stepMenuId = step.menu_id || bookingData.selectedMenu
+
+          // メニューIDを設定
+          appointmentData[`menu${menuNumber}_id`] = stepMenuId
+
+          // スタッフIDを設定（staff_assignmentsから最初のスタッフを使用）
+          if (step.staff_assignments && step.staff_assignments.length > 0) {
+            appointmentData[`staff${menuNumber}_id`] = step.staff_assignments[0].staff_id
+            console.log(`Web予約: ステップ${menuNumber}のスタッフを設定`, {
+              menu_id: stepMenuId,
+              staff_id: step.staff_assignments[0].staff_id,
+              staff_name: staff.find(s => s.id === step.staff_assignments[0].staff_id)?.name
+            })
+          }
+        })
+      } else {
+        // ステップがない場合は従来通りmenu1のみ
+        appointmentData.menu1_id = bookingData.selectedMenu
+        if (bookingData.selectedStaff) {
+          appointmentData.staff1_id = bookingData.selectedStaff
+        }
       }
 
       console.log('Web予約: 予約作成データ', appointmentData)
@@ -658,7 +682,7 @@ export default function WebBookingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            patient_id: tempPatientId,
+            patient_id: patientId,
             clinic_id: DEMO_CLINIC_ID,
             utm_data: utmData,
             questionnaire_source: null, // 問診表からの回答は別途設定
@@ -1252,8 +1276,15 @@ export default function WebBookingPage() {
                               const maxDate = addDays(new Date(), webSettings?.reservationPeriod || 60)
                               const isWithinPeriod = date <= maxDate
 
+                              // 現在の日時より過去かどうかをチェック
+                              const now = new Date()
+                              const [hours, minutes] = time.split(':').map(Number)
+                              const slotDateTime = new Date(date)
+                              slotDateTime.setHours(hours, minutes, 0, 0)
+                              const isPast = slotDateTime < now
+
                               // スロットが存在しない、または利用不可の場合は❌
-                              const isAvailable = slot?.available === true && isWithinPeriod
+                              const isAvailable = slot?.available === true && isWithinPeriod && !isPast
 
                               return (
                                 <td key={dayOffset} className="border p-0.5 sm:p-1">

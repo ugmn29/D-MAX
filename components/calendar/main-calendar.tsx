@@ -25,6 +25,7 @@ interface MainCalendarProps {
   cellHeight?: number // セルの高さ設定
   displayMode?: 'staff' | 'units' | 'both' // 表示モード
   onDisplayModeChange?: (mode: 'staff' | 'units' | 'both') => void // 表示モード変更コールバック
+  privacyMode?: boolean // プライバシーモード（患者名を'****'でマスク）
   onCopyStateChange?: (copiedAppointment: any, isPasteMode: boolean) => void
   onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
 }
@@ -52,7 +53,22 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
-export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, displayMode = 'staff', onDisplayModeChange, onCopyStateChange, onAppointmentCancel }: MainCalendarProps) {
+export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, displayMode = 'staff', onDisplayModeChange, privacyMode = false, onCopyStateChange, onAppointmentCancel }: MainCalendarProps) {
+  // 背景色の明度を計算して、適切な文字色を返すヘルパー関数
+  const getTextColorForBackground = (backgroundColor: string): string => {
+    // 16進数カラーコードからRGB値を抽出
+    const hex = backgroundColor.replace('#', '')
+    const r = parseInt(hex.substring(0, 2), 16)
+    const g = parseInt(hex.substring(2, 4), 16)
+    const b = parseInt(hex.substring(4, 6), 16)
+
+    // 相対輝度を計算（WCAG方式）
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+
+    // 輝度が0.3以下（かなり暗い色、黒系）なら白、それ以外は黒を返す
+    return luminance <= 0.3 ? 'white' : 'black'
+  }
+
   const [workingStaff, setWorkingStaff] = useState<WorkingStaff[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
@@ -180,7 +196,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     e.stopPropagation()
     
     // キャンセルされた予約はドラッグできない
-    if (appointment.status === 'cancelled') {
+    if (appointment.status === 'キャンセル') {
       console.log('キャンセルされた予約はドラッグできません')
       return
     }
@@ -276,17 +292,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // ドロップ先の時間スロットと列インデックスを計算（displayMode対応、スクロール位置考慮）
   const calculateDropTarget = (clientX: number, clientY: number): { timeSlot: string | null; staffIndex: number | null } => {
     if (!gridRef.current) return { timeSlot: null, staffIndex: null }
-    
+
     const rect = gridRef.current.getBoundingClientRect()
-    
+
     // スクロール位置を考慮した相対位置を計算
     const relativeY = clientY - rect.top + gridRef.current.scrollTop
     const relativeX = clientX - rect.left
-    
+
     // 時間スロットの高さを計算（timeSlotsの生成ロジックと一致させる）
     const slotHeight = cellHeight
     const slotIndex = Math.floor(relativeY / slotHeight)
-    
+
     // displayModeに応じて列数を計算
     let totalColumns = 0
     if (displayMode === 'staff') {
@@ -294,13 +310,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     } else if (displayMode === 'units') {
       totalColumns = units.length
     } else if (displayMode === 'both') {
-      totalColumns = workingStaff.length + units.length
+      totalColumns = bothModeColumns.length  // 修正: 動的列数を使用
     }
-    
+
     // 列の幅を計算
     const columnWidth = rect.width / totalColumns
     const columnIndex = Math.floor(relativeX / columnWidth)
-    
+
     console.log('calculateDropTarget デバッグ（displayMode対応）:', {
       clientX,
       clientY,
@@ -317,11 +333,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       totalColumns,
       workingStaffLength: workingStaff.length,
       unitsLength: units.length,
+      bothModeColumnsLength: bothModeColumns.length,
       timeSlotsLength: timeSlots.length,
       calculatedTime: slotIndex >= 0 && slotIndex < timeSlots.length ? timeSlots[slotIndex]?.time : 'out of range',
       calculatedColumn: columnIndex >= 0 && columnIndex < totalColumns ? `column_${columnIndex}` : 'out of range'
     })
-    
+
     // 1枠ごとの制限：有効な時間スロットと列の範囲内でのみ移動を許可
     const timeSlot = (slotIndex >= 0 && slotIndex < timeSlots.length) ? timeSlots[slotIndex].time : null
     const validColumnIndex = (columnIndex >= 0 && columnIndex < totalColumns) ? columnIndex : null
@@ -382,7 +399,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     // 同じ予約以外で重複をチェック（キャンセルされた予約は除外）
     const hasConflict = appointments.some(existingAppointment => {
       if (existingAppointment.id === appointment.id) return false // 自分自身は除外
-      if (existingAppointment.status === 'cancelled') return false // キャンセルされた予約は除外
+      if (existingAppointment.status === 'キャンセル') return false // キャンセルされた予約は除外
       
       const existingStartMinutes = timeToMinutes(existingAppointment.start_time)
       const existingEndMinutes = timeToMinutes(existingAppointment.end_time)
@@ -411,10 +428,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const calculateAppointmentPosition = (appointment: Appointment) => {
     let staffIndex = 0
     let unitIndex = 0
-    
+
     if (displayMode === 'staff') {
       // スタッフ表示モードの場合
-      staffIndex = workingStaff.findIndex(staff => 
+      staffIndex = workingStaff.findIndex(staff =>
         staff.staff.id === appointment.staff1_id ||
         staff.staff.id === appointment.staff2_id ||
         staff.staff.id === appointment.staff3_id
@@ -425,21 +442,29 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       unitIndex = units.findIndex(unit => unit.id === appointment.unit_id)
       if (unitIndex === -1) unitIndex = 0
     } else if (displayMode === 'both') {
-      // 両方表示モードの場合
+      // 両方表示モードの場合 - bothModeColumnsを使用
       const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
-      const workingStaffIndex = workingStaff.findIndex(staff => staff.staff.id === staffId)
-      
-      if (workingStaffIndex !== -1) {
-        // スタッフ列の場合
-        staffIndex = workingStaffIndex
-      } else {
-        // ユニット列の場合
-        unitIndex = units.findIndex(unit => unit.id === appointment.unit_id)
-        if (unitIndex === -1) unitIndex = 0
-        staffIndex = workingStaff.length + unitIndex
-      }
+
+      // 予約に一致する列を検索
+      staffIndex = bothModeColumns.findIndex(column => {
+        // 1. staff_id と unit_id が両方一致
+        if (column.staff && column.unit) {
+          return column.staff.id === staffId && column.unit.id === appointment.unit_id
+        }
+        // 2. staff_id のみ一致（unit_id 不問）
+        if (column.staff && !column.unit) {
+          return column.staff.id === staffId
+        }
+        // 3. unit_id のみ一致（スタッフ未割当のユニット列）
+        if (!column.staff && column.unit) {
+          return column.unit.id === appointment.unit_id
+        }
+        return false
+      })
+
+      if (staffIndex === -1) staffIndex = 0
     }
-    
+
     return { staffIndex, unitIndex }
   }
 
@@ -518,35 +543,31 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             unitName: newUnit.name
           })
         } else if (displayMode === 'both') {
-          // 両方表示モード：スタッフとユニットの両方を考慮
-          const totalColumns = workingStaff.length + units.length
-          if (newStaffIndex < workingStaff.length) {
-            // スタッフ列
-            const newStaff = workingStaff[newStaffIndex].staff
-            updateData.staff1_id = newStaff.id
-            // ユニットは元のまま（または削除）
-            updateData.unit_id = null
-            
-            console.log('両方表示モード - スタッフ列移動:', {
-              from: appointment.staff1_id,
-              to: newStaff.id,
-              staffName: newStaff.name
-            })
-          } else {
-            // ユニット列
-            const unitIndex = newStaffIndex - workingStaff.length
-            if (units[unitIndex]) {
-              const newUnit = units[unitIndex]
-              updateData.unit_id = newUnit.id
-              // スタッフは元のまま（または削除）
-              updateData.staff1_id = null
-              
-              console.log('両方表示モード - ユニット列移動:', {
-                from: appointment.unit_id,
-                to: newUnit.id,
-                unitName: newUnit.name
-              })
+          // 両方表示モード：bothModeColumnsに基づいて更新
+          const targetColumn = bothModeColumns[newStaffIndex]
+          if (targetColumn) {
+            // ドラッグ先の列のスタッフとユニット情報を両方適用
+            if (targetColumn.staff) {
+              updateData.staff1_id = targetColumn.staff.id
             }
+            if (targetColumn.unit) {
+              updateData.unit_id = targetColumn.unit.id
+            } else {
+              // ユニットがない列の場合はnullに設定
+              updateData.unit_id = null
+            }
+
+            console.log('両方表示モード - 列移動:', {
+              columnType: targetColumn.type,
+              newStaffId: targetColumn.staff?.id,
+              newStaffName: targetColumn.staff?.name,
+              newUnitId: targetColumn.unit?.id,
+              newUnitName: targetColumn.unit?.name,
+              from: {
+                staff: appointment.staff1_id,
+                unit: appointment.unit_id
+              }
+            })
           }
         }
       }
@@ -580,7 +601,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     e.preventDefault()
     
     // キャンセルされた予約はリサイズできない
-    if (appointment.status === 'cancelled') {
+    if (appointment.status === 'キャンセル') {
       console.log('キャンセルされた予約はリサイズできません')
       return
     }
@@ -1178,6 +1199,25 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     loadWorkingStaff(selectedDate)
   }, [selectedDate])
 
+  // 患者アイコン更新イベントをリッスン
+  useEffect(() => {
+    const handlePatientIconsUpdated = async (event: any) => {
+      console.log('カレンダー: patientIconsUpdatedイベントを受信しました', event.detail)
+      // 予約データを再読み込みして、最新のアイコン情報を反映
+      const dateString = formatDateForDB(selectedDate)
+      const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+      setAppointments(updatedAppointments)
+      console.log('患者アイコン更新: カレンダーを再読み込みしました')
+    }
+
+    console.log('カレンダー: patientIconsUpdatedイベントリスナーを登録しました')
+    window.addEventListener('patientIconsUpdated', handlePatientIconsUpdated as EventListener)
+    return () => {
+      console.log('カレンダー: patientIconsUpdatedイベントリスナーを削除しました')
+      window.removeEventListener('patientIconsUpdated', handlePatientIconsUpdated as EventListener)
+    }
+  }, [clinicId, selectedDate])
+
   // 個別休診日設定の変更を監視
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
@@ -1341,9 +1381,79 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     
     console.log('計算された予約ブロック数:', blocks.length)
     console.log('予約ブロック詳細:', blocks)
+    // 患者アイコン情報の確認
+    blocks.forEach((block, index) => {
+      const patient = (block.appointment as any).patient
+      console.log(`ブロック${index}の患者情報:`, {
+        patientId: block.appointment.patient_id,
+        patientName: patient ? `${patient.last_name} ${patient.first_name}` : 'なし',
+        hasIconIds: patient && 'icon_ids' in patient,
+        iconIds: patient?.icon_ids
+      })
+    })
     
     return blocks
   }, [appointments, workingStaff, timeSlotMinutes, displayMode, units, businessHours, cellHeight])
+
+  // bothモード用の列定義を計算
+  const bothModeColumns = useMemo(() => {
+    if (displayMode !== 'both') return []
+
+    const columns: Array<{
+      type: 'staff-unit-pair' | 'staff-only' | 'unit-only'
+      staff: any | null
+      unit: any | null
+    }> = []
+
+    const usedUnitIds = new Set<string>()
+
+    // 1. スタッフとユニットのペアを作成
+    workingStaff.forEach(shift => {
+      const primaryUnit = staffUnitPriorities
+        .filter(p => p.staff_id === shift.staff.id)
+        .sort((a, b) => a.priority_order - b.priority_order)[0]
+
+      if (primaryUnit) {
+        const unit = units.find(u => u.id === primaryUnit.unit_id)
+        if (unit) {
+          columns.push({
+            type: 'staff-unit-pair',
+            staff: shift.staff,
+            unit: unit
+          })
+          usedUnitIds.add(unit.id)
+        } else {
+          // ユニットが見つからない場合はスタッフ単独
+          columns.push({
+            type: 'staff-only',
+            staff: shift.staff,
+            unit: null
+          })
+        }
+      } else {
+        // ユニット割り当てのないスタッフ
+        columns.push({
+          type: 'staff-only',
+          staff: shift.staff,
+          unit: null
+        })
+      }
+    })
+
+    // 2. 余ったユニットを追加
+    units.forEach(unit => {
+      if (!usedUnitIds.has(unit.id)) {
+        columns.push({
+          type: 'unit-only',
+          staff: null,
+          unit: unit
+        })
+      }
+    })
+
+    console.log('bothModeColumns計算:', columns)
+    return columns
+  }, [displayMode, workingStaff, units, staffUnitPriorities])
 
   // 列の幅を計算するヘルパー関数
   const getColumnWidth = () => {
@@ -1352,8 +1462,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       if (units.length === 0) return '100%'
       return `${100 / units.length}%`
     } else if (displayMode === 'both') {
-      // 両方表示モードの場合
-      const totalColumns = workingStaff.length * units.length
+      // 両方表示モードの場合 - 動的列数を使用
+      const totalColumns = bothModeColumns.length
       if (totalColumns === 0) return '100%'
       return `${100 / totalColumns}%`
     } else {
@@ -1371,8 +1481,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       if (units.length <= 4) return '150px'
       return '120px'
     } else if (displayMode === 'both') {
-      // 両方表示モードの場合
-      const totalColumns = workingStaff.length * units.length
+      // 両方表示モードの場合 - 動的列数を使用
+      const totalColumns = bothModeColumns.length
       if (totalColumns <= 3) return '200px'
       if (totalColumns <= 6) return '150px'
       return '120px'
@@ -1629,70 +1739,62 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               })
             )
           ) : displayMode === 'both' ? (
-            (() => {
-              // スタッフに割り当てられたユニットを取得
-              const assignedUnitIds = new Set()
-              workingStaff.forEach(shift => {
-                const staffPriority = staffUnitPriorities
-                  .filter(p => p.staff_id === shift.staff.id)
-                  .sort((a, b) => a.priority_order - b.priority_order)[0]
-                if (staffPriority) {
-                  assignedUnitIds.add(staffPriority.unit_id)
-                }
-              })
-              
-              // 割り当てられていないユニットのみを取得
-              const unassignedUnits = units.filter(unit => !assignedUnitIds.has(unit.id))
-              
-              // 表示モードに応じて列を決定
-              const columns = [...workingStaff, ...unassignedUnits]
-              
-              if (columns.length === 0) {
-                return (
-                  <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
-                    出勤スタッフ・ユニットなし
-                  </div>
-                )
-              }
-              
-              return columns.map((column, index) => {
-                const isLastColumn = index === columns.length - 1
-                
-                // 列の種類を判定
-                const isStaffColumn = 'staff' in column
-                const isUnitColumn = 'name' in column && !isStaffColumn
-                
+            bothModeColumns.length === 0 ? (
+              <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
+                出勤スタッフ・ユニットなし
+              </div>
+            ) : (
+              bothModeColumns.map((column, index) => {
+                const isLastColumn = index === bothModeColumns.length - 1
+
+                // 表示テキストを作成
                 let displayText = ''
-                if (isStaffColumn) {
-                  // スタッフ列の場合
-                  const staffPriority = staffUnitPriorities
-                    .filter(p => p.staff_id === column.staff.id)
-                    .sort((a, b) => a.priority_order - b.priority_order)[0]
-                  const unitName = staffPriority ? units.find(u => u.id === staffPriority.unit_id)?.name : '未設定'
-                  displayText = `${column.staff.name} ${unitName}`
-                } else if (isUnitColumn) {
-                  // ユニット列の場合
-                  displayText = column.name
+                if (column.type === 'staff-unit-pair') {
+                  // スタッフ×ユニットのペア
+                  displayText = `${column.staff.name} × ${column.unit.name}`
+                } else if (column.type === 'staff-only') {
+                  // スタッフのみ
+                  displayText = `${column.staff.name}`
+                } else if (column.type === 'unit-only') {
+                  // ユニットのみ
+                  displayText = column.unit.name
                 }
-                
+
+                const key = column.staff ? `staff-${column.staff.id}` : `unit-${column.unit.id}`
+
                 return (
-                  <div 
-                    key={`${isStaffColumn ? column.staff.id : column.id}-${index}`} 
-                    className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
-                    style={{ 
+                  <div
+                    key={`${key}-${index}`}
+                    className="flex-1 border-r border-gray-200 flex flex-col items-center justify-center bg-gray-50 h-full"
+                    style={{
                       minWidth: getColumnMinWidth(),
                       maxWidth: getColumnWidth()
                     }}
                   >
                     <div className="text-center px-2">
-                      <div className="text-sm font-medium text-gray-700 truncate">
-                        {displayText}
-                      </div>
+                      {column.type === 'staff-unit-pair' ? (
+                        <>
+                          <div className="text-sm font-medium text-gray-700 truncate">
+                            {column.staff.name}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            📍 {column.unit.name}
+                          </div>
+                        </>
+                      ) : column.type === 'staff-only' ? (
+                        <div className="text-sm font-medium text-gray-700 truncate">
+                          {column.staff.name}
+                        </div>
+                      ) : (
+                        <div className="text-sm font-medium text-gray-700 truncate">
+                          {column.unit.name}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
               })
-            })()
+            )
           ) : null}
         </div>
 
@@ -2044,7 +2146,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
           {/* 予約ブロック */}
           {appointmentBlocks.map((block, index) => {
-            const isCancelled = block.appointment.status === 'cancelled'
+            const isCancelled = block.appointment.status === 'キャンセル'
             
             // キャンセルされた予約はブロックを表示しない（アイコンのみ別途表示）
             if (isCancelled) {
@@ -2135,7 +2237,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     }
                     return menuColor
                   })(),
-                  color: 'black', // キャンセルされた予約も通常のテキスト色を使用
+                  color: (() => {
+                    // ホバー時は黒文字
+                    if (hoveredTimeSlot === block.appointment.start_time && hoveredStaffIndex === block.staffIndex) {
+                      return 'black'
+                    }
+                    // 背景色の明度に応じて文字色を自動調整
+                    return getTextColorForBackground(menuColor)
+                  })(),
                   padding: '2px 8px 8px 8px', // 上を2px、左右8px、下8px
                   zIndex: isDragging && draggedAppointment?.id === block.appointment.id ? 1000 : isCancelled ? 5 : 10,
                   opacity: isDragging && draggedAppointment?.id === block.appointment.id ? 0.8 : isPasteMode ? 0.5 : 1, // 貼り付けモード時は半透明にして背景が見えるようにする
@@ -2277,8 +2386,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       {/* 患者名 */}
                       {displayItems.includes('name') && (
                         <span className="font-medium">
-                          {patient ? 
-                            `${patient.last_name} ${patient.first_name}` : 
+                          {patient ?
+                            (privacyMode ? '****' : `${patient.last_name} ${patient.first_name}`) :
                             '患者情報なし'
                           }
                         </span>
@@ -2288,7 +2397,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       {displayItems.includes('furigana') && patient && (patient.last_name_kana || patient.first_name_kana) && (
                         <span className="text-xs">
                           {(displayItems.includes('name') || displayItems.some(item => item.match(/^(name|medical_card_number|reservation_time)$/))) ? ' / ' : ''}
-                          {patient.last_name_kana} {patient.first_name_kana}
+                          {privacyMode ? '****' : `${patient.last_name_kana} ${patient.first_name_kana}`}
                         </span>
                       )}
                       
@@ -2301,35 +2410,23 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       )}
                       
                       {/* 患者アイコン */}
-                      {displayItems.includes('patient_icon') && patient && (() => {
-                        const patientIconsData = localStorage.getItem(`patient_icons_${patient.id}`)
-                        if (!patientIconsData) return null
-                        
-                        try {
-                          const iconIds: string[] = JSON.parse(patientIconsData)
-                          if (iconIds.length === 0) return null
-                          
-                          return (
-                            <span className="flex items-center gap-0.5">
-                              {displayItems.some(item => item.match(/^(name|furigana|age|medical_card_number|reservation_time)$/)) && ' / '}
-                              {iconIds.slice(0, 3).map(iconId => {
-                                const iconData = PATIENT_ICONS.find(i => i.id === iconId)
-                                if (!iconData) return null
-                                const IconComponent = iconData.icon
-                                return (
-                                  <IconComponent 
-                                    key={iconId} 
-                                    className="w-3.5 h-3.5 text-gray-700" 
-                                    title={iconData.title}
-                                  />
-                                )
-                              })}
-                            </span>
-                          )
-                        } catch (e) {
-                          return null
-                        }
-                      })()}
+                      {displayItems.includes('patient_icon') && patient && (patient as any).icon_ids && (patient as any).icon_ids.length > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          {displayItems.some(item => item.match(/^(name|furigana|age|medical_card_number|reservation_time)$/)) && ' / '}
+                          {(patient as any).icon_ids.map((iconId: string) => {
+                            const iconData = PATIENT_ICONS.find(i => i.id === iconId)
+                            if (!iconData) return null
+                            const IconComponent = iconData.icon
+                            return (
+                              <IconComponent
+                                key={iconId}
+                                className="w-3.5 h-3.5 text-gray-700"
+                                title={iconData.title}
+                              />
+                            )
+                          })}
+                        </span>
+                      )}
                       
                       {/* 診療内容（統合表示） */}
                       {displayItems.includes('treatment_content') && (
@@ -2417,7 +2514,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
           {/* キャンセルされた予約のアイコンのみ表示 */}
           {appointmentBlocks.map((block, index) => {
-            const isCancelled = block.appointment.status === 'cancelled'
+            const isCancelled = block.appointment.status === 'キャンセル'
             
             // キャンセルされた予約のみアイコンを表示
             if (!isCancelled) {
@@ -2660,6 +2757,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           } catch (error) {
             console.error('キャンセル後の予約一覧再読み込みエラー:', error)
           }
+        }}
+        onJumpToDate={(date: string) => {
+          // 日付文字列をDateオブジェクトに変換
+          const newDate = new Date(date)
+          onDateChange(newDate)
+          console.log('カレンダーの日付を変更:', date)
         }}
       />
     </div>

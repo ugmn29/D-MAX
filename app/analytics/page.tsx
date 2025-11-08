@@ -81,7 +81,6 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">分析</h1>
-          <p className="text-gray-600 mt-1">医院の運営状況を可視化し、データに基づいた経営判断をサポートします</p>
         </div>
         <BarChart3 className="w-8 h-8 text-blue-600" />
       </div>
@@ -103,6 +102,7 @@ export default function AnalyticsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                onMouseEnter={() => setActiveTab(tab.id)}
                 className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'

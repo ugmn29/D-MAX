@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Search, Users, Settings, BarChart3, ChevronDown, Grid3X3 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Users, Settings, BarChart3, ChevronDown, Grid3X3, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +19,8 @@ interface SidebarCalendarProps {
   onPasteToDate?: (date: Date) => void
   displayMode?: 'staff' | 'units' | 'both'
   onDisplayModeChange?: (mode: 'staff' | 'units' | 'both') => void
+  privacyMode?: boolean
+  onPrivacyModeChange?: (enabled: boolean) => void
 }
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -27,15 +29,17 @@ const MONTHS = [
   '7月', '8月', '9月', '10月', '11月', '12月'
 ]
 
-export function SidebarCalendar({ 
-  clinicId, 
-  selectedDate, 
-  onDateChange, 
+export function SidebarCalendar({
+  clinicId,
+  selectedDate,
+  onDateChange,
   onPatientSelect,
   isPasteMode = false,
   onPasteToDate,
   displayMode,
-  onDisplayModeChange
+  onDisplayModeChange,
+  privacyMode = false,
+  onPrivacyModeChange
 }: SidebarCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [searchQuery, setSearchQuery] = useState('')
@@ -443,7 +447,22 @@ export function SidebarCalendar({
             )}
           </button>
         )}
-        
+
+        {/* プライバシーモード切り替えアイコン */}
+        {onPrivacyModeChange && (
+          <button
+            onClick={() => onPrivacyModeChange(!privacyMode)}
+            className="bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 w-8 flex items-center justify-center transition-colors"
+            title={privacyMode ? '患者名を表示' : '患者名を非表示'}
+          >
+            {privacyMode ? (
+              <EyeOff className="w-4 h-4 text-gray-600" />
+            ) : (
+              <Eye className="w-4 h-4 text-gray-600" />
+            )}
+          </button>
+        )}
+
         <button
           onClick={() => {
             // 設定ページで未保存の変更があるかチェック

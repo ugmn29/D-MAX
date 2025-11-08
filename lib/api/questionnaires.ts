@@ -589,15 +589,19 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
   const client = getSupabaseClient()
 
   // 1. 問診票のpatient_idを更新
-  const { error: linkError } = await client
+  console.log('問診票のpatient_id更新開始:', { responseId, patientId })
+  const { data: updatedResponse, error: linkError } = await client
     .from('questionnaire_responses')
     .update({ patient_id: patientId, updated_at: new Date().toISOString() })
     .eq('id', responseId)
+    .select()
 
   if (linkError) {
     console.error('問診票連携エラー:', linkError)
     throw linkError
   }
+
+  console.log('問診票のpatient_id更新成功:', updatedResponse)
 
   // 2. 問診票の回答データを取得
   const { data: responseData, error: fetchError } = await client
@@ -652,7 +656,18 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
           patientUpdate.birth_date = answer
           break
         case 'gender':
-          patientUpdate.gender = answer
+          // 日本語の性別を英語に変換
+          if (answer === '男性' || answer === '男') {
+            patientUpdate.gender = 'male'
+          } else if (answer === '女性' || answer === '女') {
+            patientUpdate.gender = 'female'
+          } else if (answer === 'その他' || answer === 'other') {
+            patientUpdate.gender = 'other'
+          } else {
+            // 既に英語の場合はそのまま使用
+            patientUpdate.gender = answer
+          }
+          console.log('性別変換:', { 元の値: answer, 変換後: patientUpdate.gender })
           break
         case 'phone':
           patientUpdate.phone = answer
@@ -667,10 +682,18 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
           patientUpdate.address = answer
           break
         case 'referral_source':
-          patientUpdate.referral_source = answer
+          // 来院理由の処理
+          if (Array.isArray(answer)) {
+            patientUpdate.visit_reason = answer.join('、')
+          } else {
+            patientUpdate.visit_reason = answer
+          }
+          console.log('来院理由を設定:', patientUpdate.visit_reason)
           break
         case 'preferred_contact_method':
+          // 希望連絡方法の処理
           patientUpdate.preferred_contact_method = answer
+          console.log('希望連絡方法を設定:', answer)
           break
         case 'allergies':
           // アレルギー情報の処理
@@ -692,6 +715,17 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
             patientUpdate.medical_history = answer
           }
           break
+        case 'medications':
+          // 服用薬情報の処理
+          if (Array.isArray(answer)) {
+            patientUpdate.medications = answer.join(', ')
+          } else if (answer === 'ない' || answer.includes('なし')) {
+            patientUpdate.medications = 'なし'
+          } else {
+            patientUpdate.medications = answer
+          }
+          console.log('服用薬を設定:', patientUpdate.medications)
+          break
       }
     }
   })
@@ -699,15 +733,24 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
   console.log('抽出した患者情報:', patientUpdate)
 
   // 5. 患者情報を更新
-  const { error: patientError } = await client
+  console.log('患者情報を更新開始:', { patientId, updateData: patientUpdate })
+  const { data: updatedPatient, error: patientError } = await client
     .from('patients')
     .update(patientUpdate)
     .eq('id', patientId)
+    .select()
 
   if (patientError) {
-    console.error('患者情報更新エラー:', patientError)
+    console.error('患者情報更新エラー（詳細）:', {
+      message: patientError.message,
+      details: patientError.details,
+      hint: patientError.hint,
+      code: patientError.code
+    })
     throw patientError
   }
+
+  console.log('患者情報の更新成功:', updatedPatient)
 
   console.log('問診票連携完了 - 患者情報を更新:', patientId)
 }

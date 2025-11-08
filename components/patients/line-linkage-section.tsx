@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -158,14 +157,7 @@ export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionPr
   const isCodeExpired = invitationCode && new Date(invitationCode.expires_at) < new Date()
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageCircle className="w-5 h-5 text-green-600" />
-          LINE連携
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-4">
         {/* 連携状態 */}
         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
           <div className="flex items-center gap-3">
@@ -316,7 +308,6 @@ export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionPr
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   )
 }

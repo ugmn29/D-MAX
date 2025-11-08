@@ -65,11 +65,11 @@ export function CancelReasonModal({
 
     try {
       setSaving(true)
-      // デモスタッフIDを使用、キャンセルメモも渡す
+      // キャンセル実行（スタッフIDは未指定）
       await cancelAppointment(
         appointmentId,
         selectedReasonId,
-        '11111111-1111-1111-1111-111111111111',
+        undefined,
         cancelMemo.trim() || undefined
       )
       onCancelSuccess()
@@ -95,11 +95,11 @@ export function CancelReasonModal({
 
     try {
       setSaving(true)
-      // 予約をキャンセル
+      // 予約をキャンセル（スタッフIDは未指定）
       await cancelAppointment(
         appointmentId,
         selectedReasonId,
-        '11111111-1111-1111-1111-111111111111',
+        undefined,
         cancelMemo.trim() || undefined
       )
 

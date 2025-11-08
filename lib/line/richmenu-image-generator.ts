@@ -28,11 +28,16 @@ const buttonColors = [
 ]
 
 /**
- * リッチメニュー画像を生成（2500x1686px、3列2段レイアウト）
+ * リッチメニュー画像を生成
+ * @param buttons ボタン設定
+ * @param menuType リッチメニュータイプ（'registered': 6ボタン 2500x1686、'unregistered': 3ボタン 2500x843）
  */
-export async function generateRichMenuImage(buttons: RichMenuButton[]): Promise<Buffer> {
+export async function generateRichMenuImage(
+  buttons: RichMenuButton[],
+  menuType: 'registered' | 'unregistered' = 'registered'
+): Promise<Buffer> {
   const width = 2500
-  const height = 1686
+  const height = menuType === 'unregistered' ? 843 : 1686  // 未連携は1行分のみ
   const canvas = createCanvas(width, height)
   const ctx = canvas.getContext('2d')
 
@@ -44,75 +49,110 @@ export async function generateRichMenuImage(buttons: RichMenuButton[]): Promise<
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, width, height)
 
-  // グリッド設定（3列2段）
-  const cols = 3
-  const rows = 2
-  const buttonWidth = width / cols
-  const buttonHeight = height / rows
   const gap = 20  // マス目の間隔を広げて浮き出る感じに
 
-  // 新レイアウト:
-  // 左列3段: [Webサイト] [家族登録] [お問合せ]
-  // 中央・右列: [QRコード] [予約確認]
-  //            [予約を取る(2マス分)]
-  const customLayout = [
-    // 左列を3段に分割（縦幅均等）
-    { button: buttons[3], type: 'web' },                 // Webサイト (左・1段目)
-    { button: buttons[2], type: 'family' },              // 家族登録 (左・2段目)
-    { button: buttons[4], type: 'chat' },                // お問合せ (左・3段目)
-    // 中央・右列
-    { button: buttons[0], type: 'qr' },                  // QRコード (中央上)
-    { button: buttons[1], type: 'calendar' },            // 予約確認 (右上)
-    { button: buttons[5], type: 'booking' },             // 予約を取る (中央下+右下の2マス分)
-  ]
+  let customLayout: Array<{ button: RichMenuButton; type: string }>
 
-  // 左列のボタンの高さ（全高を3等分）
-  const leftColumnButtonHeight = (height - gap * 4) / 3
+  if (menuType === 'unregistered') {
+    // 未連携ユーザー用レイアウト（3ボタン・横並び）
+    customLayout = [
+      { button: buttons[0], type: 'user' },       // 初回登録 (左)
+      { button: buttons[1], type: 'web' },        // Webサイト (中央)
+      { button: buttons[2], type: 'chat' },       // お問合せ (右)
+    ]
+  } else {
+    // 連携済みユーザー用レイアウト（6ボタン）
+    // 左列3段: [Webサイト] [家族登録] [お問合せ]
+    // 中央・右列: [QRコード] [予約確認]
+    //            [予約を取る(2マス分)]
+    customLayout = [
+      // 左列を3段に分割（縦幅均等）
+      { button: buttons[3], type: 'web' },                 // Webサイト (左・1段目)
+      { button: buttons[2], type: 'family' },              // 家族登録 (左・2段目)
+      { button: buttons[4], type: 'chat' },                // お問合せ (左・3段目)
+      // 中央・右列
+      { button: buttons[0], type: 'qr' },                  // QRコード (中央上)
+      { button: buttons[1], type: 'calendar' },            // 予約確認 (右上)
+      { button: buttons[5], type: 'booking' },             // 予約を取る (中央下+右下の2マス分)
+    ]
+  }
+
+  // グリッド設定
+  const cols = 3
+  const rows = menuType === 'unregistered' ? 1 : 2
+  const buttonWidth = width / cols
+  const buttonHeight = height / rows
+  const leftColumnButtonHeight = menuType === 'registered' ? (height - gap * 4) / 3 : 0
 
   customLayout.forEach(({ button, type }, index) => {
     let buttonX, buttonY, buttonW, buttonH
 
-    if (type === 'web') {
-      // Webサイト（左列・1段目）
-      buttonX = gap
-      buttonY = gap
-      buttonW = buttonWidth - gap * 2
-      buttonH = leftColumnButtonHeight
-    } else if (type === 'family') {
-      // 家族登録（左列・2段目）
-      buttonX = gap
-      buttonY = gap + leftColumnButtonHeight + gap
-      buttonW = buttonWidth - gap * 2
-      buttonH = leftColumnButtonHeight
-    } else if (type === 'chat') {
-      // お問合せ（左列・3段目）
-      buttonX = gap
-      buttonY = gap + (leftColumnButtonHeight + gap) * 2
-      buttonW = buttonWidth - gap * 2
-      buttonH = leftColumnButtonHeight
-    } else if (type === 'qr') {
-      // QRコード（中央上）
-      buttonX = 1 * buttonWidth + gap
-      buttonY = 0 * buttonHeight + gap
-      buttonW = buttonWidth - gap * 2
-      buttonH = buttonHeight - gap * 2
-    } else if (type === 'calendar') {
-      // 予約確認（右上）
-      buttonX = 2 * buttonWidth + gap
-      buttonY = 0 * buttonHeight + gap
-      buttonW = buttonWidth - gap * 2
-      buttonH = buttonHeight - gap * 2
-    } else if (type === 'booking') {
-      // 予約を取る（中央下+右下の2マス分）
-      buttonX = 1 * buttonWidth + gap
-      buttonY = 1 * buttonHeight + gap
-      buttonW = buttonWidth * 2 - gap * 2
-      buttonH = buttonHeight - gap * 2
+    if (menuType === 'unregistered') {
+      // 未連携ユーザー用（3ボタン横並び）
+      if (type === 'user') {
+        // 初回登録（左）
+        buttonX = 0 * buttonWidth + gap
+        buttonY = gap
+        buttonW = buttonWidth - gap * 2
+        buttonH = buttonHeight - gap * 2
+      } else if (type === 'web') {
+        // Webサイト（中央）
+        buttonX = 1 * buttonWidth + gap
+        buttonY = gap
+        buttonW = buttonWidth - gap * 2
+        buttonH = buttonHeight - gap * 2
+      } else if (type === 'chat') {
+        // お問合せ（右）
+        buttonX = 2 * buttonWidth + gap
+        buttonY = gap
+        buttonW = buttonWidth - gap * 2
+        buttonH = buttonHeight - gap * 2
+      }
+    } else {
+      // 連携済みユーザー用（6ボタン）
+      if (type === 'web') {
+        // Webサイト（左列・1段目）
+        buttonX = gap
+        buttonY = gap
+        buttonW = buttonWidth - gap * 2
+        buttonH = leftColumnButtonHeight
+      } else if (type === 'family') {
+        // 家族登録（左列・2段目）
+        buttonX = gap
+        buttonY = gap + leftColumnButtonHeight + gap
+        buttonW = buttonWidth - gap * 2
+        buttonH = leftColumnButtonHeight
+      } else if (type === 'chat') {
+        // お問合せ（左列・3段目）
+        buttonX = gap
+        buttonY = gap + (leftColumnButtonHeight + gap) * 2
+        buttonW = buttonWidth - gap * 2
+        buttonH = leftColumnButtonHeight
+      } else if (type === 'qr') {
+        // QRコード（中央上）
+        buttonX = 1 * buttonWidth + gap
+        buttonY = 0 * buttonHeight + gap
+        buttonW = buttonWidth - gap * 2
+        buttonH = buttonHeight - gap * 2
+      } else if (type === 'calendar') {
+        // 予約確認（右上）
+        buttonX = 2 * buttonWidth + gap
+        buttonY = 0 * buttonHeight + gap
+        buttonW = buttonWidth - gap * 2
+        buttonH = buttonHeight - gap * 2
+      } else if (type === 'booking') {
+        // 予約を取る（中央下+右下の2マス分）
+        buttonX = 1 * buttonWidth + gap
+        buttonY = 1 * buttonHeight + gap
+        buttonW = buttonWidth * 2 - gap * 2
+        buttonH = buttonHeight - gap * 2
+      }
     }
 
     // 色の設定
     let color
-    if (type === 'web') color = buttonColors[0]                 // orange
+    if (type === 'user') color = buttonColors[1]                // blue - 初回登録
+    else if (type === 'web') color = buttonColors[0]            // orange
     else if (type === 'family') color = buttonColors[3]         // purple
     else if (type === 'chat') color = buttonColors[4]           // pink
     else if (type === 'qr') color = buttonColors[1]             // blue
@@ -158,8 +198,11 @@ export async function generateRichMenuImage(buttons: RichMenuButton[]): Promise<
     const centerX = buttonX + buttonW / 2
     const centerY = buttonY + buttonH / 2
 
-    // Webサイト、家族登録、お問合せはアイコンなし、テキストのみ
-    if (type === 'web' || type === 'family' || type === 'chat') {
+    // 未連携用の3ボタンは全てアイコンありに統一
+    // 連携済みの場合、Webサイト、家族登録、お問合せはテキストのみ
+    const isTextOnly = menuType === 'registered' && (type === 'web' || type === 'family' || type === 'chat')
+
+    if (isTextOnly) {
       // テキストのみ中央配置
       ctx.font = 'bold 85px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo UI", sans-serif'
       ctx.fillStyle = '#1F2937'
@@ -315,6 +358,43 @@ export async function generateRichMenuImage(buttons: RichMenuButton[]): Promise<
         ctx.moveTo(centerX - calWidth/2 + 45, iconY)
         ctx.lineTo(centerX - calWidth/2 + 65, iconY + 20)
         ctx.lineTo(centerX - calWidth/2 + 95, iconY - 30)
+        ctx.stroke()
+        break
+
+      case 'user':
+        // 初回登録（1人の人物アイコン + チェックマーク）
+        const userSize = 120
+
+        // 頭（円）
+        ctx.fillStyle = '#1F2937'
+        ctx.beginPath()
+        ctx.arc(centerX, iconY - 50, userSize/2.5, 0, Math.PI * 2)
+        ctx.fill()
+
+        // 体（台形）
+        ctx.beginPath()
+        ctx.moveTo(centerX - userSize/2, iconY + 10)
+        ctx.lineTo(centerX + userSize/2, iconY + 10)
+        ctx.lineTo(centerX + userSize/1.3, iconY + 110)
+        ctx.lineTo(centerX - userSize/1.3, iconY + 110)
+        ctx.closePath()
+        ctx.fill()
+
+        // 右下にチェックマーク（登録完了のイメージ）
+        ctx.beginPath()
+        ctx.arc(centerX + userSize/1.5, iconY + 80, 45, 0, Math.PI * 2)
+        ctx.fillStyle = '#10B981'
+        ctx.fill()
+
+        // チェックマーク（白）
+        ctx.strokeStyle = '#FFFFFF'
+        ctx.lineWidth = 10
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.beginPath()
+        ctx.moveTo(centerX + userSize/1.5 - 20, iconY + 80)
+        ctx.lineTo(centerX + userSize/1.5 - 8, iconY + 92)
+        ctx.lineTo(centerX + userSize/1.5 + 20, iconY + 68)
         ctx.stroke()
         break
 

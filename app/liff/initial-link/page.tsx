@@ -29,37 +29,102 @@ export default function InitialLinkPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [patientName, setPatientName] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<string[]>([])
+
+  // LIFF SDKをロード
+  useEffect(() => {
+    // LIFF SDKスクリプトを動的に追加
+    const script = document.createElement('script')
+    script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js'
+    script.async = true
+    document.head.appendChild(script)
+
+    return () => {
+      // クリーンアップ
+      document.head.removeChild(script)
+    }
+  }, [])
 
   // LIFF初期化
   useEffect(() => {
+    const addDebug = (msg: string) => {
+      setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`])
+      console.log(msg)
+    }
+
     const initializeLiff = async () => {
       try {
-        // LIFF SDKが読み込まれているか確認
-        if (typeof window !== 'undefined' && window.liff) {
-          const liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
+        addDebug('LIFF初期化開始')
 
-          if (!liffId) {
-            setError('LIFF IDが設定されていません。管理者にお問い合わせください。')
-            return
-          }
+        // LIFF SDKが読み込まれるまで待機（最大10秒でタイムアウト）
+        const checkLiff = () => {
+          return new Promise((resolve, reject) => {
+            let attempts = 0
+            const maxAttempts = 100 // 10秒 (100ms * 100)
 
-          await window.liff.init({ liffId })
+            const check = () => {
+              attempts++
 
-          if (window.liff.isLoggedIn()) {
-            // ユーザー情報を取得
-            const profile = await window.liff.getProfile()
-            setLineUserId(profile.userId)
-            setLiffReady(true)
-          } else {
-            // ログインしていない場合はLINEログイン
-            window.liff.login()
-          }
-        } else {
-          setError('LIFF SDKの読み込みに失敗しました。ページを再読み込みしてください。')
+              if (typeof window !== 'undefined' && window.liff) {
+                addDebug('LIFF SDK読み込み完了')
+                resolve(true)
+              } else if (attempts >= maxAttempts) {
+                addDebug(`LIFF SDK読み込みタイムアウト (試行回数: ${attempts})`)
+                reject(new Error('LIFF SDKの読み込みがタイムアウトしました'))
+              } else {
+                setTimeout(check, 100)
+              }
+            }
+            check()
+          })
         }
-      } catch (err) {
-        console.error('LIFF初期化エラー:', err)
-        setError('初期化に失敗しました。ページを再読み込みしてください。')
+
+        await checkLiff()
+
+        // LIFF IDを取得（設定画面の値 > 環境変数の順で優先）
+        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
+        addDebug(`環境変数のLIFF ID: ${liffId || 'なし'}`)
+
+        // localStorageから設定画面の値を取得
+        try {
+          const savedSettings = localStorage.getItem('notificationSettings')
+          if (savedSettings) {
+            const settings = JSON.parse(savedSettings)
+            if (settings.line?.liff_id_initial_link) {
+              liffId = settings.line.liff_id_initial_link
+              addDebug(`localStorageからLIFF ID取得: ${liffId}`)
+            }
+          }
+        } catch (e) {
+          addDebug(`localStorage読み込みエラー: ${e}`)
+        }
+
+        addDebug(`使用するLIFF ID: ${liffId || 'なし'}`)
+
+        if (!liffId) {
+          setError('LIFF IDが設定されていません')
+          setLiffReady(false)
+          return
+        }
+
+        addDebug('LIFF初期化中...')
+        await window.liff.init({ liffId })
+        addDebug('LIFF初期化成功')
+
+        if (window.liff.isLoggedIn()) {
+          addDebug('ログイン済み - プロフィール取得中')
+          const profile = await window.liff.getProfile()
+          addDebug(`プロフィール取得成功: ${profile.userId}`)
+          setLineUserId(profile.userId)
+          setLiffReady(true)
+        } else {
+          addDebug('未ログイン - ログインページへリダイレクト')
+          window.liff.login()
+        }
+      } catch (err: any) {
+        addDebug(`エラー発生: ${err.message}`)
+        setError(`初期化失敗: ${err.message || 'Unknown error'}`)
+        setLiffReady(false)
       }
     }
 
@@ -154,23 +219,46 @@ export default function InitialLinkPage() {
   // LIFF読み込み中
   if (!liffReady) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center space-y-4">
-              <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
-              <p className="text-gray-600">初期化中...</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <>
+        <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center space-y-4">
+                {error ? (
+                  <>
+                    <AlertCircle className="w-12 h-12 text-red-600" />
+                    <p className="text-red-600 font-bold">エラーが発生しました</p>
+                    <p className="text-sm text-gray-600 text-center whitespace-pre-wrap">{error}</p>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+                    <p className="text-gray-600">初期化中...</p>
+                  </>
+                )}
+
+                {/* デバッグ情報を表示 */}
+                {debugInfo.length > 0 && (
+                  <div className="w-full mt-4 p-3 bg-gray-100 rounded text-xs text-left">
+                    <p className="font-bold mb-2">デバッグ情報:</p>
+                    {debugInfo.map((info, i) => (
+                      <div key={i} className="text-gray-700 font-mono">{info}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </>
     )
   }
 
   // 連携成功画面
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center p-4">
+      <>
+        <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center space-y-4 text-center">
@@ -189,12 +277,14 @@ export default function InitialLinkPage() {
           </CardContent>
         </Card>
       </div>
+      </>
     )
   }
 
   // メイン画面
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
+    <>
+      <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
       <div className="container mx-auto max-w-md p-4 py-8">
         {/* ヘッダー */}
         <div className="text-center mb-8">
@@ -303,5 +393,6 @@ export default function InitialLinkPage() {
         </Card>
       </div>
     </div>
+    </>
   )
 }

@@ -28,9 +28,11 @@ export async function getAppointments(
     const { getMockPatients } = await import('@/lib/utils/mock-mode')
     const patients = getMockPatients()
     
+    console.log('モックモード: 予約データの患者情報を更新開始', { appointmentCount: appointments.length })
     for (const appointment of appointments) {
       let needsUpdate = false
       const updatedAppointment = { ...appointment }
+      console.log('モックモード: 予約を処理中', { appointmentId: appointment.id, patientId: appointment.patient_id })
       
       // スタッフ情報を追加
       if (!(appointment as any).staff1 && appointment.staff1_id) {
@@ -78,47 +80,67 @@ export async function getAppointments(
         }
       }
       
-      // 患者情報を追加
-      if (!(appointment as any).patient && appointment.patient_id) {
-        let patient = patients.find(p => p.id === appointment.patient_id)
-        console.log('患者情報検索:', {
-          appointmentId: appointment.id,
-          patientId: appointment.patient_id,
-          foundPatient: patient,
-          allPatients: patients.map(p => ({ id: p.id, name: `${p.last_name} ${p.first_name}` }))
-        })
+      // 患者情報を追加または更新
+      if (appointment.patient_id) {
+        let patient = (appointment as any).patient || patients.find(p => p.id === appointment.patient_id)
 
-        // Web予約の仮患者でlocalStorageに見つからない場合、notesから復元
-        // ただし、これは初回のみで、本登録後はlocalStorageに存在するはず
-        if (!patient && appointment.patient_id?.startsWith('web-booking-temp-') && appointment.memo) {
-          console.log('警告: Web予約の患者がlocalStorageに見つかりません。notesから復元を試みます。')
-          const notes = appointment.memo
-          const nameMatch = notes.match(/氏名:\s*(.+)/)
-          const phoneMatch = notes.match(/電話:\s*(.+)/)
+        if (!patient) {
+          console.log('患者情報検索:', {
+            appointmentId: appointment.id,
+            patientId: appointment.patient_id,
+            foundPatient: patient,
+            allPatients: patients.map(p => ({ id: p.id, name: `${p.last_name} ${p.first_name}` }))
+          })
 
-          // notesから復元する場合は、最小限の情報のみ
-          // 本登録済みの場合は、必ずlocalStorageに存在するはずなので、この分岐には入らない
-          patient = {
-            id: appointment.patient_id,
-            clinic_id: clinicId,
-            last_name: nameMatch ? nameMatch[1].trim() : 'Web予約',
-            first_name: '',
-            last_name_kana: '',
-            first_name_kana: '',
-            phone: phoneMatch ? phoneMatch[1].trim() : '',
-            patient_number: '',
-            birth_date: null,
-            is_registered: false, // notesからの復元は仮登録のみ
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+          // Web予約の仮患者でlocalStorageに見つからない場合、notesから復元
+          if (appointment.patient_id?.startsWith('web-booking-temp-') && appointment.memo) {
+            console.log('警告: Web予約の患者がlocalStorageに見つかりません。notesから復元を試みます。')
+            const notes = appointment.memo
+            const nameMatch = notes.match(/氏名:\s*(.+)/)
+            const phoneMatch = notes.match(/電話:\s*(.+)/)
+
+            patient = {
+              id: appointment.patient_id,
+              clinic_id: clinicId,
+              last_name: nameMatch ? nameMatch[1].trim() : 'Web予約',
+              first_name: '',
+              last_name_kana: '',
+              first_name_kana: '',
+              phone: phoneMatch ? phoneMatch[1].trim() : '',
+              patient_number: '',
+              birth_date: null,
+              is_registered: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+            console.log('Web予約の仮患者情報をnotesから復元（仮登録）:', patient)
           }
-          console.log('Web予約の仮患者情報をnotesから復元（仮登録）:', patient)
         }
 
         if (patient) {
-          (updatedAppointment as any).patient = patient
+          // 常に最新の患者アイコン情報をデータベースから取得
+          console.log('モックモード: 患者アイコン取得開始', { patientId: patient.id, patientName: `${patient.last_name} ${patient.first_name}` })
+          const { getPatientIcons } = await import('@/lib/api/patient-icons')
+          try {
+            const patientIconsData = await getPatientIcons(patient.id, clinicId)
+            console.log('モックモード: 患者アイコン取得成功', { patientId: patient.id, iconIds: patientIconsData?.icon_ids })
+            ;(updatedAppointment as any).patient = {
+              ...patient,
+              icon_ids: patientIconsData?.icon_ids || []
+            }
+          } catch (error) {
+            console.error('患者アイコン取得エラー:', error)
+            ;(updatedAppointment as any).patient = {
+              ...patient,
+              icon_ids: []
+            }
+          }
           needsUpdate = true
-          console.log('患者情報を追加:', patient)
+          console.log('モックモード: 患者情報を追加/更新完了', {
+            patientId: patient.id,
+            patientName: `${patient.last_name} ${patient.first_name}`,
+            icon_ids: (updatedAppointment as any).patient.icon_ids
+          })
         }
       }
       
@@ -157,7 +179,7 @@ export async function getAppointments(
     .from('appointments')
     .select(`
       *,
-      patient:patients(id, last_name, first_name, last_name_kana, first_name_kana, phone),
+      patient:patients(id, last_name, first_name, last_name_kana, first_name_kana, phone, birth_date, gender, is_registered, patient_number),
       unit:units(id, name),
       menu1:treatment_menus!appointments_menu1_id_fkey(id, name, color),
       menu2:treatment_menus!appointments_menu2_id_fkey(id, name, color),
@@ -192,7 +214,48 @@ export async function getAppointments(
     end_time: appointment.end_time?.slice(0, 5) || appointment.end_time
   }))
 
-  return appointments
+  // 各予約に患者アイコン情報を追加
+  console.log('データベースモード: 患者アイコン情報を取得開始', { appointmentCount: appointments.length })
+  const { getPatientIcons } = await import('@/lib/api/patient-icons')
+
+  const appointmentsWithIcons = await Promise.all(
+    appointments.map(async (appointment) => {
+      if (appointment.patient_id && (appointment as any).patient) {
+        try {
+          console.log('データベースモード: 患者アイコン取得中', {
+            patientId: appointment.patient_id,
+            patientName: `${(appointment as any).patient.last_name} ${(appointment as any).patient.first_name}`
+          })
+          const patientIconsData = await getPatientIcons(appointment.patient_id, clinicId)
+          console.log('データベースモード: 患者アイコン取得成功', {
+            patientId: appointment.patient_id,
+            iconIds: patientIconsData?.icon_ids
+          })
+
+          return {
+            ...appointment,
+            patient: {
+              ...(appointment as any).patient,
+              icon_ids: patientIconsData?.icon_ids || []
+            }
+          }
+        } catch (error) {
+          console.error('データベースモード: 患者アイコン取得エラー', { patientId: appointment.patient_id, error })
+          return {
+            ...appointment,
+            patient: {
+              ...(appointment as any).patient,
+              icon_ids: []
+            }
+          }
+        }
+      }
+      return appointment
+    })
+  )
+
+  console.log('データベースモード: 患者アイコン情報の取得完了')
+  return appointmentsWithIcons
 }
 
 /**
@@ -223,7 +286,7 @@ export async function getAppointmentById(
     .from('appointments')
     .select(`
       *,
-      patient:patients(id, last_name, first_name, last_name_kana, first_name_kana, phone, birth_date, gender),
+      patient:patients(id, last_name, first_name, last_name_kana, first_name_kana, phone, birth_date, gender, is_registered, patient_number),
       unit:units(id, name),
       menu1:treatment_menus!appointments_menu1_id_fkey(id, name, color),
       menu2:treatment_menus!appointments_menu2_id_fkey(id, name, color),
@@ -672,6 +735,14 @@ export async function updateAppointment(
 
   // 通常モードの場合
   const supabase = getSupabaseClient()
+
+  // 更新前のデータを取得してログに記録
+  const { data: oldData } = await supabase
+    .from('appointments')
+    .select('*')
+    .eq('id', appointmentId)
+    .single()
+
   const { data, error } = await supabase
     .from('appointments')
     .update({
@@ -687,6 +758,35 @@ export async function updateAppointment(
     throw error
   }
 
+  // 予約変更ログを記録
+  if (oldData) {
+    const { logAppointmentChange } = await import('./appointment-logs')
+    await logAppointmentChange(
+      appointmentId,
+      data.patient_id || oldData.patient_id || '',
+      {
+        appointment_date: oldData.appointment_date,
+        start_time: oldData.start_time,
+        end_time: oldData.end_time,
+        staff1_id: oldData.staff1_id,
+        menu1_id: oldData.menu1_id,
+        status: oldData.status,
+        memo: oldData.memo
+      },
+      {
+        appointment_date: data.appointment_date,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        staff1_id: data.staff1_id,
+        menu1_id: data.menu1_id,
+        status: data.status,
+        memo: data.memo
+      },
+      'system',
+      '予約情報を更新しました'
+    )
+  }
+
   return data
 }
 
@@ -696,7 +796,7 @@ export async function updateAppointment(
 export async function cancelAppointment(
   appointmentId: string,
   cancelReasonId: string,
-  cancelledBy: string,
+  cancelledBy?: string,
   additionalMemo?: string
 ): Promise<Appointment> {
   // モックモードの場合はlocalStorageに保存
@@ -720,7 +820,7 @@ export async function cancelAppointment(
     const cancelReason = getMockCancelReasons().find(r => r.id === cancelReasonId)
 
     const updatedAppointment = {
-      status: 'cancelled' as any,
+      status: 'キャンセル' as any,
       cancel_reason_id: cancelReasonId,
       cancelled_at: new Date().toISOString(),
       cancelled_by: cancelledBy,
@@ -733,20 +833,46 @@ export async function cancelAppointment(
     // 更新されたデータを再取得
     const updatedAppointments = getMockAppointments()
     const appointment = updatedAppointments.find(apt => apt.id === appointmentId)
-    
+
     if (!appointment) {
       throw new Error('予約が見つかりません')
     }
-    
+
+    // キャンセルログを記録
+    if (currentAppointment) {
+      const { createAppointmentLog } = await import('./appointment-logs')
+      await createAppointmentLog({
+        appointment_id: appointmentId,
+        action: 'キャンセル',
+        before_data: {
+          status: currentAppointment.status,
+          appointment_date: currentAppointment.appointment_date,
+          start_time: currentAppointment.start_time,
+          end_time: currentAppointment.end_time,
+          staff1_id: currentAppointment.staff1_id,
+          menu1_id: currentAppointment.menu1_id,
+          memo: existingMemo
+        },
+        after_data: {
+          status: 'キャンセル',
+          cancel_reason_id: cancelReasonId,
+          cancelled_at: updatedAppointment.cancelled_at,
+          memo: updatedMemo
+        },
+        reason: `予約をキャンセルしました${cancelReason ? ` (理由: ${cancelReason.name})` : ''}`,
+        operator_id: cancelledBy || 'system'
+      })
+    }
+
     return appointment
   }
 
   const client = getSupabaseClient()
 
-  // 既存の予約データを取得してメモを確認
+  // 既存の予約データを取得してメモとステータスを確認
   const { data: currentData } = await client
     .from('appointments')
-    .select('memo')
+    .select('memo, status')
     .eq('id', appointmentId)
     .single()
 
@@ -763,10 +889,10 @@ export async function cancelAppointment(
   const { data, error } = await client
     .from('appointments')
     .update({
-      status: 'cancelled',
+      status: 'キャンセル',
       cancel_reason_id: cancelReasonId,
       cancelled_at: new Date().toISOString(),
-      cancelled_by: cancelledBy,
+      cancelled_by: cancelledBy || null,
       memo: updatedMemo,
       updated_at: new Date().toISOString()
     })
@@ -780,13 +906,35 @@ export async function cancelAppointment(
       staff1:staff!staff1_id(*),
       staff2:staff!staff2_id(*),
       staff3:staff!staff3_id(*),
-      cancel_reason:cancel_reasons(*)
+      cancel_reason:cancel_reasons!appointments_cancel_reason_id_fkey(*)
     `)
     .single()
 
   if (error) {
     console.error('予約キャンセルエラー:', error)
     throw error
+  }
+
+  // キャンセルログを記録
+  if (currentData) {
+    const { createAppointmentLog } = await import('./appointment-logs')
+    const cancelReason = data.cancel_reason
+    await createAppointmentLog({
+      appointment_id: appointmentId,
+      action: 'キャンセル',
+      before_data: {
+        status: currentData.status || '未来院',
+        memo: existingMemo
+      },
+      after_data: {
+        status: 'キャンセル',
+        cancel_reason_id: cancelReasonId,
+        cancelled_at: data.cancelled_at,
+        memo: updatedMemo
+      },
+      reason: `予約をキャンセルしました${cancelReason ? ` (理由: ${cancelReason.name})` : ''}`,
+      operator_id: cancelledBy || 'system'
+    })
   }
 
   return data

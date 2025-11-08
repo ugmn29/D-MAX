@@ -336,8 +336,10 @@ export type Database = {
           address_line?: string
           address?: string
           preferred_contact_method?: string
+          visit_reason?: string
           allergies?: string
           medical_history?: string
+          medications?: string
           primary_doctor_id?: string
           primary_hygienist_id?: string
           insurance_data?: any
@@ -368,8 +370,10 @@ export type Database = {
           address_line?: string
           address?: string
           preferred_contact_method?: string
+          visit_reason?: string
           allergies?: string
           medical_history?: string
+          medications?: string
           primary_doctor_id?: string
           primary_hygienist_id?: string
           insurance_data?: any
@@ -400,8 +404,10 @@ export type Database = {
           address_line?: string
           address?: string
           preferred_contact_method?: string
+          visit_reason?: string
           allergies?: string
           medical_history?: string
+          medications?: string
           primary_doctor_id?: string
           primary_hygienist_id?: string
           insurance_data?: any

@@ -107,18 +107,22 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
               <button
                 key={tab.id}
                 onClick={() => tab.available && setActiveTab(tab.id)}
+                onMouseEnter={() => tab.available && setActiveTab(tab.id)}
                 disabled={!tab.available}
                 className={`
-                  flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
+                  flex items-center space-x-2 py-4 px-3 border-b-2 font-medium text-sm whitespace-nowrap
+                  transition-all duration-200 rounded-t-md
                   ${activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-blue-500 text-blue-600 bg-blue-50'
                     : tab.available
-                    ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-transparent text-gray-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300'
                     : 'border-transparent text-gray-300 cursor-not-allowed'
                   }
                 `}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className={`w-4 h-4 transition-transform duration-200 ${
+                  activeTab === tab.id ? 'scale-110' : ''
+                }`} />
                 <span>{tab.label}</span>
               </button>
             )

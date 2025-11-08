@@ -81,29 +81,31 @@ interface AppointmentEditModalProps {
   onUpdate?: (appointmentData: any) => void
   onCopyAppointment?: (appointment: any) => void
   onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
+  onJumpToDate?: (date: string) => void // カレンダーの日付を変更するコールバック
 }
 
 interface PatientSearchResult extends Patient {
   displayName: string
 }
 
-export function AppointmentEditModal({ 
-  isOpen, 
-  onClose, 
-  clinicId, 
-  selectedDate, 
-  selectedTime, 
-  selectedStaffIndex, 
+export function AppointmentEditModal({
+  isOpen,
+  onClose,
+  clinicId,
+  selectedDate,
+  selectedTime,
+  selectedStaffIndex,
   selectedUnitIndex,
-  selectedTimeSlots = [], 
-  timeSlotMinutes = 15, 
+  selectedTimeSlots = [],
+  timeSlotMinutes = 15,
   workingStaff = [],
   units = [],
   editingAppointment,
   onSave,
   onUpdate,
   onCopyAppointment,
-  onAppointmentCancel
+  onAppointmentCancel,
+  onJumpToDate
 }: AppointmentEditModalProps) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -249,6 +251,11 @@ export function AppointmentEditModal({
   // キャンセルモーダル関連の状態
   const [showCancelModal, setShowCancelModal] = useState(false)
 
+  // メモ全文表示ポップアップ関連の状態
+  const [showMemoPopup, setShowMemoPopup] = useState(false)
+  const [selectedMemo, setSelectedMemo] = useState<string>('')
+  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 })
+
   // 本登録モーダル関連の状態
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
   const [useQuestionnaire, setUseQuestionnaire] = useState(true) // 問診票利用設定（初期値true、後でlocalStorageから読み込む）
@@ -267,21 +274,166 @@ export function AppointmentEditModal({
     }
   }, [])
 
+  // 患者データを問診表情報と統合して取得
+  const fetchPatientWithQuestionnaireData = async (patientId: string) => {
+    if (!clinicId) return null
+
+    try {
+      const { getPatientById } = await import('@/lib/api/patients')
+      const patientData = await getPatientById(clinicId, patientId)
+
+      if (!patientData) return null
+
+      // 問診票の情報を取得して統合
+      try {
+        const { getLinkedQuestionnaireResponses, getQuestionnaires } = await import('@/lib/api/questionnaires')
+        const questionnaireResponses = await getLinkedQuestionnaireResponses(patientId)
+
+        if (questionnaireResponses && questionnaireResponses.length > 0) {
+          const latestResponse = questionnaireResponses[0]
+          const responseData = latestResponse.response_data
+          const questionnaireId = latestResponse.questionnaire_id
+
+          // 問診票の定義を取得
+          const questionnaires = await getQuestionnaires(clinicId)
+          const questionnaire = questionnaires.find(q => q.id === questionnaireId)
+
+          if (questionnaire && questionnaire.questions) {
+            // linked_fieldに基づいて患者情報を抽出
+            questionnaire.questions.forEach((question: any) => {
+              const questionId = question.id
+              const linkedField = question.linked_field
+              const answer = responseData[questionId]
+
+              if (linkedField && answer !== undefined && answer !== null && answer !== '') {
+                switch (linkedField) {
+                  case 'birth_date':
+                    if (!patientData.birth_date) patientData.birth_date = answer
+                    break
+                  case 'gender':
+                    if (!patientData.gender) {
+                      let genderValue = answer
+                      if (genderValue === '男' || genderValue === '男性' || genderValue === 'male') {
+                        genderValue = 'male'
+                      } else if (genderValue === '女' || genderValue === '女性' || genderValue === 'female') {
+                        genderValue = 'female'
+                      } else {
+                        genderValue = 'other'
+                      }
+                      patientData.gender = genderValue
+                    }
+                    break
+                  case 'phone':
+                    if (!patientData.phone) patientData.phone = answer
+                    break
+                  case 'email':
+                    if (!patientData.email) patientData.email = answer
+                    break
+                  case 'address':
+                    if (!patientData.address) {
+                      const postalCode = (patientData as any).postal_code || ''
+                      const fullAddress = postalCode ? `${postalCode} ${answer}` : answer
+                      patientData.address = fullAddress
+                    }
+                    break
+                  case 'referral_source':
+                    if (!(patientData as any).visit_reason) {
+                      if (Array.isArray(answer)) {
+                        (patientData as any).visit_reason = answer.join('、')
+                      } else {
+                        (patientData as any).visit_reason = answer
+                      }
+                    }
+                    break
+                  case 'preferred_contact_method':
+                    if (!(patientData as any).preferred_contact_method) {
+                      let contactMethod = Array.isArray(answer) ? answer[0] : answer
+                      if (contactMethod === 'LINE' || contactMethod === 'line') {
+                        contactMethod = 'line'
+                      } else if (contactMethod === 'メール' || contactMethod === 'Email' || contactMethod === 'email') {
+                        contactMethod = 'email'
+                      } else if (contactMethod === 'SMS' || contactMethod === 'sms') {
+                        contactMethod = 'sms'
+                      }
+                      (patientData as any).preferred_contact_method = contactMethod
+                    }
+                    break
+                  case 'allergies':
+                    if (!patientData.allergies) {
+                      if (Array.isArray(answer)) {
+                        patientData.allergies = answer.join(', ')
+                      } else if (answer === 'ない' || answer === 'なし') {
+                        patientData.allergies = 'なし'
+                      } else {
+                        patientData.allergies = answer
+                      }
+                    }
+                    break
+                  case 'medical_history':
+                    if (!patientData.medical_history) {
+                      if (Array.isArray(answer)) {
+                        patientData.medical_history = answer.join('、')
+                      } else if (answer === 'ない' || answer === 'なし') {
+                        patientData.medical_history = 'なし'
+                      } else {
+                        patientData.medical_history = answer
+                      }
+                    }
+                    break
+                  case 'medications':
+                    if (!(patientData as any).medications) {
+                      if (Array.isArray(answer)) {
+                        (patientData as any).medications = answer.join('、')
+                      } else if (answer === 'ない' || answer === 'なし') {
+                        (patientData as any).medications = 'なし'
+                      } else {
+                        (patientData as any).medications = answer
+                      }
+                    }
+                    break
+                }
+              }
+            })
+          }
+        }
+      } catch (error) {
+        console.log('問診票の情報取得エラー（無視）:', error)
+      }
+
+      // 患者アイコンも取得して統合
+      try {
+        const { getPatientIcons } = await import('@/lib/api/patient-icons')
+        const patientIconsData = await getPatientIcons(patientId, clinicId)
+        if (patientIconsData?.icon_ids) {
+          (patientData as any).icon_ids = patientIconsData.icon_ids
+          console.log('患者アイコンを取得:', patientIconsData.icon_ids)
+        }
+      } catch (error) {
+        console.log('患者アイコンの取得エラー（無視）:', error)
+      }
+
+      return patientData
+    } catch (error) {
+      console.error('患者データ取得エラー:', error)
+      return null
+    }
+  }
+
   // 未連携問診票を取得
   const fetchUnlinkedQuestionnaires = async () => {
     if (!clinicId) return
-    
+
     console.log('未連携問診票取得開始:', { clinicId })
-    
+
     // デバッグ：現在の配列状態を確認
     console.log('デバッグ: 取得前の配列状態')
     debugQuestionnaireResponses()
-    
+
     setLoadingQuestionnaires(true)
     try {
       const responses = await getUnlinkedQuestionnaireResponses(clinicId)
-      console.log('未連携問診票取得結果:', { 
-        count: responses.length, 
+      console.log('未連携問診票取得結果:', {
+        count: responses.length,
         responses: responses.map(r => ({
           id: r.id,
           name: r.response_data.patient_name || r.response_data['q1-1'],
@@ -367,7 +519,8 @@ export function AppointmentEditModal({
           console.log('本登録前の患者一覧:', beforePatients.map(p => ({ id: p.id, name: `${p.last_name} ${p.first_name}`, is_registered: p.is_registered })))
           console.log('更新対象の患者ID:', selectedPatient.id)
 
-          const updated = updateMockPatient(selectedPatient.id, {
+          // 更新データを構築（patient_numberは未設定の場合のみ追加）
+          const updateData: any = {
             last_name: lastName,
             first_name: firstName,
             last_name_kana: lastNameKana,
@@ -376,9 +529,15 @@ export function AppointmentEditModal({
             birth_date: birthDate || null,
             phone: phone || null,
             email: email || null,
-            patient_number: patientNumber,
             is_registered: true
-          })
+          }
+
+          // patient_numberが未設定の場合のみ追加
+          if (!selectedPatient.patient_number) {
+            updateData.patient_number = patientNumber
+          }
+
+          const updated = updateMockPatient(selectedPatient.id, updateData)
 
           // 更新後の患者データを確認
           const afterPatients = getMockPatients()
@@ -399,7 +558,9 @@ export function AppointmentEditModal({
 
           // 本番モードではデータベースに保存
           const { updatePatient } = await import('@/lib/api/patients')
-          const updated = await updatePatient(clinicId, selectedPatient.id, {
+
+          // 更新データを構築（patient_numberは未設定の場合のみ追加）
+          const updateData: any = {
             last_name: lastName,
             first_name: firstName,
             last_name_kana: lastNameKana,
@@ -408,9 +569,15 @@ export function AppointmentEditModal({
             birth_date: birthDate || null,
             phone: phone || null,
             email: email || null,
-            patient_number: patientNumber,
             is_registered: true
-          })
+          }
+
+          // patient_numberが未設定の場合のみ追加
+          if (!selectedPatient.patient_number) {
+            updateData.patient_number = patientNumber
+          }
+
+          const updated = await updatePatient(clinicId, selectedPatient.id, updateData)
 
           // 状態も更新
           setSelectedPatient(updated)
@@ -466,16 +633,56 @@ export function AppointmentEditModal({
         }
       }
 
-      alert('問診票を患者に紐付けました。患者情報が自動更新されました。')
-      setShowRegistrationModal(false)
+      // 最新の患者情報を取得してselectedPatientを更新
+      try {
+        const { getPatients } = await import('@/lib/api/patients')
+        const updatedPatients = await getPatients(clinicId)
+        const updatedPatient = updatedPatients.find(p => p.id === selectedPatient.id)
+
+        if (updatedPatient) {
+          // 患者アイコン情報も取得
+          const { getPatientIcons } = await import('@/lib/api/patient-icons')
+          const patientIconsData = await getPatientIcons(updatedPatient.id, clinicId)
+
+          setSelectedPatient({
+            ...updatedPatient,
+            icon_ids: patientIconsData?.icon_ids || []
+          } as any)
+          console.log('問診票連携完了: 患者情報を更新しました', {
+            id: updatedPatient.id,
+            is_registered: updatedPatient.is_registered,
+            patient_number: updatedPatient.patient_number,
+            birth_date: updatedPatient.birth_date,
+            gender: updatedPatient.gender
+          })
+        }
+      } catch (error) {
+        console.error('患者情報の再取得エラー:', error)
+        // このエラーは致命的ではないので、処理を続行
+      }
+
+      // 未連携問診票リストを再取得して表示を更新
+      try {
+        const { getUnlinkedQuestionnaireResponses } = await import('@/lib/api/questionnaires')
+        const updatedUnlinkedQuestionnaires = await getUnlinkedQuestionnaireResponses(clinicId)
+        setUnlinkedQuestionnaires(updatedUnlinkedQuestionnaires)
+        console.log('未連携問診票リストを更新しました:', {
+          連携前: unlinkedQuestionnaires.length,
+          連携後: updatedUnlinkedQuestionnaires.length
+        })
+      } catch (error) {
+        console.error('未連携問診票リストの再取得エラー:', error)
+        // このエラーは致命的ではないので、処理を続行
+      }
 
       // onSaveコールバックを呼び出して親コンポーネントを更新
       if (onSave) {
         onSave()
       }
 
-      // モーダルは閉じずに患者情報の表示を更新
-      console.log('問診票連携完了: モーダルを開いたまま患者情報を更新')
+      // 成功メッセージを最後に表示
+      alert('問診票を患者に紐付けました。患者情報が自動更新されました。')
+      setShowRegistrationModal(false)
     } catch (error) {
       console.error('問診票紐付けエラー:', error)
       alert('問診票の紐付けに失敗しました')
@@ -537,10 +744,10 @@ export function AppointmentEditModal({
       console.log('Modal opened or dependencies changed, re-initializing appointmentData')
       if (editingAppointment) {
         console.log('既存の予約データを設定:', editingAppointment)
-        
+
         // end_timeが設定されていない場合（コピー時など）は初期データから計算
         const initialData = getInitialAppointmentData()
-        
+
         // 既存の予約データを設定
         setAppointmentData({
           start_time: editingAppointment.start_time || initialData.start_time,
@@ -554,59 +761,62 @@ export function AppointmentEditModal({
           staff3_id: editingAppointment.staff3_id || '',
           memo: editingAppointment.memo || ''
         })
-        
+
         // 既存の患者を設定
         console.log('モーダル: editingAppointmentの内容:', editingAppointment)
         console.log('モーダル: editingAppointment.patient:', editingAppointment.patient)
+        console.log('モーダル: editingAppointment.patient.icon_ids:', (editingAppointment.patient as any)?.icon_ids)
         console.log('モーダル: editingAppointment.patient_id:', editingAppointment.patient_id)
-        
-        if (editingAppointment.patient) {
-          // 患者情報が直接含まれている場合（コピー時など）は、それを使用
-          console.log('コピー元の患者情報を設定:', editingAppointment.patient)
-          setSelectedPatient(editingAppointment.patient)
-          console.log('selectedPatientに設定完了:', editingAppointment.patient)
 
-          // 常に最新の患者情報を再取得（is_registeredなどの最新状態を反映）
-          const refreshPatientInfo = async () => {
-            try {
-              console.log('患者情報の再取得開始:', editingAppointment.patient.id)
-              const { getPatients } = await import('@/lib/api/patients')
-              const updatedPatients = await getPatients(clinicId)
+        if (editingAppointment.patient || editingAppointment.patient_id) {
+          // 患者情報を取得（初回のみ、再レンダリングを防ぐため）
+          const patientId = editingAppointment.patient?.id || editingAppointment.patient_id
 
-              const updatedPatient = updatedPatients.find(p => p.id === editingAppointment.patient.id)
-              if (updatedPatient) {
-                setSelectedPatient(updatedPatient)
-                console.log('患者情報を最新の状態で再取得:', {
-                  id: updatedPatient.id,
-                  name: `${updatedPatient.last_name} ${updatedPatient.first_name}`,
-                  is_registered: updatedPatient.is_registered,
-                  patient_number: updatedPatient.patient_number
-                })
+          // 既に同じ患者が選択されている場合はスキップ（無限ループ防止）
+          if (selectedPatient?.id !== patientId) {
+            console.log('患者情報を設定:', patientId)
+
+            // editingAppointment.patientに既にアイコン情報が含まれているはずなので、それをそのまま使用
+            if (editingAppointment.patient) {
+              setSelectedPatient(editingAppointment.patient)
+              console.log('患者情報を設定（アイコン情報含む）:', {
+                id: editingAppointment.patient.id,
+                name: `${editingAppointment.patient.last_name} ${editingAppointment.patient.first_name}`,
+                icon_ids: (editingAppointment.patient as any)?.icon_ids
+              })
+            } else if (editingAppointment.patient_id) {
+              // patient_idのみの場合は、患者情報を取得
+              const fetchPatientInfo = async () => {
+                try {
+                  console.log('患者情報を取得開始:', patientId)
+                  const { getPatients } = await import('@/lib/api/patients')
+                  const updatedPatients = await getPatients(clinicId)
+                  const patient = updatedPatients.find(p => p.id === patientId)
+
+                  if (patient) {
+                    // 患者アイコン情報も取得
+                    const { getPatientIcons } = await import('@/lib/api/patient-icons')
+                    const patientIconsData = await getPatientIcons(patient.id, clinicId)
+
+                    setSelectedPatient({
+                      ...patient,
+                      icon_ids: patientIconsData?.icon_ids || []
+                    } as any)
+                    console.log('患者情報を取得完了（アイコン情報含む）:', {
+                      id: patient.id,
+                      name: `${patient.last_name} ${patient.first_name}`,
+                      icon_ids: patientIconsData?.icon_ids
+                    })
+                  }
+                } catch (error) {
+                  console.error('患者情報の取得エラー:', error)
+                }
               }
-            } catch (error) {
-              console.error('患者情報の再取得エラー:', error)
-              // エラーの場合は元の患者情報を使用（既に設定済み）
+              fetchPatientInfo()
             }
           }
-          refreshPatientInfo()
-        } else if (editingAppointment.patient_id) {
-          // patient_idのみの場合は再取得が必要
-          const refreshPatientInfo = async () => {
-            try {
-              const { getPatients } = await import('@/lib/api/patients')
-              const updatedPatients = await getPatients(clinicId)
-              const updatedPatient = updatedPatients.find(p => p.id === editingAppointment.patient_id)
-              if (updatedPatient) {
-                setSelectedPatient(updatedPatient)
-                console.log('患者情報を取得:', updatedPatient)
-              }
-            } catch (error) {
-              console.error('患者情報の取得エラー:', error)
-            }
-          }
-          refreshPatientInfo()
         }
-        
+
         // 既存のメニューを設定
         if (editingAppointment.menu1) {
           setSelectedMenu1(editingAppointment.menu1)
@@ -621,7 +831,8 @@ export function AppointmentEditModal({
         setAppointmentData(getInitialAppointmentData())
       }
     }
-  }, [isOpen, getInitialAppointmentData, editingAppointment])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editingAppointment?.id])
 
   // 選択されたスタッフインデックスまたはユニットインデックスに基づいて自動選択
   useEffect(() => {
@@ -697,7 +908,50 @@ export function AppointmentEditModal({
         console.log('担当者とユニットをクリア（空のセル選択）')
       }
     }
-  }, [isOpen, selectedStaffIndex, selectedUnitIndex, workingStaff, allUnits, appointmentData.start_time, appointmentData.end_time, selectedDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, selectedStaffIndex, selectedUnitIndex, selectedDate])
+
+  // スタッフ選択が変更されたときに自動的にユニットを割り当て
+  useEffect(() => {
+    const autoAssignUnitForSelectedStaff = async () => {
+      // 条件: スタッフが選択されていて、開始・終了時間が設定されている
+      if (selectedStaff.length > 0 && appointmentData.start_time && appointmentData.end_time) {
+        const primaryStaff = selectedStaff[0] // 主担当スタッフ（最初のスタッフ）
+
+        try {
+          const autoUnit = await getAutoAssignedUnit(
+            primaryStaff.id,
+            selectedDate,
+            appointmentData.start_time,
+            appointmentData.end_time
+          )
+
+          if (autoUnit) {
+            setSelectedUnit(autoUnit)
+            setAppointmentData(prev => ({
+              ...prev,
+              unit_id: autoUnit.id
+            }))
+            console.log('スタッフ選択変更により自動割り当てされたユニット:', {
+              staff: primaryStaff.name,
+              unit: autoUnit.name,
+              priority: 'auto-assigned'
+            })
+          } else {
+            console.log('空いているユニットが見つかりませんでした')
+          }
+        } catch (error) {
+          console.error('自動ユニット割り当てエラー:', error)
+        }
+      }
+    }
+
+    // モーダルが開いている場合のみ実行
+    if (isOpen) {
+      autoAssignUnitForSelectedStaff()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStaff, appointmentData.start_time, appointmentData.end_time, isOpen])
 
   // 患者の予約履歴を読み込む関数
   const loadPatientAppointments = async () => {
@@ -732,7 +986,8 @@ export function AppointmentEditModal({
   // 患者が選択された時に予約履歴を取得
   useEffect(() => {
     loadPatientAppointments()
-  }, [selectedPatient, isOpen, clinicId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPatient?.id, isOpen, clinicId])
 
   // メモテンプレートを取得
   useEffect(() => {
@@ -858,8 +1113,23 @@ export function AppointmentEditModal({
   }
 
   // 患者選択
-  const handlePatientSelect = (patient: Patient) => {
-    setSelectedPatient(patient)
+  const handlePatientSelect = async (patient: Patient) => {
+    // 患者のアイコン情報をデータベースから取得
+    const { getPatientIcons } = await import('@/lib/api/patient-icons')
+    try {
+      const patientIconsData = await getPatientIcons(patient.id, clinicId)
+      const patientWithIcons = {
+        ...patient,
+        icon_ids: patientIconsData?.icon_ids || []
+      } as any
+      setSelectedPatient(patientWithIcons)
+    } catch (error) {
+      console.error('患者アイコン取得エラー:', error)
+      setSelectedPatient({
+        ...patient,
+        icon_ids: []
+      } as any)
+    }
     setSearchQuery('')
     setSearchResults([])
   }
@@ -926,7 +1196,7 @@ export function AppointmentEditModal({
       const appointments = await getAppointments(clinicId, date, date)
       const conflictingAppointments = appointments.filter(apt =>
         apt.unit_id === unitId &&
-        apt.status !== 'cancelled' &&
+        apt.status !== 'キャンセル' &&
         !(apt.end_time <= startTime || apt.start_time >= endTime)
       )
       
@@ -989,6 +1259,61 @@ export function AppointmentEditModal({
       }
     }
   }, [showRegistrationModal, useQuestionnaire])
+
+  // 患者アイコン更新イベントをリッスン
+  useEffect(() => {
+    const handlePatientIconsUpdated = async (event: any) => {
+      console.log('予約編集モーダル: patientIconsUpdatedイベントを受信しました', event.detail)
+      const { patientId, iconIds } = event.detail
+      // 現在選択中の患者のアイコンが更新された場合、selectedPatientを更新
+      if (selectedPatient && selectedPatient.id === patientId) {
+        setSelectedPatient({
+          ...selectedPatient,
+          icon_ids: iconIds
+        } as any)
+        console.log('患者アイコン更新: 予約編集モーダルの患者情報を更新しました', { patientId, iconIds })
+      } else {
+        console.log('予約編集モーダル: 患者IDが一致しないためスキップ', { selectedPatientId: selectedPatient?.id, eventPatientId: patientId })
+      }
+    }
+
+    console.log('予約編集モーダル: patientIconsUpdatedイベントリスナーを登録しました', { selectedPatientId: selectedPatient?.id })
+    window.addEventListener('patientIconsUpdated', handlePatientIconsUpdated)
+    return () => {
+      console.log('予約編集モーダル: patientIconsUpdatedイベントリスナーを削除しました')
+      window.removeEventListener('patientIconsUpdated', handlePatientIconsUpdated)
+    }
+  }, [selectedPatient])
+
+  // 患者データ更新イベントをリッスン
+  useEffect(() => {
+    const handlePatientDataUpdated = async (event: any) => {
+      console.log('予約編集モーダル: patientDataUpdatedイベントを受信しました', event.detail)
+      const { patientId, clinicId: eventClinicId } = event.detail
+      // 現在選択中の患者のデータが更新された場合、最新データを再取得
+      if (selectedPatient && selectedPatient.id === patientId) {
+        try {
+          const { getPatientById } = await import('@/lib/api/patients')
+          const updatedPatient = await getPatientById(eventClinicId || clinicId, patientId)
+          if (updatedPatient) {
+            setSelectedPatient(updatedPatient)
+            console.log('患者データ更新: 予約編集モーダルの患者情報を再取得しました', updatedPatient)
+          }
+        } catch (error) {
+          console.error('予約編集モーダル: 患者データの再取得エラー:', error)
+        }
+      } else {
+        console.log('予約編集モーダル: 患者IDが一致しないためスキップ', { selectedPatientId: selectedPatient?.id, eventPatientId: patientId })
+      }
+    }
+
+    console.log('予約編集モーダル: patientDataUpdatedイベントリスナーを登録しました', { selectedPatientId: selectedPatient?.id })
+    window.addEventListener('patientDataUpdated', handlePatientDataUpdated)
+    return () => {
+      console.log('予約編集モーダル: patientDataUpdatedイベントリスナーを削除しました')
+      window.removeEventListener('patientDataUpdated', handlePatientDataUpdated)
+    }
+  }, [selectedPatient, clinicId])
 
   // メニュー選択
   const handleMenu1Select = (menu: TreatmentMenu) => {
@@ -1244,11 +1569,11 @@ export function AppointmentEditModal({
         start_time: appointmentData.start_time,
         end_time: appointmentData.end_time,
         menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
-        menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
-        menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+        menu2_id: appointmentData.menu2_id || selectedMenu2?.id || null,
+        menu3_id: appointmentData.menu3_id || selectedMenu3?.id || null,
         staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
-        staff2_id: appointmentData.staff2_id,
-        staff3_id: appointmentData.staff3_id,
+        staff2_id: appointmentData.staff2_id || null,
+        staff3_id: appointmentData.staff3_id || null,
         memo: currentMemo,
         status: editingAppointment ? editingAppointment.status : '未来院'
       }
@@ -1320,9 +1645,10 @@ export function AppointmentEditModal({
       }
       console.log('予約保存完了、モーダルを閉じます')
       onClose()
-    } catch (error) {
+    } catch (error: any) {
       console.error('予約保存エラー:', error)
-      alert('予約の保存に失敗しました')
+      const errorMessage = error?.message || error?.toString() || '予約の保存に失敗しました'
+      alert(`予約の保存に失敗しました\n\nエラー詳細: ${errorMessage}`)
     } finally {
       setSaving(false)
       console.log('saving状態をfalseに設定しました')
@@ -1568,10 +1894,17 @@ export function AppointmentEditModal({
                         </div>
                         {selectedPatient.is_registered && (
                           <div className="flex space-x-2">
-                            <Button 
-                              onClick={() => setShowPatientEditModal(true)}
-                              variant="ghost" 
-                              size="sm" 
+                            <Button
+                              onClick={async () => {
+                                // 問診表データを含めた完全な患者データを取得
+                                const fullPatientData = await fetchPatientWithQuestionnaireData(selectedPatient.id)
+                                if (fullPatientData) {
+                                  setSelectedPatient(fullPatientData)
+                                }
+                                setShowPatientEditModal(true)
+                              }}
+                              variant="ghost"
+                              size="sm"
                               className="p-1"
                               title="患者情報を編集"
                             >
@@ -1614,36 +1947,23 @@ export function AppointmentEditModal({
                         </div>
                         
                         {/* 患者の特記事項アイコン */}
-                        {(() => {
-                          // ローカルストレージから患者のアイコンIDを取得
-                          const patientIconsData = localStorage.getItem(`patient_icons_${selectedPatient.id}`)
-                          if (!patientIconsData) return null
-                          
-                          try {
-                            const iconIds: string[] = JSON.parse(patientIconsData)
-                            if (iconIds.length === 0) return null
-                            
-                            return (
-                              <div className="flex items-center gap-1 flex-wrap">
-                                {iconIds.map(iconId => {
-                                  const iconData = PATIENT_ICONS.find(i => i.id === iconId)
-                                  if (!iconData) return null
-                                  const IconComponent = iconData.icon
-                                  return (
-                                    <div
-                                      key={iconId}
-                                      title={iconData.title}
-                                    >
-                                      <IconComponent className="w-4 h-4 text-gray-700" />
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )
-                          } catch (e) {
-                            return null
-                          }
-                        })()}
+                        {(selectedPatient as any).icon_ids && (selectedPatient as any).icon_ids.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {(selectedPatient as any).icon_ids.map((iconId: string) => {
+                              const iconData = PATIENT_ICONS.find(i => i.id === iconId)
+                              if (!iconData) return null
+                              const IconComponent = iconData.icon
+                              return (
+                                <div
+                                  key={iconId}
+                                  title={iconData.title}
+                                >
+                                  <IconComponent className="w-4 h-4 text-gray-700" />
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                       
                     </div>
@@ -1723,15 +2043,35 @@ export function AppointmentEditModal({
                             const staffName = (appointment as any).staff1?.name || (appointment as any).staff2?.name || (appointment as any).staff3?.name || '未設定'
                             const menuName = (appointment as any).menu1?.name || (appointment as any).menu2?.name || (appointment as any).menu3?.name || '診療メニュー'
                             const hasStaff = staffName !== '未設定'
-                            
+                            const isCancelled = appointment.status === 'キャンセル'
+
+                            // デバッグ用ログ
+                            if (index === 0) {
+                              console.log('予約履歴の最初の予約:', {
+                                id: appointment.id,
+                                status: appointment.status,
+                                isCancelled,
+                                statusType: typeof appointment.status
+                              })
+                            }
+
                             return (
                               <div key={appointment.id || index} className="px-4 py-3">
                                 <div className="flex gap-2 text-sm">
-                                  <div className="w-[130px] text-gray-900">
+                                  <div
+                                    className="w-[130px] text-gray-900 cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+                                    onClick={() => {
+                                      if (onJumpToDate) {
+                                        onJumpToDate(appointment.appointment_date)
+                                        onClose()
+                                      }
+                                    }}
+                                    title="クリックしてカレンダーに移動"
+                                  >
                                     <div>{formattedDate}</div>
                                     <div className="flex items-center gap-2">
                                       <span>{appointment.start_time}</span>
-                                      {appointment.status === 'cancelled' && (
+                                      {isCancelled && (
                                         <span className="text-red-600" style={{ fontSize: "10px" }}>キャンセル</span>
                                       )}
                                     </div>
@@ -1772,7 +2112,27 @@ export function AppointmentEditModal({
                                       {menuName}
                                     </div>
                                   </div>
-                                  <div className="flex-1 text-gray-500 overflow-hidden">
+                                  <div
+                                    className="flex-1 text-gray-500 overflow-hidden cursor-pointer hover:bg-gray-100 rounded px-2 py-1 transition-colors"
+                                    onMouseEnter={(e) => {
+                                      if (appointment.memo && appointment.memo !== '-') {
+                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                                        setPopupPosition({
+                                          top: rect.bottom + window.scrollY + 5,
+                                          left: Math.min(rect.left + window.scrollX, window.innerWidth - 420)
+                                        })
+                                        setSelectedMemo(appointment.memo)
+                                        setShowMemoPopup(true)
+                                      }
+                                    }}
+                                    onMouseLeave={() => {
+                                      setShowMemoPopup(false)
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                    }}
+                                    title={appointment.memo ? "ホバーで全文表示" : ""}
+                                  >
                                     <div
                                       className="break-words"
                                       style={{
@@ -2610,14 +2970,18 @@ export function AppointmentEditModal({
         appointmentTime={`${appointmentData.start_time} - ${appointmentData.end_time}`}
         existingMemo={appointmentData.memo}
         appointmentData={editingAppointment}
-        onCancelSuccess={() => {
+        onCancelSuccess={async () => {
           setShowCancelModal(false)
+          // キャンセル成功後に予約履歴を再読み込み
+          await loadPatientAppointments()
           onClose()
           // キャンセル成功後にカレンダーを再読み込み
           onAppointmentCancel?.()
         }}
-        onCancelAndReschedule={(appointment) => {
+        onCancelAndReschedule={async (appointment) => {
           setShowCancelModal(false)
+          // キャンセル成功後に予約履歴を再読み込み
+          await loadPatientAppointments()
           // コピー機能を実行
           if (onCopyAppointment) {
             onCopyAppointment(appointment)
@@ -2627,6 +2991,29 @@ export function AppointmentEditModal({
           onAppointmentCancel?.()
         }}
       />
+    )}
+
+    {/* メモ全文表示ポップアップ */}
+    {showMemoPopup && (
+      <div
+        className="fixed z-[70] bg-white rounded-lg shadow-2xl border border-gray-200 px-4 py-3 overflow-y-auto"
+        style={{
+          top: `${popupPosition.top}px`,
+          left: `${popupPosition.left}px`,
+          maxWidth: '400px',
+          maxHeight: '300px',
+          width: '400px'
+        }}
+        onMouseEnter={() => setShowMemoPopup(true)}
+        onMouseLeave={() => setShowMemoPopup(false)}
+      >
+        <div
+          className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{
+            __html: selectedMemo
+          }}
+        />
+      </div>
     )}
 
     {/* 本登録モーダル */}
@@ -2893,15 +3280,23 @@ export function AppointmentEditModal({
       isOpen={showPatientEditModal}
       onClose={() => setShowPatientEditModal(false)}
       patient={selectedPatient}
-      onSave={(patientData) => {
+      clinicId={clinicId}
+      onSave={async (patientData) => {
         console.log('患者情報を更新:', patientData)
-        // TODO: 患者情報の更新API呼び出し
-        // 選択中の患者情報を更新
+
+        // PatientEditModal内で既にデータベースに保存されているので、
+        // ここでは最新の患者情報を取得して状態を更新するだけ
         if (selectedPatient) {
-          setSelectedPatient({
-            ...selectedPatient,
-            ...patientData
-          })
+          try {
+            const { getPatientById } = await import('@/lib/api/patients')
+            const updatedPatient = await getPatientById(clinicId, selectedPatient.id)
+            console.log('予約編集モーダル: 再取得した患者データの primary_doctor_id:', (updatedPatient as any).primary_doctor_id)
+            console.log('予約編集モーダル: 再取得した患者データの primary_hygienist_id:', (updatedPatient as any).primary_hygienist_id)
+            setSelectedPatient(updatedPatient)
+            console.log('患者情報を再取得しました:', updatedPatient)
+          } catch (error) {
+            console.error('患者情報の再取得エラー:', error)
+          }
         }
       }}
     />

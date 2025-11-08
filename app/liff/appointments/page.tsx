@@ -86,7 +86,20 @@ export default function AppointmentsPage() {
     const initializeLiff = async () => {
       try {
         if (typeof window !== 'undefined' && window.liff) {
-          const liffId = process.env.NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+          let liffId = process.env.NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+
+          // localStorageから設定画面の値を取得
+          try {
+            const savedSettings = localStorage.getItem('notificationSettings')
+            if (savedSettings) {
+              const settings = JSON.parse(savedSettings)
+              if (settings.line?.liff_id_appointments) {
+                liffId = settings.line.liff_id_appointments
+              }
+            }
+          } catch (e) {
+            console.warn('localStorage読み込みエラー:', e)
+          }
 
           if (!liffId) {
             setError('LIFF IDが設定されていません')

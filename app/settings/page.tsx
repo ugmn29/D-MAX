@@ -398,6 +398,7 @@ export default function SettingsPage() {
   const [selectedWebTab, setSelectedWebTab] = useState<'basic' | 'flow' | 'menu' | 'notification-flow'>('basic');
   const [previewPatientType, setPreviewPatientType] = useState<'new' | 'returning'>('new'); // 右側プレビューで選択された患者タイプ
   const [notificationTab, setNotificationTab] = useState("connection");
+  const [richMenuSubTab, setRichMenuSubTab] = useState<"registered" | "unregistered">("registered"); // リッチメニューのサブタブ
   const [questionnaireTab, setQuestionnaireTab] = useState("basic");
   const [useQuestionnaire, setUseQuestionnaire] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -519,7 +520,7 @@ export default function SettingsPage() {
     template_id: "",
   });
 
-  // リッチメニューの状態
+  // リッチメニューの状態（連携済みユーザー用）
   const [richMenuLayout, setRichMenuLayout] = useState<"fixed">("fixed"); // 固定5つレイアウト
   const [richMenuButtons, setRichMenuButtons] = useState([
     { id: 1, label: "QRコード", action: "url", url: "/qr-checkin", icon: "qr" },
@@ -553,6 +554,26 @@ export default function SettingsPage() {
       icon: "booking",
     },
   ]);
+
+  // リッチメニューの状態（未連携ユーザー用）
+  const [unregisteredRichMenuButtons, setUnregisteredRichMenuButtons] = useState([
+    { id: 1, label: "初回登録", action: "url", url: "/line-registration", icon: "user" },
+    {
+      id: 2,
+      label: "Webサイト",
+      action: "url",
+      url: "",
+      icon: "web",
+    },
+    {
+      id: 3,
+      label: "お問合せ",
+      action: "message",
+      url: "CONTACT_REQUEST",
+      icon: "chat",
+    },
+  ]);
+
   const [editingButton, setEditingButton] = useState<number | null>(null);
 
   // 問診票の状態
@@ -8458,7 +8479,6 @@ export default function SettingsPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1 space-y-3">
                           {/* メニュー名とカラー */}
-                              <div className="space-y-1">
                           <div className="flex items-center space-x-3">
                             <div
                               className="w-6 h-6 rounded"
@@ -8469,18 +8489,17 @@ export default function SettingsPage() {
                                       }}
                                     />
                                     <h4 className="font-medium text-lg">
-                                      {menu.display_name ||
-                                        menu.treatment_menu_name}
+                                      {menu.treatment_menu_name}
                                     </h4>
                                 </div>
-                                  {menu.display_name &&
-                                    menu.display_name !==
-                                      menu.treatment_menu_name && (
-                                  <p className="text-xs text-gray-500 ml-9">
-                                    元のメニュー: {menu.treatment_menu_name}
-                                  </p>
-                                )}
-                              </div>
+
+                              {/* 表示名 */}
+                              {menu.display_name && (
+                                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                  <span className="font-medium">表示名:</span>
+                                  <span>{menu.display_name}</span>
+                                </div>
+                              )}
 
                               {/* 診療時間 */}
                               <div className="flex items-center space-x-2 text-sm text-gray-600">
@@ -8505,12 +8524,7 @@ export default function SettingsPage() {
                                               ステップ{index + 1}
                                         </span>
                                         <span className="text-xs text-gray-500">
-                                              {step.start_time}分～
-                                              {step.end_time}分 (
-                                              {step.type === "serial"
-                                                ? "順番"
-                                                : "同時"}
-                                              )
+                                              {step.end_time - step.start_time}分
                                         </span>
                                       </div>
                                       <div className="flex flex-wrap gap-1">
@@ -9587,11 +9601,11 @@ export default function SettingsPage() {
                           <div>
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
-                              <div className="grid grid-cols-2 gap-2 mb-3">
+                              <div className="grid grid-cols-3 gap-2 mb-3">
                                 {staff.map((s) => (
                                   <label
                                     key={s.id}
-                                    className="flex items-center space-x-2 cursor-pointer"
+                                    className="flex items-center space-x-2 cursor-pointer min-w-0"
                                   >
                                     <Checkbox
                                       checked={step.staff_assignments.some(
@@ -9607,8 +9621,9 @@ export default function SettingsPage() {
                                           );
                                         }
                                       }}
+                                      className="shrink-0"
                                     />
-                                    <span className="text-sm">{s.name}</span>
+                                    <span className="text-sm truncate">{s.name}</span>
                                   </label>
                                 ))}
                               </div>
@@ -10082,11 +10097,11 @@ export default function SettingsPage() {
                           <div>
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
-                              <div className="grid grid-cols-2 gap-2 mb-3">
+                              <div className="grid grid-cols-3 gap-2 mb-3">
                                 {staff.map((s) => (
                                   <label
                                     key={s.id}
-                                    className="flex items-center space-x-2 cursor-pointer"
+                                    className="flex items-center space-x-2 cursor-pointer min-w-0"
                                   >
                                     <Checkbox
                                       checked={step.staff_assignments.some(
@@ -10102,8 +10117,9 @@ export default function SettingsPage() {
                                           );
                                         }
                                       }}
+                                      className="shrink-0"
                                     />
-                                    <span className="text-sm">{s.name}</span>
+                                    <span className="text-sm truncate">{s.name}</span>
                                   </label>
                                 ))}
                               </div>
@@ -12332,16 +12348,41 @@ export default function SettingsPage() {
 
             {/* リッチメニュータブ */}
             {notificationTab === "rich-menu" && (
-              <div className="grid grid-cols-2 gap-6">
-                {/* 左側: 設定エリア */}
-                <div className="space-y-6">
-                  {/* ボタン設定 */}
-                  <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                      ボタン設定
-                    </h3>
-                    <div className="space-y-3">
-                      {richMenuButtons.map((button, index) => (
+              <div className="space-y-6">
+                {/* サブタブ */}
+                <div className="flex gap-4 border-b border-gray-200">
+                  <button
+                    onClick={() => setRichMenuSubTab("registered")}
+                    className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 cursor-pointer ${
+                      richMenuSubTab === "registered"
+                        ? "border-blue-500 text-blue-600 bg-blue-50"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    }`}
+                  >
+                    連携済みユーザー用
+                  </button>
+                  <button
+                    onClick={() => setRichMenuSubTab("unregistered")}
+                    className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 cursor-pointer ${
+                      richMenuSubTab === "unregistered"
+                        ? "border-blue-500 text-blue-600 bg-blue-50"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    }`}
+                  >
+                    未連携ユーザー用
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  {/* 左側: 設定エリア */}
+                  <div className="space-y-6">
+                    {/* ボタン設定 */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                        {richMenuSubTab === "registered" ? "連携済みユーザー用 " : "未連携ユーザー用 "}ボタン設定
+                      </h3>
+                      <div className="space-y-3">
+                        {(richMenuSubTab === "registered" ? richMenuButtons : unregisteredRichMenuButtons).map((button, index) => (
                         <div
                           key={button.id}
                           className="border border-gray-200 rounded-lg p-4"
@@ -12385,9 +12426,15 @@ export default function SettingsPage() {
                                   type="text"
                                   value={button.label}
                                   onChange={(e) => {
-                                    const newButtons = [...richMenuButtons];
-                                    newButtons[index].label = e.target.value;
-                                    setRichMenuButtons(newButtons);
+                                    if (richMenuSubTab === "registered") {
+                                      const newButtons = [...richMenuButtons];
+                                      newButtons[index].label = e.target.value;
+                                      setRichMenuButtons(newButtons);
+                                    } else {
+                                      const newButtons = [...unregisteredRichMenuButtons];
+                                      newButtons[index].label = e.target.value;
+                                      setUnregisteredRichMenuButtons(newButtons);
+                                    }
                                   }}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                   placeholder="例: 予約"
@@ -12400,9 +12447,15 @@ export default function SettingsPage() {
                                 <select
                                   value={button.action}
                                   onChange={(e) => {
-                                    const newButtons = [...richMenuButtons];
-                                    newButtons[index].action = e.target.value;
-                                    setRichMenuButtons(newButtons);
+                                    if (richMenuSubTab === "registered") {
+                                      const newButtons = [...richMenuButtons];
+                                      newButtons[index].action = e.target.value;
+                                      setRichMenuButtons(newButtons);
+                                    } else {
+                                      const newButtons = [...unregisteredRichMenuButtons];
+                                      newButtons[index].action = e.target.value;
+                                      setUnregisteredRichMenuButtons(newButtons);
+                                    }
                                   }}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
@@ -12421,7 +12474,8 @@ export default function SettingsPage() {
                                       ? "メッセージ"
                                       : "データ"}
                                 </label>
-                                {button.id === 4 && (
+                                {((richMenuSubTab === "registered" && button.id === 4) ||
+                                   (richMenuSubTab === "unregistered" && button.id === 2)) && (
                                   <p className="text-xs text-blue-600 mb-2">
                                     ℹ️ WebサイトURLはクリニック設定タブで設定したURLが自動的に反映されます
                                   </p>
@@ -12430,9 +12484,15 @@ export default function SettingsPage() {
                                   type="text"
                                   value={button.url}
                                   onChange={(e) => {
-                                    const newButtons = [...richMenuButtons];
-                                    newButtons[index].url = e.target.value;
-                                    setRichMenuButtons(newButtons);
+                                    if (richMenuSubTab === "registered") {
+                                      const newButtons = [...richMenuButtons];
+                                      newButtons[index].url = e.target.value;
+                                      setRichMenuButtons(newButtons);
+                                    } else {
+                                      const newButtons = [...unregisteredRichMenuButtons];
+                                      newButtons[index].url = e.target.value;
+                                      setUnregisteredRichMenuButtons(newButtons);
+                                    }
                                   }}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                   placeholder={
@@ -12442,7 +12502,8 @@ export default function SettingsPage() {
                                         ? "予約したいです"
                                         : "action=booking"
                                   }
-                                  disabled={button.id === 4}
+                                  disabled={(richMenuSubTab === "registered" && button.id === 4) ||
+                                            (richMenuSubTab === "unregistered" && button.id === 2)}
                                 />
                               </div>
                             </div>
@@ -12457,52 +12518,73 @@ export default function SettingsPage() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        // デフォルト設定にリセット
-                        setRichMenuLayout("fixed");
-                        setRichMenuButtons([
-                          {
-                            id: 1,
-                            label: "QRコード",
-                            action: "url",
-                            url: "/qr-checkin",
-                            icon: "qr",
-                          },
-                          {
-                            id: 2,
-                            label: "予約確認",
-                            action: "url",
-                            url: "/booking",
-                            icon: "calendar",
-                          },
-                          {
-                            id: 3,
-                            label: "家族登録",
-                            action: "url",
-                            url: "/family",
-                            icon: "users",
-                          },
-                          {
-                            id: 4,
-                            label: "Webサイト",
-                            action: "url",
-                            url: clinicInfo.website_url || "",
-                            icon: "web",
-                          },
-                          {
-                            id: 5,
-                            label: "お問合せ",
-                            action: "message",
-                            url: "お問い合わせ",
-                            icon: "chat",
-                          },
-                          {
-                            id: 6,
-                            label: "予約を取る",
-                            action: "url",
-                            url: "/appointment",
-                            icon: "booking",
-                          },
-                        ]);
+                        if (richMenuSubTab === "registered") {
+                          // 連携済み用デフォルト設定にリセット
+                          setRichMenuLayout("fixed");
+                          setRichMenuButtons([
+                            {
+                              id: 1,
+                              label: "QRコード",
+                              action: "url",
+                              url: "/qr-checkin",
+                              icon: "qr",
+                            },
+                            {
+                              id: 2,
+                              label: "予約確認",
+                              action: "url",
+                              url: "/booking",
+                              icon: "calendar",
+                            },
+                            {
+                              id: 3,
+                              label: "家族登録",
+                              action: "url",
+                              url: "/family",
+                              icon: "users",
+                            },
+                            {
+                              id: 4,
+                              label: "Webサイト",
+                              action: "url",
+                              url: clinicInfo.website_url || "",
+                              icon: "web",
+                            },
+                            {
+                              id: 5,
+                              label: "お問合せ",
+                              action: "message",
+                              url: "お問い合わせ",
+                              icon: "chat",
+                            },
+                            {
+                              id: 6,
+                              label: "予約を取る",
+                              action: "url",
+                              url: "/appointment",
+                              icon: "booking",
+                            },
+                          ]);
+                        } else {
+                          // 未連携用デフォルト設定にリセット
+                          setUnregisteredRichMenuButtons([
+                            { id: 1, label: "初回登録", action: "url", url: "/line-registration", icon: "user" },
+                            {
+                              id: 2,
+                              label: "Webサイト",
+                              action: "url",
+                              url: clinicInfo.website_url || "",
+                              icon: "web",
+                            },
+                            {
+                              id: 3,
+                              label: "お問合せ",
+                              action: "message",
+                              url: "CONTACT_REQUEST",
+                              icon: "chat",
+                            },
+                          ]);
+                        }
                         showAlert("デフォルト設定にリセットしました", "success");
                       }}
                     >
@@ -12514,16 +12596,23 @@ export default function SettingsPage() {
                         try {
                           const richMenuConfig = {
                             layout: richMenuLayout,
-                            buttons: richMenuButtons,
+                            buttons: richMenuSubTab === "registered" ? richMenuButtons : unregisteredRichMenuButtons,
+                            type: richMenuSubTab
                           };
 
                           // LocalStorageに保存（デモ用）
+                          const storageKey = richMenuSubTab === "registered"
+                            ? "rich_menu_config_registered"
+                            : "rich_menu_config_unregistered";
                           localStorage.setItem(
-                            "rich_menu_config",
+                            storageKey,
                             JSON.stringify(richMenuConfig),
                           );
 
-                          showAlert("リッチメニュー設定を保存しました！", "success");
+                          showAlert(
+                            `${richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用"}リッチメニュー設定を保存しました！`,
+                            "success"
+                          );
                         } catch (error) {
                           console.error("保存エラー:", error);
                           showAlert("保存に失敗しました", "error");
@@ -12559,7 +12648,8 @@ export default function SettingsPage() {
 
                           // 相対パスを絶対URLに変換
                           const baseUrl = window.location.origin;
-                          const buttonsWithFullUrl = richMenuButtons.map(
+                          const currentButtons = richMenuSubTab === "registered" ? richMenuButtons : unregisteredRichMenuButtons;
+                          const buttonsWithFullUrl = currentButtons.map(
                             (btn) => ({
                             ...btn,
                               url:
@@ -12570,7 +12660,7 @@ export default function SettingsPage() {
                           );
 
                           console.log(
-                            "Buttons (with full URLs):",
+                            `Buttons (${richMenuSubTab}, with full URLs):`,
                             buttonsWithFullUrl,
                           );
 
@@ -12581,6 +12671,14 @@ export default function SettingsPage() {
                               channelAccessToken:
                                 notificationSettings.line.channel_access_token,
                               buttons: buttonsWithFullUrl,
+                              menuType: richMenuSubTab, // "registered" or "unregistered"
+                              liffIds: {
+                                initial_link: notificationSettings.line.liff_id_initial_link,
+                                qr_code: notificationSettings.line.liff_id_qr_code,
+                                family_register: notificationSettings.line.liff_id_family_register,
+                                appointments: notificationSettings.line.liff_id_appointments,
+                                web_booking: notificationSettings.line.liff_id_web_booking,
+                              },
                             }),
                           });
 
@@ -12589,7 +12687,8 @@ export default function SettingsPage() {
                           console.log("Response result:", result);
 
                           if (response.ok) {
-                            showAlert("✅ " + result.message, "success");
+                            const menuTypeText = richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用";
+                            showAlert(`✅ ${menuTypeText}リッチメニューをLINE公式アカウントに反映しました`, "success");
                           } else {
                             console.error("エラー詳細:", result);
                             showAlert(
@@ -12636,7 +12735,7 @@ export default function SettingsPage() {
                 {/* 右側: プレビューエリア */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6 sticky top-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    プレビュー
+                    {richMenuSubTab === "registered" ? "連携済みユーザー用 " : "未連携ユーザー用 "}プレビュー
                   </h3>
 
                   {/* スマホプレビュー */}
@@ -12691,7 +12790,9 @@ export default function SettingsPage() {
                           {/* リッチメニュー - トーク画面の上にオーバーレイ */}
                           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
                             <div className="bg-gradient-to-b from-gray-100 to-gray-50 p-1.5">
-                          <div className="grid grid-cols-3 grid-rows-2 gap-2">
+                          {richMenuSubTab === "registered" ? (
+                            /* 連携済みユーザー用リッチメニュー - 6ボタン */
+                            <div className="grid grid-cols-3 grid-rows-2 gap-2">
                             {/* 左列を3段に分割 - リッチメニュー全体の高さを3等分 */}
                             <div className="row-span-2 flex flex-col gap-2">
                               {/* Webサイト (1段目) - アイコンなし、テキストのみ */}
@@ -12788,6 +12889,50 @@ export default function SettingsPage() {
                               </span>
                             </button>
                           </div>
+                          ) : (
+                            /* 未連携ユーザー用リッチメニュー - 3ボタン */
+                            <div className="grid grid-cols-3 gap-2">
+                              {/* 初回登録ボタン */}
+                              <button className="h-[90px] bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border border-blue-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                                <svg className="w-8 h-8" viewBox="0 0 100 100" fill="none">
+                                  <circle cx="50" cy="35" r="15" fill="#1F2937"/>
+                                  <path d="M 25 75 Q 25 55 50 55 Q 75 55 75 75 L 25 75 Z" fill="#1F2937"/>
+                                  <circle cx="65" cy="65" r="12" fill="#10B981"/>
+                                  <path d="M 60 65 L 63 68 L 70 61" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                  初回登録
+                                </span>
+                              </button>
+
+                              {/* Webサイトボタン */}
+                              <button className="h-[90px] bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border border-orange-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                                <svg className="w-8 h-8" viewBox="0 0 100 100" fill="none">
+                                  <circle cx="50" cy="50" r="35" fill="none" stroke="#1F2937" strokeWidth="3"/>
+                                  <ellipse cx="50" cy="50" rx="15" ry="35" fill="none" stroke="#1F2937" strokeWidth="3"/>
+                                  <line x1="15" y1="50" x2="85" y2="50" stroke="#1F2937" strokeWidth="3"/>
+                                  <path d="M 20 30 Q 50 35 80 30" fill="none" stroke="#1F2937" strokeWidth="2"/>
+                                  <path d="M 20 70 Q 50 65 80 70" fill="none" stroke="#1F2937" strokeWidth="2"/>
+                                </svg>
+                                <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                  Webサイト
+                                </span>
+                              </button>
+
+                              {/* お問合せボタン */}
+                              <button className="h-[90px] bg-gradient-to-br from-pink-50 to-pink-100 hover:from-pink-100 hover:to-pink-200 border border-pink-200 transition-all duration-200 p-2 flex flex-col items-center justify-center gap-1.5 active:scale-95 rounded-lg shadow-md hover:shadow-lg">
+                                <svg className="w-8 h-8" viewBox="0 0 100 100" fill="none">
+                                  <rect x="20" y="30" width="60" height="45" rx="5" fill="none" stroke="#1F2937" strokeWidth="3"/>
+                                  <path d="M 20 35 L 50 55 L 80 35" fill="none" stroke="#1F2937" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                                  <line x1="20" y1="35" x2="20" y2="75" stroke="#1F2937" strokeWidth="3"/>
+                                  <line x1="80" y1="35" x2="80" y2="75" stroke="#1F2937" strokeWidth="3"/>
+                                </svg>
+                                <span className="text-[11px] font-bold text-gray-800 leading-tight text-center">
+                                  お問合せ
+                                </span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                           </div>
                         </div>
@@ -12818,6 +12963,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+            </div>
             )}
           </div>
         )}
