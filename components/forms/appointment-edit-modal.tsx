@@ -2118,8 +2118,8 @@ export function AppointmentEditModal({
                                       if (appointment.memo && appointment.memo !== '-') {
                                         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                                         setPopupPosition({
-                                          top: rect.bottom + window.scrollY + 5,
-                                          left: Math.min(rect.left + window.scrollX, window.innerWidth - 420)
+                                          top: rect.top + window.scrollY,
+                                          left: rect.right + window.scrollX + 10
                                         })
                                         setSelectedMemo(appointment.memo)
                                         setShowMemoPopup(true)
@@ -2144,7 +2144,10 @@ export function AppointmentEditModal({
                                         maxHeight: '2.4em'
                                       }}
                                       dangerouslySetInnerHTML={{
-                                        __html: appointment.memo || '-'
+                                        __html: (appointment.memo || '-')
+                                          .replace(/<br\s*\/?>/gi, ' ')
+                                          .replace(/<\/div>\s*<div>/gi, '<br><br>')
+                                          .replace(/<\/?div>/gi, '')
                                       }}
                                     />
                                   </div>
@@ -2996,21 +2999,24 @@ export function AppointmentEditModal({
     {/* メモ全文表示ポップアップ */}
     {showMemoPopup && (
       <div
-        className="fixed z-[70] bg-white rounded-lg shadow-2xl border border-gray-200 px-4 py-3 overflow-y-auto"
+        className="fixed z-[70] bg-white rounded-lg shadow-2xl border border-gray-200 px-3 py-2 overflow-y-auto"
         style={{
           top: `${popupPosition.top}px`,
           left: `${popupPosition.left}px`,
-          maxWidth: '400px',
-          maxHeight: '300px',
-          width: '400px'
+          maxWidth: '280px',
+          maxHeight: '200px',
+          width: '280px'
         }}
         onMouseEnter={() => setShowMemoPopup(true)}
         onMouseLeave={() => setShowMemoPopup(false)}
       >
         <div
-          className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed"
+          className="text-gray-700 text-xs leading-relaxed"
           dangerouslySetInnerHTML={{
             __html: selectedMemo
+              .replace(/<br\s*\/?>/gi, ' ')
+              .replace(/<\/div>\s*<div>/gi, '<br><br>')
+              .replace(/<\/?div>/gi, '')
           }}
         />
       </div>

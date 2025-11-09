@@ -833,7 +833,7 @@ export async function authenticateReturningPatient(
       .from('patients')
       .select('*')
       .eq('clinic_id', clinicId)
-      .eq('birthdate', authData.birthdate)
+      .eq('birth_date', authData.birthdate)
       .eq('is_registered', true)
 
     if (error) {
