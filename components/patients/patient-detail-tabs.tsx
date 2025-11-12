@@ -19,7 +19,8 @@ import {
   FileClock,
   TrendingUp,
   AlertCircle,
-  Bell
+  Bell,
+  FileCheck
 } from 'lucide-react'
 import { BasicInfoTab } from './basic-info-tab'
 import { QuestionnaireTab } from './questionnaire-tab'
@@ -30,6 +31,7 @@ import PatientTrainingTabs from '@/components/training/PatientTrainingTabs'
 import { PeriodontalExamTab } from './periodontal-exam-tab'
 import { VisualExamTab } from './visual/visual-exam-tab'
 import { PatientNotificationTab } from './patient-notification-tab'
+import { MedicalDocumentsTab } from './medical-documents-tab'
 
 interface PatientDetailTabsProps {
   patientId: string
@@ -50,6 +52,7 @@ const tabs = [
   { id: 'questionnaire', label: '問診', icon: ClipboardList, available: true },
   { id: 'insurance', label: '保険・公費', icon: Shield, available: true },
   { id: 'files', label: 'ファイル', icon: Folder, available: true },
+  { id: 'medical-documents', label: '提供文書', icon: FileCheck, available: true },
   { id: 'treatment-plan', label: '治療計画', icon: BarChart3, available: true },
   { id: 'access-history', label: 'アクセス履歴', icon: Search, available: true },
   { id: 'appointment-logs', label: '予約操作ログ', icon: FileClock, available: true }
@@ -84,6 +87,8 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
         return <div className="p-6 text-center text-gray-500">保険・公費機能（開発中）</div>
       case 'files':
         return <div className="p-6 text-center text-gray-500">ファイル機能（開発中）</div>
+      case 'medical-documents':
+        return <MedicalDocumentsTab patientId={patientId} clinicId={DEMO_CLINIC_ID} />
       case 'treatment-plan':
         return <div className="p-6 text-center text-gray-500">治療計画機能（開発中）</div>
       case 'access-history':

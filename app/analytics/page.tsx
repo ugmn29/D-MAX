@@ -103,13 +103,13 @@ export default function AnalyticsPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 onMouseEnter={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                className={`py-3 px-4 border-b-2 font-medium text-base flex items-center space-x-2 ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-5 h-5" />
                 <span>{tab.label}</span>
               </button>
             )

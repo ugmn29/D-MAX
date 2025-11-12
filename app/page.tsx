@@ -27,15 +27,45 @@ export default function HomePage() {
   // プライバシーモード（セッション中のみ有効、ページリロードで元に戻る）
   const [privacyMode, setPrivacyMode] = useState(false)
 
+  // 更新トリガー（値を変更することで再レンダリングを促す）
+  const [refreshKey, setRefreshKey] = useState(0)
+
   // timeSlotMinutesの変更をログ出力
   useEffect(() => {
     console.log('メインページ: timeSlotMinutes変更:', timeSlotMinutes)
   }, [timeSlotMinutes])
   const [showSettings, setShowSettings] = useState(false)
 
+  // カレンダー更新処理
+  const handleRefresh = () => {
+    console.log('カレンダーを更新します')
+    setRefreshKey(prev => prev + 1)
+  }
+
   useEffect(() => {
     setMounted(true)
     loadSettings()
+
+    // localStorageからペーストモードのデータを読み取る
+    const storedIsPasteMode = localStorage.getItem('isPasteMode')
+    const storedCopiedAppointment = localStorage.getItem('copiedAppointment')
+
+    if (storedIsPasteMode === 'true' && storedCopiedAppointment) {
+      try {
+        const appointment = JSON.parse(storedCopiedAppointment)
+        console.log('カレンダーページ: ペーストモードを復元', appointment)
+        setCopiedAppointment(appointment)
+        setIsPasteMode(true)
+
+        // localStorage をクリア
+        localStorage.removeItem('isPasteMode')
+        localStorage.removeItem('copiedAppointment')
+      } catch (error) {
+        console.error('ペーストモードの復元エラー:', error)
+        localStorage.removeItem('isPasteMode')
+        localStorage.removeItem('copiedAppointment')
+      }
+    }
   }, [])
 
   // ページがフォーカスされた時に設定を再読み込み
@@ -234,6 +264,7 @@ export default function HomePage() {
       <div className="flex-1">
         
         <MainCalendar
+          key={refreshKey}
           clinicId={DEMO_CLINIC_ID}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
@@ -247,6 +278,8 @@ export default function HomePage() {
             setCopiedAppointment(copied)
             setIsPasteMode(pasteMode)
           }}
+          initialCopiedAppointment={copiedAppointment}
+          initialIsPasteMode={isPasteMode}
         />
       </div>
 
@@ -262,6 +295,7 @@ export default function HomePage() {
           onDisplayModeChange={setDisplayMode}
           privacyMode={privacyMode}
           onPrivacyModeChange={setPrivacyMode}
+          onRefresh={handleRefresh}
         />
     </div>
   )

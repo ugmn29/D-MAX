@@ -490,7 +490,7 @@ export type Database = {
           before_data?: any
           after_data?: any
           reason: string
-          operator_id: string
+          operator_id?: string
           ip_address?: string
           created_at: string
         }
@@ -501,7 +501,7 @@ export type Database = {
           before_data?: any
           after_data?: any
           reason: string
-          operator_id: string
+          operator_id?: string
           ip_address?: string
           created_at?: string
         }
@@ -1196,3 +1196,6 @@ export type PatientWithNotes = Patient & {
 
 // 通知システムの型をre-export
 export * from './notification'
+
+// 電子カルテ (EMR) システムの型をre-export
+export * from './emr'

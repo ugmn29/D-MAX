@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Search, Users, Settings, BarChart3, ChevronDown, Grid3X3, Eye, EyeOff } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Users, Settings, BarChart3, ChevronDown, Grid3X3, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,6 +21,7 @@ interface SidebarCalendarProps {
   onDisplayModeChange?: (mode: 'staff' | 'units' | 'both') => void
   privacyMode?: boolean
   onPrivacyModeChange?: (enabled: boolean) => void
+  onRefresh?: () => void
 }
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -39,7 +40,8 @@ export function SidebarCalendar({
   displayMode,
   onDisplayModeChange,
   privacyMode = false,
-  onPrivacyModeChange
+  onPrivacyModeChange,
+  onRefresh
 }: SidebarCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [searchQuery, setSearchQuery] = useState('')
@@ -463,6 +465,17 @@ export function SidebarCalendar({
           </button>
         )}
 
+        {/* 更新ボタン */}
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            className="bg-green-600 hover:bg-green-700 text-white rounded-md h-8 w-8 flex items-center justify-center transition-colors"
+            title="予約状況を更新"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        )}
+
         <button
           onClick={() => {
             // 設定ページで未保存の変更があるかチェック
@@ -476,10 +489,10 @@ export function SidebarCalendar({
               window.location.href = '/settings'
             }
           }}
-          className="flex-1 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 px-3 flex items-center justify-center space-x-2 transition-colors"
+          className="bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 w-8 flex items-center justify-center transition-colors"
+          title="設定"
         >
-          <Settings className="w-3 h-3 text-gray-600" />
-          <span className="text-xs text-gray-700 font-medium">設定</span>
+          <Settings className="w-4 h-4 text-gray-600" />
         </button>
         <button
           onClick={() => {
@@ -494,10 +507,10 @@ export function SidebarCalendar({
               window.location.href = '/analytics'
             }
           }}
-          className="flex-1 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 px-3 flex items-center justify-center space-x-2 transition-colors"
+          className="bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md h-8 w-8 flex items-center justify-center transition-colors"
+          title="分析"
         >
-          <BarChart3 className="w-3 h-3 text-gray-600" />
-          <span className="text-xs text-gray-700 font-medium">分析</span>
+          <BarChart3 className="w-4 h-4 text-gray-600" />
         </button>
       </div>
     </div>

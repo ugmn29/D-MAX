@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  Phone, 
-  Mail, 
+import {
+  Calendar,
+  Clock,
+  User,
+  Phone,
+  Mail,
   MapPin,
   Edit,
   Trash2,
@@ -20,6 +21,7 @@ import {
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { getAppointments } from '@/lib/api/appointments'
+import { getPatientById } from '@/lib/api/patients'
 
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
@@ -128,7 +130,8 @@ const mockAppointments: Appointment[] = [
 
 export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
   console.log('AppointmentsTab: コンポーネントが初期化されました', { patientId })
-  
+
+  const router = useRouter()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -137,6 +140,54 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
     console.log('AppointmentsTab: コンポーネントがマウントされました', { patientId })
     loadAppointments()
   }, [patientId])
+
+  // 新規予約ボタンのハンドラ
+  const handleNewAppointment = async () => {
+    try {
+      // 患者情報を取得
+      const patient = await getPatientById(DEMO_CLINIC_ID, patientId)
+      console.log('新規予約: 患者情報を取得', patient)
+
+      // 患者情報のみの仮予約オブジェクトを作成（メニューは空）
+      const templateAppointment = {
+        patient_id: patient.id,
+        patient: {
+          id: patient.id,
+          last_name: patient.last_name,
+          first_name: patient.first_name,
+          last_name_kana: patient.last_name_kana,
+          first_name_kana: patient.first_name_kana,
+          phone: patient.phone,
+          email: patient.email
+        },
+        // メニューは空
+        menu1_id: null,
+        menu2_id: null,
+        menu3_id: null,
+        staff1_id: null,
+        staff2_id: null,
+        staff3_id: null,
+        // その他の必要なフィールド
+        appointment_date: '',
+        start_time: '',
+        end_time: '',
+        status: '予約',
+        memo: ''
+      }
+
+      // localStorageに保存（コピー機能と同じ）
+      localStorage.setItem('copiedAppointment', JSON.stringify(templateAppointment))
+      localStorage.setItem('isPasteMode', 'true')
+
+      console.log('新規予約: ペーストモードを起動してカレンダーに遷移', templateAppointment)
+
+      // カレンダーページに遷移
+      router.push('/')
+    } catch (error) {
+      console.error('新規予約エラー:', error)
+      alert('患者情報の取得に失敗しました')
+    }
+  }
 
   const loadAppointments = async () => {
     try {
@@ -230,7 +281,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-900">予約履歴</h3>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={handleNewAppointment}>
           <Calendar className="w-4 h-4 mr-2" />
           新規予約
         </Button>

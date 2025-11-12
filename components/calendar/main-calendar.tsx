@@ -28,6 +28,9 @@ interface MainCalendarProps {
   privacyMode?: boolean // プライバシーモード（患者名を'****'でマスク）
   onCopyStateChange?: (copiedAppointment: any, isPasteMode: boolean) => void
   onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
+  // 外部からコピー状態を注入（患者詳細ページからの新規予約用）
+  initialCopiedAppointment?: any
+  initialIsPasteMode?: boolean
 }
 
 interface TimeSlot {
@@ -53,7 +56,7 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
-export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, displayMode = 'staff', onDisplayModeChange, privacyMode = false, onCopyStateChange, onAppointmentCancel }: MainCalendarProps) {
+export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, displayMode = 'staff', onDisplayModeChange, privacyMode = false, onCopyStateChange, onAppointmentCancel, initialCopiedAppointment, initialIsPasteMode }: MainCalendarProps) {
   // 背景色の明度を計算して、適切な文字色を返すヘルパー関数
   const getTextColorForBackground = (backgroundColor: string): string => {
     // 16進数カラーコードからRGB値を抽出
@@ -110,7 +113,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const [copiedAppointment, setCopiedAppointment] = useState<Appointment | null>(null)
   const [isPasteMode, setIsPasteMode] = useState(false)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
-  
+
+  // 外部から注入された初期コピー状態を設定（患者詳細ページからの新規予約用）
+  useEffect(() => {
+    if (initialCopiedAppointment && initialIsPasteMode) {
+      console.log('MainCalendar: 外部から注入されたコピー状態を設定', initialCopiedAppointment)
+      setCopiedAppointment(initialCopiedAppointment)
+      setIsPasteMode(true)
+      onCopyStateChange?.(initialCopiedAppointment, true)
+    }
+  }, [initialCopiedAppointment, initialIsPasteMode])
+
   // ホバー状態管理
   const [hoveredTimeSlot, setHoveredTimeSlot] = useState<string | null>(null)
   const [hoveredStaffIndex, setHoveredStaffIndex] = useState<number | null>(null)
@@ -1274,7 +1287,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         appointments.forEach((appointment, index) => {
           const startTime = appointment.start_time
           const endTime = appointment.end_time
-          
+
           console.log(`予約${index}:`, {
             startTime,
             endTime,
@@ -1283,64 +1296,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             staff3_id: appointment.staff3_id,
             staff1: (appointment as any).staff1,
             staff2: (appointment as any).staff2,
-            staff3: (appointment as any).staff3
+            staff3: (appointment as any).staff3,
+            menu1: (appointment as any).menu1,
+            menu2: (appointment as any).menu2,
+            menu3: (appointment as any).menu3
           })
-      
-      // 時間を分に変換
-      const startMinutes = timeToMinutes(startTime)
-      const endMinutes = timeToMinutes(endTime)
-      
-      // 表示モードに応じて列インデックスを計算
-      let staffIndex = 0
-      
-      if (displayMode === 'units') {
-        // ユニット表示モードの場合、予約のユニットIDに基づいて列インデックスを取得
-        staffIndex = units.findIndex(unit => unit.id === appointment.unit_id)
-        if (staffIndex === -1) {
-          // ユニットが見つからない場合は最初のユニットを使用
-          staffIndex = 0
-          console.log('ユニットが見つからないため、最初のユニットを使用:', staffIndex)
-        }
-      } else if (displayMode === 'both') {
-        // 両方表示モードの場合、スタッフ列とユニット列を分けて計算
-        // まずスタッフを特定
-        const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
-        const workingStaffIndex = workingStaff.findIndex(staff => staff.staff.id === staffId)
-        
-        if (workingStaffIndex !== -1) {
-          // スタッフ列の場合
-          staffIndex = workingStaffIndex
-        } else {
-          // ユニット列の場合
-          const unitIndex = units.findIndex(unit => unit.id === appointment.unit_id)
-          if (unitIndex !== -1) {
-            // ユニット列はスタッフ列の後に配置
-            staffIndex = workingStaff.length + unitIndex
-          } else {
-            // どちらも見つからない場合は最初の列を使用
-            staffIndex = 0
-          }
-        }
-      } else {
-        // スタッフ表示モード（デフォルト）
-        staffIndex = workingStaff.findIndex(staff => 
-          staff.staff.id === appointment.staff1_id ||
-          staff.staff.id === appointment.staff2_id ||
-          staff.staff.id === appointment.staff3_id
-        )
-        
-        // スタッフが見つからない場合は最初のスタッフを使用
-        if (staffIndex === -1) {
-          staffIndex = 0
-          console.log('スタッフが見つからないため、最初のスタッフを使用:', staffIndex)
-        }
-      }
-      
-      // 診療時間の開始時間を取得
+
+      // 診療時間の開始時間を取得（ブロック計算で共通使用）
       const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
       const dayMapping: Record<string, string> = {
         'monday': 'monday',
-        'tuesday': 'tuesday', 
+        'tuesday': 'tuesday',
         'wednesday': 'wednesday',
         'thursday': 'thursday',
         'friday': 'friday',
@@ -1349,33 +1315,33 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       }
       const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
       const dayHours = businessHours[dayId]
-      
+
       // 診療時間の開始時間を取得（デフォルトは9時）
       let businessStartHour = 9
       if (dayHours?.isOpen && dayHours?.timeSlots && dayHours.timeSlots.length > 0) {
         const firstSlot = dayHours.timeSlots[0]
         businessStartHour = parseInt(firstSlot.start.split(':')[0])
       }
-      
+
+      // 通常の単一予約として表示（データベースの時間を使用）
+      // Web予約の複数スタッフ予約は既にデータベースレベルで分割保存されているため、
+      // 各予約はstaff1_idのみを持つ独立した予約として扱われる
+      const startMinutes = timeToMinutes(startTime)
+      const endMinutes = timeToMinutes(endTime)
+
       const top = (startMinutes - businessStartHour * 60) / validTimeSlotMinutes * cellHeight
       const height = (endMinutes - startMinutes) / validTimeSlotMinutes * cellHeight
-      
-      console.log(`予約${index}のブロック計算:`, {
-        startMinutes,
-        endMinutes,
-        staffIndex,
-        businessStartHour,
-        top,
-        height,
-        validTimeSlotMinutes,
-        cellHeight
-      })
-      
+
+      // staffIndexを計算（workingStaffの中でのインデックスを取得）
+      // staff1_idを優先し、なければstaff2_id、staff3_idの順で確認
+      const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
+      const staffIndex = workingStaff.findIndex(s => s.staff.id === staffId)
+
       blocks.push({
         appointment,
         top,
         height,
-        staffIndex
+        staffIndex: staffIndex >= 0 ? staffIndex : 0 // 見つからない場合は0
       })
     })
     
@@ -2350,9 +2316,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                                 handleStatusProgression(block.appointment)
                               }
                             }}
-                            className={`absolute top-1 right-1 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors z-10 ${
-                              nextStatus 
-                                ? `${buttonColor} ${textColor} hover:opacity-80 cursor-pointer` 
+                            className={`absolute top-0 right-0 w-5 h-5 rounded text-xs font-bold flex items-center justify-center transition-colors z-10 ${
+                              nextStatus
+                                ? `${buttonColor} ${textColor} hover:opacity-80 cursor-pointer`
                                 : `${buttonColor} ${textColor} cursor-default`
                             }`}
                             title={nextStatus ? `${nextStatus}に進む (現在: ${currentStatus})` : `現在: ${currentStatus} (最終ステータス)`}

@@ -193,12 +193,12 @@ export function AppointmentEditModal({
         start_time: startTime,
         end_time: endTime,
         duration: totalDuration,
-        menu1_id: '',
-        menu2_id: '',
-        menu3_id: '',
-        staff1_id: '',
-        staff2_id: '',
-        staff3_id: '',
+        menu1_id: null,
+        menu2_id: null,
+        menu3_id: null,
+        staff1_id: null,
+        staff2_id: null,
+        staff3_id: null,
         memo: ''
       }
     } else {
@@ -211,12 +211,12 @@ export function AppointmentEditModal({
         start_time: selectedTime,
         end_time: defaultEndTime,
         duration: timeSlotMinutes,
-        menu1_id: '',
-        menu2_id: '',
-        menu3_id: '',
-        staff1_id: '',
-        staff2_id: '',
-        staff3_id: '',
+        menu1_id: null,
+        menu2_id: null,
+        menu3_id: null,
+        staff1_id: null,
+        staff2_id: null,
+        staff3_id: null,
         memo: ''
       }
     }
@@ -753,12 +753,12 @@ export function AppointmentEditModal({
           start_time: editingAppointment.start_time || initialData.start_time,
           end_time: editingAppointment.end_time || initialData.end_time,
           duration: editingAppointment.duration || initialData.duration,
-          menu1_id: editingAppointment.menu1_id || '',
-          menu2_id: editingAppointment.menu2_id || '',
-          menu3_id: editingAppointment.menu3_id || '',
-          staff1_id: editingAppointment.staff1_id || '',
-          staff2_id: editingAppointment.staff2_id || '',
-          staff3_id: editingAppointment.staff3_id || '',
+          menu1_id: editingAppointment.menu1_id || null,
+          menu2_id: editingAppointment.menu2_id || null,
+          menu3_id: editingAppointment.menu3_id || null,
+          staff1_id: editingAppointment.staff1_id || null,
+          staff2_id: editingAppointment.staff2_id || null,
+          staff3_id: editingAppointment.staff3_id || null,
           memo: editingAppointment.memo || ''
         })
 
@@ -1323,8 +1323,8 @@ export function AppointmentEditModal({
     setAppointmentData(prev => ({
       ...prev,
       menu1_id: menu.id,
-      menu2_id: '',
-      menu3_id: ''
+      menu2_id: null,
+      menu3_id: null
     }))
     // 診療1のみ選択した場合はモーダルを閉じる
     setShowMenuModal(false)
@@ -1336,7 +1336,7 @@ export function AppointmentEditModal({
     setAppointmentData(prev => ({
       ...prev,
       menu2_id: menu.id,
-      menu3_id: ''
+      menu3_id: null
     }))
     // 診療2選択時は診療1+2の表示でモーダルを閉じる
     setShowMenuModal(false)
@@ -1409,8 +1409,8 @@ export function AppointmentEditModal({
           ...finalData,
           patient_id: editingAppointment.patient_id,
           menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
-          menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
-          menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+          menu2_id: appointmentData.menu2_id || selectedMenu2?.id || null,
+          menu3_id: appointmentData.menu3_id || selectedMenu3?.id || null,
           staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
           staff2_id: appointmentData.staff2_id,
           staff3_id: appointmentData.staff3_id,
@@ -1444,8 +1444,8 @@ export function AppointmentEditModal({
           ...finalData,
           patient_id: editingAppointment.patient_id,
           menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
-          menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
-          menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+          menu2_id: appointmentData.menu2_id || selectedMenu2?.id || null,
+          menu3_id: appointmentData.menu3_id || selectedMenu3?.id || null,
           staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
           staff2_id: appointmentData.staff2_id,
           staff3_id: appointmentData.staff3_id,
@@ -2308,8 +2308,8 @@ export function AppointmentEditModal({
                               ...updatedData,
                               patient_id: editingAppointment.patient_id,
                               menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
-                              menu2_id: appointmentData.menu2_id || selectedMenu2?.id || '',
-                              menu3_id: appointmentData.menu3_id || selectedMenu3?.id || '',
+                              menu2_id: appointmentData.menu2_id || selectedMenu2?.id || null,
+                              menu3_id: appointmentData.menu3_id || selectedMenu3?.id || null,
                               staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
                               staff2_id: appointmentData.staff2_id,
                               staff3_id: appointmentData.staff3_id,
@@ -2747,8 +2747,8 @@ export function AppointmentEditModal({
                     const newData = {
                       ...appointmentData,
                       menu1_id: menu.id,
-                      menu2_id: '',
-                      menu3_id: ''
+                      menu2_id: null,
+                      menu3_id: null
                     }
                     setAppointmentData(newData)
                     console.log('診療メニュー1選択後のappointmentData:', newData)
@@ -2756,10 +2756,12 @@ export function AppointmentEditModal({
                     // 既存予約の場合はデータベースに即座に保存
                     if (editingAppointment && onUpdate) {
                       try {
+                        console.log('診療メニュー1変更: onUpdateに渡すデータ', newData)
                         await onUpdate(newData)
                         console.log('診療メニュー1変更をデータベースに保存しました')
                       } catch (error) {
                         console.error('診療メニュー1保存エラー:', error)
+                        console.error('診療メニュー1保存エラー詳細:', JSON.stringify(error, null, 2))
                       }
                     }
 
@@ -2786,9 +2788,9 @@ export function AppointmentEditModal({
 
                     const newData = {
                       ...appointmentData,
-                      menu1_id: parentMenu1?.id || '',
+                      menu1_id: parentMenu1?.id || null,
                       menu2_id: menu.id,
-                      menu3_id: ''
+                      menu3_id: null
                     }
                     setAppointmentData(newData)
                     console.log('診療メニュー2選択後のappointmentData:', newData)
@@ -2837,8 +2839,8 @@ export function AppointmentEditModal({
 
                     const newData = {
                       ...appointmentData,
-                      menu1_id: parentMenu1?.id || '',
-                      menu2_id: parentMenu2?.id || '',
+                      menu1_id: parentMenu1?.id || null,
+                      menu2_id: parentMenu2?.id || null,
                       menu3_id: menu.id
                     }
                     setAppointmentData(newData)

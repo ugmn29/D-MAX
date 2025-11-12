@@ -1,0 +1,4 @@
+receipt_number,treatment_date,patient_id,patient_name,insurance_type,insurance_points,patient_copay,self_pay_amount,total_amount,payment_method,staff_name,treatment_menu,treatment_codes,notes
+REC-20250111-001,2025-01-11,P-00001,山田太郎,社保,1500,4500,0,4500,現金,佐藤花子,う蝕処置,101010,初診
+REC-20250111-002,2025-01-11,P-00002,田中花子,国保,2000,6000,0,6000,クレジットカード,鈴木一郎,歯周治療,"103030,104040",
+REC-20250111-003,2025-01-11,P-00003,佐藤次郎,自費,0,0,80000,80000,クレジットカード,佐藤花子,インプラント,,自費診療

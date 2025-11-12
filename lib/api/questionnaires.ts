@@ -638,8 +638,12 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
 
   console.log('問診票回答データから患者情報を抽出:', { questionCount: questions.length, answerKeys: Object.keys(answers).length })
 
+  // 服用薬情報の特別処理用
+  let medicationStatus = null // 'ない' or 'ある'
+  let medicationDetails = null // 薬剤名の詳細
+
   questions.forEach((question: any) => {
-    const { id: questionId, linked_field } = question
+    const { id: questionId, linked_field, question_text } = question
     const answer = answers[questionId]
 
     if (linked_field && answer !== undefined && answer !== null && answer !== '') {
@@ -692,8 +696,28 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
           break
         case 'preferred_contact_method':
           // 希望連絡方法の処理
-          patientUpdate.preferred_contact_method = answer
-          console.log('希望連絡方法を設定:', answer)
+          // データベースの制約: 'line', 'email', 'sms' のいずれか
+          let contactMethod = answer
+
+          // 日本語の回答を英語にマッピング
+          if (typeof contactMethod === 'string') {
+            const lowerAnswer = contactMethod.toLowerCase()
+            if (lowerAnswer.includes('line') || contactMethod.includes('LINE')) {
+              contactMethod = 'line'
+            } else if (lowerAnswer.includes('email') || lowerAnswer.includes('メール') || contactMethod.includes('Eメール')) {
+              contactMethod = 'email'
+            } else if (lowerAnswer.includes('sms') || contactMethod.includes('SMS') || contactMethod.includes('ショートメッセージ')) {
+              contactMethod = 'sms'
+            }
+          }
+
+          // 有効な値のみ設定
+          if (contactMethod === 'line' || contactMethod === 'email' || contactMethod === 'sms') {
+            patientUpdate.preferred_contact_method = contactMethod
+            console.log('希望連絡方法を設定:', contactMethod)
+          } else {
+            console.warn('無効な連絡方法のため設定をスキップ:', answer)
+          }
           break
         case 'allergies':
           // アレルギー情報の処理
@@ -716,19 +740,48 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
           }
           break
         case 'medications':
-          // 服用薬情報の処理
-          if (Array.isArray(answer)) {
-            patientUpdate.medications = answer.join(', ')
-          } else if (answer === 'ない' || answer.includes('なし')) {
-            patientUpdate.medications = 'なし'
+          // 服用薬情報の処理（複数の質問に対応）
+          // 「服用中のお薬」（ラジオボタン）と「服用中の薬剤名」（テキストエリア）を区別
+          if (question_text === '服用中のお薬' || question_text.includes('服用中のお薬')) {
+            // ステータス質問（ある/ない）
+            medicationStatus = answer
+          } else if (question_text === '服用中の薬剤名' || question_text.includes('薬剤名')) {
+            // 詳細質問（薬剤名のテキスト）
+            medicationDetails = answer
           } else {
-            patientUpdate.medications = answer
+            // その他のmedications関連の質問
+            if (Array.isArray(answer)) {
+              patientUpdate.medications = answer.join(', ')
+            } else if (answer === 'ない' || answer.includes('なし')) {
+              patientUpdate.medications = 'なし'
+            } else {
+              patientUpdate.medications = answer
+            }
           }
-          console.log('服用薬を設定:', patientUpdate.medications)
           break
       }
     }
   })
+
+  // 服用薬情報の統合処理
+  if (medicationStatus !== null) {
+    if (medicationStatus === 'ない' || medicationStatus.includes('なし')) {
+      patientUpdate.medications = 'なし'
+      console.log('服用薬を設定: なし')
+    } else if (medicationStatus === 'ある' || medicationStatus.includes('ある')) {
+      if (medicationDetails) {
+        patientUpdate.medications = medicationDetails
+        console.log('服用薬を設定:', medicationDetails)
+      } else {
+        patientUpdate.medications = 'あり（詳細未記入）'
+        console.log('服用薬を設定: あり（詳細未記入）')
+      }
+    }
+  } else if (medicationDetails !== null) {
+    // ステータス質問がない場合は、詳細のみを設定
+    patientUpdate.medications = medicationDetails
+    console.log('服用薬を設定:', medicationDetails)
+  }
 
   console.log('抽出した患者情報:', patientUpdate)
 

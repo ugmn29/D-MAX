@@ -158,7 +158,9 @@ export async function getAppointmentLogs(patientId: string): Promise<Appointment
           end_time,
           status,
           menu1_id,
-          staff1_id
+          staff1_id,
+          menu1:treatment_menus!appointments_menu1_id_fkey(id, name),
+          staff1:staff!appointments_staff1_id_fkey(id, name)
         )
       `)
       .in('appointment_id', appointmentIds)
@@ -169,7 +171,41 @@ export async function getAppointmentLogs(patientId: string): Promise<Appointment
       throw error
     }
 
-    return data || []
+    // before_data/after_dataのスタッフIDとメニューIDを名前に変換
+    const logsWithNames = await Promise.all((data || []).map(async (log) => {
+      // スタッフとメニューのマッピングを作成
+      const { data: allStaff } = await supabase.from('staff').select('id, name')
+      const { data: allMenus } = await supabase.from('treatment_menus').select('id, name')
+
+      const staffMap = new Map((allStaff || []).map(s => [s.id, s.name]))
+      const menuMap = new Map((allMenus || []).map(m => [m.id, m.name]))
+
+      // before_dataとafter_dataのIDを名前に変換
+      const enrichData = (data: Record<string, any> | undefined) => {
+        if (!data) return data
+        const enriched = { ...data }
+
+        // スタッフIDを名前に変換
+        if (enriched.staff1_id) enriched.staff1_name = staffMap.get(enriched.staff1_id) || enriched.staff1_id
+        if (enriched.staff2_id) enriched.staff2_name = staffMap.get(enriched.staff2_id) || enriched.staff2_id
+        if (enriched.staff3_id) enriched.staff3_name = staffMap.get(enriched.staff3_id) || enriched.staff3_id
+
+        // メニューIDを名前に変換
+        if (enriched.menu1_id) enriched.menu1_name = menuMap.get(enriched.menu1_id) || enriched.menu1_id
+        if (enriched.menu2_id) enriched.menu2_name = menuMap.get(enriched.menu2_id) || enriched.menu2_id
+        if (enriched.menu3_id) enriched.menu3_name = menuMap.get(enriched.menu3_id) || enriched.menu3_id
+
+        return enriched
+      }
+
+      return {
+        ...log,
+        before_data: enrichData(log.before_data),
+        after_data: enrichData(log.after_data)
+      }
+    }))
+
+    return logsWithNames
   } catch (error) {
     console.error('予約操作ログの取得に失敗:', error)
     throw error
@@ -204,8 +240,8 @@ export async function createAppointmentLog(params: CreateAppointmentLogParams): 
       .insert([params])
       .select(`
         *,
-        operator:staff!appointment_logs_operator_id_fkey(id, name),
-        appointment:appointments!appointment_logs_appointment_id_fkey(
+        operator:staff(id, name),
+        appointment:appointments(
           id,
           start_time,
           end_time,
@@ -288,7 +324,7 @@ export async function logAppointmentChange(
         before_data: beforeData,
         after_data: afterData,
         reason: reason || '予約情報を更新しました',
-        operator_id: changedBy || 'system'
+        operator_id: changedBy || null
       })
     }
   } catch (error) {
@@ -312,7 +348,7 @@ export async function logAppointmentCreation(
       action: '作成',
       after_data: appointmentData,
       reason: '新規予約作成',
-      operator_id: createdBy || 'system'
+      operator_id: createdBy || null
     })
   } catch (error) {
     console.error('予約作成ログの作成に失敗:', error)

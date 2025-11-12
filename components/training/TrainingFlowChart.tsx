@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Training } from '@/types/training'
 import type { Database } from '@/types/database'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import TrainingEvaluationModal from './TrainingEvaluationModal'
 
 // 型付きクライアント
 const typedSupabase = supabase as SupabaseClient<Database>
@@ -106,6 +107,8 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
     message: string
     onConfirm?: () => void
   } | null>(null)
+  const [showEvaluationModal, setShowEvaluationModal] = useState(false)
+  const [selectedTrainingForEvaluation, setSelectedTrainingForEvaluation] = useState<TrainingWithStatus | null>(null)
 
   useEffect(() => {
     loadAllData()
@@ -377,15 +380,15 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
   const currentCategory = TRAINING_FLOW_CATEGORIES.find((cat) => cat.category === activeCategory)
 
   return (
-    <div className="space-y-6">
-      {/* カテゴリータブナビゲーション */}
-      <div className="border-b border-gray-200">
+    <div className="flex flex-col h-full">
+      {/* カテゴリータブナビゲーション - 固定 */}
+      <div className="border-b border-gray-200 mb-4 flex-shrink-0">
         <div className="flex gap-2">
           {TRAINING_FLOW_CATEGORIES.map((category) => (
             <button
               key={category.category}
               onClick={() => setActiveCategory(category.category)}
-              className={`px-6 py-3 font-medium text-sm transition-colors ${
+              className={`px-6 py-2 font-medium text-base transition-colors ${
                 activeCategory === category.category
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -397,9 +400,11 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
         </div>
       </div>
 
-      {/* 選択されたカテゴリーのステップを表示 */}
-      {currentCategory && (
-        <div className={currentCategory.category === "口唇" ? "flex gap-6" : "space-y-6"}>
+      {/* スクロール可能なコンテンツエリア */}
+      <div className="flex-1 overflow-y-auto">
+        {/* 選択されたカテゴリーのステップを表示 */}
+        {currentCategory && (
+          <div className={currentCategory.category === "口唇" ? "flex gap-6" : "space-y-6"}>
           {currentCategory.steps.map((flowStep, index) => {
         const stepTrainings = flowStep.trainingNames.map((name) => getTrainingByName(name))
         const isExpanded = expandedSteps.has(flowStep.step)
@@ -470,7 +475,8 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
                                     <>
                                       <button
                                         onClick={() => {
-                                          window.location.href = `/training/clinic/evaluate/${patientId}`
+                                          setSelectedTrainingForEvaluation(training)
+                                          setShowEvaluationModal(true)
                                         }}
                                         className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded font-medium"
                                       >
@@ -523,8 +529,9 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
           </div>
         )
       })}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* モーダル */}
       {showModal && modalConfig && (
@@ -563,6 +570,24 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
             </div>
           </div>
         </div>
+      )}
+
+      {/* 評価モーダル */}
+      {selectedTrainingForEvaluation && (
+        <TrainingEvaluationModal
+          isOpen={showEvaluationModal}
+          onClose={() => {
+            setShowEvaluationModal(false)
+            setSelectedTrainingForEvaluation(null)
+          }}
+          training={selectedTrainingForEvaluation}
+          patientId={patientId}
+          menuTrainingId={selectedTrainingForEvaluation.menu_training_id || ''}
+          onSuccess={() => {
+            // 評価成功後、データを再読み込み
+            loadAllData()
+          }}
+        />
       )}
     </div>
   )

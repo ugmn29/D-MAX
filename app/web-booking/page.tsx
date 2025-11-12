@@ -564,6 +564,49 @@ export default function WebBookingPage() {
     }
   }
 
+  // 優先順位順に空いているスタッフを探す関数
+  const findAvailableStaff = (
+    staffAssignments: any[],
+    date: string,
+    startTime: string,
+    duration: number,
+    existingAppointments: any[]
+  ) => {
+    // 優先順位順にソート
+    const sortedAssignments = [...staffAssignments].sort((a, b) =>
+      (a.priority || 0) - (b.priority || 0)
+    )
+
+    // 各スタッフの空き状況をチェック
+    for (const assignment of sortedAssignments) {
+      const staffId = assignment.staff_id
+
+      // このスタッフがこの時間に既存予約を持っているかチェック
+      const [startHour, startMinute] = startTime.split(':').map(Number)
+      const startMinutes = startHour * 60 + startMinute
+      const endMinutes = startMinutes + duration
+
+      const hasConflict = existingAppointments.some(apt => {
+        if (apt.appointment_date !== date) return false
+        if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
+
+        const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
+        const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+
+        // 重複チェック
+        return !(endMinutes <= aptStart || startMinutes >= aptEnd)
+      })
+
+      if (!hasConflict) {
+        // 空いているスタッフが見つかった
+        return assignment
+      }
+    }
+
+    // 全員埋まっている場合はnull
+    return null
+  }
+
   // 予約確定
   const handleConfirmBooking = async () => {
     try {
@@ -587,6 +630,12 @@ export default function WebBookingPage() {
       // stepsから複数ステップの情報を取得
       const steps = selectedWebBookingMenu.steps || []
       console.log('Web予約: ステップ情報', steps)
+
+      // 既存予約を取得（キャンセル除外）
+      const { getAppointments } = await import('@/lib/api/appointments')
+      const allAppointments = await getAppointments(DEMO_CLINIC_ID, bookingData.selectedDate, bookingData.selectedDate)
+      const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
+      console.log('Web予約: 既存予約データ', existingAppointments.length, '件')
 
       // 所要時間から終了時間を計算
       const [startHour, startMinute] = bookingData.selectedTime.split(':').map(Number)
@@ -638,25 +687,41 @@ export default function WebBookingPage() {
 
       // 各ステップのメニューとスタッフを設定
       if (steps.length > 0) {
-        steps.forEach((step: any, index: number) => {
-          if (index >= 3) return // 最大3ステップまで
-
+        // 各ステップごとに優先順位順に空いているスタッフを探す
+        for (let index = 0; index < steps.length && index < 3; index++) {
+          const step = steps[index]
           const menuNumber = index + 1
           const stepMenuId = step.menu_id || bookingData.selectedMenu
 
           // メニューIDを設定
           appointmentData[`menu${menuNumber}_id`] = stepMenuId
 
-          // スタッフIDを設定（staff_assignmentsから最初のスタッフを使用）
+          // 優先順位順に空いているスタッフを探す
           if (step.staff_assignments && step.staff_assignments.length > 0) {
-            appointmentData[`staff${menuNumber}_id`] = step.staff_assignments[0].staff_id
-            console.log(`Web予約: ステップ${menuNumber}のスタッフを設定`, {
-              menu_id: stepMenuId,
-              staff_id: step.staff_assignments[0].staff_id,
-              staff_name: staff.find(s => s.id === step.staff_assignments[0].staff_id)?.name
-            })
+            const availableStaff = findAvailableStaff(
+              step.staff_assignments,
+              bookingData.selectedDate,
+              bookingData.selectedTime,
+              duration,
+              existingAppointments
+            )
+
+            if (availableStaff) {
+              appointmentData[`staff${menuNumber}_id`] = availableStaff.staff_id
+              console.log(`Web予約: ステップ${menuNumber}のスタッフを設定`, {
+                menu_id: stepMenuId,
+                staff_id: availableStaff.staff_id,
+                staff_name: staff.find(s => s.id === availableStaff.staff_id)?.name,
+                priority: availableStaff.priority
+              })
+            } else {
+              // 全員埋まっている場合
+              console.error(`Web予約: ステップ${menuNumber}の全スタッフが予約済みです`)
+              alert(`ステップ${menuNumber}の全スタッフが予約済みです。別の時間をお選びください。`)
+              return
+            }
           }
-        })
+        }
       } else {
         // ステップがない場合は従来通りmenu1のみ
         appointmentData.menu1_id = bookingData.selectedMenu

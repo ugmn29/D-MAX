@@ -722,13 +722,16 @@ export default function WebReservationSettingsPage() {
                               {/* 担当者 */}
                               <div className="flex items-start space-x-2 text-sm text-gray-600">
                                 <span className="font-medium">担当者:</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {menu.staff_ids.map((staffId: string) => {
+                                <div className="flex flex-col gap-1">
+                                  {menu.staff_ids.map((staffId: string, index: number) => {
                                     const s = staff.find(st => st.id === staffId)
                                     return s ? (
-                                      <span key={staffId} className="bg-gray-100 px-2 py-1 rounded">
-                                        {s.name}
-                                      </span>
+                                      <div key={staffId} className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-gray-500">ステップ{index + 1}:</span>
+                                        <span className="bg-gray-100 px-2 py-1 rounded">
+                                          {s.name}
+                                        </span>
+                                      </div>
                                     ) : null
                                   })}
                                 </div>

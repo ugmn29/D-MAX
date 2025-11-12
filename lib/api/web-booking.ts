@@ -71,33 +71,34 @@ export async function getAvailableSlots(
     // スタッフを取得
     const allStaff = await getStaff(clinicId)
 
-    // stepsからstaff_assignmentsを集めてスタッフIDを抽出
-    const availableStaffIds: string[] = []
-    if (bookingMenu.steps && Array.isArray(bookingMenu.steps)) {
-      bookingMenu.steps.forEach((step: any) => {
-        if (step.staff_assignments && Array.isArray(step.staff_assignments)) {
-          step.staff_assignments.forEach((assignment: any) => {
-            if (assignment.staff_id && !availableStaffIds.includes(assignment.staff_id)) {
-              availableStaffIds.push(assignment.staff_id)
-            }
-          })
-        }
-      })
-    }
+    // stepsを取得（優先順位ベースのチェック用）
+    const steps = bookingMenu.steps || []
 
     console.log('空枠取得: 全スタッフ', allStaff)
-    console.log('空枠取得: stepsから抽出したstaff_ids', availableStaffIds)
-    console.log('空枠取得: steps詳細', bookingMenu.steps)
+    console.log('空枠取得: steps詳細', steps)
 
-    const availableStaff = allStaff.filter(s => availableStaffIds.includes(s.id))
+    // 各ステップにスタッフアサインメントがあることを確認
+    if (steps.length === 0) {
+      console.warn('Web予約可能なステップが設定されていません', { bookingMenu })
+      return []
+    }
 
-    console.log('空枠取得: Web予約可能なスタッフ', availableStaff)
+    // 全ステップから必要なスタッフIDを収集（シフトチェック用）
+    const allRequiredStaffIds: string[] = []
+    steps.forEach((step: any) => {
+      if (step.staff_assignments && Array.isArray(step.staff_assignments)) {
+        step.staff_assignments.forEach((assignment: any) => {
+          if (assignment.staff_id && !allRequiredStaffIds.includes(assignment.staff_id)) {
+            allRequiredStaffIds.push(assignment.staff_id)
+          }
+        })
+      }
+    })
 
-    if (availableStaff.length === 0) {
+    if (allRequiredStaffIds.length === 0) {
       console.warn('Web予約可能なスタッフが設定されていません', {
         bookingMenu,
-        availableStaffIds,
-        allStaff: allStaff.map(s => ({ id: s.id, name: s.name }))
+        steps
       })
       return []
     }
@@ -166,18 +167,6 @@ export async function getAvailableSlots(
 
       console.log(`空枠取得: ${dateString}の出勤スタッフID`, workingStaffIds)
 
-      // Web予約可能で、かつ出勤しているスタッフのみに絞る
-      const workingAvailableStaff = availableStaff.filter(staff => workingStaffIds.includes(staff.id))
-
-      console.log(`空枠取得: ${dateString}のWeb予約可能＆出勤スタッフ`, workingAvailableStaff)
-
-      // 出勤スタッフが0人の場合、その日は全てスキップ
-      if (workingAvailableStaff.length === 0) {
-        console.warn(`空枠取得: ${dateString}は出勤スタッフがいないためスキップ`)
-        currentDate = addDays(currentDate, 1)
-        continue
-      }
-
       // 休憩時間を取得
       const dayBreakTimes = Array.isArray(breakTimes?.[dayOfWeek]) ? breakTimes[dayOfWeek] : []
 
@@ -213,37 +202,74 @@ export async function getAvailableSlots(
               availableStaff: []
             })
           } else {
-            // 空いているスタッフがいるかチェック（出勤しているスタッフのみ）
-            const availableStaffForSlot = workingAvailableStaff.filter(staff => {
-              // このスタッフがこの時間に既に予約を持っているかチェック
-              const conflictingAppointments = existingAppointments.filter(apt => {
-                if (apt.appointment_date !== dateString) return false
-                if (apt.staff1_id !== staff.id && apt.staff2_id !== staff.id && apt.staff3_id !== staff.id) return false
+            // 各ステップごとに優先順位順で空いているスタッフを探す
+            let allStepsHaveAvailableStaff = true
+            const availableStaffByStep: any[] = []
 
-                const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
-                const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
-                const slotEnd = currentTimeMinutes + duration
-
-                // 重複チェック
-                return !(slotEnd <= aptStart || currentTimeMinutes >= aptEnd)
-              })
-
-              const hasConflict = conflictingAppointments.length > 0
-
-              if (conflictingAppointments.length > 0) {
-                console.log(`空枠チェック: ${dateString} ${timeString} スタッフ${staff.name} - 重複あり`, conflictingAppointments.map(a => `${a.start_time}-${a.end_time}`))
+            for (const step of steps) {
+              if (!step.staff_assignments || step.staff_assignments.length === 0) {
+                // スタッフアサインメントがない場合はスキップ（このステップは不要）
+                continue
               }
 
-              return !hasConflict
-            })
+              // 優先順位順にソート
+              const sortedAssignments = [...step.staff_assignments].sort((a, b) =>
+                (a.priority || 0) - (b.priority || 0)
+              )
 
-            console.log(`空枠結果: ${dateString} ${timeString} - 利用可能スタッフ数:${availableStaffForSlot.length} (出勤中:${workingAvailableStaff.length})`)
+              // このステップで利用可能なスタッフを探す
+              let foundAvailableStaff = false
+
+              for (const assignment of sortedAssignments) {
+                const staffId = assignment.staff_id
+
+                // 出勤チェック
+                if (!workingStaffIds.includes(staffId)) {
+                  continue
+                }
+
+                // このスタッフがこの時間に既存予約を持っているかチェック
+                const slotEnd = currentTimeMinutes + duration
+                const hasConflict = existingAppointments.some(apt => {
+                  if (apt.appointment_date !== dateString) return false
+                  if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
+
+                  const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
+                  const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+
+                  // 重複チェック
+                  return !(slotEnd <= aptStart || currentTimeMinutes >= aptEnd)
+                })
+
+                if (!hasConflict) {
+                  // 空いているスタッフが見つかった
+                  const staff = allStaff.find(s => s.id === staffId)
+                  if (staff) {
+                    availableStaffByStep.push({
+                      id: staff.id,
+                      name: staff.name,
+                      priority: assignment.priority
+                    })
+                    foundAvailableStaff = true
+                    break // このステップは空いているスタッフが見つかったので次のステップへ
+                  }
+                }
+              }
+
+              // このステップで空いているスタッフが見つからなかった
+              if (!foundAvailableStaff) {
+                allStepsHaveAvailableStaff = false
+                break // 一つでもステップで全員埋まっていたら予約不可
+              }
+            }
+
+            console.log(`空枠結果: ${dateString} ${timeString} - 全ステップ空き:${allStepsHaveAvailableStaff}, 利用可能スタッフ:`, availableStaffByStep)
 
             slots.push({
               date: dateString,
               time: timeString,
-              available: availableStaffForSlot.length > 0,
-              availableStaff: availableStaffForSlot.map(s => ({ id: s.id, name: s.name }))
+              available: allStepsHaveAvailableStaff,
+              availableStaff: availableStaffByStep
             })
           }
 

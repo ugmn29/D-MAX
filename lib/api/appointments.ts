@@ -321,8 +321,135 @@ export async function getAppointmentById(
 
 /**
  * 予約を新規作成
+ * 複数スタッフの場合は、独立した予約レコードとして分割保存
  */
 export async function createAppointment(
+  clinicId: string,
+  appointmentData: Omit<AppointmentInsert, 'clinic_id'>
+): Promise<Appointment> {
+  // 複数スタッフがある場合は分割して保存
+  const hasMultipleStaff =
+    (appointmentData.staff1_id && appointmentData.menu1_id) &&
+    ((appointmentData.staff2_id && appointmentData.menu2_id) ||
+     (appointmentData.staff3_id && appointmentData.menu3_id))
+
+  if (hasMultipleStaff) {
+    console.log('複数スタッフの予約を分割して作成します')
+    return createMultiStaffAppointments(clinicId, appointmentData)
+  }
+
+  // 単一スタッフの場合は従来通り
+  return createSingleAppointment(clinicId, appointmentData)
+}
+
+/**
+ * 複数スタッフの予約を独立した予約レコードとして作成
+ */
+async function createMultiStaffAppointments(
+  clinicId: string,
+  appointmentData: Omit<AppointmentInsert, 'clinic_id'>
+): Promise<Appointment> {
+  // メニュー情報を取得して標準時間を確認
+  const { getTreatmentMenus } = await import('./treatment')
+  const allMenus = await getTreatmentMenus(clinicId)
+
+  const appointments: Array<{
+    staffId: string
+    menuId: string
+    startTime: string
+    endTime: string
+  }> = []
+
+  let currentStartTime = appointmentData.start_time
+
+  // staff1/menu1
+  if (appointmentData.staff1_id && appointmentData.menu1_id) {
+    const menu1 = allMenus.find(m => m.id === appointmentData.menu1_id)
+    const duration = menu1?.standard_duration || 30
+    const startMinutes = timeToMinutes(currentStartTime)
+    const endMinutes = startMinutes + duration
+    const endTime = minutesToTime(endMinutes)
+
+    appointments.push({
+      staffId: appointmentData.staff1_id,
+      menuId: appointmentData.menu1_id,
+      startTime: currentStartTime,
+      endTime: endTime
+    })
+    currentStartTime = endTime
+  }
+
+  // staff2/menu2
+  if (appointmentData.staff2_id && appointmentData.menu2_id) {
+    const menu2 = allMenus.find(m => m.id === appointmentData.menu2_id)
+    const duration = menu2?.standard_duration || 30
+    const startMinutes = timeToMinutes(currentStartTime)
+    const endMinutes = startMinutes + duration
+    const endTime = minutesToTime(endMinutes)
+
+    appointments.push({
+      staffId: appointmentData.staff2_id,
+      menuId: appointmentData.menu2_id,
+      startTime: currentStartTime,
+      endTime: endTime
+    })
+    currentStartTime = endTime
+  }
+
+  // staff3/menu3
+  if (appointmentData.staff3_id && appointmentData.menu3_id) {
+    const menu3 = allMenus.find(m => m.id === appointmentData.menu3_id)
+    const duration = menu3?.standard_duration || 30
+    const startMinutes = timeToMinutes(currentStartTime)
+    const endMinutes = startMinutes + duration
+    const endTime = minutesToTime(endMinutes)
+
+    appointments.push({
+      staffId: appointmentData.staff3_id,
+      menuId: appointmentData.menu3_id,
+      startTime: currentStartTime,
+      endTime: endTime
+    })
+  }
+
+  console.log(`複数スタッフの予約を${appointments.length}件の独立した予約に分割します`, appointments)
+
+  // 各予約を独立して作成
+  const createdAppointments: Appointment[] = []
+
+  for (const appt of appointments) {
+    const singleAppointmentData = {
+      ...appointmentData,
+      staff1_id: appt.staffId,
+      staff2_id: null,
+      staff3_id: null,
+      menu1_id: appt.menuId,
+      menu2_id: null,
+      menu3_id: null,
+      start_time: appt.startTime,
+      end_time: appt.endTime
+    }
+
+    const created = await createSingleAppointment(clinicId, singleAppointmentData)
+    createdAppointments.push(created)
+    console.log(`予約${createdAppointments.length}/${appointments.length}を作成しました:`, {
+      id: created.id,
+      staff: appt.staffId,
+      menu: appt.menuId,
+      time: `${appt.startTime}-${appt.endTime}`
+    })
+  }
+
+  console.log(`${appointments.length}件の独立した予約を作成完了`)
+
+  // 最初の予約を返す（互換性のため）
+  return createdAppointments[0]
+}
+
+/**
+ * 単一予約を作成（従来のロジック）
+ */
+async function createSingleAppointment(
   clinicId: string,
   appointmentData: Omit<AppointmentInsert, 'clinic_id'>
 ): Promise<Appointment> {
@@ -330,7 +457,7 @@ export async function createAppointment(
   if (MOCK_MODE) {
     console.log('モックモード: 予約を作成します', { clinicId, appointmentData })
     const { addMockAppointment, getMockPatients, getMockTreatmentMenus } = await import('@/lib/utils/mock-mode')
-    
+
     // 患者情報を取得（Web予約の仮患者の場合は仮患者情報を作成）
     const patients = getMockPatients()
     let patient = patients.find(p => p.id === appointmentData.patient_id)
@@ -365,14 +492,14 @@ export async function createAppointment(
     }
 
     console.log('モックモード: 患者情報:', patient)
-    
+
     // メニュー情報を取得
     const menus = getMockTreatmentMenus()
     const menu1 = appointmentData.menu1_id ? menus.find(m => m.id === appointmentData.menu1_id) : null
     const menu2 = appointmentData.menu2_id ? menus.find(m => m.id === appointmentData.menu2_id) : null
     const menu3 = appointmentData.menu3_id ? menus.find(m => m.id === appointmentData.menu3_id) : null
     console.log('モックモード: メニュー情報:', { menu1, menu2, menu3 })
-    
+
     // スタッフ情報を取得
     const { getMockStaff } = await import('@/lib/utils/mock-mode')
     const staff = getMockStaff()
@@ -380,7 +507,7 @@ export async function createAppointment(
     const staff2 = appointmentData.staff2_id ? staff.find(s => s.id === appointmentData.staff2_id) : null
     const staff3 = appointmentData.staff3_id ? staff.find(s => s.id === appointmentData.staff3_id) : null
     console.log('モックモード: スタッフ情報:', { staff1, staff2, staff3 })
-    
+
     const mockAppointment: Appointment = {
       id: `mock-appointment-${Date.now()}`,
       clinic_id: clinicId,
@@ -407,7 +534,7 @@ export async function createAppointment(
       staff2: staff2,
       staff3: staff3
     } as Appointment
-    
+
     console.log('モックモード: 保存する予約データ:', mockAppointment)
     const savedAppointment = addMockAppointment(mockAppointment)
     console.log('モックモード: 保存完了:', savedAppointment)
@@ -426,7 +553,7 @@ export async function createAppointment(
         status: appointmentData.status || '未来院',
         memo: appointmentData.memo
       },
-      'system'
+      null
     )
 
     return savedAppointment
@@ -514,7 +641,7 @@ export async function deleteAppointment(
           memo: appointmentToDelete.memo
         },
         reason: '予約を削除しました',
-        operator_id: 'system'
+        operator_id: null
       })
 
       // 実際に削除
@@ -560,7 +687,7 @@ export async function deleteAppointment(
         memo: appointmentToDelete.memo
       },
       reason: '予約を削除しました',
-      operator_id: 'system'
+      operator_id: null
     })
   }
 }
@@ -724,7 +851,7 @@ export async function updateAppointment(
           status: updatedAppointment.status,
           memo: updatedAppointment.memo
         },
-        'system',
+        null,
         '予約情報を更新しました'
       )
     }
@@ -743,18 +870,30 @@ export async function updateAppointment(
     .eq('id', appointmentId)
     .single()
 
+  // durationフィールドを除外（appointmentsテーブルにはdurationカラムが存在しない）
+  const { duration, ...validAppointmentData } = appointmentData as any
+
+  // 更新データをログ出力
+  const updateData = {
+    ...validAppointmentData,
+    updated_at: new Date().toISOString()
+  }
+  console.log('予約更新データ:', updateData)
+  if (duration !== undefined) {
+    console.log('除外されたduration:', duration)
+  }
+
   const { data, error } = await supabase
     .from('appointments')
-    .update({
-      ...appointmentData,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', appointmentId)
     .select()
     .single()
 
   if (error) {
     console.error('予約更新エラー:', error)
+    console.error('予約更新エラー詳細:', JSON.stringify(error, null, 2))
+    console.error('送信したデータ:', updateData)
     throw error
   }
 
@@ -782,7 +921,7 @@ export async function updateAppointment(
         status: data.status,
         memo: data.memo
       },
-      'system',
+      null,
       '予約情報を更新しました'
     )
   }
@@ -860,7 +999,7 @@ export async function cancelAppointment(
           memo: updatedMemo
         },
         reason: `予約をキャンセルしました${cancelReason ? ` (理由: ${cancelReason.name})` : ''}`,
-        operator_id: cancelledBy || 'system'
+        operator_id: cancelledBy || null
       })
     }
 
@@ -869,12 +1008,24 @@ export async function cancelAppointment(
 
   const client = getSupabaseClient()
 
+  console.log('キャンセル対象の予約ID:', appointmentId)
+
   // 既存の予約データを取得してメモとステータスを確認
-  const { data: currentData } = await client
+  const { data: currentData, error: fetchError } = await client
     .from('appointments')
     .select('memo, status')
     .eq('id', appointmentId)
-    .single()
+    .maybeSingle()
+
+  if (fetchError) {
+    console.error('予約データ取得エラー:', fetchError)
+    throw fetchError
+  }
+
+  if (!currentData) {
+    console.error('予約が見つかりません。ID:', appointmentId)
+    throw new Error('予約が見つかりませんでした')
+  }
 
   const existingMemo = currentData?.memo || ''
 
@@ -908,11 +1059,16 @@ export async function cancelAppointment(
       staff3:staff!staff3_id(*),
       cancel_reason:cancel_reasons!appointments_cancel_reason_id_fkey(*)
     `)
-    .single()
+    .maybeSingle()
 
   if (error) {
     console.error('予約キャンセルエラー:', error)
     throw error
+  }
+
+  if (!data) {
+    console.error('予約の更新に失敗しました。ID:', appointmentId)
+    throw new Error('予約の更新に失敗しました')
   }
 
   // キャンセルログを記録
@@ -933,7 +1089,7 @@ export async function cancelAppointment(
         memo: updatedMemo
       },
       reason: `予約をキャンセルしました${cancelReason ? ` (理由: ${cancelReason.name})` : ''}`,
-      operator_id: cancelledBy || 'system'
+      operator_id: cancelledBy || null
     })
   }
 

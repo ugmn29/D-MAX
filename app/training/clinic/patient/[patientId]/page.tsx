@@ -8,6 +8,7 @@ import { getPatientById } from '@/lib/api/patients'
 import TrainingFlowChart from '@/components/training/TrainingFlowChart'
 import TrainingProgressChart from '@/components/training/TrainingProgressChart'
 import PatientIssuesTab from '@/components/training/PatientIssuesTab'
+import { Dumbbell, TrendingUp, AlertTriangle } from 'lucide-react'
 
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
@@ -233,9 +234,9 @@ export default function PatientDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* ヘッダー */}
-      <header className="bg-white shadow-sm">
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* ヘッダー - 固定 */}
+      <header className="bg-white shadow-sm flex-shrink-0">
         <div className="px-6 py-4">
           <button
             onClick={() => router.push('/training/clinic/patients')}
@@ -244,18 +245,20 @@ export default function PatientDetailPage() {
             ← 戻る
           </button>
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-gray-900">
                 {patient.last_name} {patient.first_name}
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                患者番号: {patient.patient_number}
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-500">
+                  患者番号: {patient.patient_number}
+                </p>
                 {(patient as any).password_set && (
-                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
                     パスワード設定済み
                   </span>
                 )}
-              </p>
+              </div>
             </div>
             <div className="flex gap-3">
               {(patient as any).password_set && (
@@ -277,46 +280,52 @@ export default function PatientDetailPage() {
         </div>
       </header>
 
-      <div className="px-6 py-8">
-        {/* タブナビゲーション */}
-        <div className="mb-6 border-b border-gray-200">
+      {/* タブナビゲーション - 固定 */}
+      <div className="bg-gray-50 px-6 py-4 flex-shrink-0">
+        <div className="border-b border-gray-200">
           <div className="flex gap-4 overflow-x-auto">
             <button
               onClick={() => setActiveTab('training')}
-              className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${
+              className={`px-6 py-2 font-medium text-base transition-colors whitespace-nowrap flex items-center gap-2 ${
                 activeTab === 'training'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              🎯 トレーニング管理
+              <Dumbbell className="w-4 h-4" />
+              トレーニング管理
             </button>
             <button
               onClick={() => setActiveTab('progress')}
-              className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${
+              className={`px-6 py-2 font-medium text-base transition-colors whitespace-nowrap flex items-center gap-2 ${
                 activeTab === 'progress'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              📈 進捗グラフ
+              <TrendingUp className="w-4 h-4" />
+              進捗グラフ
             </button>
             <button
               onClick={() => setActiveTab('issues')}
-              className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${
+              className={`px-6 py-2 font-medium text-base transition-colors whitespace-nowrap flex items-center gap-2 ${
                 activeTab === 'issues'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              ⚠️ 課題
+              <AlertTriangle className="w-4 h-4" />
+              課題
             </button>
           </div>
         </div>
+      </div>
 
+      {/* スクロール可能なコンテンツエリア */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
         {/* トレーニング管理タブ */}
         {activeTab === 'training' && (
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="bg-white rounded-xl shadow-sm p-4 h-full">
             <TrainingFlowChart patientId={patientId} clinicId={DEMO_CLINIC_ID} />
           </div>
         )}

@@ -175,15 +175,33 @@ export function AppointmentLogsTab({ patientId }: AppointmentLogsTabProps) {
     }
 
     const changedFields = Object.keys(log.after_data).filter(field =>
-      log.before_data?.[field] !== log.after_data?.[field]
+      log.before_data?.[field] !== log.after_data?.[field] && !field.endsWith('_name')
     )
 
     if (changedFields.length === 0) {
       return null
     }
 
+    // 値を表示用に変換する関数
+    const getDisplayValue = (value: any, fieldName: string, data: Record<string, any>) => {
+      if (fieldName === 'status') return getStatusDisplayName(value)
+      if (fieldName.includes('time')) return formatTime(value)
+
+      // スタッフIDの場合は名前を表示
+      if (fieldName === 'staff1_id' && data.staff1_name) return data.staff1_name
+      if (fieldName === 'staff2_id' && data.staff2_name) return data.staff2_name
+      if (fieldName === 'staff3_id' && data.staff3_name) return data.staff3_name
+
+      // メニューIDの場合は名前を表示
+      if (fieldName === 'menu1_id' && data.menu1_name) return data.menu1_name
+      if (fieldName === 'menu2_id' && data.menu2_name) return data.menu2_name
+      if (fieldName === 'menu3_id' && data.menu3_name) return data.menu3_name
+
+      return value
+    }
+
     return (
-      <div className="mt-3 p-3 bg-white rounded-md border border-gray-200">
+      <div className="p-3 bg-white rounded-md border border-gray-200">
         <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
           <Edit className="w-4 h-4 mr-1" />
           変更内容
@@ -198,27 +216,22 @@ export function AppointmentLogsTab({ patientId }: AppointmentLogsTabProps) {
                 <span className="font-medium text-gray-700">
                   {getFieldDisplayName(field)}
                 </span>
-                <div className="mt-1 space-y-1">
-                  {oldValue && (
-                    <div className="text-red-600 flex items-start">
-                      <span className="text-xs font-medium mr-2 mt-0.5">変更前:</span>
-                      <span>
-                        {field === 'status' ? getStatusDisplayName(oldValue) :
-                         field.includes('time') ? formatTime(oldValue) :
-                         oldValue}
-                      </span>
+                <div className="mt-1">
+                  {oldValue && newValue ? (
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <span className="text-red-600">{getDisplayValue(oldValue, field, log.before_data)}</span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-green-600">{getDisplayValue(newValue, field, log.after_data)}</span>
                     </div>
-                  )}
-                  {newValue && (
-                    <div className="text-green-600 flex items-start">
-                      <span className="text-xs font-medium mr-2 mt-0.5">変更後:</span>
-                      <span>
-                        {field === 'status' ? getStatusDisplayName(newValue) :
-                         field.includes('time') ? formatTime(newValue) :
-                         newValue}
-                      </span>
+                  ) : oldValue ? (
+                    <div className="text-red-600">
+                      削除: {getDisplayValue(oldValue, field, log.before_data)}
                     </div>
-                  )}
+                  ) : newValue ? (
+                    <div className="text-green-600">
+                      追加: {getDisplayValue(newValue, field, log.after_data)}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )
@@ -357,60 +370,45 @@ export function AppointmentLogsTab({ patientId }: AppointmentLogsTabProps) {
 
               {/* ログカード */}
               <Card className={`border-l-4 ${getActionColor(log.action)}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                <CardContent className="pt-4">
+                  <div className="flex gap-6 items-start">
+                    {/* 左側: バッジ、日時、操作者情報と予約情報 */}
+                    <div className="flex-1 space-y-3">
+                      {/* バッジと日時 */}
+                      <div className="flex items-center gap-2">
                         {getActionBadge(log.action)}
                         <span className="text-xs text-gray-500">
                           {formatDateTime(log.created_at)}
                         </span>
                       </div>
-                      <CardTitle className="text-base font-semibold">
-                        {log.action === '作成' && '予約が作成されました'}
-                        {log.action === '変更' && '予約が更新されました'}
-                        {log.action === 'キャンセル' && '予約がキャンセルされました'}
-                        {log.action === '削除' && '予約が削除されました'}
-                      </CardTitle>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    {/* 操作者情報 */}
-                    {log.operator && (
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <UserCheck className="w-4 h-4" />
-                        <span>操作者: {log.operator.name}</span>
-                      </div>
-                    )}
-
-                    {/* 予約情報 */}
-                    {log.appointment && (
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <CalendarDays className="w-4 h-4" />
-                          <span>
-                            {formatDateTime(log.appointment.start_time)} - {formatTime(log.appointment.end_time)}
-                          </span>
+                      {/* 操作者情報 */}
+                      {log.operator && (
+                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                          <UserCheck className="w-4 h-4" />
+                          <span>操作者: {log.operator.name}</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {getStatusDisplayName(log.appointment.status)}
-                        </Badge>
-                      </div>
-                    )}
+                      )}
 
-                    {/* 変更理由 */}
-                    {log.reason && (
-                      <div className="flex items-start space-x-2 text-sm text-gray-600">
-                        <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <span>理由: {log.reason}</span>
-                      </div>
-                    )}
+                      {/* 予約情報 */}
+                      {log.appointment && (
+                        <div className="flex items-center gap-4 text-base text-gray-700 font-medium">
+                          <div className="flex items-center gap-2">
+                            <CalendarDays className="w-5 h-5" />
+                            <span>
+                              {formatDateTime(log.appointment.start_time)} - {formatTime(log.appointment.end_time)}
+                            </span>
+                          </div>
+                          <Badge variant="outline" className="text-sm">
+                            {getStatusDisplayName(log.appointment.status)}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
 
-                    {/* 変更詳細 */}
-                    {renderChangeDetails(log)}
+                    {/* 右側: 変更詳細 */}
+                    <div className="flex-1">
+                      {renderChangeDetails(log)}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
