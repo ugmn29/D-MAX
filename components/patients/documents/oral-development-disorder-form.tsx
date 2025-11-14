@@ -92,6 +92,10 @@ interface FormData {
   // 該当項目数
   symptoms_count: number
   diagnosis_result: string
+  can_diagnose: boolean
+  can_claim_management_fee: boolean
+  diagnosis_reason: string
+  management_fee_reason: string
 
   // その他
   symptoms_detail: string
@@ -166,6 +170,10 @@ const initialFormData: FormData = {
 
   symptoms_count: 0,
   diagnosis_result: '',
+  can_diagnose: false,
+  can_claim_management_fee: false,
+  diagnosis_reason: '',
+  management_fee_reason: '',
   symptoms_detail: '',
   exam_detail: '',
   treatmentPlan: '',
@@ -233,11 +241,17 @@ export function OralDevelopmentDisorderForm({
           ageYears--
         }
 
-        // 月齢の計算
-        const totalMonths = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth())
+        // 月齢の計算（0-11ヶ月の範囲）
+        let ageMonthsOnly = today.getMonth() - birthDate.getMonth()
+        if (today.getDate() < birthDate.getDate()) {
+          ageMonthsOnly--
+        }
+        if (ageMonthsOnly < 0) {
+          ageMonthsOnly += 12
+        }
 
         updates.age = `${ageYears}歳`
-        updates.ageMonths = `${totalMonths}ヶ月`
+        updates.ageMonths = `${ageMonthsOnly}ヶ月`
         autoFields.add('age')
         autoFields.add('ageMonths')
 
@@ -266,14 +280,10 @@ export function OralDevelopmentDisorderForm({
         setFormData(prev => ({ ...prev, ...updates }))
       } else {
         // 患者基本情報フィールドのみ強制上書き
-        setFormData(prev => {
-          const newData = { ...prev }
-          // 患者基本情報フィールドを強制的に上書き
-          Object.keys(updates).forEach(key => {
-            newData[key as keyof FormData] = updates[key as keyof FormData] as any
-          })
-          return newData
-        })
+        setFormData(prev => ({
+          ...prev,
+          ...updates
+        }))
       }
       setAutoPopulatedFields(autoFields)
 
@@ -381,14 +391,12 @@ export function OralDevelopmentDisorderForm({
 
       <table>
         <tr>
-          <th style="width: 40px;">No.</th>
-          <td style="width: 80px;">${formData.patientNumber}</td>
           <th style="width: 60px;">氏名</th>
           <td style="width: 150px;">${formData.patientName}</td>
           <th style="width: 80px;">生年月日</th>
-          <td style="width: 120px;">${formData.birthDate ? format(new Date(formData.birthDate), 'yyyy/MM/dd') : ''}</td>
+          <td style="width: 120px; font-size: 7pt;">${formData.birthDate ? format(new Date(formData.birthDate), 'yyyy/MM/dd') : ''}</td>
           <th style="width: 50px;">年齢</th>
-          <td style="width: 100px;">${formData.age} ${formData.ageMonths}</td>
+          <td style="width: 100px;">${formData.age || ''}${formData.ageMonths ? ` ${formData.ageMonths}` : ''}</td>
         </tr>
       </table>
 
@@ -406,7 +414,7 @@ export function OralDevelopmentDisorderForm({
           <td rowspan="6">哺乳</td>
           <td class="item-cell">C-1 先天性歯がある</td>
           <td>${formData.pre_C1_先天性歯 ? '☑' : '☐'}</td>
-          <td rowspan="6">${formData.pre_C4_乳首を口に含めない ? '☑' : '☐'}</td>
+          <td rowspan="6">${(formData.pre_C1_先天性歯 || formData.pre_C2_口唇歯槽形態異常 || formData.pre_C3_舌小帯異常 || formData.pre_C4_乳首を口に含めない || formData.pre_C5_授乳時間異常 || formData.pre_C6_哺乳量回数ムラ) ? '☑' : '☐'}</td>
         </tr>
         <tr>
           <td class="item-cell">C-2 口唇、歯槽の形態に異常がある（裂奇形など）</td>
@@ -432,7 +440,7 @@ export function OralDevelopmentDisorderForm({
           <td rowspan="3">離乳</td>
           <td class="item-cell">C-7 開始しているが首の据わりが確認できない</td>
           <td>${formData.pre_C7_離乳首の握り確認不可 ? '☑' : '☐'}</td>
-          <td rowspan="3">${formData.pre_C8_スプーン舌で押し出す ? '☑' : '☐'}</td>
+          <td rowspan="3">${(formData.pre_C7_離乳首の握り確認不可 || formData.pre_C8_スプーン舌で押し出す || formData.pre_C9_離乳進まない) ? '☑' : '☐'}</td>
         </tr>
         <tr>
           <td class="item-cell">C-8 スプーンを舌で押し出す状態がみられる</td>
@@ -457,7 +465,7 @@ export function OralDevelopmentDisorderForm({
           出生時 体重: ${formData.birthWeight}g 身長: ${formData.birthHeight}cm<br>
           カウプ指数: ${formData.kaupIndex}</span></td>
           <td>${formData.pre_C11_やせ肥満 ? '☑' : '☐'}</td>
-          <td rowspan="2">${formData.pre_C11_やせ肥満 ? '☑' : '☐'}</td>
+          <td rowspan="2">${(formData.pre_C11_やせ肥満 || formData.pre_C12_口腔周囲過敏) ? '☑' : '☐'}</td>
         </tr>
         <tr>
           <td class="item-cell">C-12 口腔周囲に過敏がある</td>
@@ -475,7 +483,7 @@ export function OralDevelopmentDisorderForm({
           <td rowspan="6">咀嚼機能</td>
           <td class="item-cell">C-1 歯の萌出に遅れがある</td>
           <td>${formData.post_C1_歯の萌出遅れ ? '☑' : '☐'}</td>
-          <td rowspan="6">${formData.post_C4_強く噛み締められない ? '☑' : '☐'}</td>
+          <td rowspan="6">${(formData.post_C1_歯の萌出遅れ || formData.post_C2_機能的歯列咬合異常 || formData.post_C3_咀嚼影響う蝕 || formData.post_C4_強く噛み締められない || formData.post_C5_咀嚼時間異常 || formData.post_C6_偏咀嚼) ? '☑' : '☐'}</td>
         </tr>
         <tr>
           <td class="item-cell">C-2 機能的因子による歯列・咬合の異常がある</td>
@@ -514,7 +522,7 @@ export function OralDevelopmentDisorderForm({
           <td rowspan="4">構音機能</td>
           <td class="item-cell">C-9 構音に障害がある（音の置換、省略、歪みなどがある）</td>
           <td>${formData.post_C9_構音障害 ? '☑' : '☐'}</td>
-          <td rowspan="4">${formData.post_C10_口唇閉鎖不全 ? '☑' : '☐'}</td>
+          <td rowspan="4">${(formData.post_C9_構音障害 || formData.post_C10_口唇閉鎖不全 || formData.post_C11_口腔習癖 || formData.post_C12_舌小帯異常) ? '☑' : '☐'}</td>
         </tr>
         <tr>
           <td class="item-cell">C-10 口唇の閉鎖不全がある（安静時に口唇閉鎖を認めない）</td>
@@ -535,7 +543,7 @@ export function OralDevelopmentDisorderForm({
           <span class="small-text">現在 体重: ${formData.currentWeight}kg 身長: ${formData.currentHeight}cm<br>
           カウプ指数・ローレル指数: ${formData.kaupIndex || formData.rorerIndex}</span></td>
           <td>${formData.post_C13_やせ肥満 ? '☑' : '☐'}</td>
-          <td rowspan="2">${formData.post_C13_やせ肥満 ? '☑' : '☐'}</td>
+          <td rowspan="2">${(formData.post_C13_やせ肥満 || formData.post_C14_口呼吸) ? '☑' : '☐'}</td>
         </tr>
         <tr>
           <td class="item-cell">C-14 口呼吸がある</td>
@@ -545,7 +553,7 @@ export function OralDevelopmentDisorderForm({
           <td rowspan="2">その他</td>
           <td class="item-cell">C-15 口蓋扁桃等に肥大がある</td>
           <td>${formData.post_C15_口蓋扁桃等肥大 ? '☑' : '☐'}</td>
-          <td rowspan="2"></td>
+          <td rowspan="2">${(formData.post_C15_口蓋扁桃等肥大 || formData.post_C16_睡眠時いびき) ? '☑' : '☐'}</td>
         </tr>
         <tr>
           <td class="item-cell">C-16 睡眠時のいびきがある</td>
@@ -739,10 +747,26 @@ export function OralDevelopmentDisorderForm({
   useEffect(() => {
     if (document) {
       const content = document.content as Partial<FormData>
-      setFormData(prev => ({ ...prev, ...content }))
+      setFormData(prev => {
+        const updated = { ...prev, ...content }
+        // ドキュメント読み込み後に判定を実行
+        updateSymptomCount(updated)
+        return updated
+      })
       setAutoPopulatedFields(new Set())
     }
   }, [document])
+
+  // 初期マウント時に判定を実行（新規作成時用）
+  useEffect(() => {
+    if (!document && !loading) {
+      setFormData(prev => {
+        const updated = { ...prev }
+        updateSymptomCount(updated)
+        return updated
+      })
+    }
+  }, [loading])
 
   const handleChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -758,7 +782,13 @@ export function OralDevelopmentDisorderForm({
 
   const updateSymptomCount = (data: FormData) => {
     let count = 0
+    let canDiagnose = false
+    let canClaimManagementFee = false
+    let diagnosisReason = ''
+    let managementFeeReason = ''
+
     if (data.ageCategory === 'pre-weaning') {
+      // 離乳完了前のカウント
       if (data.pre_C1_先天性歯) count++
       if (data.pre_C2_口唇歯槽形態異常) count++
       if (data.pre_C3_舌小帯異常) count++
@@ -772,13 +802,41 @@ export function OralDevelopmentDisorderForm({
       if (data.pre_C11_やせ肥満) count++
       if (data.pre_C12_口腔周囲過敏) count++
       if (data.pre_C13_その他問題点) count++
+
+      // 離乳完了前の診断基準
+      // 「食べる」「話す」機能で2つ以上の該当項目があれば診断可能
+      if (count >= 2) {
+        canDiagnose = true
+        diagnosisReason = '「食べる」「話す」機能で2つ以上の該当項目があります'
+      } else if (count === 1) {
+        diagnosisReason = '該当項目が1つのみです。診断には2つ以上必要です'
+      } else {
+        diagnosisReason = '該当項目がありません'
+      }
+
+      // 管理料算定基準
+      // 評価項目において3項目以上に該当する小児
+      if (count >= 3) {
+        canClaimManagementFee = true
+        managementFeeReason = '評価項目が3つ以上該当しています'
+      } else if (count === 2) {
+        managementFeeReason = '該当項目が2つです。管理料算定には3つ以上必要です'
+      } else {
+        managementFeeReason = '該当項目が不足しています（3つ以上必要）'
+      }
+
     } else {
-      if (data.post_C1_歯の萌出遅れ) count++
-      if (data.post_C2_機能的歯列咬合異常) count++
-      if (data.post_C3_咀嚼影響う蝕) count++
-      if (data.post_C4_強く噛み締められない) count++
-      if (data.post_C5_咀嚼時間異常) count++
-      if (data.post_C6_偏咀嚼) count++
+      // 離乳完了後のカウント
+      // 咀嚼機能項目のカウント（C-1〜C-6）
+      let masticationCount = 0
+      if (data.post_C1_歯の萌出遅れ) { count++; masticationCount++ }
+      if (data.post_C2_機能的歯列咬合異常) { count++; masticationCount++ }
+      if (data.post_C3_咀嚼影響う蝕) { count++; masticationCount++ }
+      if (data.post_C4_強く噛み締められない) { count++; masticationCount++ }
+      if (data.post_C5_咀嚼時間異常) { count++; masticationCount++ }
+      if (data.post_C6_偏咀嚼) { count++; masticationCount++ }
+
+      // その他の項目
       if (data.post_C7_舌突出_乳児嚥下残存) count++
       if (data.post_C8_哺乳量食事量回数ムラ) count++
       if (data.post_C9_構音障害) count++
@@ -790,9 +848,38 @@ export function OralDevelopmentDisorderForm({
       if (data.post_C15_口蓋扁桃等肥大) count++
       if (data.post_C16_睡眠時いびき) count++
       if (data.post_C17_その他問題点) count++
+
+      // 離乳完了後の診断基準
+      // 咀嚼機能（C-1〜C-6）を1つ以上含み、「食べる」「話す」機能で2つ以上の該当項目
+      if (masticationCount >= 1 && count >= 2) {
+        canDiagnose = true
+        diagnosisReason = `咀嚼機能項目を${masticationCount}つ含み、合計${count}つの該当項目があります`
+      } else if (masticationCount === 0 && count >= 2) {
+        diagnosisReason = '咀嚼機能項目（C-1〜C-6）が必須です。咀嚼機能項目を1つ以上含める必要があります'
+      } else if (masticationCount >= 1 && count < 2) {
+        diagnosisReason = `該当項目が${count}つのみです。診断には2つ以上必要です`
+      } else {
+        diagnosisReason = '咀嚼機能項目（C-1〜C-6）を1つ以上含み、合計2つ以上の該当項目が必要です'
+      }
+
+      // 管理料算定基準
+      // 評価項目において3項目以上に該当する小児
+      if (count >= 3) {
+        canClaimManagementFee = true
+        managementFeeReason = '評価項目が3つ以上該当しています'
+      } else if (count === 2) {
+        managementFeeReason = '該当項目が2つです。管理料算定には3つ以上必要です'
+      } else {
+        managementFeeReason = '該当項目が不足しています（3つ以上必要）'
+      }
     }
+
     data.symptoms_count = count
-    data.diagnosis_result = count >= 1 ? '口腔機能発達不全症と診断' : '該当なし'
+    data.can_diagnose = canDiagnose
+    data.can_claim_management_fee = canClaimManagementFee
+    data.diagnosis_reason = diagnosisReason
+    data.management_fee_reason = managementFeeReason
+    data.diagnosis_result = canDiagnose ? '口腔機能発達不全症と診断可能' : '診断基準を満たしていません'
   }
 
   const handleAgeCategoryChange = (category: 'pre-weaning' | 'post-weaning') => {
@@ -803,10 +890,86 @@ export function OralDevelopmentDisorderForm({
     })
   }
 
+  const calculateIndexes = (weight: string, height: string, birthWeight: string, birthHeight: string, ageCategory: 'pre-weaning' | 'post-weaning') => {
+    if (!weight || !height) return
+
+    const w = parseFloat(weight)
+    const h = parseFloat(height)
+
+    if (isNaN(w) || isNaN(h) || h === 0) return
+
+    if (ageCategory === 'pre-weaning') {
+      // カウプ指数: 体重(g) ÷ 身長(cm)² × 10
+      const kaupIndex = (w / (h * h)) * 10
+      const kaupValue = kaupIndex.toFixed(2)
+
+      // 評価判定
+      let evaluation = ''
+      if (kaupIndex < 13) {
+        evaluation = 'やせ'
+      } else if (kaupIndex <= 17) {
+        evaluation = '普通'
+      } else {
+        evaluation = '肥満'
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        kaupIndex: `${kaupValue} (${evaluation})`,
+        rorerIndex: ''
+      }))
+    } else {
+      // 離乳完了後は年齢に応じて判断（5歳未満：カウプ、5歳以上：ローレル）
+      // 年齢を取得
+      const ageMatch = formData.age.match(/(\d+)/)
+      const ageYears = ageMatch ? parseInt(ageMatch[1]) : 5
+
+      if (ageYears < 5) {
+        // カウプ指数: 体重(kg) ÷ 身長(cm)² × 10
+        const kaupIndex = (w / (h * h)) * 10
+        const kaupValue = kaupIndex.toFixed(2)
+
+        let evaluation = ''
+        if (kaupIndex < 13) {
+          evaluation = 'やせ'
+        } else if (kaupIndex <= 17) {
+          evaluation = '普通'
+        } else {
+          evaluation = '肥満'
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          kaupIndex: `${kaupValue} (${evaluation})`,
+          rorerIndex: ''
+        }))
+      } else {
+        // ローレル指数: 体重(kg) ÷ 身長(cm)³ × 10^7
+        const rorerIndex = (w / (h * h * h)) * 10000000
+        const rorerValue = rorerIndex.toFixed(2)
+
+        let evaluation = ''
+        if (rorerIndex < 100) {
+          evaluation = 'やせ'
+        } else if (rorerIndex <= 145) {
+          evaluation = '普通'
+        } else {
+          evaluation = '肥満'
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          rorerIndex: `${rorerValue} (${evaluation})`,
+          kaupIndex: ''
+        }))
+      }
+    }
+  }
+
   const handleSave = async () => {
     try {
       setSaving(true)
-      const title = `口腔機能発達不全症 診断書 - ${formData.patientName || '患者名未設定'}`
+      const title = '口腔機能発達不全症 診断書'
       const params = {
         clinic_id: clinicId,
         patient_id: patientId,
@@ -816,9 +979,13 @@ export function OralDevelopmentDisorderForm({
       }
 
       if (document) {
+        console.log('文書を更新:', { documentId: document.id, title })
         await updateMedicalDocument(document.id, { title, content: formData })
+        console.log('文書更新完了')
       } else {
+        console.log('新規文書を作成:', { title })
         await createMedicalDocument(params)
+        console.log('文書作成完了')
       }
 
       onSave()
@@ -884,10 +1051,10 @@ export function OralDevelopmentDisorderForm({
       </div>
 
       {/* 総合判定サマリー */}
-      <Card className={formData.symptoms_count >= 1 ? 'border-red-300 bg-red-50' : 'border-blue-300 bg-blue-50'}>
+      <Card className={formData.can_diagnose ? 'border-red-300 bg-red-50' : 'border-blue-300 bg-blue-50'}>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            {formData.symptoms_count >= 1 ? (
+            {formData.can_diagnose ? (
               <AlertCircle className="w-5 h-5 text-red-600" />
             ) : (
               <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -896,12 +1063,64 @@ export function OralDevelopmentDisorderForm({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <div className="text-xl font-bold">
+          <div className="space-y-4">
+            <div className="text-xl font-bold text-center">
               該当項目: {formData.symptoms_count} 項目
             </div>
-            <div className={`text-lg font-semibold ${formData.symptoms_count >= 1 ? 'text-red-700' : 'text-blue-700'}`}>
-              {formData.diagnosis_result || '項目を入力してください'}
+
+            {/* 診断可否と管理料算定可否を横並び */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* 診断可否 */}
+              <div className={`p-4 rounded-lg border-2 ${formData.can_diagnose ? 'bg-red-100 border-red-400' : 'bg-gray-100 border-gray-300'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {formData.can_diagnose ? (
+                    <CheckCircle className="w-5 h-5 text-red-600" />
+                  ) : (
+                    <X className="w-5 h-5 text-gray-600" />
+                  )}
+                  <div className="font-bold text-base">
+                    {formData.can_diagnose ? '✓ 診断可能' : '✗ 診断不可'}
+                  </div>
+                </div>
+                <div className={`text-xs ${formData.can_diagnose ? 'text-red-800' : 'text-gray-700'}`}>
+                  {formData.diagnosis_reason}
+                </div>
+              </div>
+
+              {/* 管理料算定可否 */}
+              <div className={`p-4 rounded-lg border-2 ${formData.can_claim_management_fee ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {formData.can_claim_management_fee ? (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <X className="w-5 h-5 text-gray-600" />
+                  )}
+                  <div className="font-bold text-base">
+                    {formData.can_claim_management_fee ? '✓ 管理料算定可能' : '✗ 管理料算定不可'}
+                  </div>
+                </div>
+                <div className={`text-xs ${formData.can_claim_management_fee ? 'text-green-800' : 'text-gray-700'}`}>
+                  {formData.management_fee_reason}
+                </div>
+              </div>
+            </div>
+
+            {/* 診断基準の説明 */}
+            <div className="text-xs text-gray-600 bg-white p-3 rounded border">
+              <div className="font-semibold mb-1">
+                {formData.ageCategory === 'pre-weaning' ? '【離乳完了前の診断基準】' : '【離乳完了後の診断基準】'}
+              </div>
+              {formData.ageCategory === 'pre-weaning' ? (
+                <ul className="list-disc list-inside space-y-1">
+                  <li>診断: 「食べる」「話す」機能で2つ以上の該当項目</li>
+                  <li>管理料算定: 評価項目3つ以上</li>
+                </ul>
+              ) : (
+                <ul className="list-disc list-inside space-y-1">
+                  <li>診断: 咀嚼機能（C-1〜C-6）を1つ以上含み、合計2つ以上の該当項目</li>
+                  <li>管理料算定: 評価項目3つ以上</li>
+                </ul>
+              )}
             </div>
           </div>
         </CardContent>
@@ -955,6 +1174,106 @@ export function OralDevelopmentDisorderForm({
                 <Label>診断日</Label>
                 <Input type="date" value={formData.diagnosisDate} onChange={(e) => handleChange('diagnosisDate', e.target.value)} />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* 体格・栄養評価 */}
+          <Card className="border-orange-200 bg-orange-50">
+            <CardHeader>
+              <CardTitle className="text-base">体格・栄養評価（C-11/C-13用）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>現在の体重 ({formData.ageCategory === 'pre-weaning' ? 'g' : 'kg'})</Label>
+                  <Input
+                    type="number"
+                    value={formData.currentWeight}
+                    onChange={(e) => {
+                      handleChange('currentWeight', e.target.value)
+                      calculateIndexes(e.target.value, formData.currentHeight, formData.birthWeight, formData.birthHeight, formData.ageCategory)
+                    }}
+                    placeholder={formData.ageCategory === 'pre-weaning' ? '3500' : '18.5'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>現在の身長 (cm)</Label>
+                  <Input
+                    type="number"
+                    value={formData.currentHeight}
+                    onChange={(e) => {
+                      handleChange('currentHeight', e.target.value)
+                      calculateIndexes(formData.currentWeight, e.target.value, formData.birthWeight, formData.birthHeight, formData.ageCategory)
+                    }}
+                    placeholder="65.0"
+                  />
+                </div>
+              </div>
+
+              {formData.ageCategory === 'pre-weaning' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>出生時体重 (g)</Label>
+                    <Input
+                      type="number"
+                      value={formData.birthWeight}
+                      onChange={(e) => {
+                        handleChange('birthWeight', e.target.value)
+                        calculateIndexes(formData.currentWeight, formData.currentHeight, e.target.value, formData.birthHeight, formData.ageCategory)
+                      }}
+                      placeholder="3000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>出生時身長 (cm)</Label>
+                    <Input
+                      type="number"
+                      value={formData.birthHeight}
+                      onChange={(e) => {
+                        handleChange('birthHeight', e.target.value)
+                        calculateIndexes(formData.currentWeight, formData.currentHeight, formData.birthWeight, e.target.value, formData.ageCategory)
+                      }}
+                      placeholder="50.0"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 指数表示 */}
+              {(formData.kaupIndex || formData.rorerIndex) && (
+                <div className="p-3 bg-white rounded border border-orange-300">
+                  <div className="space-y-2">
+                    {formData.ageCategory === 'pre-weaning' && formData.kaupIndex && (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-semibold">カウプ指数:</span>
+                          <span className="text-lg font-bold">{formData.kaupIndex}</span>
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          基準: やせ(&lt;13) / 普通(13-17) / 肥満(&gt;17)
+                        </div>
+                      </>
+                    )}
+                    {formData.ageCategory === 'post-weaning' && (formData.kaupIndex || formData.rorerIndex) && (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-semibold">
+                            {formData.rorerIndex ? 'ローレル指数:' : 'カウプ指数:'}
+                          </span>
+                          <span className="text-lg font-bold">{formData.rorerIndex || formData.kaupIndex}</span>
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {formData.rorerIndex ? (
+                            <>基準: やせ(&lt;100) / 普通(100-145) / 肥満(&gt;145)</>
+                          ) : (
+                            <>基準: やせ(&lt;13) / 普通(13-17) / 肥満(&gt;17)</>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

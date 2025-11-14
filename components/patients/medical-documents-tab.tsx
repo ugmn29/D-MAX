@@ -118,7 +118,7 @@ export function MedicalDocumentsTab({ patientId, clinicId }: MedicalDocumentsTab
 
   const formatDateTime = (dateTime: string) => {
     try {
-      return format(new Date(dateTime), 'yyyy年MM月dd日 HH:mm', { locale: ja })
+      return format(new Date(dateTime), 'yyyy年MM月dd日', { locale: ja })
     } catch (error) {
       console.error('日時フォーマットエラー:', error, dateTime)
       return dateTime

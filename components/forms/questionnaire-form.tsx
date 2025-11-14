@@ -52,13 +52,18 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
         
         if (targetQuestionnaire) {
           setQuestionnaire(targetQuestionnaire)
-          setQuestions(targetQuestionnaire.questions)
-          
+          setQuestions(targetQuestionnaire.questions || [])
+
           // フォームデータの初期化
           const initialData: FormData = {}
-          targetQuestionnaire.questions.forEach(q => {
+          const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD形式
+
+          ;(targetQuestionnaire.questions || []).forEach(q => {
             if (q.question_type === 'checkbox') {
               initialData[q.id] = []
+            } else if (q.question_type === 'date' && q.question_text === '受診日') {
+              // 受診日フィールドには今日の日付を自動設定
+              initialData[q.id] = today
             } else {
               initialData[q.id] = ''
             }
@@ -78,30 +83,55 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
   // 質問をsort_order順でソート
   const sortedQuestions = [...questions].sort((a, b) => a.sort_order - b.sort_order)
 
-  // 条件分岐ロジックをチェックして質問の必須/任意を判定
-  const isQuestionRequired = (question: QuestionnaireQuestion) => {
-    console.log(`isQuestionRequired: ${question.id} - 条件分岐ロジック:`, question.conditional_logic)
-    
-    if (!question.conditional_logic) {
-      console.log(`isQuestionRequired: ${question.id} - 条件分岐なし、基本必須: ${question.is_required}`)
-      return question.is_required
+  // 条件付きロジックの評価（共通関数）
+  const evaluateCondition = (logic: any): boolean => {
+    if (!logic) return true
+
+    // show_when形式の条件付きロジック
+    if (logic.show_when) {
+      const showWhen = logic.show_when
+
+      // question_textで依存する質問を見つける
+      if (showWhen.question_text) {
+        const dependentQuestion = questions.find(q => q.question_text === showWhen.question_text)
+        if (!dependentQuestion) return true
+
+        const dependentValue = formData[dependentQuestion.id]
+
+        // valueと一致するかチェック
+        if (showWhen.value) {
+          const operator = showWhen.operator || 'equals'
+
+          switch (operator) {
+            case 'equals':
+              return dependentValue === showWhen.value
+            case 'contains':
+              // チェックボックス（配列）の場合
+              if (Array.isArray(dependentValue)) {
+                return dependentValue.includes(showWhen.value)
+              }
+              // テキストの場合
+              return String(dependentValue).includes(String(showWhen.value))
+            case 'not_equals':
+              return dependentValue !== showWhen.value
+            case 'not_contains':
+              if (Array.isArray(dependentValue)) {
+                return !dependentValue.includes(showWhen.value)
+              }
+              return !String(dependentValue).includes(String(showWhen.value))
+            default:
+              return dependentValue === showWhen.value
+          }
+        }
+      }
+
+      return true
     }
 
-    const logic = question.conditional_logic as {
-      depends_on?: string
-      condition?: string
-      value?: any
-      required_when?: boolean
-    }
-
-    if (!logic.depends_on) {
-      console.log(`isQuestionRequired: ${question.id} - depends_onなし、基本必須: ${question.is_required}`)
-      return question.is_required
-    }
+    // depends_on形式の条件付きロジック（既存の形式）
+    if (!logic.depends_on) return true
 
     const dependentValue = formData[logic.depends_on]
-    console.log(`isQuestionRequired: ${question.id} - 依存値(${logic.depends_on}):`, dependentValue)
-    
     let conditionMet = false
 
     switch (logic.condition) {
@@ -112,7 +142,7 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
         conditionMet = dependentValue !== logic.value
         break
       case 'contains':
-        conditionMet = Array.isArray(dependentValue) 
+        conditionMet = Array.isArray(dependentValue)
           ? dependentValue.includes(logic.value)
           : String(dependentValue).includes(String(logic.value))
         break
@@ -128,10 +158,49 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
         conditionMet = !!dependentValue && (!Array.isArray(dependentValue) || dependentValue.length > 0)
         break
       default:
-        console.log(`isQuestionRequired: ${question.id} - 未知の条件、基本必須: ${question.is_required}`)
-        return question.is_required
+        return true
     }
 
+    return conditionMet
+  }
+
+  // 質問を表示するかどうかを判定
+  const shouldShowQuestion = (question: QuestionnaireQuestion): boolean => {
+    if (!question.conditional_logic) return true
+    return evaluateCondition(question.conditional_logic)
+  }
+
+  // 条件分岐ロジックをチェックして質問の必須/任意を判定
+  const isQuestionRequired = (question: QuestionnaireQuestion) => {
+    // 質問が表示されない場合は必須ではない
+    if (!shouldShowQuestion(question)) return false
+
+    console.log(`isQuestionRequired: ${question.id} - 条件分岐ロジック:`, question.conditional_logic)
+
+    if (!question.conditional_logic) {
+      console.log(`isQuestionRequired: ${question.id} - 条件分岐なし、基本必須: ${question.is_required}`)
+      return question.is_required
+    }
+
+    const logic = question.conditional_logic as {
+      depends_on?: string
+      condition?: string
+      value?: any
+      required_when?: boolean
+      show_when?: any
+    }
+
+    // show_when形式の場合は、表示されていれば基本のis_requiredを使用
+    if (logic.show_when) {
+      return question.is_required
+    }
+
+    if (!logic.depends_on) {
+      console.log(`isQuestionRequired: ${question.id} - depends_onなし、基本必須: ${question.is_required}`)
+      return question.is_required
+    }
+
+    const conditionMet = evaluateCondition(logic)
     console.log(`isQuestionRequired: ${question.id} - 条件(${logic.condition}): ${conditionMet}`)
 
     // 条件が満たされた場合の必須/任意の設定
@@ -261,7 +330,8 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
       // linked_fieldから患者情報を抽出
       let patientName = ''
       let patientNameKana = ''
-      let patientPhone = ''
+      let homePhone = ''
+      let mobilePhone = ''
       let patientEmail = ''
 
       console.log('患者情報抽出開始 - 質問数:', questions.length)
@@ -277,14 +347,30 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
         } else if (q.linked_field === 'furigana_kana' && value) {
           patientNameKana = String(value)
           console.log('✅ フリガナを設定:', patientNameKana, '(質問ID:', q.id, ')')
+        } else if (q.linked_field === 'home_phone' && value) {
+          homePhone = String(value)
+          console.log('✅ 自宅電話番号を設定:', homePhone, '(質問ID:', q.id, ')')
         } else if (q.linked_field === 'phone' && value) {
-          patientPhone = String(value)
-          console.log('✅ 電話番号を設定:', patientPhone, '(質問ID:', q.id, ')')
+          mobilePhone = String(value)
+          console.log('✅ 携帯電話番号を設定:', mobilePhone, '(質問ID:', q.id, ')')
         } else if (q.linked_field === 'email' && value) {
           patientEmail = String(value)
           console.log('✅ メールを設定:', patientEmail, '(質問ID:', q.id, ')')
         }
       })
+
+      // 電話番号を統合
+      let patientPhone = ''
+      if (homePhone && mobilePhone) {
+        patientPhone = `自宅: ${homePhone} / 携帯: ${mobilePhone}`
+        console.log('✅ 電話番号を統合:', patientPhone)
+      } else if (mobilePhone) {
+        patientPhone = mobilePhone
+        console.log('✅ 携帯電話番号のみ:', patientPhone)
+      } else if (homePhone) {
+        patientPhone = homePhone
+        console.log('✅ 自宅電話番号のみ:', patientPhone)
+      }
 
       console.log('抽出結果 - 名前:', patientName, ', 電話:', patientPhone)
 
@@ -390,6 +476,17 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
             value={value as string || ''}
             onChange={(e) => updateFormData(question.id, e.target.value)}
             className={hasError ? 'border-red-500' : ''}
+          />
+        )
+
+      case 'tel':
+        return (
+          <Input
+            type="tel"
+            value={value as string || ''}
+            onChange={(e) => updateFormData(question.id, e.target.value)}
+            className={hasError ? 'border-red-500' : ''}
+            placeholder={question.placeholder || '例: 090-1234-5678'}
           />
         )
 
@@ -528,6 +625,11 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
       <Card>
         <CardContent className="space-y-6 pt-6">
           {sortedQuestions.map((question) => {
+            // 条件付きロジックで質問を表示するかチェック
+            if (!shouldShowQuestion(question)) {
+              return null
+            }
+
             const isRequired = isQuestionRequired(question)
             return (
               <div key={question.id} className="space-y-2">

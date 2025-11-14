@@ -293,6 +293,9 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
           const formattedData = formatResponseData(response)
           const isExpanded = expandedResponses.has(response.id)
 
+          // 問診票の名前を取得
+          const questionnaireName = response.questionnaire?.name || '問診票回答'
+
           return (
             <Card key={response.id} className="border border-gray-200">
               <CardHeader className="pb-3">
@@ -305,7 +308,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
                         <CardTitle className="text-base">
-                          問診票回答
+                          {questionnaireName}
                         </CardTitle>
                         {isExpanded ? (
                           <ChevronUp className="w-5 h-5 text-gray-400" />

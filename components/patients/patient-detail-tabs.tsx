@@ -20,7 +20,8 @@ import {
   TrendingUp,
   AlertCircle,
   Bell,
-  FileCheck
+  FileCheck,
+  Stethoscope
 } from 'lucide-react'
 import { BasicInfoTab } from './basic-info-tab'
 import { QuestionnaireTab } from './questionnaire-tab'
@@ -32,6 +33,7 @@ import { PeriodontalExamTab } from './periodontal-exam-tab'
 import { VisualExamTab } from './visual/visual-exam-tab'
 import { PatientNotificationTab } from './patient-notification-tab'
 import { MedicalDocumentsTab } from './medical-documents-tab'
+import { EMRTab } from './emr-tab'
 
 interface PatientDetailTabsProps {
   patientId: string
@@ -42,6 +44,7 @@ const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 // タブ定義
 const tabs = [
   { id: 'basic', label: '基本情報', icon: User, available: true },
+  { id: 'emr', label: '電子カルテ', icon: Stethoscope, available: true },
   { id: 'visual', label: '視診', icon: Eye, available: true },
   { id: 'p-test', label: 'P検査', icon: Activity, available: true },
   { id: 'sub-chart', label: 'サブカルテ', icon: FileText, available: true },
@@ -66,6 +69,8 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
     switch (activeTab) {
       case 'basic':
         return <BasicInfoTab patientId={patientId} />
+      case 'emr':
+        return <EMRTab patientId={patientId} clinicId={DEMO_CLINIC_ID} />
       case 'visual':
         return <VisualExamTab patientId={patientId} />
       case 'p-test':

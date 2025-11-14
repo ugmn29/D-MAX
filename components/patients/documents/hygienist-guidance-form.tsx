@@ -331,9 +331,7 @@ export function HygienistGuidanceForm({
 
     return `
       <div class="header">
-        <div class="header-top">歯科衛生実地指導　Ⅰ・訪問歯科衛生指導</div>
         <div class="date-box">
-          （文書様式３）R6<br>
           年　　月　　日
         </div>
         <div class="title">口腔衛生管理</div>
@@ -425,10 +423,6 @@ export function HygienistGuidanceForm({
           <td colspan="2">${formData.dentistName || ''}<span style="margin-left: 40px;">歯科衛生士</span><span style="margin-left: 20px;">${formData.hygienistName || ''}</span></td>
         </tr>
       </table>
-
-      <div class="footer-note">
-        公益社団法人 日本歯科医師会・日本歯科医学会 監修
-      </div>
     `
   }
 

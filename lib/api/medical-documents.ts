@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase'
 import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 export type DocumentType =
@@ -139,20 +138,15 @@ export async function getMedicalDocuments(patientId: string): Promise<MedicalDoc
   }
 
   try {
-    const { data, error } = await supabase
-      .from('medical_documents')
-      .select(`
-        *,
-        creator:staff!medical_documents_created_by_fkey(id, name)
-      `)
-      .eq('patient_id', patientId)
-      .order('created_at', { ascending: false })
+    const response = await fetch(`/api/medical-documents?patient_id=${patientId}`)
 
-    if (error) {
-      console.error('提供文書の取得エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('提供文書の取得エラー:', errorData)
+      throw new Error(errorData.error || '提供文書の取得に失敗しました')
     }
 
+    const data = await response.json()
     return data || []
   } catch (error) {
     console.error('提供文書の取得に失敗:', error)
@@ -173,20 +167,15 @@ export async function getMedicalDocumentById(documentId: string): Promise<Medica
   }
 
   try {
-    const { data, error } = await supabase
-      .from('medical_documents')
-      .select(`
-        *,
-        creator:staff!medical_documents_created_by_fkey(id, name)
-      `)
-      .eq('id', documentId)
-      .single()
+    const response = await fetch(`/api/medical-documents/${documentId}`)
 
-    if (error) {
-      console.error('提供文書の取得エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('提供文書の取得エラー:', errorData)
+      throw new Error(errorData.error || '提供文書の取得に失敗しました')
     }
 
+    const data = await response.json()
     return data
   } catch (error) {
     console.error('提供文書の取得に失敗:', error)
@@ -224,20 +213,24 @@ export async function createMedicalDocument(
   }
 
   try {
-    const { data, error } = await supabase
-      .from('medical_documents')
-      .insert([params])
-      .select(`
-        *,
-        creator:staff!medical_documents_created_by_fkey(id, name)
-      `)
-      .single()
+    console.log('Calling server-side API to create medical document')
 
-    if (error) {
-      console.error('提供文書の作成エラー:', error)
-      throw error
+    const response = await fetch('/api/medical-documents', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(params)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('提供文書の作成エラー:', errorData)
+      throw new Error(errorData.error || '提供文書の作成に失敗しました')
     }
 
+    const data = await response.json()
+    console.log('Medical document created successfully:', data.id)
     return data
   } catch (error) {
     console.error('提供文書の作成に失敗:', error)
@@ -267,21 +260,24 @@ export async function updateMedicalDocument(
   }
 
   try {
-    const { data, error } = await supabase
-      .from('medical_documents')
-      .update(params)
-      .eq('id', documentId)
-      .select(`
-        *,
-        creator:staff!medical_documents_created_by_fkey(id, name)
-      `)
-      .single()
+    console.log('Calling server-side API to update medical document')
 
-    if (error) {
-      console.error('提供文書の更新エラー:', error)
-      throw error
+    const response = await fetch(`/api/medical-documents/${documentId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(params)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('提供文書の更新エラー:', errorData)
+      throw new Error(errorData.error || '提供文書の更新に失敗しました')
     }
 
+    const data = await response.json()
+    console.log('Medical document updated successfully:', data.id)
     return data
   } catch (error) {
     console.error('提供文書の更新に失敗:', error)
@@ -308,15 +304,19 @@ export async function deleteMedicalDocument(documentId: string): Promise<void> {
   }
 
   try {
-    const { error } = await supabase
-      .from('medical_documents')
-      .delete()
-      .eq('id', documentId)
+    console.log('Calling server-side API to delete medical document')
 
-    if (error) {
-      console.error('提供文書の削除エラー:', error)
-      throw error
+    const response = await fetch(`/api/medical-documents/${documentId}`, {
+      method: 'DELETE'
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('提供文書の削除エラー:', errorData)
+      throw new Error(errorData.error || '提供文書の削除に失敗しました')
     }
+
+    console.log('Medical document deleted successfully:', documentId)
   } catch (error) {
     console.error('提供文書の削除に失敗:', error)
     throw error

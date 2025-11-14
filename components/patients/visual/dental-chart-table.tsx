@@ -92,7 +92,7 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
       <td
         key={toothNumber}
         className={`
-          border border-gray-300 h-16 w-16 min-w-[4rem] max-w-[4rem] cursor-pointer text-center align-middle font-medium text-xs
+          border border-gray-300 h-7 w-7 min-w-[1.75rem] max-w-[1.75rem] cursor-pointer text-center align-middle font-medium text-[9px]
           ${bgColor}
           ${isSelected ? 'ring-2 ring-blue-500 ring-inset' : ''}
           hover:opacity-80 transition-opacity
@@ -110,23 +110,23 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
         <tbody>
           {/* 上顎データ行 */}
           <tr>
-            {[...upperRight].reverse().map(renderToothCell)}
-            <td className="border border-gray-300 bg-gray-100 w-8" />
+            {upperRight.map(renderToothCell)}
+            <td className="border border-gray-300 bg-gray-100 w-4" />
             {upperLeft.map(renderToothCell)}
           </tr>
 
           {/* 歯番表示行 */}
           <tr>
-            {[...upperRight].reverse().map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-2 py-1 text-xs text-center text-gray-600">
+            {upperRight.map(toothNumber => (
+              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-0 text-[8px] text-center text-gray-600">
                 {toothNumber % 10}
               </td>
             ))}
-            <td className="border border-gray-300 bg-gray-100 px-2 py-1 text-xs text-center font-bold w-8">
+            <td className="border border-gray-300 bg-gray-100 px-0.5 py-0 text-[8px] text-center font-bold w-3">
               ｜
             </td>
             {upperLeft.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-2 py-1 text-xs text-center text-gray-600">
+              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-0 text-[8px] text-center text-gray-600">
                 {toothNumber % 10}
               </td>
             ))}
@@ -134,8 +134,8 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
 
           {/* 下顎データ行 */}
           <tr>
-            {[...lowerRight].reverse().map(renderToothCell)}
-            <td className="border border-gray-300 bg-gray-100 w-8" />
+            {lowerRight.map(renderToothCell)}
+            <td className="border border-gray-300 bg-gray-100 w-4" />
             {lowerLeft.map(renderToothCell)}
           </tr>
         </tbody>

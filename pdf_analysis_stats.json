@@ -1,0 +1,323 @@
+{
+  "total_pages": 79,
+  "total_chars": 106953,
+  "avg_chars_per_page": 1353.8354430379748,
+  "page_stats": [
+    {
+      "page": 1,
+      "chars": 483
+    },
+    {
+      "page": 2,
+      "chars": 1124
+    },
+    {
+      "page": 3,
+      "chars": 1550
+    },
+    {
+      "page": 4,
+      "chars": 1671
+    },
+    {
+      "page": 5,
+      "chars": 1574
+    },
+    {
+      "page": 6,
+      "chars": 788
+    },
+    {
+      "page": 7,
+      "chars": 1369
+    },
+    {
+      "page": 8,
+      "chars": 1681
+    },
+    {
+      "page": 9,
+      "chars": 1730
+    },
+    {
+      "page": 10,
+      "chars": 1646
+    },
+    {
+      "page": 11,
+      "chars": 1657
+    },
+    {
+      "page": 12,
+      "chars": 1583
+    },
+    {
+      "page": 13,
+      "chars": 1471
+    },
+    {
+      "page": 14,
+      "chars": 1540
+    },
+    {
+      "page": 15,
+      "chars": 1528
+    },
+    {
+      "page": 16,
+      "chars": 1581
+    },
+    {
+      "page": 17,
+      "chars": 1590
+    },
+    {
+      "page": 18,
+      "chars": 1517
+    },
+    {
+      "page": 19,
+      "chars": 1683
+    },
+    {
+      "page": 20,
+      "chars": 1612
+    },
+    {
+      "page": 21,
+      "chars": 1568
+    },
+    {
+      "page": 22,
+      "chars": 1605
+    },
+    {
+      "page": 23,
+      "chars": 1458
+    },
+    {
+      "page": 24,
+      "chars": 1455
+    },
+    {
+      "page": 25,
+      "chars": 1504
+    },
+    {
+      "page": 26,
+      "chars": 1633
+    },
+    {
+      "page": 27,
+      "chars": 1569
+    },
+    {
+      "page": 28,
+      "chars": 1435
+    },
+    {
+      "page": 29,
+      "chars": 1310
+    },
+    {
+      "page": 30,
+      "chars": 1455
+    },
+    {
+      "page": 31,
+      "chars": 1581
+    },
+    {
+      "page": 32,
+      "chars": 1368
+    },
+    {
+      "page": 33,
+      "chars": 1106
+    },
+    {
+      "page": 34,
+      "chars": 1351
+    },
+    {
+      "page": 35,
+      "chars": 1336
+    },
+    {
+      "page": 36,
+      "chars": 1414
+    },
+    {
+      "page": 37,
+      "chars": 1244
+    },
+    {
+      "page": 38,
+      "chars": 1474
+    },
+    {
+      "page": 39,
+      "chars": 1321
+    },
+    {
+      "page": 40,
+      "chars": 1572
+    },
+    {
+      "page": 41,
+      "chars": 1455
+    },
+    {
+      "page": 42,
+      "chars": 1462
+    },
+    {
+      "page": 43,
+      "chars": 1829
+    },
+    {
+      "page": 44,
+      "chars": 1104
+    },
+    {
+      "page": 45,
+      "chars": 1054
+    },
+    {
+      "page": 46,
+      "chars": 1303
+    },
+    {
+      "page": 47,
+      "chars": 1310
+    },
+    {
+      "page": 48,
+      "chars": 1222
+    },
+    {
+      "page": 49,
+      "chars": 1538
+    },
+    {
+      "page": 50,
+      "chars": 1732
+    },
+    {
+      "page": 51,
+      "chars": 1391
+    },
+    {
+      "page": 52,
+      "chars": 1791
+    },
+    {
+      "page": 53,
+      "chars": 1293
+    },
+    {
+      "page": 54,
+      "chars": 939
+    },
+    {
+      "page": 55,
+      "chars": 974
+    },
+    {
+      "page": 56,
+      "chars": 993
+    },
+    {
+      "page": 57,
+      "chars": 1114
+    },
+    {
+      "page": 58,
+      "chars": 1003
+    },
+    {
+      "page": 59,
+      "chars": 1108
+    },
+    {
+      "page": 60,
+      "chars": 1308
+    },
+    {
+      "page": 61,
+      "chars": 1252
+    },
+    {
+      "page": 62,
+      "chars": 1244
+    },
+    {
+      "page": 63,
+      "chars": 1407
+    },
+    {
+      "page": 64,
+      "chars": 1410
+    },
+    {
+      "page": 65,
+      "chars": 1388
+    },
+    {
+      "page": 66,
+      "chars": 1397
+    },
+    {
+      "page": 67,
+      "chars": 1652
+    },
+    {
+      "page": 68,
+      "chars": 1305
+    },
+    {
+      "page": 69,
+      "chars": 1068
+    },
+    {
+      "page": 70,
+      "chars": 1150
+    },
+    {
+      "page": 71,
+      "chars": 866
+    },
+    {
+      "page": 72,
+      "chars": 1028
+    },
+    {
+      "page": 73,
+      "chars": 1267
+    },
+    {
+      "page": 74,
+      "chars": 1344
+    },
+    {
+      "page": 75,
+      "chars": 1289
+    },
+    {
+      "page": 76,
+      "chars": 1144
+    },
+    {
+      "page": 77,
+      "chars": 933
+    },
+    {
+      "page": 78,
+      "chars": 1385
+    },
+    {
+      "page": 79,
+      "chars": 364
+    }
+  ]
+}

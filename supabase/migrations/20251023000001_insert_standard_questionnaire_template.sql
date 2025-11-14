@@ -23,7 +23,7 @@ INSERT INTO system_questionnaire_template_questions (template_id, section_name, 
 ('00000000-0000-0000-0000-000000000001', '基本情報', '自宅電話番号', 'text', NULL, false, 9),
 ('00000000-0000-0000-0000-000000000001', '基本情報', '携帯電話番号', 'text', NULL, true, 10),
 ('00000000-0000-0000-0000-000000000001', '基本情報', 'Eメールアドレス', 'text', NULL, false, 11),
-('00000000-0000-0000-0000-000000000001', '基本情報', 'ご来院を知ったきっかけ', 'checkbox', '["Google検索", "HP", "Google Map", "Epark", "Instagram", "YouTube", "ご紹介", "その他"]', false, 12);
+('00000000-0000-0000-0000-000000000001', '基本情報', 'ご来院を知ったきっかけ', 'checkbox', '["Google検索", "HP", "Google Map", "Epark", "Instagram", "YouTube", "看板", "ご紹介", "その他"]', false, 12);
 
 -- Section 2: Chief Complaint
 INSERT INTO system_questionnaire_template_questions (template_id, section_name, question_text, question_type, options, is_required, sort_order) VALUES

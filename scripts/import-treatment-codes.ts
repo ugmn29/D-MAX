@@ -37,13 +37,13 @@ function parseTreatmentCodeRow(fields: string[]): TreatmentCodeCSVRow | null {
     return null
   }
 
-  // フィールドインデックス（PDFの仕様書を参照）
-  // [0]=レコード識別, [1]=変更区分, [2]=診療行為コード, [3]=加算コード, [4]=省略名称, [5]=正式名称, ...
+  // フィールドインデックス（h_20250901.csv の構造）
+  // [0]=レコード識別, [1]=区分, [2]=診療行為コード, [3-6]=コード情報, [7]=省略コード, [8]=省略名称, [9]=正式名称, [10]=種別コード, [11]=点数, ...
 
-  const code = fields[2] + fields[3] // 診療行為コード + 加算コード
-  const name = fields[5] || fields[4] || '' // 正式名称優先、なければ省略名称
-  const points = parseNumber(fields.length > 11 ? fields[11] : '0') // 点数
-  const category = fields[1] || '' // 変更区分をカテゴリとして一時的に使用
+  const code = fields[2] || '' // 診療行為コード
+  const name = fields[9] || fields[8] || '' // 正式名称優先、なければ省略名称
+  const points = parseNumber(fields.length > 11 ? fields[11] : '0') // 点数（小数を含む）
+  const category = fields[2].substring(0, 3) || '' // 診療行為コード先頭3桁をカテゴリとする
 
   // 適用日
   const effectiveFromStr = fields.length > 45 ? fields[45] : ''
@@ -183,7 +183,7 @@ async function main() {
   const baseDir = path.join(process.cwd(), 'tensuhyo_04 2')
 
   // ファイルパス
-  const treatmentMasterPath = path.join(baseDir, '01補助マスターテーブル（歯科）.csv')
+  const treatmentMasterPath = path.join(baseDir, 'h_20250901.csv')
   const inclusionPath = path.join(baseDir, '02包括テーブル（歯科）.csv')
   const exclusionPaths = [
     path.join(baseDir, '03-1背反テーブル1（歯科）.csv'),

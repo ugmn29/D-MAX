@@ -15,11 +15,15 @@ export interface Questionnaire {
 export interface Question {
   id: string
   questionnaire_id: string
+  section_name?: string
   question_text: string
-  question_type: 'text' | 'radio' | 'checkbox' | 'select' | 'textarea'
+  question_type: 'text' | 'radio' | 'checkbox' | 'select' | 'textarea' | 'tel' | 'date' | 'number'
   options?: string[]
   is_required: boolean
   sort_order: number
+  linked_field?: string
+  conditional_logic?: any
+  placeholder?: string
 }
 
 export interface QuestionnaireResponse {
@@ -642,6 +646,10 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
   let medicationStatus = null // 'ない' or 'ある'
   let medicationDetails = null // 薬剤名の詳細
 
+  // 電話番号の統合処理用
+  let homePhone = null // 自宅電話番号
+  let mobilePhone = null // 携帯電話番号
+
   questions.forEach((question: any) => {
     const { id: questionId, linked_field, question_text } = question
     const answer = answers[questionId]
@@ -673,8 +681,15 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
           }
           console.log('性別変換:', { 元の値: answer, 変換後: patientUpdate.gender })
           break
+        case 'home_phone':
+          // 自宅電話番号を一時保存
+          homePhone = answer
+          console.log('自宅電話番号を保存:', answer)
+          break
         case 'phone':
-          patientUpdate.phone = answer
+          // 携帯電話番号を一時保存
+          mobilePhone = answer
+          console.log('携帯電話番号を保存:', answer)
           break
         case 'email':
           patientUpdate.email = answer
@@ -781,6 +796,21 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
     // ステータス質問がない場合は、詳細のみを設定
     patientUpdate.medications = medicationDetails
     console.log('服用薬を設定:', medicationDetails)
+  }
+
+  // 電話番号の統合処理
+  if (homePhone && mobilePhone) {
+    // 両方ある場合：「自宅: xxx / 携帯: xxx」の形式で統合
+    patientUpdate.phone = `自宅: ${homePhone} / 携帯: ${mobilePhone}`
+    console.log('電話番号を統合:', patientUpdate.phone)
+  } else if (mobilePhone) {
+    // 携帯のみの場合
+    patientUpdate.phone = mobilePhone
+    console.log('携帯電話番号のみを設定:', mobilePhone)
+  } else if (homePhone) {
+    // 自宅のみの場合（通常はないが念のため）
+    patientUpdate.phone = homePhone
+    console.log('自宅電話番号のみを設定:', homePhone)
   }
 
   console.log('抽出した患者情報:', patientUpdate)
@@ -909,7 +939,14 @@ export async function getLinkedQuestionnaireResponses(patientId: string): Promis
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('questionnaire_responses')
-    .select('*')
+    .select(`
+      *,
+      questionnaires (
+        id,
+        name,
+        description
+      )
+    `)
     .eq('patient_id', patientId)
     .order('created_at', { ascending: false })
 
@@ -918,7 +955,13 @@ export async function getLinkedQuestionnaireResponses(patientId: string): Promis
     return []
   }
 
-  return data || []
+  // questionnairesをquestionnaireにマッピング（単数形）
+  const mappedData = (data || []).map((response: any) => ({
+    ...response,
+    questionnaire: response.questionnaires
+  }))
+
+  return mappedData
 }
 
 /**
@@ -963,6 +1006,8 @@ export interface QuestionnaireQuestion {
   is_required: boolean
   conditional_logic?: any
   sort_order: number
+  linked_field?: string
+  placeholder?: string
 }
 
 /**

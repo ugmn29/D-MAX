@@ -3,10 +3,10 @@ import { getSupabaseClient } from '@/lib/utils/supabase-client'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const patientId = params.id
+    const { id: patientId } = await params
 
     if (!patientId) {
       return NextResponse.json(
