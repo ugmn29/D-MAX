@@ -7,9 +7,10 @@ interface PeriodontalGridProps {
   ppdData: Record<string, number>
   mobilityData: Record<string, number>
   plaqueData: Record<string, boolean>
+  bopData: Record<string, boolean>
   missingTeeth: Set<number>
   currentPosition: { row: number; toothIndex: number; point: number }
-  onCellClick: (row: number, col: number) => void
+  onCellClick: (row: number, toothIndex: number, point?: number) => void
   onPlaqueToggle: (toothNumber: number, area: 'top' | 'right' | 'bottom' | 'left') => void
 }
 
@@ -22,6 +23,7 @@ export function PeriodontalGrid({
   ppdData,
   mobilityData,
   plaqueData,
+  bopData,
   missingTeeth,
   currentPosition,
   onCellClick,
@@ -31,7 +33,8 @@ export function PeriodontalGrid({
   // セルの値を取得
   const getCellValue = (toothNumber: number, position: string): string => {
     const key = `${toothNumber}_${position}`
-    return ppdData[key]?.toString() || ''
+    const value = ppdData[key]?.toString() || ''
+    return value
   }
 
   // 動揺度を取得
@@ -43,6 +46,12 @@ export function PeriodontalGrid({
   const hasPlaque = (toothNumber: number, area: 'top' | 'right' | 'bottom' | 'left'): boolean => {
     const key = `${toothNumber}_${area}`
     return plaqueData[key] || false
+  }
+
+  // BOPを取得
+  const hasBOP = (toothNumber: number, position: string): boolean => {
+    const key = `${toothNumber}_${position}`
+    return bopData[key] || false
   }
 
   // 欠損歯かどうか
@@ -126,9 +135,10 @@ export function PeriodontalGrid({
   const renderPPDCells = (toothNumber: number, side: 'buccal' | 'lingual', isLowerJaw: boolean = false, row: number, toothIdx: number) => {
     // 1点法: 1セルのみ（縦2倍）
     if (measurementType === '1point') {
-      const key = `${toothNumber}_${side === 'buccal' ? 'b' : 'l'}`
-      const value = getCellValue(toothNumber, side === 'buccal' ? 'b' : 'l')
+      const position = side === 'buccal' ? 'b' : 'l'
+      const value = getCellValue(toothNumber, position)
       const isSelected = isCurrentCell(row, toothIdx, 0)
+      const bop = hasBOP(toothNumber, position)
 
       if (isMissing(toothNumber)) {
         return (
@@ -136,12 +146,20 @@ export function PeriodontalGrid({
         )
       }
 
+      // 背景色の優先順位: BOP > 選択中 > デフォルト
+      let bgClass = 'bg-white'
+      if (bop) {
+        bgClass = 'bg-red-300'
+      } else if (isSelected) {
+        bgClass = 'bg-blue-200'
+      }
+
+      const textClass = bop ? 'text-red-900 font-bold' : ''
+
       return (
         <div
-          onClick={() => onCellClick(row, toothIdx)}
-          className={`w-full h-12 flex items-center justify-center text-sm cursor-pointer hover:bg-blue-50 ${
-            isSelected ? 'bg-blue-200' : 'bg-white'
-          } ${value && parseInt(value) >= 4 ? 'bg-red-100 text-red-700 font-bold' : ''}`}
+          onClick={() => onCellClick(row, toothIdx, 0)}
+          className={`w-full h-12 flex items-center justify-center text-sm cursor-pointer hover:bg-blue-50 ${bgClass} ${textClass}`}
         >
           {value}
         </div>
@@ -174,9 +192,19 @@ export function PeriodontalGrid({
 
     // 4点法の舌側: 中央のみ入力可、近遠心はグレーアウト
     if (is4PointLingual) {
-      const key = `${toothNumber}_l`
       const value = getCellValue(toothNumber, 'l')
       const isSelected = isCurrentCell(row, toothIdx, 1)
+      const bop = hasBOP(toothNumber, 'l')
+
+      // 背景色の優先順位: BOP > 選択中 > デフォルト
+      let bgClass = 'bg-white'
+      if (bop) {
+        bgClass = 'bg-red-300'
+      } else if (isSelected) {
+        bgClass = 'bg-blue-200'
+      }
+
+      const textClass = bop ? 'text-red-900 font-bold' : ''
 
       return (
         <div className="grid grid-cols-3 gap-0 w-full">
@@ -185,10 +213,8 @@ export function PeriodontalGrid({
 
           {/* 中央: 入力可能 */}
           <div
-            onClick={() => onCellClick(row, toothIdx)}
-            className={`h-6 border-r border-gray-400 flex items-center justify-center text-xs cursor-pointer hover:bg-blue-50 ${
-              isSelected ? 'bg-blue-200' : 'bg-white'
-            } ${value && parseInt(value) >= 4 ? 'bg-red-100 text-red-700 font-bold' : ''}`}
+            onClick={() => onCellClick(row, toothIdx, 1)}
+            className={`h-6 border-r border-gray-400 flex items-center justify-center text-xs cursor-pointer hover:bg-blue-50 ${bgClass} ${textClass}`}
           >
             {value}
           </div>
@@ -203,8 +229,8 @@ export function PeriodontalGrid({
     return (
       <div className="flex w-full h-[21px]">
         {positions.map((pos, idx) => {
-          const key = `${toothNumber}_${pos}`
           const value = getCellValue(toothNumber, pos)
+          const bop = hasBOP(toothNumber, pos)
 
           // 右から左の行では、近心(point 2)→中央(point 1)→遠心(point 0)の順に入力
           // セルは 遠心(idx 0)→中央(idx 1)→近心(idx 2)の順に表示
@@ -213,13 +239,23 @@ export function PeriodontalGrid({
           const pointForCheck = (row === 1 || row === 3) ? idx : idx
           const isSelected = isCurrentCell(row, toothIdx, pointForCheck)
 
+          // 背景色の優先順位: BOP > 選択中 > PPD>=4 > デフォルト
+          let bgClass = 'bg-white'
+          if (bop) {
+            bgClass = 'bg-red-300'
+          } else if (isSelected) {
+            bgClass = 'bg-blue-200'
+          } else if (value && parseInt(value) >= 4) {
+            bgClass = 'bg-red-100'
+          }
+
+          const textClass = bop ? 'text-red-900 font-bold' : (value && parseInt(value) >= 4 ? 'text-red-700 font-bold' : '')
+
           return (
             <div
               key={idx}
-              onClick={() => onCellClick(row, toothIdx * 3 + idx)}
-              className={`flex-1 h-full flex items-center justify-center text-xs cursor-pointer hover:bg-blue-50 ${
-                isSelected ? 'bg-blue-200' : 'bg-white'
-              } ${value && parseInt(value) >= 4 ? 'bg-red-100 text-red-700 font-bold' : ''} ${
+              onClick={() => onCellClick(row, toothIdx, idx)}
+              className={`flex-1 h-full flex items-center justify-center text-xs cursor-pointer hover:bg-blue-50 ${bgClass} ${textClass} ${
                 idx < 2 ? 'border-r border-gray-400' : ''
               }`}
             >
@@ -235,9 +271,9 @@ export function PeriodontalGrid({
     <div className="bg-white p-2 rounded-lg overflow-x-auto">
       <table className="border-collapse table-fixed text-sm w-full">
         <colgroup>
-          <col className="w-14" /> {/* ラベル列 */}
+          <col className="w-14" />
           {Array(8).fill(0).map((_, i) => <col key={`upper-left-${i}`} className="w-[63px]" />)}
-          <col className="w-3" /> {/* 中央分離線 */}
+          <col className="w-3" />
           {Array(8).fill(0).map((_, i) => <col key={`upper-right-${i}`} className="w-[63px]" />)}
         </colgroup>
         <tbody>

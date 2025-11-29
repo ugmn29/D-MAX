@@ -144,6 +144,7 @@ export function AppointmentEditModal({
   const [staff, setStaff] = useState<Staff[]>([])
   const [selectedStaff, setSelectedStaff] = useState<Staff[]>([])
   const [showStaffModal, setShowStaffModal] = useState(false)
+  const [hoveredPosition, setHoveredPosition] = useState<string | null>(null)
   
   // ユニット
   const [localUnits, setLocalUnits] = useState<Unit[]>([])
@@ -2887,7 +2888,7 @@ export function AppointmentEditModal({
                   // 出勤しているスタッフのみをフィルタリング
                   const workingStaffIds = workingStaff.map(ws => ws.staff.id)
                   const availableStaff = staff.filter(member => workingStaffIds.includes(member.id))
-                  
+
                   if (availableStaff.length === 0) {
                     return (
                       <div className="text-center py-8 text-gray-500">
@@ -2899,42 +2900,83 @@ export function AppointmentEditModal({
 
                   // 出勤しているスタッフを役職ごとにグループ化
                   const groupedStaff = availableStaff.reduce((groups, member) => {
-                    const positionName = typeof member.position === 'object' 
-                      ? member.position?.name || '未設定' 
+                    const positionName = typeof member.position === 'object'
+                      ? member.position?.name || '未設定'
                       : member.position || '未設定'
-                    
-                    if (!groups[positionName]) {
-                      groups[positionName] = []
-                    }
-                    groups[positionName].push(member)
-                    return groups
-                  }, {} as Record<string, typeof availableStaff>)
+                    const sortOrder = typeof member.position === 'object'
+                      ? member.position?.sort_order ?? 999
+                      : 999
 
-                  return Object.entries(groupedStaff).map(([positionName, members]) => (
-                    <div key={positionName} className="space-y-2">
-                      <div className="text-sm font-medium text-gray-700 border-b border-gray-200 pb-1">
+                    if (!groups[positionName]) {
+                      groups[positionName] = { members: [], sortOrder }
+                    }
+                    groups[positionName].members.push(member)
+                    return groups
+                  }, {} as Record<string, { members: typeof availableStaff; sortOrder: number }>)
+
+                  // sort_orderで並び替え
+                  const sortedPositions = Object.entries(groupedStaff).sort(([, a], [, b]) => a.sortOrder - b.sortOrder)
+
+                  return sortedPositions.map(([positionName, { members }]) => (
+                    <div key={positionName} className="relative">
+                      <div
+                        className="text-sm font-medium text-gray-700 border border-gray-300 rounded px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors inline-flex items-center w-fit"
+                        onMouseEnter={() => setHoveredPosition(positionName)}
+                        onMouseLeave={() => setHoveredPosition(null)}
+                      >
                         {positionName}
+                        {selectedStaff.some(s => {
+                          const staffPositionName = typeof s.position === 'object'
+                            ? s.position?.name || '未設定'
+                            : s.position || '未設定'
+                          return staffPositionName === positionName
+                        }) && (
+                          <span className="ml-2 text-xs text-blue-600 whitespace-nowrap">
+                            ({selectedStaff.filter(s => {
+                              const staffPositionName = typeof s.position === 'object'
+                                ? s.position?.name || '未設定'
+                                : s.position || '未設定'
+                              return staffPositionName === positionName
+                            }).length}人選択中)
+                          </span>
+                        )}
                       </div>
-                      <div className="space-y-2 ml-2">
-                        {members.map((member) => (
-                          <div key={member.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={member.id}
-                              checked={selectedStaff.some(s => s.id === member.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedStaff(prev => [...prev, member])
-                                } else {
-                                  setSelectedStaff(prev => prev.filter(s => s.id !== member.id))
-                                }
-                              }}
-                            />
-                            <Label htmlFor={member.id} className="flex-1">
-                              {member.name}
-                            </Label>
+
+                      {/* ホバー時に右側に表示されるスタッフリスト */}
+                      {hoveredPosition === positionName && (
+                        <div
+                          className="absolute left-full top-0 ml-2 bg-white border border-gray-300 rounded shadow-lg p-2 z-50 min-w-[200px]"
+                          onMouseEnter={() => setHoveredPosition(positionName)}
+                          onMouseLeave={() => setHoveredPosition(null)}
+                        >
+                          <div className="space-y-1">
+                            {members.map((member) => (
+                              <div
+                                key={member.id}
+                                className={`px-3 py-2 rounded cursor-pointer transition-colors ${
+                                  selectedStaff.some(s => s.id === member.id)
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    : 'hover:bg-gray-100'
+                                }`}
+                                onClick={() => {
+                                  if (selectedStaff.some(s => s.id === member.id)) {
+                                    setSelectedStaff(prev => prev.filter(s => s.id !== member.id))
+                                  } else {
+                                    setSelectedStaff(prev => [...prev, member])
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">{member.name}</span>
+                                  {selectedStaff.some(s => s.id === member.id) && (
+                                    <CheckCircle className="w-4 h-4" />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 })()}

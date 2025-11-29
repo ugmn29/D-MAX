@@ -72,29 +72,46 @@ export function PeriodontalInputForm({
     point: 0,
   })
 
+  // 出血・排膿モード
+  const [bopMode, setBopMode] = useState(false)
+  const [pusMode, setPusMode] = useState(false)
+
   // 位置から歯番号とキーを取得
   const getToothAndKey = useCallback((pos: InputPosition): { toothNumber: number; key: string } => {
-    const teeth = pos.row < 2 ? UPPER_TEETH : LOWER_TEETH
+    // 1点法: row 0=上顎, row 1=下顎
+    // 4点法・6点法: row 0,1=上顎, row 2,3=下顎
+    const teeth = (measurementType === '1point' && pos.row === 1) || (measurementType !== '1point' && pos.row >= 2)
+      ? LOWER_TEETH
+      : UPPER_TEETH
     const toothNumber = teeth[pos.toothIndex]
 
     // ポジション名を決定
     let positionName = ''
-    if (pos.row === 0) {
-      // 上顎頬側
-      positionName = ['db', 'b', 'mb'][pos.point]
-    } else if (pos.row === 1) {
-      // 上顎舌側
-      positionName = ['dl', 'l', 'ml'][pos.point]
-    } else if (pos.row === 2) {
-      // 下顎舌側
-      positionName = ['dl', 'l', 'ml'][pos.point]
-    } else {
-      // 下顎頬側
-      positionName = ['db', 'b', 'mb'][pos.point]
+
+    // 1点法の場合
+    if (measurementType === '1point') {
+      // 1点法は2行のみ: row 0 = 上顎頬側(b), row 1 = 下顎頬側(b)
+      positionName = 'b'
+    }
+    // 4点法・6点法の場合
+    else {
+      if (pos.row === 0) {
+        // 上顎頬側
+        positionName = ['db', 'b', 'mb'][pos.point]
+      } else if (pos.row === 1) {
+        // 上顎舌側
+        positionName = ['dl', 'l', 'ml'][pos.point]
+      } else if (pos.row === 2) {
+        // 下顎舌側
+        positionName = ['dl', 'l', 'ml'][pos.point]
+      } else {
+        // 下顎頬側
+        positionName = ['db', 'b', 'mb'][pos.point]
+      }
     }
 
     return { toothNumber, key: `${toothNumber}_${positionName}` }
-  }, [])
+  }, [measurementType])
 
   // 次の位置に移動（ジグザグ入力、測定方式に応じて変化）
   const moveToNext = useCallback(() => {
@@ -107,16 +124,19 @@ export function PeriodontalInputForm({
         point = 0
 
         if (row === 0) {
-          // 1行目（上顎）: 左→右
+          // 1行目（上顎）: 左→右 (18→28)
           toothIndex++
           if (toothIndex >= 16) {
-            toothIndex = 0
+            toothIndex = 15  // 下顎の右端（38）から開始
             row = 1
           }
         } else if (row === 1) {
-          // 2行目（下顎）: 左→右
-          toothIndex++
-          // 最後まで到達
+          // 2行目（下顎）: 右→左 (38→31→41→48)
+          toothIndex--
+          if (toothIndex === 7) {
+            // 38-31が終わったら41に移動（skip index 7 here, will be used next iteration）
+          }
+          // 最後まで到達: toothIndex < 0
         }
       }
       // 4点法の場合
@@ -144,20 +164,20 @@ export function PeriodontalInputForm({
             point = 1 // 下顎舌側も中央のみ
           }
         } else if (row === 2) {
-          // 下顎舌側: 左→右, point 1のみ
+          // 下顎舌側: 右→左, point 1のみ
           point = 1 // 常に中央
-          toothIndex++
-          if (toothIndex >= 16) {
-            toothIndex = 15
+          toothIndex--
+          if (toothIndex < 0) {
+            toothIndex = 0
             row = 3
-            point = 2 // 下顎頬側は右→左なので point=2 から開始
+            point = 0 // 下顎頬側は左→右なので point=0 から開始
           }
         } else if (row === 3) {
-          // 下顎頬側: 右→左, point 2→1→0
-          point--
-          if (point < 0) {
-            point = 2
-            toothIndex--
+          // 下顎頬側: 左→右, point 0→1→2
+          point++
+          if (point >= 3) {
+            point = 0
+            toothIndex++
             // 最後まで到達
           }
         }
@@ -165,71 +185,236 @@ export function PeriodontalInputForm({
       // 6点法の場合
       else {
         // 行ごとに進む方向を決定
-        if (row === 0 || row === 2) {
-          // 左→右の行: point 0→1→2
+        if (row === 0) {
+          // 上顎頬側: 左→右, point 0→1→2
           point++
           if (point >= 3) {
             point = 0
             toothIndex++
             if (toothIndex >= 16) {
               toothIndex = 15
-              row = row + 1
-              point = 2 // 次の行は右→左なので point=2 から開始
+              row = 1
+              point = 2 // 上顎舌側は右→左なので point=2 から開始
             }
           }
-        } else if (row === 1 || row === 3) {
-          // 右→左の行: point 2→1→0
+        } else if (row === 1) {
+          // 上顎舌側: 右→左, point 2→1→0
           point--
           if (point < 0) {
             point = 2
             toothIndex--
             if (toothIndex < 0) {
-              if (row === 1) {
-                toothIndex = 0
-                row = 2
-                point = 0 // 次の行は左→右なので point=0 から開始
-              }
-              // row === 3 の場合は最後まで到達
+              toothIndex = 15
+              row = 2
+              point = 2 // 下顎舌側は右→左なので point=2 から開始
             }
+          }
+        } else if (row === 2) {
+          // 下顎舌側: 右→左, point 2→1→0
+          point--
+          if (point < 0) {
+            point = 2
+            toothIndex--
+            if (toothIndex < 0) {
+              toothIndex = 0
+              row = 3
+              point = 0 // 下顎頬側は左→右なので point=0 から開始
+            }
+          }
+        } else if (row === 3) {
+          // 下顎頬側: 左→右, point 0→1→2
+          point++
+          if (point >= 3) {
+            point = 0
+            toothIndex++
+            // 最後まで到達
           }
         }
       }
 
-      // 欠損歯はスキップ
-      const { toothNumber } = getToothAndKey({ row, toothIndex, point })
-      if (missingTeeth.has(toothNumber)) {
-        // 再帰的に次へ
-        const nextState = { row, toothIndex, point }
-        setCurrentPos(nextState)
-        setTimeout(() => moveToNext(), 0)
-        return prev
-      }
-
       return { row, toothIndex, point }
     })
-  }, [missingTeeth, getToothAndKey, measurementType])
+  }, [measurementType])
+
+  // 欠損歯をスキップして次の有効な位置に移動
+  const moveToNextValid = useCallback(() => {
+    setCurrentPos((prev) => {
+      let pos = prev
+      let attempts = 0
+      const maxAttempts = 100 // 無限ループ防止
+
+      // 欠損歯でない位置が見つかるまでループ
+      while (attempts < maxAttempts) {
+        // 次の位置を計算
+        let { row, toothIndex, point } = pos
+
+        // 1点法の場合
+        if (measurementType === '1point') {
+          point = 0
+
+          if (row === 0) {
+            toothIndex++
+            if (toothIndex >= 16) {
+              toothIndex = 15  // 下顎の右端（38）から開始
+              row = 1
+            }
+          } else if (row === 1) {
+            toothIndex--
+            if (toothIndex < 0) {
+              // 最後まで到達
+              return pos
+            }
+          }
+        }
+        // 4点法の場合
+        else if (measurementType === '4point') {
+          if (row === 0) {
+            point++
+            if (point >= 3) {
+              point = 0
+              toothIndex++
+              if (toothIndex >= 16) {
+                toothIndex = 15
+                row = 1
+                point = 1
+              }
+            }
+          } else if (row === 1) {
+            point = 1
+            toothIndex--
+            if (toothIndex < 0) {
+              toothIndex = 0
+              row = 2
+              point = 1
+            }
+          } else if (row === 2) {
+            point = 1
+            toothIndex--
+            if (toothIndex < 0) {
+              toothIndex = 0
+              row = 3
+              point = 0
+            }
+          } else if (row === 3) {
+            point++
+            if (point >= 3) {
+              point = 0
+              toothIndex++
+              if (toothIndex >= 16) {
+                // 最後まで到達
+                return pos
+              }
+            }
+          }
+        }
+        // 6点法の場合
+        else {
+          if (row === 0) {
+            // 上顎頬側: 左→右
+            point++
+            if (point >= 3) {
+              point = 0
+              toothIndex++
+              if (toothIndex >= 16) {
+                toothIndex = 15
+                row = 1
+                point = 2
+              }
+            }
+          } else if (row === 1) {
+            // 上顎舌側: 右→左
+            point--
+            if (point < 0) {
+              point = 2
+              toothIndex--
+              if (toothIndex < 0) {
+                toothIndex = 15
+                row = 2
+                point = 2
+              }
+            }
+          } else if (row === 2) {
+            // 下顎舌側: 右→左
+            point--
+            if (point < 0) {
+              point = 2
+              toothIndex--
+              if (toothIndex < 0) {
+                toothIndex = 0
+                row = 3
+                point = 0
+              }
+            }
+          } else if (row === 3) {
+            // 下顎頬側: 左→右
+            point++
+            if (point >= 3) {
+              point = 0
+              toothIndex++
+              if (toothIndex >= 16) {
+                // 最後まで到達
+                return pos
+              }
+            }
+          }
+        }
+
+        pos = { row, toothIndex, point }
+
+        // この位置の歯番号を取得
+        // 1点法: row 0=上顎, row 1=下顎
+        // 4点法・6点法: row 0,1=上顎, row 2,3=下顎
+        const teeth = (measurementType === '1point' && row === 1) || (measurementType !== '1point' && row >= 2)
+          ? LOWER_TEETH
+          : UPPER_TEETH
+        const toothNumber = teeth[toothIndex]
+
+        // 欠損歯でなければこの位置を返す
+        if (!missingTeeth.has(toothNumber)) {
+          return pos
+        }
+
+        attempts++
+      }
+
+      // 無限ループ防止で最大試行回数に達した場合
+      console.warn('Max attempts reached in moveToNextValid')
+      return pos
+    })
+  }, [missingTeeth, measurementType])
 
   // 数値入力ハンドラ
   const handleNumberInput = useCallback((value: number) => {
-    const { key } = getToothAndKey(currentPos)
-    setPpdData((prev) => ({ ...prev, [key]: value }))
+    const { toothNumber, key } = getToothAndKey(currentPos)
+    setPpdData((prev) => {
+      const newData = { ...prev, [key]: value }
+      return newData
+    })
 
-    // 自動で次へ移動
-    moveToNext()
-  }, [currentPos, getToothAndKey, moveToNext])
+    // 欠損歯を自動スキップして次へ移動
+    moveToNextValid()
+  }, [currentPos, getToothAndKey, moveToNextValid])
 
-  // 特殊入力ハンドラ
+  // 出血モードトグル
+  const toggleBopMode = useCallback(() => {
+    setBopMode((prev) => !prev)
+    // 排膿モードを解除
+    if (pusMode) setPusMode(false)
+  }, [pusMode])
+
+  // 排膿モードトグル
+  const togglePusMode = useCallback(() => {
+    setPusMode((prev) => !prev)
+    // 出血モードを解除
+    if (bopMode) setBopMode(false)
+  }, [bopMode])
+
+  // 特殊入力ハンドラ（スキップのみ）
   const handleSpecialInput = useCallback((type: 'bop' | 'pus' | 'skip') => {
     if (type === 'skip') {
-      moveToNext()
-    } else if (type === 'bop') {
-      const { key } = getToothAndKey(currentPos)
-      setBopData((prev) => ({ ...prev, [key]: true }))
-    } else if (type === 'pus') {
-      const { key } = getToothAndKey(currentPos)
-      setPusData((prev) => ({ ...prev, [key]: true }))
+      moveToNextValid()
     }
-  }, [currentPos, getToothAndKey, moveToNext])
+  }, [moveToNextValid])
 
   // ナビゲーションハンドラ
   const handleNavigate = useCallback((direction: 'left' | 'right' | 'up' | 'down') => {
@@ -263,9 +448,20 @@ export function PeriodontalInputForm({
   }, [])
 
   // セルクリックハンドラ
-  const handleCellClick = useCallback((row: number, col: number) => {
-    setCurrentPos({ row, toothIndex: Math.floor(col / 3), point: col % 3 })
-  }, [])
+  const handleCellClick = useCallback((row: number, toothIndex: number, point: number = 0) => {
+    const pos: InputPosition = { row, toothIndex, point }
+    const { key } = getToothAndKey(pos)
+
+    // 出血モードまたは排膿モードの場合、対応するデータを記録
+    if (bopMode) {
+      setBopData((prev) => ({ ...prev, [key]: !prev[key] }))
+    } else if (pusMode) {
+      setPusData((prev) => ({ ...prev, [key]: !prev[key] }))
+    } else {
+      // 通常モードの場合は位置を移動
+      setCurrentPos(pos)
+    }
+  }, [bopMode, pusMode, getToothAndKey])
 
   // 保存ハンドラ
   const handleSave = () => {
@@ -287,6 +483,7 @@ export function PeriodontalInputForm({
         ppdData={ppdData}
         mobilityData={mobilityData}
         plaqueData={plaqueData}
+        bopData={bopData}
         missingTeeth={missingTeeth}
         currentPosition={{
           row: currentPos.row,
@@ -304,6 +501,10 @@ export function PeriodontalInputForm({
         onNumberInput={handleNumberInput}
         onSpecialInput={handleSpecialInput}
         onNavigate={handleNavigate}
+        bopMode={bopMode}
+        pusMode={pusMode}
+        onToggleBopMode={toggleBopMode}
+        onTogglePusMode={togglePusMode}
       />
 
       {/* ボタン */}

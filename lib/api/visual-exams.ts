@@ -1,15 +1,3 @@
-import { supabase, supabaseAdmin } from '@/lib/supabase'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database'
-
-const createClient = (): SupabaseClient<Database> => {
-  // 開発環境ではsupabaseAdminを使用してRLSをバイパス
-  if (process.env.NODE_ENV === 'development' && supabaseAdmin) {
-    return supabaseAdmin
-  }
-  return supabase
-}
-
 // 型定義
 export type ToothStatus = 'healthy' | 'caries' | 'restoration' | 'missing' | 'extraction_required' | 'unerupted'
 export type CariesLevel = 'CO' | 'C1' | 'C2' | 'C3' | 'C4'
@@ -49,96 +37,44 @@ export interface CreateVisualExaminationInput {
 
 // 視診検査を作成
 export async function createVisualExamination(input: CreateVisualExaminationInput): Promise<VisualExamination> {
-  const client = createClient()
+  const response = await fetch('/api/visual-examinations', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
 
-  // 視診検査レコードを作成
-  const { data: exam, error: examError } = await client
-    .from('visual_examinations')
-    .insert({
-      patient_id: input.patient_id,
-      clinic_id: input.clinic_id,
-      examination_date: input.examination_date || new Date().toISOString(),
-      notes: input.notes,
-    })
-    .select()
-    .single()
-
-  if (examError) throw examError
-
-  // 歯牙データを作成
-  const toothDataWithExamId = input.tooth_data.map(tooth => ({
-    ...tooth,
-    examination_id: exam.id,
-  }))
-
-  const { data: toothData, error: toothError } = await client
-    .from('visual_tooth_data')
-    .insert(toothDataWithExamId)
-    .select()
-
-  if (toothError) throw toothError
-
-  return {
-    ...exam,
-    tooth_data: toothData,
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to create visual examination')
   }
+
+  return response.json()
 }
 
 // 患者の視診検査一覧を取得
 export async function getVisualExaminations(patientId: string): Promise<VisualExamination[]> {
-  const client = createClient()
+  const response = await fetch(`/api/visual-examinations?patient_id=${patientId}`)
 
-  const { data: exams, error: examsError } = await client
-    .from('visual_examinations')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('examination_date', { ascending: false })
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch visual examinations')
+  }
 
-  if (examsError) throw examsError
-
-  // 各検査の歯牙データを取得
-  const examsWithToothData = await Promise.all(
-    exams.map(async (exam) => {
-      const { data: toothData } = await client
-        .from('visual_tooth_data')
-        .select('*')
-        .eq('examination_id', exam.id)
-        .order('tooth_number')
-
-      return {
-        ...exam,
-        tooth_data: toothData || [],
-      }
-    })
-  )
-
-  return examsWithToothData
+  return response.json()
 }
 
 // 特定の視診検査を取得
 export async function getVisualExamination(examinationId: string): Promise<VisualExamination> {
-  const client = createClient()
+  const response = await fetch(`/api/visual-examinations/${examinationId}`)
 
-  const { data: exam, error: examError } = await client
-    .from('visual_examinations')
-    .select('*')
-    .eq('id', examinationId)
-    .single()
-
-  if (examError) throw examError
-
-  const { data: toothData, error: toothError } = await client
-    .from('visual_tooth_data')
-    .select('*')
-    .eq('examination_id', examinationId)
-    .order('tooth_number')
-
-  if (toothError) throw toothError
-
-  return {
-    ...exam,
-    tooth_data: toothData,
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch visual examination')
   }
+
+  return response.json()
 }
 
 // 視診検査を更新
@@ -146,99 +82,57 @@ export async function updateVisualExamination(
   examinationId: string,
   input: Partial<CreateVisualExaminationInput>
 ): Promise<VisualExamination> {
-  const client = createClient()
+  const response = await fetch(`/api/visual-examinations/${examinationId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
 
-  // 検査レコードを更新
-  const { data: exam, error: examError } = await client
-    .from('visual_examinations')
-    .update({
-      examination_date: input.examination_date,
-      notes: input.notes,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', examinationId)
-    .select()
-    .single()
-
-  if (examError) throw examError
-
-  // 歯牙データを更新する場合
-  if (input.tooth_data) {
-    // 既存の歯牙データを削除
-    await client.from('visual_tooth_data').delete().eq('examination_id', examinationId)
-
-    // 新しい歯牙データを挿入
-    const toothDataWithExamId = input.tooth_data.map(tooth => ({
-      ...tooth,
-      examination_id: examinationId,
-    }))
-
-    const { data: toothData, error: toothError } = await client
-      .from('visual_tooth_data')
-      .insert(toothDataWithExamId)
-      .select()
-
-    if (toothError) throw toothError
-
-    return {
-      ...exam,
-      tooth_data: toothData,
-    }
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to update visual examination')
   }
 
-  // 既存の歯牙データを取得
-  const { data: toothData } = await client
-    .from('visual_tooth_data')
-    .select('*')
-    .eq('examination_id', examinationId)
-    .order('tooth_number')
-
-  return {
-    ...exam,
-    tooth_data: toothData || [],
-  }
+  return response.json()
 }
 
 // 視診検査を削除
 export async function deleteVisualExamination(examinationId: string): Promise<void> {
-  const client = createClient()
+  const response = await fetch(`/api/visual-examinations/${examinationId}`, {
+    method: 'DELETE',
+  })
 
-  // 歯牙データは ON DELETE CASCADE で自動削除される
-  const { error } = await client.from('visual_examinations').delete().eq('id', examinationId)
-
-  if (error) throw error
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to delete visual examination')
+  }
 }
 
 // 最新の視診検査を取得
 export async function getLatestVisualExamination(patientId: string): Promise<VisualExamination | null> {
-  const client = createClient()
+  const response = await fetch(`/api/visual-examinations/latest?patient_id=${patientId}`)
 
-  const { data: exam, error: examError } = await client
-    .from('visual_examinations')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('examination_date', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (examError) {
-    if (examError.code === 'PGRST116') return null // No rows found
-    throw examError
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch latest visual examination')
   }
 
-  const { data: toothData } = await client
-    .from('visual_tooth_data')
-    .select('*')
-    .eq('examination_id', exam.id)
-    .order('tooth_number')
-
-  return {
-    ...exam,
-    tooth_data: toothData || [],
-  }
+  const data = await response.json()
+  return data || null
 }
 
-// 患者の最新の視診データから欠損歯の歯番号を取得
+// 永久歯の歯番号リスト（FDI方式）
+const PERMANENT_TEETH = [
+  18, 17, 16, 15, 14, 13, 12, 11,
+  21, 22, 23, 24, 25, 26, 27, 28,
+  48, 47, 46, 45, 44, 43, 42, 41,
+  31, 32, 33, 34, 35, 36, 37, 38,
+]
+
+// 患者の最新の視診データから入力不可の歯番号を取得
+// P検査では永久歯のみが対象なので、欠損・未萌出・要抜歯の永久歯のみを返す
 export async function getMissingTeeth(patientId: string): Promise<Set<number>> {
   const latestExam = await getLatestVisualExamination(patientId)
 
@@ -247,7 +141,16 @@ export async function getMissingTeeth(patientId: string): Promise<Set<number>> {
   }
 
   const missingTeeth = latestExam.tooth_data
-    .filter(tooth => tooth.status === 'missing')
+    .filter(tooth => {
+      // 永久歯のみを対象
+      if (!PERMANENT_TEETH.includes(tooth.tooth_number)) {
+        return false
+      }
+      // 欠損、未萌出、要抜歯の歯を入力不可とする
+      return tooth.status === 'missing' ||
+             tooth.status === 'unerupted' ||
+             tooth.status === 'extraction_required'
+    })
     .map(tooth => tooth.tooth_number)
 
   return new Set(missingTeeth)

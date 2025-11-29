@@ -24,6 +24,7 @@ export interface Question {
   linked_field?: string
   conditional_logic?: any
   placeholder?: string
+  is_hidden?: boolean
 }
 
 export interface QuestionnaireResponse {
@@ -77,7 +78,8 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
         is_required,
         conditional_logic,
         sort_order,
-        linked_field
+        linked_field,
+        is_hidden
       )
     `)
     .eq('clinic_id', clinicId)
@@ -999,7 +1001,7 @@ export async function debugQuestionnaireResponses(): Promise<QuestionnaireRespon
 export interface QuestionnaireQuestion {
   id: string
   questionnaire_id: string
-  section_name: string
+  section_name?: string
   question_text: string
   question_type: string
   options?: string[]
@@ -1046,7 +1048,8 @@ export async function updateQuestionnaireQuestions(
           is_required: q.is_required,
           conditional_logic: q.conditional_logic,
           sort_order: q.sort_order,
-          linked_field: (q as any).linked_field || null
+          linked_field: (q as any).linked_field || null,
+          is_hidden: (q as any).is_hidden || false
         }
 
         // temp-で始まるIDまたはIDがない場合は、DBに自動生成させる

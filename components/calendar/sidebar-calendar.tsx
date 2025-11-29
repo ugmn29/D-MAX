@@ -17,8 +17,8 @@ interface SidebarCalendarProps {
   onPatientSelect?: (patient: Patient) => void
   isPasteMode?: boolean
   onPasteToDate?: (date: Date) => void
-  displayMode?: 'staff' | 'units' | 'both'
-  onDisplayModeChange?: (mode: 'staff' | 'units' | 'both') => void
+  displayMode?: 'staff' | 'units'
+  onDisplayModeChange?: (mode: 'staff' | 'units') => void
   privacyMode?: boolean
   onPrivacyModeChange?: (enabled: boolean) => void
   onRefresh?: () => void
@@ -423,29 +423,21 @@ export function SidebarCalendar({
         {onDisplayModeChange && (
           <button
             onClick={() => {
-              // スタッフ → ユニット → 両方 → スタッフ の順で循環
+              // スタッフ ⇄ ユニット で切り替え
               if (displayMode === 'staff') {
                 onDisplayModeChange('units')
-              } else if (displayMode === 'units') {
-                onDisplayModeChange('both')
               } else {
                 onDisplayModeChange('staff')
               }
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-md h-8 w-8 flex items-center justify-center transition-colors"
-            title={`現在: ${displayMode === 'staff' ? 'スタッフ表示' : displayMode === 'units' ? 'ユニット表示' : '両方表示'} (クリックで切り替え)`}
+            title={`現在: ${displayMode === 'staff' ? 'スタッフ表示' : 'ユニット表示'} (クリックで切り替え)`}
           >
             {displayMode === 'staff' && (
               <Users className="w-4 h-4" />
             )}
             {displayMode === 'units' && (
               <Grid3X3 className="w-4 h-4" />
-            )}
-            {displayMode === 'both' && (
-              <div className="flex items-center">
-                <Users className="w-3 h-3" />
-                <Grid3X3 className="w-3 h-3 -ml-1" />
-              </div>
             )}
           </button>
         )}

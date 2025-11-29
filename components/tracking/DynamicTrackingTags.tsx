@@ -17,6 +17,8 @@ interface TrackingTags {
   google_ads_enabled: boolean
   meta_pixel_id: string
   meta_pixel_enabled: boolean
+  clarity_project_id: string
+  clarity_enabled: boolean
 }
 
 export function DynamicTrackingTags({ clinicId }: DynamicTrackingTagsProps) {
@@ -105,6 +107,19 @@ export function DynamicTrackingTags({ clinicId }: DynamicTrackingTagsProps) {
             'https://connect.facebook.net/en_US/fbevents.js');
             fbq('init', '${tags.meta_pixel_id}');
             fbq('track', 'PageView');
+          `}
+        </Script>
+      )}
+
+      {/* Microsoft Clarity (Heatmap) */}
+      {tags.clarity_enabled && tags.clarity_project_id && (
+        <Script id="ms-clarity" strategy="afterInteractive">
+          {`
+            (function(c,l,a,r,i,t,y){
+              c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "${tags.clarity_project_id}");
           `}
         </Script>
       )}

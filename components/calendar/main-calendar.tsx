@@ -23,8 +23,8 @@ interface MainCalendarProps {
   timeSlotMinutes: number // 必須パラメータに変更
   displayItems?: string[] // 表示項目の設定
   cellHeight?: number // セルの高さ設定
-  displayMode?: 'staff' | 'units' | 'both' // 表示モード
-  onDisplayModeChange?: (mode: 'staff' | 'units' | 'both') => void // 表示モード変更コールバック
+  displayMode?: 'staff' | 'units' // 表示モード
+  onDisplayModeChange?: (mode: 'staff' | 'units') => void // 表示モード変更コールバック
   privacyMode?: boolean // プライバシーモード（患者名を'****'でマスク）
   onCopyStateChange?: (copiedAppointment: any, isPasteMode: boolean) => void
   onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
@@ -322,8 +322,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       totalColumns = workingStaff.length
     } else if (displayMode === 'units') {
       totalColumns = units.length
-    } else if (displayMode === 'both') {
-      totalColumns = bothModeColumns.length  // 修正: 動的列数を使用
     }
 
     // 列の幅を計算
@@ -346,7 +344,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       totalColumns,
       workingStaffLength: workingStaff.length,
       unitsLength: units.length,
-      bothModeColumnsLength: bothModeColumns.length,
       timeSlotsLength: timeSlots.length,
       calculatedTime: slotIndex >= 0 && slotIndex < timeSlots.length ? timeSlots[slotIndex]?.time : 'out of range',
       calculatedColumn: columnIndex >= 0 && columnIndex < totalColumns ? `column_${columnIndex}` : 'out of range'
@@ -454,28 +451,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       // ユニット表示モードの場合
       unitIndex = units.findIndex(unit => unit.id === appointment.unit_id)
       if (unitIndex === -1) unitIndex = 0
-    } else if (displayMode === 'both') {
-      // 両方表示モードの場合 - bothModeColumnsを使用
-      const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
-
-      // 予約に一致する列を検索
-      staffIndex = bothModeColumns.findIndex(column => {
-        // 1. staff_id と unit_id が両方一致
-        if (column.staff && column.unit) {
-          return column.staff.id === staffId && column.unit.id === appointment.unit_id
-        }
-        // 2. staff_id のみ一致（unit_id 不問）
-        if (column.staff && !column.unit) {
-          return column.staff.id === staffId
-        }
-        // 3. unit_id のみ一致（スタッフ未割当のユニット列）
-        if (!column.staff && column.unit) {
-          return column.unit.id === appointment.unit_id
-        }
-        return false
-      })
-
-      if (staffIndex === -1) staffIndex = 0
     }
 
     return { staffIndex, unitIndex }
@@ -549,39 +524,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           // ユニット表示モード：ユニットを変更
           const newUnit = units[newStaffIndex]
           updateData.unit_id = newUnit.id
-          
+
           console.log('ユニット間移動:', {
             from: appointment.unit_id,
             to: newUnit.id,
             unitName: newUnit.name
           })
-        } else if (displayMode === 'both') {
-          // 両方表示モード：bothModeColumnsに基づいて更新
-          const targetColumn = bothModeColumns[newStaffIndex]
-          if (targetColumn) {
-            // ドラッグ先の列のスタッフとユニット情報を両方適用
-            if (targetColumn.staff) {
-              updateData.staff1_id = targetColumn.staff.id
-            }
-            if (targetColumn.unit) {
-              updateData.unit_id = targetColumn.unit.id
-            } else {
-              // ユニットがない列の場合はnullに設定
-              updateData.unit_id = null
-            }
-
-            console.log('両方表示モード - 列移動:', {
-              columnType: targetColumn.type,
-              newStaffId: targetColumn.staff?.id,
-              newStaffName: targetColumn.staff?.name,
-              newUnitId: targetColumn.unit?.id,
-              newUnitName: targetColumn.unit?.name,
-              from: {
-                staff: appointment.staff1_id,
-                unit: appointment.unit_id
-              }
-            })
-          }
         }
       }
       
@@ -1361,65 +1309,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     return blocks
   }, [appointments, workingStaff, timeSlotMinutes, displayMode, units, businessHours, cellHeight])
 
-  // bothモード用の列定義を計算
-  const bothModeColumns = useMemo(() => {
-    if (displayMode !== 'both') return []
-
-    const columns: Array<{
-      type: 'staff-unit-pair' | 'staff-only' | 'unit-only'
-      staff: any | null
-      unit: any | null
-    }> = []
-
-    const usedUnitIds = new Set<string>()
-
-    // 1. スタッフとユニットのペアを作成
-    workingStaff.forEach(shift => {
-      const primaryUnit = staffUnitPriorities
-        .filter(p => p.staff_id === shift.staff.id)
-        .sort((a, b) => a.priority_order - b.priority_order)[0]
-
-      if (primaryUnit) {
-        const unit = units.find(u => u.id === primaryUnit.unit_id)
-        if (unit) {
-          columns.push({
-            type: 'staff-unit-pair',
-            staff: shift.staff,
-            unit: unit
-          })
-          usedUnitIds.add(unit.id)
-        } else {
-          // ユニットが見つからない場合はスタッフ単独
-          columns.push({
-            type: 'staff-only',
-            staff: shift.staff,
-            unit: null
-          })
-        }
-      } else {
-        // ユニット割り当てのないスタッフ
-        columns.push({
-          type: 'staff-only',
-          staff: shift.staff,
-          unit: null
-        })
-      }
-    })
-
-    // 2. 余ったユニットを追加
-    units.forEach(unit => {
-      if (!usedUnitIds.has(unit.id)) {
-        columns.push({
-          type: 'unit-only',
-          staff: null,
-          unit: unit
-        })
-      }
-    })
-
-    console.log('bothModeColumns計算:', columns)
-    return columns
-  }, [displayMode, workingStaff, units, staffUnitPriorities])
 
   // 列の幅を計算するヘルパー関数
   const getColumnWidth = () => {
@@ -1427,11 +1316,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       // ユニット表示モードの場合
       if (units.length === 0) return '100%'
       return `${100 / units.length}%`
-    } else if (displayMode === 'both') {
-      // 両方表示モードの場合 - 動的列数を使用
-      const totalColumns = bothModeColumns.length
-      if (totalColumns === 0) return '100%'
-      return `${100 / totalColumns}%`
     } else {
       // スタッフ表示モード（デフォルト）
       if (workingStaff.length === 0) return '100%'
@@ -1445,12 +1329,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       // ユニット表示モードの場合
       if (units.length <= 2) return '200px'
       if (units.length <= 4) return '150px'
-      return '120px'
-    } else if (displayMode === 'both') {
-      // 両方表示モードの場合 - 動的列数を使用
-      const totalColumns = bothModeColumns.length
-      if (totalColumns <= 3) return '200px'
-      if (totalColumns <= 6) return '150px'
       return '120px'
     } else {
       // スタッフ表示モード（デフォルト）
@@ -1687,10 +1565,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               units.map((unit, index) => {
                 const isLastColumn = index === units.length - 1
                 return (
-                  <div 
-                    key={`${unit.id}-${index}`} 
+                  <div
+                    key={`${unit.id}-${index}`}
                     className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
-                    style={{ 
+                    style={{
                       minWidth: getColumnMinWidth(),
                       maxWidth: getColumnWidth()
                     }}
@@ -1699,63 +1577,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       <div className="text-sm font-medium text-gray-700 truncate">
                         {unit.name}
                       </div>
-                    </div>
-                  </div>
-                )
-              })
-            )
-          ) : displayMode === 'both' ? (
-            bothModeColumns.length === 0 ? (
-              <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
-                出勤スタッフ・ユニットなし
-              </div>
-            ) : (
-              bothModeColumns.map((column, index) => {
-                const isLastColumn = index === bothModeColumns.length - 1
-
-                // 表示テキストを作成
-                let displayText = ''
-                if (column.type === 'staff-unit-pair') {
-                  // スタッフ×ユニットのペア
-                  displayText = `${column.staff.name} × ${column.unit.name}`
-                } else if (column.type === 'staff-only') {
-                  // スタッフのみ
-                  displayText = `${column.staff.name}`
-                } else if (column.type === 'unit-only') {
-                  // ユニットのみ
-                  displayText = column.unit.name
-                }
-
-                const key = column.staff ? `staff-${column.staff.id}` : `unit-${column.unit.id}`
-
-                return (
-                  <div
-                    key={`${key}-${index}`}
-                    className="flex-1 border-r border-gray-200 flex flex-col items-center justify-center bg-gray-50 h-full"
-                    style={{
-                      minWidth: getColumnMinWidth(),
-                      maxWidth: getColumnWidth()
-                    }}
-                  >
-                    <div className="text-center px-2">
-                      {column.type === 'staff-unit-pair' ? (
-                        <>
-                          <div className="text-sm font-medium text-gray-700 truncate">
-                            {column.staff.name}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            📍 {column.unit.name}
-                          </div>
-                        </>
-                      ) : column.type === 'staff-only' ? (
-                        <div className="text-sm font-medium text-gray-700 truncate">
-                          {column.staff.name}
-                        </div>
-                      ) : (
-                        <div className="text-sm font-medium text-gray-700 truncate">
-                          {column.unit.name}
-                        </div>
-                      )}
                     </div>
                   </div>
                 )
@@ -1873,21 +1694,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   let columns
                   if (displayMode === 'units') {
                     columns = units
-                  } else if (displayMode === 'both') {
-                    // スタッフに割り当てられたユニットを取得
-                    const assignedUnitIds = new Set()
-                    workingStaff.forEach(shift => {
-                      const staffPriority = staffUnitPriorities
-                        .filter(p => p.staff_id === shift.staff.id)
-                        .sort((a, b) => a.priority_order - b.priority_order)[0]
-                      if (staffPriority) {
-                        assignedUnitIds.add(staffPriority.unit_id)
-                      }
-                    })
-                    
-                    // 割り当てられていないユニットのみを取得
-                    const unassignedUnits = units.filter(unit => !assignedUnitIds.has(unit.id))
-                    columns = [...workingStaff, ...unassignedUnits]
                   } else {
                     columns = workingStaff
                   }
@@ -1992,7 +1798,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                             // 貼り付けモードの場合は、コピー元のデータを使用
                             if (isPasteMode && copiedAppointment) {
                               // 貼り付け先のスタッフを取得
-                              const targetStaff = displayMode === 'staff' || displayMode === 'both' ? workingStaff[firstCell.columnIndex] : null
+                              const targetStaff = displayMode === 'staff' ? workingStaff[firstCell.columnIndex] : null
                               const newStaffId = targetStaff ? targetStaff.staff.id : ''
 
                               console.log('複数セル選択 - コピー元の予約データ:', copiedAppointment)
@@ -2019,14 +1825,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                             } else if (displayMode === 'staff') {
                               setSelectedStaffIndex(firstCell.columnIndex)
                               setSelectedUnitIndex(undefined)
-                            } else if (displayMode === 'both') {
-                              if (firstCell.columnIndex < workingStaff.length) {
-                                setSelectedStaffIndex(firstCell.columnIndex)
-                                setSelectedUnitIndex(undefined)
-                              } else {
-                                setSelectedStaffIndex(undefined)
-                                setSelectedUnitIndex(firstCell.columnIndex - workingStaff.length)
-                              }
                             }
 
                             setShowAppointmentModal(true)
@@ -2039,7 +1837,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           // 貼り付けモードの場合は予約編集モーダルを開く
                           if (isPasteMode && copiedAppointment) {
                             // 貼り付け先のスタッフを取得（スタッフ表示モードの場合のみ）
-                            const targetStaff = displayMode === 'staff' || displayMode === 'both' ? workingStaff[columnIndex] : null
+                            const targetStaff = displayMode === 'staff' ? workingStaff[columnIndex] : null
                             const newStaffId = targetStaff ? targetStaff.staff.id : ''
                           
                           console.log('コピー元の予約データ（スタッフ列）:', copiedAppointment)
@@ -2085,17 +1883,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                             // スタッフ表示モードの場合
                             setSelectedStaffIndex(columnIndex)
                             setSelectedUnitIndex(undefined)
-                          } else if (displayMode === 'both') {
-                            // 同時表示モードの場合
-                            if (columnIndex < workingStaff.length) {
-                              // スタッフ列の場合
-                              setSelectedStaffIndex(columnIndex)
-                              setSelectedUnitIndex(undefined)
-                            } else {
-                              // ユニット列の場合
-                              setSelectedStaffIndex(undefined)
-                              setSelectedUnitIndex(columnIndex - workingStaff.length)
-                            }
                           }
                           
                           setShowAppointmentModal(true)
@@ -2159,25 +1946,21 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                             totalColumns = workingStaff.length
                           } else if (displayMode === 'units') {
                             totalColumns = units.length
-                          } else if (displayMode === 'both') {
-                            totalColumns = workingStaff.length + units.length
                           }
                           return (block.staffIndex / totalColumns) * 100
                         }
                         
                         // マウスの移動量を計算
                         const deltaX = dragCurrentPosition.x - dragStartPosition.x
-                        
+
                         // displayModeに応じて列数を計算
                         let totalColumns = 0
                         if (displayMode === 'staff') {
                           totalColumns = workingStaff.length
                         } else if (displayMode === 'units') {
                           totalColumns = units.length
-                        } else if (displayMode === 'both') {
-                          totalColumns = workingStaff.length + units.length
                         }
-                        
+
                         const originalLeft = (block.staffIndex / totalColumns) * 100
                         const newLeft = originalLeft + (deltaX / window.innerWidth) * 100
                         return Math.max(0, Math.min(100 - (100 / totalColumns), newLeft))
@@ -2189,8 +1972,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           totalColumns = workingStaff.length
                         } else if (displayMode === 'units') {
                           totalColumns = units.length
-                        } else if (displayMode === 'both') {
-                          totalColumns = workingStaff.length + units.length
                         }
                         return (block.staffIndex / totalColumns) * 100
                       })()}%`,
@@ -2275,17 +2056,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     // スタッフ表示モードの場合
                     setSelectedStaffIndex(calculatedStaffIndex)
                     setSelectedUnitIndex(undefined)
-                  } else if (displayMode === 'both') {
-                    // 両方表示モードの場合
-                    if (calculatedStaffIndex < workingStaff.length) {
-                      // スタッフ列の場合
-                      setSelectedStaffIndex(calculatedStaffIndex)
-                      setSelectedUnitIndex(undefined)
-                    } else {
-                      // ユニット列の場合
-                      setSelectedStaffIndex(undefined)
-                      setSelectedUnitIndex(calculatedStaffIndex - workingStaff.length)
-                    }
                   }
 
                   setEditingAppointment(block.appointment)

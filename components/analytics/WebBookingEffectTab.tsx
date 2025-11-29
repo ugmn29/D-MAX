@@ -2,10 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, Users, DollarSign, Target, MousePointerClick, Wallet, Settings, Link } from 'lucide-react'
+import { TrendingUp, Users, DollarSign, Target, MousePointerClick, Wallet, Settings, Link, QrCode, Download, Activity, Stethoscope } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import AdSpendManager from './AdSpendManager'
 import TrackingTagsSettings from './TrackingTagsSettings'
 import ClientURLGenerator from './ClientURLGenerator'
+import QRCodeGenerator from './QRCodeGenerator'
+import TabAnalysisTab from './TabAnalysisTab'
+import TabTrackingScriptGenerator from './TabTrackingScriptGenerator'
+import MenuBySourceTab from './MenuBySourceTab'
+import { exportToCSV, CSVColumn } from '@/lib/utils/export-csv'
 
 interface WebBookingEffectTabProps {
   clinicId: string
@@ -84,7 +90,25 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
     overall_roas: number
     overall_cpa: number
   } | null>(null)
-  const [activeSubTab, setActiveSubTab] = useState<'acquisition' | 'funnel' | 'ltv' | 'roi' | 'ad-spend' | 'tag-settings' | 'client-url'>('acquisition')
+  const [activeSubTab, setActiveSubTab] = useState<'acquisition' | 'funnel' | 'ltv' | 'roi' | 'ad-spend' | 'tab-analysis' | 'menu-by-source' | 'settings'>('acquisition')
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'tag-settings' | 'tab-script' | 'client-url' | 'qr-code'>('tag-settings')
+  const [clinicSlug, setClinicSlug] = useState<string>('')
+
+  // クリニックスラッグを取得
+  useEffect(() => {
+    const loadClinicSlug = async () => {
+      try {
+        const res = await fetch(`/api/clinics/${clinicId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setClinicSlug(data.slug || '')
+        }
+      } catch (error) {
+        console.error('クリニック情報取得エラー:', error)
+      }
+    }
+    loadClinicSlug()
+  }, [clinicId])
 
   useEffect(() => {
     loadData()
@@ -134,6 +158,56 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
     } finally {
       setLoading(false)
     }
+  }
+
+  // CSVエクスポート関数
+  const exportAcquisitionCSV = () => {
+    if (!acquisitionData) return
+
+    const columns: CSVColumn[] = [
+      { key: 'source', label: '流入元' },
+      { key: 'count', label: '予約数' },
+      { key: 'utm_count', label: 'UTM追跡数' },
+      { key: 'questionnaire_count', label: 'アンケート回答数' },
+      { key: 'percentage', label: '割合(%)', format: (v) => v.toFixed(1) }
+    ]
+
+    const filename = `acquisition_${startDate}_${endDate}.csv`
+    exportToCSV(acquisitionData.by_source, columns, filename)
+  }
+
+  const exportLTVCSV = () => {
+    if (!ltvData) return
+
+    const columns: CSVColumn[] = [
+      { key: 'source', label: '流入元' },
+      { key: 'patient_count', label: '患者数' },
+      { key: 'total_revenue', label: '総売上', format: (v) => `¥${v.toLocaleString()}` },
+      { key: 'avg_ltv', label: '平均LTV', format: (v) => `¥${v.toLocaleString()}` },
+      { key: 'avg_visit_count', label: '平均来院数', format: (v) => v.toFixed(1) },
+      { key: 'avg_revenue_per_visit', label: '平均来院単価', format: (v) => `¥${v.toLocaleString()}` }
+    ]
+
+    const filename = `ltv_${startDate}_${endDate}.csv`
+    exportToCSV(ltvData.source_ltv, columns, filename)
+  }
+
+  const exportROICSV = () => {
+    if (!roiData) return
+
+    const columns: CSVColumn[] = [
+      { key: 'source', label: '流入元' },
+      { key: 'ad_spend', label: '広告費', format: (v) => `¥${v.toLocaleString()}` },
+      { key: 'patient_count', label: '患者数' },
+      { key: 'total_revenue', label: '売上', format: (v) => `¥${v.toLocaleString()}` },
+      { key: 'roi', label: 'ROI(%)', format: (v) => v.toFixed(1) },
+      { key: 'roas', label: 'ROAS', format: (v) => v.toFixed(2) },
+      { key: 'cpa', label: 'CPA', format: (v) => `¥${v.toLocaleString()}` },
+      { key: 'avg_ltv', label: '平均LTV', format: (v) => `¥${v.toLocaleString()}` }
+    ]
+
+    const filename = `roi_${startDate}_${endDate}.csv`
+    exportToCSV(roiData.roi_by_source, columns, filename)
   }
 
   if (loading) {
@@ -205,26 +279,37 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
             広告費管理
           </button>
           <button
-            onClick={() => setActiveSubTab('tag-settings')}
+            onClick={() => setActiveSubTab('tab-analysis')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeSubTab === 'tag-settings'
+              activeSubTab === 'tab-analysis'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Activity className="w-4 h-4 inline-block mr-2" />
+            タブ分析
+          </button>
+          <button
+            onClick={() => setActiveSubTab('menu-by-source')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSubTab === 'menu-by-source'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Stethoscope className="w-4 h-4 inline-block mr-2" />
+            診療メニュー分析
+          </button>
+          <button
+            onClick={() => setActiveSubTab('settings')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSubTab === 'settings'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             <Settings className="w-4 h-4 inline-block mr-2" />
-            タグ設定
-          </button>
-          <button
-            onClick={() => setActiveSubTab('client-url')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeSubTab === 'client-url'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <Link className="w-4 h-4 inline-block mr-2" />
-            クライアントURL
+            設定
           </button>
         </nav>
       </div>
@@ -232,6 +317,14 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
       {/* 獲得経路分析タブ */}
       {activeSubTab === 'acquisition' && (
         <div className="space-y-6">
+          {/* エクスポートボタン */}
+          <div className="flex justify-end">
+            <Button onClick={exportAcquisitionCSV} variant="outline">
+              <Download className="w-4 h-4 mr-2" />
+              CSVエクスポート
+            </Button>
+          </div>
+
           {/* KPIカード */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
@@ -447,6 +540,14 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
       {/* LTV分析タブ */}
       {activeSubTab === 'ltv' && (
         <div className="space-y-6">
+          {/* エクスポートボタン */}
+          <div className="flex justify-end">
+            <Button onClick={exportLTVCSV} variant="outline">
+              <Download className="w-4 h-4 mr-2" />
+              CSVエクスポート
+            </Button>
+          </div>
+
           {/* LTV KPI */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
@@ -523,6 +624,14 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
       {/* ROI/ROAS分析タブ */}
       {activeSubTab === 'roi' && (
         <div className="space-y-6">
+          {/* エクスポートボタン */}
+          <div className="flex justify-end">
+            <Button onClick={exportROICSV} variant="outline">
+              <Download className="w-4 h-4 mr-2" />
+              CSVエクスポート
+            </Button>
+          </div>
+
           {/* ROI KPI */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
@@ -637,14 +746,89 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
         <AdSpendManager clinicId={clinicId} startDate={startDate} endDate={endDate} />
       )}
 
-      {/* タグ設定タブ */}
-      {activeSubTab === 'tag-settings' && (
-        <TrackingTagsSettings clinicId={clinicId} />
+      {/* タブ分析タブ */}
+      {activeSubTab === 'tab-analysis' && (
+        <TabAnalysisTab clinicId={clinicId} startDate={startDate} endDate={endDate} />
       )}
 
-      {/* クライアントURLタブ */}
-      {activeSubTab === 'client-url' && (
-        <ClientURLGenerator clinicId={clinicId} />
+      {/* 診療メニュー分析タブ */}
+      {activeSubTab === 'menu-by-source' && (
+        <MenuBySourceTab clinicId={clinicId} startDate={startDate} endDate={endDate} />
+      )}
+
+      {/* 設定タブ */}
+      {activeSubTab === 'settings' && (
+        <div className="space-y-6">
+          {/* 設定サブタブ */}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveSettingsTab('tag-settings')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeSettingsTab === 'tag-settings'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Settings className="w-4 h-4 inline-block mr-2" />
+                タグ設定
+              </button>
+              <button
+                onClick={() => setActiveSettingsTab('tab-script')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeSettingsTab === 'tab-script'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <MousePointerClick className="w-4 h-4 inline-block mr-2" />
+                タブスクリプト
+              </button>
+              <button
+                onClick={() => setActiveSettingsTab('client-url')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeSettingsTab === 'client-url'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Link className="w-4 h-4 inline-block mr-2" />
+                クライアントURL
+              </button>
+              <button
+                onClick={() => setActiveSettingsTab('qr-code')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeSettingsTab === 'qr-code'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <QrCode className="w-4 h-4 inline-block mr-2" />
+                QRコード生成
+              </button>
+            </nav>
+          </div>
+
+          {/* タグ設定 */}
+          {activeSettingsTab === 'tag-settings' && (
+            <TrackingTagsSettings clinicId={clinicId} />
+          )}
+
+          {/* タブスクリプト生成 */}
+          {activeSettingsTab === 'tab-script' && (
+            <TabTrackingScriptGenerator clinicId={clinicId} />
+          )}
+
+          {/* クライアントURL */}
+          {activeSettingsTab === 'client-url' && (
+            <ClientURLGenerator clinicId={clinicId} />
+          )}
+
+          {/* QRコード生成 */}
+          {activeSettingsTab === 'qr-code' && (
+            <QRCodeGenerator clinicId={clinicId} clinicSlug={clinicSlug} />
+          )}
+        </div>
       )}
     </div>
   )

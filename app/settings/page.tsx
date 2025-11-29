@@ -139,8 +139,9 @@ import {
   deleteTreatmentMenu,
 } from "@/lib/api/treatment";
 import { QuestionnaireEditModal } from "@/components/forms/questionnaire-edit-modal";
-import { 
-  getUnits, 
+import { DocumentTemplatesManager } from "@/components/settings/document-templates-manager";
+import {
+  getUnits,
   createUnit, 
   updateUnit, 
   deleteUnit,
@@ -356,12 +357,6 @@ const settingCategories = [
     icon: Database,
   },
   {
-    id: "subkarte",
-    name: "サブカルテ",
-    icon: BarChart3,
-    href: "/settings/subkarte",
-  },
-  {
     id: "training",
     name: "トレーニング",
     icon: Dumbbell,
@@ -408,6 +403,9 @@ export default function SettingsPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<string | null>(null);
+  const isSavingRef = useRef(false); // 保存中フラグ
+  const initialDataRef = useRef<any>(null); // 初期データを保存
+  const isInitialLoadRef = useRef(true); // 初回ロードフラグ
 
   // 保存完了モーダル
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
@@ -618,7 +616,6 @@ export default function SettingsPage() {
   >({});
   const [timeSlotMinutes, setTimeSlotMinutes] = useState(15);
   const [holidays, setHolidays] = useState<string[]>([]); // 休診日は空で開始
-  const isInitialLoadRef = useRef(true); // useRefに変更（状態変更でuseEffectが発火しないようにする）
   const treatmentMenusLoadedRef = useRef(false); // 診療メニューの初回読み込み完了フラグ
 
   // カレンダー設定の状態
@@ -1446,10 +1443,20 @@ export default function SettingsPage() {
 
           // 標準問診表を最初に表示（名前でソート）
           const sortedData = [...data].sort((a, b) => {
-            if (a.name === '標準問診表') return -1;
-            if (b.name === '標準問診表') return 1;
-            if (a.name === '習慣チェック表') return 1;
-            if (b.name === '習慣チェック表') return -1;
+            // 優先順位: 標準問診表 > 習慣チェック表 > 習慣チェック表 簡潔 > その他
+            const order: Record<string, number> = {
+              '標準問診表': 1,
+              '習慣チェック表': 2,
+              '習慣チェック表 簡潔': 3,
+            };
+
+            const aOrder = order[a.name] || 999;
+            const bOrder = order[b.name] || 999;
+
+            if (aOrder !== bOrder) {
+              return aOrder - bOrder;
+            }
+
             return a.name.localeCompare(b.name, 'ja');
           });
 
@@ -1465,15 +1472,7 @@ export default function SettingsPage() {
   // ユニットデータの読み込み
   useEffect(() => {
     if (selectedCategory === "units") {
-      // データ読み込み時に変更検知をスキップ
-      isInitialLoadRef.current = true;
-
-      loadUnitsData().then(() => {
-        // 次のフレームで変更検知を再開
-        setTimeout(() => {
-          isInitialLoadRef.current = false;
-        }, 100);
-      });
+      loadUnitsData();
       // スタッフデータも読み込み
       const loadStaffForUnits = async () => {
         try {
@@ -1529,9 +1528,6 @@ export default function SettingsPage() {
             // Webhook URLを常に現在のオリジンで設定
             const webhookUrl = `${window.location.origin}/api/line/webhook`;
 
-            // データ読み込み時に変更検知をスキップ
-            isInitialLoadRef.current = true;
-
             setNotificationSettings({
               ...settings,
               line: {
@@ -1545,11 +1541,6 @@ export default function SettingsPage() {
                 liff_id_web_booking: settings.line?.liff_id_web_booking || "",
               },
             });
-
-            // 次のフレームで変更検知を再開
-            setTimeout(() => {
-              isInitialLoadRef.current = false;
-            }, 100);
           }
         } catch (error) {
           console.error("通知設定の読み込みエラー:", error);
@@ -1924,16 +1915,48 @@ export default function SettingsPage() {
 
   // 設定変更を監視して未保存フラグを立てる
   useEffect(() => {
-    // 初期読み込み中はスキップ
-    if (isInitialLoadRef.current) {
-      console.log("🔵 初期読み込み中のため、変更検知をスキップ");
+    // 初期読み込み中または保存中はスキップ
+    if (isInitialLoadRef.current || isSavingRef.current) {
+      console.log("🔵 初期読み込み中または保存中のため、変更検知をスキップ");
       return;
     }
 
-    // データが変更されたら未保存フラグを立てる
-    console.log("🔶 設定変更検知: 未保存フラグをONにします");
-    setHasUnsavedChanges(true);
-  }, [clinicInfo, businessHours, breakTimes, holidays, displayItems, cellHeight, webSettings, webBookingMenus, notificationSettings, treatmentMenus, unitsData, staff]);
+    // 初回ロード時は初期データを保存するだけ
+    const currentData = {
+      clinicInfo,
+      businessHours,
+      breakTimes,
+      holidays,
+      displayItems,
+      cellHeight,
+      webSettings,
+      webBookingMenus,
+      notificationSettings,
+      treatmentMenus,
+      unitsData,
+      staff,
+      staffUnitPriorities
+    };
+
+    if (isInitialLoadRef.current) {
+      // 初回ロード時は初期データとして保存
+      initialDataRef.current = JSON.parse(JSON.stringify(currentData));
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    // 保存中は変更検知をスキップ
+    if (isSavingRef.current) {
+      return;
+    }
+
+    // データが変更されたら未保存フラグを立てる（初期データと比較）
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialDataRef.current);
+    if (hasChanged) {
+      console.log("🔶 設定変更検知: 未保存フラグをONにします");
+      setHasUnsavedChanges(true);
+    }
+  }, [clinicInfo, businessHours, breakTimes, holidays, displayItems, cellHeight, webSettings, webBookingMenus, notificationSettings, treatmentMenus, unitsData, staff, staffUnitPriorities]);
   // 注: questionnairesは即座に保存されるため、未保存変更として扱わない
 
   // 未保存の変更がある場合、ページ離脱時に警告を表示
@@ -2733,9 +2756,6 @@ export default function SettingsPage() {
       const reloadedSettings = await getClinicSettings(DEMO_CLINIC_ID);
       console.log("再読み込みした設定:", reloadedSettings);
 
-      // データ再読み込み時に変更検知をスキップ
-      isInitialLoadRef.current = true;
-
       if (reloadedSettings.web_reservation) {
         setWebSettings(reloadedSettings.web_reservation);
         setWebBookingMenus(
@@ -2747,13 +2767,23 @@ export default function SettingsPage() {
         );
       }
 
-      // 保存成功時に未保存フラグをクリア（データ再読み込み後すぐに実行）
+      // 保存成功時に未保存フラグをクリアし、初期データを更新
       setHasUnsavedChanges(false);
-
-      // 次のフレームで変更検知を再開
-      setTimeout(() => {
-        isInitialLoadRef.current = false;
-      }, 100);
+      initialDataRef.current = JSON.parse(JSON.stringify({
+        clinicInfo,
+        businessHours,
+        breakTimes,
+        holidays,
+        displayItems,
+        cellHeight,
+        webSettings,
+        webBookingMenus,
+        notificationSettings,
+        treatmentMenus,
+        unitsData,
+        staff,
+        staffUnitPriorities
+      }));
 
       showAlert("Web予約設定を保存しました", "success");
     } catch (error) {
@@ -2920,17 +2950,25 @@ export default function SettingsPage() {
         const reloadedMenus = await getTreatmentMenus(DEMO_CLINIC_ID);
         treatmentMenusLoadedRef.current = true; // 再度フラグを立てる
 
-        // データ再読み込み時に変更検知をスキップ
-        isInitialLoadRef.current = true;
         setTreatmentMenus(reloadedMenus);
 
-        // 未保存フラグをクリア（データ再読み込み後すぐに実行）
+        // 未保存フラグをクリアし、初期データを更新
         setHasUnsavedChanges(false);
-
-        // 次のフレームで変更検知を再開
-        setTimeout(() => {
-          isInitialLoadRef.current = false;
-        }, 100);
+        initialDataRef.current = JSON.parse(JSON.stringify({
+          clinicInfo,
+          businessHours,
+          breakTimes,
+          holidays,
+          displayItems,
+          cellHeight,
+          webSettings,
+          webBookingMenus,
+          notificationSettings,
+          treatmentMenus: reloadedMenus,
+          unitsData,
+          staff,
+          staffUnitPriorities
+        }));
 
         console.log("診療メニュー保存完了");
 
@@ -2945,6 +2983,9 @@ export default function SettingsPage() {
         console.log("問診票利用設定を保存しました:", useQuestionnaire);
       } else if (selectedCategory === "units") {
         console.log("=== ユニット設定を保存中 ===");
+
+        // 保存中フラグを立てる
+        isSavingRef.current = true;
 
         // ユニットを一括保存
         for (const unit of unitsData) {
@@ -2967,26 +3008,28 @@ export default function SettingsPage() {
           }
         }
 
-        // 保存後にデータを再読み込み
+        // 保存後にデータを再読み込み（UIに反映するため）
         const reloadedUnits = await getUnits(DEMO_CLINIC_ID);
+        const reloadedPriorities = await getStaffUnitPriorities(DEMO_CLINIC_ID);
 
-        // データ再読み込み時に変更検知をスキップ
-        isInitialLoadRef.current = true;
         setUnitsData(reloadedUnits);
+        setStaffUnitPriorities(reloadedPriorities);
 
-        // 未保存フラグをクリア（データ再読み込み後すぐに実行）
+        // 未保存フラグをクリア
         setHasUnsavedChanges(false);
-
-        // 次のフレームで変更検知を再開
-        setTimeout(() => {
-          isInitialLoadRef.current = false;
-        }, 100);
 
         console.log("ユニット設定保存完了");
 
         // 早期リターンして、下のsetHasUnsavedChanges(false)の二重実行を防ぐ
         setShowSaveSuccessModal(true);
         setSaving(false);
+
+        // すべてのstate更新とタブ切り替えによるデータ読み込みが完了するまで待機
+        // この間、変更検知をスキップする
+        setTimeout(() => {
+          isSavingRef.current = false;
+        }, 500);
+
         return;
       } else if (selectedCategory === "staff") {
         console.log("=== スタッフ設定を保存中 ===");
@@ -3015,20 +3058,13 @@ export default function SettingsPage() {
         // 保存後にデータを再読み込み
         const reloadedStaff = await getStaff(DEMO_CLINIC_ID);
 
-        // データ再読み込み時に変更検知をスキップ
-        isInitialLoadRef.current = true;
         setStaff(reloadedStaff);
 
         // シフト表をリフレッシュ
         setRefreshTrigger((prev) => prev + 1);
 
-        // 未保存フラグをクリア（データ再読み込み後すぐに実行）
+        // 未保存フラグをクリア
         setHasUnsavedChanges(false);
-
-        // 次のフレームで変更検知を再開
-        setTimeout(() => {
-          isInitialLoadRef.current = false;
-        }, 100);
 
         console.log("スタッフ設定保存完了");
 
@@ -3926,6 +3962,26 @@ export default function SettingsPage() {
         >
           メモ
         </button>
+        <button
+          onMouseEnter={() => setSelectedMasterTab("documents")}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedMasterTab === "documents"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          提供文書
+        </button>
+        <button
+          onMouseEnter={() => setSelectedMasterTab("subkarte")}
+          className={`px-8 py-4 font-medium text-base transition-colors border-b-2 ${
+            selectedMasterTab === "subkarte"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          サブカルテ
+        </button>
       </div>
 
       {/* アイコンタブのコンテンツ */}
@@ -4669,6 +4725,83 @@ export default function SettingsPage() {
               </div>
             </Modal>
           )}
+        </div>
+      )}
+
+      {/* 提供文書タブのコンテンツ */}
+      {selectedMasterTab === "documents" && (
+        <DocumentTemplatesManager />
+      )}
+
+      {selectedMasterTab === "subkarte" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              デフォルトテキスト管理
+            </h2>
+
+            <div className="space-y-4">
+              {defaultTexts.map((text) => (
+                <div
+                  key={text.id}
+                  className="border border-gray-200 rounded-lg p-4"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">
+                        {text.title}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        作成日:{" "}
+                        {new Date(text.createdAt).toLocaleDateString("ja-JP")}
+                        {text.updatedAt !== text.createdAt && (
+                          <span className="ml-2">
+                            更新日:{" "}
+                            {new Date(text.updatedAt).toLocaleDateString(
+                              "ja-JP",
+                            )}
+                          </span>
+                        )}
+                      </p>
+                      <div className="mt-2 bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap">
+                        {text.content}
+                      </div>
+                    </div>
+                    <div className="flex space-x-2 ml-4">
+                      <button
+                        onClick={() => handleEditDefaultText(text)}
+                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteDefaultText(text.id)}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {defaultTexts.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  デフォルトテキストがありません
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6">
+              <button
+                onClick={() => setShowAddDefaultTextModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                新規追加
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -5878,19 +6011,22 @@ export default function SettingsPage() {
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => {
-                                showConfirm("この問診票を削除しますか？", () => {
-                                  handleDeleteQuestionnaire(questionnaire.id);
-                                }, { isDanger: true, confirmText: "削除" });
-                              }}
-                              className="text-red-600 hover:text-red-700"
-                              title="削除"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {/* システム問診票は削除不可 */}
+                            {!['標準問診表', '習慣チェック表', '習慣チェック表 簡潔'].includes(questionnaire.name) && (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => {
+                                  showConfirm("この問診票を削除しますか？", () => {
+                                    handleDeleteQuestionnaire(questionnaire.id);
+                                  }, { isDanger: true, confirmText: "削除" });
+                                }}
+                                className="text-red-600 hover:text-red-700"
+                                title="削除"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -12900,77 +13036,6 @@ export default function SettingsPage() {
           </div>
         )}
         {selectedCategory === "master" && renderMasterSettings()}
-        {selectedCategory === "subkarte" && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                デフォルトテキスト管理
-              </h2>
-              
-              <div className="space-y-4">
-                {defaultTexts.map((text) => (
-                  <div
-                    key={text.id}
-                    className="border border-gray-200 rounded-lg p-4"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">
-                          {text.title}
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                          作成日:{" "}
-                          {new Date(text.createdAt).toLocaleDateString("ja-JP")}
-                          {text.updatedAt !== text.createdAt && (
-                            <span className="ml-2">
-                              更新日:{" "}
-                              {new Date(text.updatedAt).toLocaleDateString(
-                                "ja-JP",
-                              )}
-                            </span>
-                          )}
-                        </p>
-                        <div className="mt-2 bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap">
-                          {text.content}
-                        </div>
-                      </div>
-                      <div className="flex space-x-2 ml-4">
-                        <button
-                          onClick={() => handleEditDefaultText(text)}
-                          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDefaultText(text.id)}
-                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {defaultTexts.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    デフォルトテキストがありません
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6">
-                <button
-                  onClick={() => setShowAddDefaultTextModal(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  新規追加
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
   );
   };

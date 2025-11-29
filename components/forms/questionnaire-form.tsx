@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { getQuestionnaires, createQuestionnaireResponse, type Questionnaire, type QuestionnaireQuestion } from '@/lib/api/questionnaires'
 import { getAddressFromPostalCode, formatPostalCode, validatePostalCode } from '@/lib/utils/postal-code'
 
@@ -624,23 +625,44 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
       {/* 質問一覧 */}
       <Card>
         <CardContent className="space-y-6 pt-6">
-          {sortedQuestions.map((question) => {
+          {sortedQuestions.map((question, index) => {
+            // is_hiddenが true の質問は表示しない
+            if ((question as any).is_hidden) {
+              return null
+            }
+
             // 条件付きロジックで質問を表示するかチェック
             if (!shouldShowQuestion(question)) {
               return null
             }
 
             const isRequired = isQuestionRequired(question)
+
+            // 前の質問と比較してセクションが変わったかチェック
+            const previousQuestion = index > 0 ? sortedQuestions[index - 1] : null
+            const showSectionHeader = question.section_name && question.section_name.trim() !== '' &&
+              (!previousQuestion || previousQuestion.section_name !== question.section_name)
+
             return (
-              <div key={question.id} className="space-y-2">
-                <Label htmlFor={question.id} className="font-medium">
-                  {question.question_text}
-                  {isRequired && <span className="text-red-500 ml-1">*</span>}
-                </Label>
-                {renderQuestion(question)}
-                {errors[question.id] && (
-                  <p className="text-red-500 text-sm">{errors[question.id]}</p>
+              <div key={question.id}>
+                {/* セクションヘッダー */}
+                {showSectionHeader && (
+                  <div className="mb-4 pb-2 border-b-2 border-gray-300">
+                    <h3 className="text-lg font-bold text-gray-800">{question.section_name}</h3>
+                  </div>
                 )}
+
+                {/* 質問 */}
+                <div className="space-y-2 mb-6">
+                  <Label htmlFor={question.id} className="font-medium">
+                    {question.question_text}
+                    {isRequired && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                  {renderQuestion(question)}
+                  {errors[question.id] && (
+                    <p className="text-red-500 text-sm">{errors[question.id]}</p>
+                  )}
+                </div>
               </div>
             )
           })}

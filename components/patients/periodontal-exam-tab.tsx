@@ -5,10 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Activity, Plus } from 'lucide-react'
 import { PeriodontalExamList } from './periodontal/periodontal-exam-list'
 import { PeriodontalCreateModal } from './periodontal/periodontal-create-modal'
+import { PeriodontalDetailModal } from './periodontal/periodontal-detail-modal'
+import { PeriodontalEditModal } from './periodontal/periodontal-edit-modal'
 import { PeriodontalExamData } from './periodontal/periodontal-input-form'
 import {
   getPeriodontalExams,
+  getPeriodontalExam,
   createPeriodontalExam,
+  updatePeriodontalExam,
   deletePeriodontalExam,
   MeasurementType,
   PeriodontalExam,
@@ -31,6 +35,9 @@ export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
   const [exams, setExams] = useState<PeriodontalExam[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [selectedExam, setSelectedExam] = useState<PeriodontalExam | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [missingTeeth, setMissingTeeth] = useState<Set<number>>(new Set())
 
@@ -166,16 +173,113 @@ export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
     }
   }
 
-  // 詳細表示（TODO: 実装）
-  const handleViewExam = (examId: string) => {
-    console.log('View exam:', examId)
-    // TODO: 詳細表示モーダルを実装
+  // 詳細表示
+  const handleViewExam = async (examId: string) => {
+    try {
+      // APIから歯牙データを含めて取得
+      const exam = await getPeriodontalExam(examId)
+      setSelectedExam(exam)
+      setIsDetailModalOpen(true)
+    } catch (error) {
+      console.error('Failed to view exam:', error)
+      alert('検査の表示に失敗しました')
+    }
   }
 
-  // 編集（TODO: 実装）
-  const handleEditExam = (examId: string) => {
-    console.log('Edit exam:', examId)
-    // TODO: 編集モーダルを実装
+  // 編集
+  const handleEditExam = async (examId: string) => {
+    try {
+      // APIから歯牙データを含めて取得
+      const exam = await getPeriodontalExam(examId)
+      setSelectedExam(exam)
+      setIsEditModalOpen(true)
+    } catch (error) {
+      console.error('Failed to load exam for editing:', error)
+      alert('検査の読み込みに失敗しました')
+    }
+  }
+
+  // 検査を更新
+  const handleUpdateExam = async (examId: string, data: PeriodontalExamData) => {
+    try {
+      // データを変換
+      const toothDataList: PeriodontalToothData[] = ALL_TEETH.map(toothNumber => {
+        const isMissing = data.missingTeeth.has(toothNumber)
+
+        // プラークデータを取得
+        const plaqueTop = data.plaqueData[`${toothNumber}_top`] || false
+        const plaqueRight = data.plaqueData[`${toothNumber}_right`] || false
+        const plaqueBottom = data.plaqueData[`${toothNumber}_bottom`] || false
+        const plaqueLeft = data.plaqueData[`${toothNumber}_left`] || false
+
+        // PPDデータを取得
+        const ppd_mb = data.ppdData[`${toothNumber}_mb`]
+        const ppd_b = data.ppdData[`${toothNumber}_b`]
+        const ppd_db = data.ppdData[`${toothNumber}_db`]
+        const ppd_ml = data.ppdData[`${toothNumber}_ml`]
+        const ppd_l = data.ppdData[`${toothNumber}_l`]
+        const ppd_dl = data.ppdData[`${toothNumber}_dl`]
+
+        // BOPデータを取得
+        const bop_mb = data.bopData[`${toothNumber}_mb`] || false
+        const bop_b = data.bopData[`${toothNumber}_b`] || false
+        const bop_db = data.bopData[`${toothNumber}_db`] || false
+        const bop_ml = data.bopData[`${toothNumber}_ml`] || false
+        const bop_l = data.bopData[`${toothNumber}_l`] || false
+        const bop_dl = data.bopData[`${toothNumber}_dl`] || false
+
+        // 排膿データを取得
+        const pus_mb = data.pusData[`${toothNumber}_mb`] || false
+        const pus_b = data.pusData[`${toothNumber}_b`] || false
+        const pus_db = data.pusData[`${toothNumber}_db`] || false
+        const pus_ml = data.pusData[`${toothNumber}_ml`] || false
+        const pus_l = data.pusData[`${toothNumber}_l`] || false
+        const pus_dl = data.pusData[`${toothNumber}_dl`] || false
+
+        // 動揺度を取得
+        const mobility = data.mobilityData[toothNumber]
+
+        return {
+          tooth_number: toothNumber,
+          plaque_top: plaqueTop,
+          plaque_right: plaqueRight,
+          plaque_bottom: plaqueBottom,
+          plaque_left: plaqueLeft,
+          is_missing: isMissing,
+          mobility,
+          ppd_mb,
+          ppd_b,
+          ppd_db,
+          ppd_ml,
+          ppd_l,
+          ppd_dl,
+          bop_mb,
+          bop_b,
+          bop_db,
+          bop_ml,
+          bop_l,
+          bop_dl,
+          pus_mb,
+          pus_b,
+          pus_db,
+          pus_ml,
+          pus_l,
+          pus_dl,
+        }
+      })
+
+      await updatePeriodontalExam(examId, {
+        tooth_data: toothDataList,
+      })
+
+      // 成功したらモーダルを閉じて一覧を再読み込み
+      setIsEditModalOpen(false)
+      setSelectedExam(null)
+      await loadExams()
+    } catch (err) {
+      console.error('Failed to update periodontal exam:', err)
+      alert('検査の更新に失敗しました')
+    }
   }
 
   return (
@@ -224,6 +328,29 @@ export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSave={handleSaveExam}
+        missingTeeth={missingTeeth}
+      />
+
+      {/* 詳細表示モーダル */}
+      <PeriodontalDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false)
+          setSelectedExam(null)
+        }}
+        examination={selectedExam}
+        missingTeeth={missingTeeth}
+      />
+
+      {/* 編集モーダル */}
+      <PeriodontalEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setSelectedExam(null)
+        }}
+        onSave={handleUpdateExam}
+        examination={selectedExam}
         missingTeeth={missingTeeth}
       />
     </div>

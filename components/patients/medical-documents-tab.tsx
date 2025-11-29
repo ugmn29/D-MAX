@@ -24,6 +24,12 @@ import { OralFunctionDeclineForm } from './documents/oral-function-decline-form'
 import { OralDevelopmentDisorderForm } from './documents/oral-development-disorder-form'
 import { HygienistGuidanceForm } from './documents/hygienist-guidance-form'
 import { MedicalInformationLetterForm } from './documents/medical-information-letter-form'
+import { MedicalInformationLetterTypeSelector } from './documents/medical-information-letter-type-selector'
+import { ReferralLetterType1Form } from './documents/referral-letter-type1-form'
+import { ReferralLetterType2Form } from './documents/referral-letter-type2-form'
+import { CollaborationInquiryForm } from './documents/collaboration-inquiry-form'
+import { CollaborationResponseForm } from './documents/collaboration-response-form'
+import { MedicalInformationLetterType } from '@/types/medical-information-letter'
 
 interface MedicalDocumentsTabProps {
   patientId: string
@@ -40,6 +46,8 @@ export function MedicalDocumentsTab({ patientId, clinicId }: MedicalDocumentsTab
   const [selectedDocument, setSelectedDocument] = useState<MedicalDocument | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'select' | 'edit'>('list')
   const [editingDocumentType, setEditingDocumentType] = useState<DocumentType | null>(null)
+  const [selectedLetterType, setSelectedLetterType] = useState<MedicalInformationLetterType | null>(null)
+  const [showLetterTypeSelector, setShowLetterTypeSelector] = useState(false)
 
   useEffect(() => {
     loadDocuments()
@@ -91,15 +99,38 @@ export function MedicalDocumentsTab({ patientId, clinicId }: MedicalDocumentsTab
 
   const handleSelectType = (type: DocumentType) => {
     console.log('文書タイプ選択:', type)
-    setEditingDocumentType(type)
-    setSelectedDocument(null)
-    setShowTypeSelector(false)
+
+    // 診療情報提供書の場合はサブタイプ選択画面を表示
+    if (type === '診療情報提供書') {
+      setShowLetterTypeSelector(true)
+      setShowTypeSelector(false)
+      setEditingDocumentType(type)
+      setSelectedDocument(null)
+    } else {
+      setEditingDocumentType(type)
+      setSelectedDocument(null)
+      setShowTypeSelector(false)
+      setShowLetterTypeSelector(false)
+      setViewMode('edit')
+    }
+  }
+
+  const handleSelectLetterType = (letterType: MedicalInformationLetterType) => {
+    console.log('診療情報提供書タイプ選択:', letterType)
+    setSelectedLetterType(letterType)
+    setShowLetterTypeSelector(false)
     setViewMode('edit')
   }
 
   const handleEditDocument = (document: MedicalDocument) => {
     setSelectedDocument(document)
     setEditingDocumentType(document.document_type)
+
+    // 診療情報提供書の場合はサブタイプも設定
+    if (document.document_type === '診療情報提供書' && document.document_subtype) {
+      setSelectedLetterType(document.document_subtype as MedicalInformationLetterType)
+    }
+
     setViewMode('edit')
   }
 
@@ -108,12 +139,16 @@ export function MedicalDocumentsTab({ patientId, clinicId }: MedicalDocumentsTab
     setViewMode('list')
     setEditingDocumentType(null)
     setSelectedDocument(null)
+    setSelectedLetterType(null)
+    setShowLetterTypeSelector(false)
   }
 
   const handleCancelEdit = () => {
     setViewMode('list')
     setEditingDocumentType(null)
     setSelectedDocument(null)
+    setSelectedLetterType(null)
+    setShowLetterTypeSelector(false)
   }
 
   const formatDateTime = (dateTime: string) => {
@@ -209,15 +244,59 @@ export function MedicalDocumentsTab({ patientId, clinicId }: MedicalDocumentsTab
           />
         )
       case '診療情報提供書':
-        return (
-          <MedicalInformationLetterForm
-            patientId={patientId}
-            clinicId={clinicId}
-            document={selectedDocument}
-            onSave={handleSaveDocument}
-            onCancel={handleCancelEdit}
-          />
-        )
+        // サブタイプに応じて適切なフォームを表示
+        if (selectedLetterType === '診療情報提供料(I)') {
+          return (
+            <ReferralLetterType1Form
+              patientId={patientId}
+              clinicId={clinicId}
+              document={selectedDocument}
+              onSave={handleSaveDocument}
+              onCancel={handleCancelEdit}
+            />
+          )
+        } else if (selectedLetterType === '診療情報提供料(II)') {
+          return (
+            <ReferralLetterType2Form
+              patientId={patientId}
+              clinicId={clinicId}
+              document={selectedDocument}
+              onSave={handleSaveDocument}
+              onCancel={handleCancelEdit}
+            />
+          )
+        } else if (selectedLetterType === '診療情報等連携共有料1') {
+          return (
+            <CollaborationInquiryForm
+              patientId={patientId}
+              clinicId={clinicId}
+              document={selectedDocument}
+              onSave={handleSaveDocument}
+              onCancel={handleCancelEdit}
+            />
+          )
+        } else if (selectedLetterType === '診療情報等連携共有料2') {
+          return (
+            <CollaborationResponseForm
+              patientId={patientId}
+              clinicId={clinicId}
+              document={selectedDocument}
+              onSave={handleSaveDocument}
+              onCancel={handleCancelEdit}
+            />
+          )
+        } else {
+          // 旧形式の診療情報提供書フォーム（後方互換性のため）
+          return (
+            <MedicalInformationLetterForm
+              patientId={patientId}
+              clinicId={clinicId}
+              document={selectedDocument}
+              onSave={handleSaveDocument}
+              onCancel={handleCancelEdit}
+            />
+          )
+        }
       default:
         return (
           <div className="text-center py-12">
@@ -229,6 +308,19 @@ export function MedicalDocumentsTab({ patientId, clinicId }: MedicalDocumentsTab
           </div>
         )
     }
+  }
+
+  // 診療情報提供書のサブタイプ選択画面
+  if (showLetterTypeSelector) {
+    return (
+      <MedicalInformationLetterTypeSelector
+        onSelectType={handleSelectLetterType}
+        onCancel={() => {
+          setShowLetterTypeSelector(false)
+          setShowTypeSelector(true)
+        }}
+      />
+    )
   }
 
   // 文書タイプ選択画面

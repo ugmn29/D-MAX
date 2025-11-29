@@ -23,6 +23,8 @@ interface TrackingTags {
   google_ads_enabled: boolean
   meta_pixel_id: string
   meta_pixel_enabled: boolean
+  clarity_project_id: string
+  clarity_enabled: boolean
   yahoo_ads_account_id: string
   yahoo_ads_enabled: boolean
   line_tag_id: string
@@ -43,6 +45,8 @@ export default function TrackingTagsSettings({ clinicId }: TrackingTagsSettingsP
     google_ads_enabled: false,
     meta_pixel_id: '',
     meta_pixel_enabled: false,
+    clarity_project_id: '',
+    clarity_enabled: false,
     yahoo_ads_account_id: '',
     yahoo_ads_enabled: false,
     line_tag_id: '',
@@ -70,6 +74,8 @@ export default function TrackingTagsSettings({ clinicId }: TrackingTagsSettingsP
             google_ads_enabled: json.data.google_ads_enabled || false,
             meta_pixel_id: json.data.meta_pixel_id || '',
             meta_pixel_enabled: json.data.meta_pixel_enabled || false,
+            clarity_project_id: json.data.clarity_project_id || '',
+            clarity_enabled: json.data.clarity_enabled || false,
             yahoo_ads_account_id: json.data.yahoo_ads_account_id || '',
             yahoo_ads_enabled: json.data.yahoo_ads_enabled || false,
             line_tag_id: json.data.line_tag_id || '',
@@ -126,6 +132,7 @@ export default function TrackingTagsSettings({ clinicId }: TrackingTagsSettingsP
     tags.ga4_enabled,
     tags.google_ads_enabled,
     tags.meta_pixel_enabled,
+    tags.clarity_enabled,
     tags.yahoo_ads_enabled,
     tags.line_tag_enabled
   ].filter(Boolean).length
@@ -140,7 +147,7 @@ export default function TrackingTagsSettings({ clinicId }: TrackingTagsSettingsP
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {enabledCount} / 6
+              {enabledCount} / 7
             </div>
           </CardContent>
         </Card>
@@ -336,6 +343,57 @@ export default function TrackingTagsSettings({ clinicId }: TrackingTagsSettingsP
               例: 1234567890123456（16桁の数字）
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Microsoft Clarity */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Microsoft Clarity</CardTitle>
+              <p className="text-sm text-gray-600 mt-1">ヒートマップ・セッションレコーディング</p>
+            </div>
+            <Switch
+              checked={tags.clarity_enabled}
+              onCheckedChange={(checked) => setTags({ ...tags, clarity_enabled: checked })}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="clarity_project_id">Project ID</Label>
+            <div className="flex gap-2">
+              <Input
+                id="clarity_project_id"
+                value={tags.clarity_project_id}
+                onChange={(e) => setTags({ ...tags, clarity_project_id: e.target.value })}
+                placeholder="abcd1234ef"
+                disabled={!tags.clarity_enabled}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => window.open('https://clarity.microsoft.com/', '_blank')}
+              >
+                <ExternalLink className="w-4 h-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              例: abcd1234ef（10桁の英数字）
+            </p>
+          </div>
+          <Alert className="bg-blue-50 border-blue-200">
+            <AlertDescription className="text-sm">
+              <strong>Microsoft Clarityとは？</strong>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>ユーザーの行動を可視化（ヒートマップ）</li>
+                <li>実際の操作を録画（セッションレコーディング）</li>
+                <li>クリック、スクロール、マウス移動を記録</li>
+                <li>完全無料・無制限</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
 

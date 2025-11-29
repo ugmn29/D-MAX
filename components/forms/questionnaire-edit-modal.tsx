@@ -25,12 +25,12 @@ interface FormData {
   [key: string]: string | string[] | number | boolean
 }
 
-export function QuestionnaireEditModal({ 
-  isOpen, 
-  onClose, 
-  questionnaireId, 
-  clinicId, 
-  onSave 
+export function QuestionnaireEditModal({
+  isOpen,
+  onClose,
+  questionnaireId,
+  clinicId,
+  onSave
 }: QuestionnaireEditModalProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -42,6 +42,7 @@ export function QuestionnaireEditModal({
   const [editingMode, setEditingMode] = useState<'view' | 'edit'>('view')
   const [editingQuestion, setEditingQuestion] = useState<QuestionnaireQuestion | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [cClassificationMappings, setCClassificationMappings] = useState<Record<string, string[]>>({})
 
   // 問診票基本情報の編集用state
   const [editingBasicInfo, setEditingBasicInfo] = useState(false)
@@ -59,6 +60,7 @@ export function QuestionnaireEditModal({
     sort_order: number
     linked_field?: string
     conditional_logic?: any
+    c_classification_items?: string[]
   }>({
     question_text: '',
     question_type: 'text',
@@ -67,7 +69,8 @@ export function QuestionnaireEditModal({
     section_name: '',
     sort_order: 0,
     linked_field: '',
-    conditional_logic: null
+    conditional_logic: null,
+    c_classification_items: []
   })
 
   // モーダル関連のstate
@@ -150,6 +153,25 @@ export function QuestionnaireEditModal({
     loadQuestionnaire()
   }, [isOpen, questionnaireId, clinicId])
 
+  // C分類マッピング情報を読み込み
+  useEffect(() => {
+    if (!isOpen) return
+
+    const loadCClassificationMappings = async () => {
+      try {
+        const response = await fetch('/api/c-classification-mapping')
+        if (response.ok) {
+          const data = await response.json()
+          setCClassificationMappings(data.mappings || {})
+        }
+      } catch (error) {
+        console.error('C分類マッピング読み込みエラー:', error)
+      }
+    }
+
+    loadCClassificationMappings()
+  }, [isOpen])
+
   // 質問の変更を検知して未保存フラグを立てる
   useEffect(() => {
     if (initialQuestions.length === 0) return // 初期読み込み前はスキップ
@@ -162,6 +184,10 @@ export function QuestionnaireEditModal({
   // 編集中の質問が変更されたらeditDataを更新
   useEffect(() => {
     if (editingQuestion) {
+      // この質問に紐づくC分類項目を取得
+      const mappingKey = `${editingQuestion.section_name}::${editingQuestion.question_text}`
+      const linkedCItems = cClassificationMappings[mappingKey] || []
+
       setEditData({
         question_text: editingQuestion.question_text,
         question_type: editingQuestion.question_type,
@@ -170,10 +196,11 @@ export function QuestionnaireEditModal({
         section_name: editingQuestion.section_name,
         sort_order: editingQuestion.sort_order,
         linked_field: (editingQuestion as any).linked_field || '',
-        conditional_logic: editingQuestion.conditional_logic || null
+        conditional_logic: editingQuestion.conditional_logic || null,
+        c_classification_items: linkedCItems
       })
     }
-  }, [editingQuestion])
+  }, [editingQuestion, cClassificationMappings])
 
   // セクション一覧を取得
   const sections = Array.from(new Set(questions.map(q => q.section_name).filter(Boolean))).sort((a, b) => {
@@ -521,6 +548,27 @@ export function QuestionnaireEditModal({
     setDraggedIndex(null)
   }
 
+  // C分類項目の定義
+  const C_CLASSIFICATION_ITEMS = [
+    { value: 'C-1', label: 'C-1: 歯の欠損がある' },
+    { value: 'C-2', label: 'C-2: 口唇・口蓋裂等がある' },
+    { value: 'C-3', label: 'C-3: 舌小帯、上唇小帯に異常がある' },
+    { value: 'C-4', label: 'C-4: 口唇閉鎖不全がある' },
+    { value: 'C-5', label: 'C-5: 食べこぼしがある' },
+    { value: 'C-6', label: 'C-6: 口腔習癖がある' },
+    { value: 'C-7', label: 'C-7: 歯の萌出に遅れがある' },
+    { value: 'C-8', label: 'C-8: 咀嚼に時間がかかる・咀嚼ができない' },
+    { value: 'C-9', label: 'C-9: 咬み合わせに異常がある' },
+    { value: 'C-10', label: 'C-10: 鼻呼吸の障害がある' },
+    { value: 'C-11', label: 'C-11: 口で呼吸する癖がある' },
+    { value: 'C-12', label: 'C-12: 咀嚼時、舌の動きに問題がある' },
+    { value: 'C-13', label: 'C-13: 身長、体重の増加に問題がある' },
+    { value: 'C-14', label: 'C-14: 食べ方が遅い' },
+    { value: 'C-15', label: 'C-15: 偏食がある' },
+    { value: 'C-16', label: 'C-16: 睡眠時のいびきがある' },
+    { value: 'C-17', label: 'C-17: その他の症状' },
+  ]
+
   // 質問編集フォーム
   const renderQuestionEditForm = (question: QuestionnaireQuestion) => {
     const addOption = () => {
@@ -544,7 +592,20 @@ export function QuestionnaireEditModal({
       }))
     }
 
-    const saveQuestion = () => {
+    const toggleCClassificationItem = (cItem: string) => {
+      setEditData(prev => {
+        const currentItems = prev.c_classification_items || []
+        const newItems = currentItems.includes(cItem)
+          ? currentItems.filter(item => item !== cItem)
+          : [...currentItems, cItem]
+        return {
+          ...prev,
+          c_classification_items: newItems
+        }
+      })
+    }
+
+    const saveQuestion = async () => {
       const updatedQuestions = questions.map(q =>
         q.id === question.id
           ? {
@@ -561,6 +622,34 @@ export function QuestionnaireEditModal({
           : q
       )
       setQuestions(updatedQuestions)
+
+      // C分類マッピング情報を更新
+      const oldMappingKey = `${question.section_name}::${question.question_text}`
+      const newMappingKey = `${editData.section_name}::${editData.question_text}`
+
+      // ローカルのマッピング情報を更新
+      const updatedMappings = { ...cClassificationMappings }
+      delete updatedMappings[oldMappingKey]
+      if (editData.c_classification_items && editData.c_classification_items.length > 0) {
+        updatedMappings[newMappingKey] = editData.c_classification_items
+      }
+      setCClassificationMappings(updatedMappings)
+
+      // データベースに保存（質問保存時に一緒に保存）
+      try {
+        await fetch('/api/c-classification-mapping', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            section_name: editData.section_name,
+            question_text: editData.question_text,
+            c_classification_items: editData.c_classification_items || []
+          })
+        })
+      } catch (error) {
+        console.error('C分類マッピング保存エラー:', error)
+      }
+
       setEditingQuestion(null)
     }
 
@@ -686,6 +775,42 @@ export function QuestionnaireEditModal({
                   onCheckedChange={(checked) => setEditData(prev => ({ ...prev, is_required: checked as boolean }))}
                 />
                 <Label htmlFor="is_required">必須項目</Label>
+              </div>
+
+              {/* C分類との連携 */}
+              <div className="border-t pt-4">
+                <Label className="text-base font-semibold mb-3 block">口腔機能発達不全症（C分類）との連携</Label>
+                <p className="text-sm text-gray-600 mb-3">
+                  この質問が関連するC分類項目を選択してください。選択した項目は自動評価の対象になります。
+                </p>
+                <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto border rounded-md p-3 bg-gray-50">
+                  {C_CLASSIFICATION_ITEMS.map((item) => (
+                    <div key={item.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`c-item-${item.value}`}
+                        checked={(editData.c_classification_items || []).includes(item.value)}
+                        onCheckedChange={() => toggleCClassificationItem(item.value)}
+                      />
+                      <Label htmlFor={`c-item-${item.value}`} className="text-sm cursor-pointer">
+                        {item.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                {editData.c_classification_items && editData.c_classification_items.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-gray-600">選択中:</span>
+                    {editData.c_classification_items.map((cItem) => (
+                      <Badge
+                        key={cItem}
+                        variant="secondary"
+                        className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                      >
+                        {cItem}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -950,7 +1075,7 @@ export function QuestionnaireEditModal({
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-1">
                       <GripVertical className="w-4 h-4 text-gray-400" />
                       <span className="text-sm font-medium text-gray-500">Q{index + 1}</span>
                       <h3 className="font-medium text-gray-900">{question.question_text}</h3>
@@ -962,6 +1087,19 @@ export function QuestionnaireEditModal({
                           🔗 {getLinkedFieldName(question)}と連携
                         </Badge>
                       )}
+                      {(() => {
+                        const mappingKey = `${question.section_name}::${question.question_text}`
+                        const cClassifications = cClassificationMappings[mappingKey] || []
+                        return cClassifications.map((cItem) => (
+                          <Badge
+                            key={cItem}
+                            variant="secondary"
+                            className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                          >
+                            {cItem}
+                          </Badge>
+                        ))
+                      })()}
                     </div>
                   </div>
                   <div className="flex space-x-2 ml-2">

@@ -7,12 +7,20 @@ interface PeriodontalInputPanelProps {
   onNumberInput: (value: number) => void
   onSpecialInput: (type: 'bop' | 'pus' | 'skip') => void
   onNavigate: (direction: 'left' | 'right' | 'up' | 'down') => void
+  bopMode: boolean
+  pusMode: boolean
+  onToggleBopMode: () => void
+  onTogglePusMode: () => void
 }
 
 export function PeriodontalInputPanel({
   onNumberInput,
   onSpecialInput,
   onNavigate,
+  bopMode,
+  pusMode,
+  onToggleBopMode,
+  onTogglePusMode,
 }: PeriodontalInputPanelProps) {
 
   // 数値ボタン（1-15）
@@ -40,8 +48,12 @@ export function PeriodontalInputPanel({
       <div className="grid grid-cols-9 gap-3">
         {/* 1行目: 出血 + 1-8 */}
         <button
-          onClick={() => onSpecialInput('bop')}
-          className="bg-red-600 hover:bg-red-500 text-white text-xl font-bold py-8 rounded transition-colors"
+          onClick={onToggleBopMode}
+          className={`text-white text-xl font-bold py-8 rounded transition-colors ${
+            bopMode
+              ? 'bg-red-700 ring-4 ring-red-300'
+              : 'bg-red-600 hover:bg-red-500'
+          }`}
         >
           出血
         </button>
@@ -57,8 +69,12 @@ export function PeriodontalInputPanel({
 
         {/* 2行目: 排膿 + 9-15 */}
         <button
-          onClick={() => onSpecialInput('pus')}
-          className="bg-yellow-600 hover:bg-yellow-500 text-white text-xl font-bold py-8 rounded transition-colors"
+          onClick={onTogglePusMode}
+          className={`text-white text-xl font-bold py-8 rounded transition-colors ${
+            pusMode
+              ? 'bg-yellow-700 ring-4 ring-yellow-300'
+              : 'bg-yellow-600 hover:bg-yellow-500'
+          }`}
         >
           排膿
         </button>

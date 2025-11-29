@@ -26,7 +26,7 @@ INSERT INTO treatment_codes (
   '窩洞形成（単純なもの）',
   '歯冠修復',
   60,
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "same_day": [],
     "same_month": [],
@@ -36,7 +36,7 @@ INSERT INTO treatment_codes (
   }'::jsonb,
   '[]'::jsonb,
   '2025-01-01',
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "pdf_reference": "Page 68, M001-3-イ",
     "notes": "麻酔、薬剤等の費用及び保険医療材料料は所定点数に含まれる",
@@ -66,7 +66,7 @@ INSERT INTO treatment_codes (
   '窩洞形成（複雑なもの）',
   '歯冠修復',
   86,
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "same_day": [],
     "same_month": [],
@@ -76,7 +76,7 @@ INSERT INTO treatment_codes (
   }'::jsonb,
   '[]'::jsonb,
   '2025-01-01',
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "pdf_reference": "Page 68, M001-3-ロ",
     "notes": "麻酔、薬剤等の費用及び保険医療材料料は所定点数に含まれる",
@@ -114,7 +114,7 @@ INSERT INTO treatment_codes (
   '充填１（単純なもの）',
   '歯冠修復',
   106,
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "same_day": [],
     "same_month": [],
@@ -124,7 +124,7 @@ INSERT INTO treatment_codes (
   }'::jsonb,
   '[]'::jsonb,
   '2025-01-01',
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "pdf_reference": "Page 71, M009-1-イ",
     "notes": "歯質に対する接着性を付与又は向上させるために歯面処理を行う場合。歯面処理に係る費用は所定点数に含まれる",
@@ -155,7 +155,7 @@ INSERT INTO treatment_codes (
   '充填１（複雑なもの）',
   '歯冠修復',
   158,
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "same_day": [],
     "same_month": [],
@@ -165,7 +165,7 @@ INSERT INTO treatment_codes (
   }'::jsonb,
   '[]'::jsonb,
   '2025-01-01',
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "pdf_reference": "Page 71, M009-1-ロ",
     "notes": "歯質に対する接着性を付与又は向上させるために歯面処理を行う場合。歯面処理に係る費用は所定点数に含まれる",
@@ -196,7 +196,7 @@ INSERT INTO treatment_codes (
   '充填２（単純なもの）',
   '歯冠修復',
   59,
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "same_day": [],
     "same_month": [],
@@ -206,7 +206,7 @@ INSERT INTO treatment_codes (
   }'::jsonb,
   '[]'::jsonb,
   '2025-01-01',
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "pdf_reference": "Page 71, M009-2-イ",
     "notes": "充填１以外（歯面処理を行わない場合）",
@@ -237,7 +237,7 @@ INSERT INTO treatment_codes (
   '充填２（複雑なもの）',
   '歯冠修復',
   107,
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "same_day": [],
     "same_month": [],
@@ -247,7 +247,7 @@ INSERT INTO treatment_codes (
   }'::jsonb,
   '[]'::jsonb,
   '2025-01-01',
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "pdf_reference": "Page 71, M009-2-ロ",
     "notes": "充填１以外（歯面処理を行わない場合）",
@@ -284,7 +284,7 @@ INSERT INTO treatment_codes (
   'う蝕歯即時充填形成',
   '歯冠修復',
   128,
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "same_day": [],
     "same_month": [],
@@ -294,7 +294,7 @@ INSERT INTO treatment_codes (
   }'::jsonb,
   '[]'::jsonb,
   '2025-01-01',
-  '[]'::jsonb,
+  '{}'::text[],
   '{
     "pdf_reference": "Page 69, M001-2",
     "notes": "麻酔、歯髄保護処置、特定薬剤、窩洞形成等の費用は所定点数に含まれる",

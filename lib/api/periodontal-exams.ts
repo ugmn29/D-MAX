@@ -90,98 +90,48 @@ export interface UpdatePeriodontalExamInput {
  * 新規歯周検査を作成
  */
 export async function createPeriodontalExam(input: CreatePeriodontalExamInput): Promise<PeriodontalExam> {
-  const supabase = createClient()
+  const response = await fetch('/api/periodontal-exams', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
 
-  // 検査レコードを作成
-  const { data: exam, error: examError } = await supabase
-    .from('periodontal_examinations')
-    .insert({
-      patient_id: input.patient_id,
-      clinic_id: input.clinic_id,
-      examination_date: input.examination_date || new Date().toISOString().split('T')[0],
-      examiner_id: input.examiner_id,
-      measurement_type: input.measurement_type,
-      notes: input.notes,
-    })
-    .select()
-    .single()
-
-  if (examError) {
-    throw new Error(`Failed to create periodontal examination: ${examError.message}`)
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to create periodontal examination')
   }
 
-  // 歯ごとのデータを作成
-  if (input.tooth_data && input.tooth_data.length > 0) {
-    const toothDataToInsert = input.tooth_data.map(tooth => ({
-      examination_id: exam.id,
-      ...tooth,
-    }))
-
-    const { error: toothError } = await supabase
-      .from('periodontal_tooth_data')
-      .insert(toothDataToInsert)
-
-    if (toothError) {
-      // エラーが発生した場合、検査レコードも削除
-      await supabase.from('periodontal_examinations').delete().eq('id', exam.id)
-      throw new Error(`Failed to create tooth data: ${toothError.message}`)
-    }
-  }
-
-  return exam
+  return response.json()
 }
 
 /**
  * 患者の歯周検査履歴を取得
  */
 export async function getPeriodontalExams(patientId: string): Promise<PeriodontalExam[]> {
-  const supabase = createClient()
+  const response = await fetch(`/api/periodontal-exams?patient_id=${patientId}`)
 
-  const { data, error } = await supabase
-    .from('periodontal_examinations')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('examination_date', { ascending: false })
-
-  if (error) {
-    throw new Error(`Failed to fetch periodontal examinations: ${error.message}`)
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch periodontal examinations')
   }
 
-  return data || []
+  return response.json()
 }
 
 /**
  * 特定の歯周検査を取得（歯ごとのデータを含む）
  */
 export async function getPeriodontalExam(examId: string): Promise<PeriodontalExam> {
-  const supabase = createClient()
+  const response = await fetch(`/api/periodontal-exams/${examId}`)
 
-  // 検査レコードを取得
-  const { data: exam, error: examError } = await supabase
-    .from('periodontal_examinations')
-    .select('*')
-    .eq('id', examId)
-    .single()
-
-  if (examError) {
-    throw new Error(`Failed to fetch periodontal examination: ${examError.message}`)
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch periodontal examination')
   }
 
-  // 歯ごとのデータを取得
-  const { data: toothData, error: toothError } = await supabase
-    .from('periodontal_tooth_data')
-    .select('*')
-    .eq('examination_id', examId)
-    .order('tooth_number')
-
-  if (toothError) {
-    throw new Error(`Failed to fetch tooth data: ${toothError.message}`)
-  }
-
-  return {
-    ...exam,
-    tooth_data: toothData || [],
-  }
+  return response.json()
 }
 
 /**
@@ -191,66 +141,33 @@ export async function updatePeriodontalExam(
   examId: string,
   input: UpdatePeriodontalExamInput
 ): Promise<PeriodontalExam> {
-  const supabase = createClient()
+  const response = await fetch(`/api/periodontal-exams/${examId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
 
-  // 検査レコードを更新
-  const updateData: any = {}
-  if (input.examination_date !== undefined) updateData.examination_date = input.examination_date
-  if (input.measurement_type !== undefined) updateData.measurement_type = input.measurement_type
-  if (input.notes !== undefined) updateData.notes = input.notes
-
-  const { data: exam, error: examError } = await supabase
-    .from('periodontal_examinations')
-    .update(updateData)
-    .eq('id', examId)
-    .select()
-    .single()
-
-  if (examError) {
-    throw new Error(`Failed to update periodontal examination: ${examError.message}`)
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to update periodontal examination')
   }
 
-  // 歯ごとのデータを更新
-  if (input.tooth_data) {
-    // 既存のデータを削除
-    await supabase
-      .from('periodontal_tooth_data')
-      .delete()
-      .eq('examination_id', examId)
-
-    // 新しいデータを挿入
-    if (input.tooth_data.length > 0) {
-      const toothDataToInsert = input.tooth_data.map(tooth => ({
-        examination_id: examId,
-        ...tooth,
-      }))
-
-      const { error: toothError } = await supabase
-        .from('periodontal_tooth_data')
-        .insert(toothDataToInsert)
-
-      if (toothError) {
-        throw new Error(`Failed to update tooth data: ${toothError.message}`)
-      }
-    }
-  }
-
-  return exam
+  return response.json()
 }
 
 /**
  * 歯周検査を削除
  */
 export async function deletePeriodontalExam(examId: string): Promise<void> {
-  const supabase = createClient()
+  const response = await fetch(`/api/periodontal-exams/${examId}`, {
+    method: 'DELETE',
+  })
 
-  const { error } = await supabase
-    .from('periodontal_examinations')
-    .delete()
-    .eq('id', examId)
-
-  if (error) {
-    throw new Error(`Failed to delete periodontal examination: ${error.message}`)
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to delete periodontal examination')
   }
 }
 

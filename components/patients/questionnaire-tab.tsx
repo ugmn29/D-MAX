@@ -24,6 +24,7 @@ import {
 } from '@/lib/api/questionnaires'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { OralFunctionAssessmentPanel } from './oral-function-assessment-panel'
 
 interface QuestionnaireTabProps {
   patientId: string
@@ -91,9 +92,11 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       console.log('連携済み問診票の詳細:', patientResponses.map(r => ({
         id: r.id,
         questionnaire_id: r.questionnaire_id,
+        questionnaire_name: r.questionnaire?.name,
         patient_id: r.patient_id,
         response_data_keys: Object.keys(r.response_data || {})
       })))
+      console.log('問診票名一覧:', patientResponses.map(r => r.questionnaire?.name).filter(Boolean))
 
       // 問診票の定義を取得（質問IDから質問文を取得するため）
       // 仮のclinicIdを使用（実際の実装では適切なclinicIdを使用）
@@ -287,9 +290,30 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       )
     }
 
+    // 習慣チェック表の場合は口腔機能評価パネルも表示
+    const habitResponses = questionnaireResponses.filter(
+      r => {
+        const name = r.questionnaire?.name || ''
+        return name.includes('習慣チェック表')
+      }
+    )
+
+    // activeTypeに応じて表示する問診票をフィルタリング
+    const displayResponses = activeType === 'habit'
+      ? habitResponses
+      : questionnaireResponses.filter(r => {
+          const name = r.questionnaire?.name || ''
+          return !name.includes('習慣チェック表')
+        })
+
     return (
       <div className="space-y-4">
-        {questionnaireResponses.map((response) => {
+        {/* 習慣チェック表タブの場合、口腔機能評価パネルを先に表示 */}
+        {activeType === 'habit' && habitResponses.length > 0 && (
+          <OralFunctionAssessmentPanel patientId={patientId} />
+        )}
+
+        {displayResponses.map((response) => {
           const formattedData = formatResponseData(response)
           const isExpanded = expandedResponses.has(response.id)
 
@@ -361,6 +385,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                     // セクション名でグループ化しつつ、順序を保持
                     const sections = new Map<string, Array<{
                       questionText: string
+                      sectionName: string
                       answer: any
                       sortOrder: number
                       linkedField?: string
@@ -373,6 +398,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                       }
                       sections.get(sectionName)!.push({
                         questionText: item.questionText,
+                        sectionName: item.sectionName,
                         answer: item.answer,
                         sortOrder: item.sortOrder,
                         linkedField: item.linkedField
@@ -397,21 +423,23 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
                           {sectionName}
                         </h4>
                         <div className="space-y-3">
-                          {questions.map((item, index) => (
-                            <div key={index} className="bg-white">
-                              <dt className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                                <span>{item.questionText}</span>
-                                {item.linkedField && (
-                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                    {patientFieldLabels[item.linkedField] || item.linkedField}と連携
-                                  </Badge>
-                                )}
-                              </dt>
-                              <dd className="text-sm text-gray-900 pl-4 py-2 bg-gray-50 rounded border-l-2 border-gray-300">
-                                {typeof item.answer === 'string' ? item.answer : JSON.stringify(item.answer, null, 2)}
-                              </dd>
-                            </div>
-                          ))}
+                          {questions.map((item, index) => {
+                            return (
+                              <div key={index} className="bg-white">
+                                <dt className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-2 flex-wrap">
+                                  <span>{item.questionText}</span>
+                                  {item.linkedField && (
+                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                      {patientFieldLabels[item.linkedField] || item.linkedField}と連携
+                                    </Badge>
+                                  )}
+                                </dt>
+                                <dd className="text-sm text-gray-900 pl-4 py-2 bg-gray-50 rounded border-l-2 border-gray-300">
+                                  {typeof item.answer === 'string' ? item.answer : JSON.stringify(item.answer, null, 2)}
+                                </dd>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     ))
@@ -475,7 +503,16 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
           {activeType === 'display' ? '表示問診票' : '習慣チェック表'}
         </h3>
         <Badge variant="outline" className="text-sm">
-          {questionnaireResponses.length}件の回答
+          {activeType === 'habit'
+            ? questionnaireResponses.filter(r => {
+                const name = r.questionnaire?.name || ''
+                return name.includes('習慣チェック表')
+              }).length
+            : questionnaireResponses.filter(r => {
+                const name = r.questionnaire?.name || ''
+                return !name.includes('習慣チェック表')
+              }).length
+          }件の回答
         </Badge>
       </div>
 

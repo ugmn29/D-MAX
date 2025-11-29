@@ -18,7 +18,7 @@ export default function HomePage() {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [displayItems, setDisplayItems] = useState<string[]>([])
   const [cellHeight, setCellHeight] = useState<number>(40)
-  const [displayMode, setDisplayMode] = useState<'staff' | 'units' | 'both'>('staff')
+  const [displayMode, setDisplayMode] = useState<'staff' | 'units'>('staff')
 
   // コピータブ機能関連
   const [copiedAppointment, setCopiedAppointment] = useState<any>(null)
