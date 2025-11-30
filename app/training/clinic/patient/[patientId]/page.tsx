@@ -8,7 +8,8 @@ import { getPatientById } from '@/lib/api/patients'
 import TrainingFlowChart from '@/components/training/TrainingFlowChart'
 import TrainingProgressChart from '@/components/training/TrainingProgressChart'
 import PatientIssuesTab from '@/components/training/PatientIssuesTab'
-import { Dumbbell, TrendingUp, AlertTriangle } from 'lucide-react'
+import VisitEvaluationTab from '@/components/training/VisitEvaluationTab'
+import { Dumbbell, TrendingUp, AlertTriangle, ClipboardCheck } from 'lucide-react'
 
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
@@ -60,7 +61,7 @@ export default function PatientDetailPage() {
   const [menuHistory, setMenuHistory] = useState<TrainingMenu[]>([])
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'training' | 'progress' | 'issues'>('training')
+  const [activeTab, setActiveTab] = useState<'visit-evaluation' | 'training' | 'progress' | 'issues'>('visit-evaluation')
   const [showResetModal, setShowResetModal] = useState(false)
 
   useEffect(() => {
@@ -269,12 +270,6 @@ export default function PatientDetailPage() {
                   パスワードリセット
                 </button>
               )}
-              <button
-                onClick={() => router.push(`/training/clinic/evaluate/${patientId}`)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                📝 来院時評価を記録
-              </button>
             </div>
           </div>
         </div>
@@ -284,6 +279,17 @@ export default function PatientDetailPage() {
       <div className="bg-gray-50 px-6 py-4 flex-shrink-0">
         <div className="border-b border-gray-200">
           <div className="flex gap-4 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab('visit-evaluation')}
+              className={`px-6 py-2 font-medium text-base transition-colors whitespace-nowrap flex items-center gap-2 ${
+                activeTab === 'visit-evaluation'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <ClipboardCheck className="w-4 h-4" />
+              来院時評価
+            </button>
             <button
               onClick={() => setActiveTab('training')}
               className={`px-6 py-2 font-medium text-base transition-colors whitespace-nowrap flex items-center gap-2 ${
@@ -323,6 +329,16 @@ export default function PatientDetailPage() {
 
       {/* スクロール可能なコンテンツエリア */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
+        {/* 来院時評価タブ */}
+        {activeTab === 'visit-evaluation' && (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <VisitEvaluationTab
+              patientId={patientId}
+              patientName={`${patient.last_name} ${patient.first_name}`}
+            />
+          </div>
+        )}
+
         {/* トレーニング管理タブ */}
         {activeTab === 'training' && (
           <div className="bg-white rounded-xl shadow-sm p-4 h-full">

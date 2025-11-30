@@ -232,12 +232,6 @@ export default function TrainingsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="px-6 py-4">
-          <button
-            onClick={() => router.push('/training/clinic')}
-            className="text-blue-600 hover:text-blue-700 mb-2"
-          >
-            ← 戻る
-          </button>
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">トレーニング一覧 ({trainings.length}件)</h1>
             <button

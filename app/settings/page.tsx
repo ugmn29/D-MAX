@@ -395,6 +395,7 @@ export default function SettingsPage() {
   const [notificationTab, setNotificationTab] = useState("connection");
   const [richMenuSubTab, setRichMenuSubTab] = useState<"registered" | "unregistered">("registered"); // リッチメニューのサブタブ
   const [questionnaireTab, setQuestionnaireTab] = useState("basic");
+  const [trainingSubTab, setTrainingSubTab] = useState('patients');
   const [useQuestionnaire, setUseQuestionnaire] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -6435,98 +6436,67 @@ export default function SettingsPage() {
 
   // トレーニング設定のレンダリング
   const renderTrainingSettings = () => {
-    const trainingUrls = [
-      {
-        title: "医院管理画面",
-        url: `${window.location.origin}/training/clinic`,
-        description: "トレーニング管理のトップページ",
-      },
-      {
-        title: "トレーニング管理",
-        url: `${window.location.origin}/training/clinic/trainings`,
-        description: "トレーニングメニューの管理",
-      },
-      {
-        title: "患者一覧",
-        url: `${window.location.origin}/training/clinic/patients`,
-        description: "トレーニング患者の管理",
-      },
-      {
-        title: "テンプレート管理",
-        url: `${window.location.origin}/training/clinic/templates`,
-        description: "トレーニングテンプレートの管理",
-      },
-      {
-        title: "分析",
-        url: `${window.location.origin}/training/clinic/analytics`,
-        description: "トレーニングデータの分析",
-      },
+    const trainingSubTabs = [
+      { id: 'patients', name: '患者管理', icon: '👤' },
+      { id: 'trainings', name: 'トレーニング一覧', icon: '🏋️' },
+      { id: 'analytics', name: '分析', icon: '📊' },
     ];
 
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            トレーニング管理
-          </h2>
-          <p className="text-gray-600">医院管理画面へのアクセス</p>
+        {/* サブタブナビゲーション */}
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8">
+            {trainingSubTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setTrainingSubTab(tab.id)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  trainingSubTab === tab.id
+                    ? 'border-dmax-primary text-dmax-primary'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.name}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              {trainingUrls.map((item, index) => (
-                <div
-                  key={index}
-                  className="p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Accessibility className="w-5 h-5 text-blue-600" />
-                        <h3 className="font-medium text-gray-900">
-                          {item.title}
-                        </h3>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-3">
-                        {item.description}
-                      </p>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={item.url}
-                          readOnly
-                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700 font-mono"
-                        />
-                        <Button
-                          onClick={() => {
-                            navigator.clipboard.writeText(item.url);
-                            showAlert("URLをコピーしました", "success");
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0"
-                        >
-                          <Copy className="w-4 h-4 mr-1" />
-                          コピー
-                        </Button>
-                        <Button
-                          onClick={() => window.open(item.url, "_blank")}
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0"
-                        >
-                          <ExternalLink className="w-4 h-4 mr-1" />
-                          開く
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* サブタブコンテンツ */}
+        {trainingSubTab === 'patients' && (
+          <div className="w-full">
+            <iframe
+              src="/training/clinic/patients"
+              className="w-full border-0 rounded-lg"
+              style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}
+              title="患者管理"
+            />
+          </div>
+        )}
+
+        {trainingSubTab === 'trainings' && (
+          <div className="w-full">
+            <iframe
+              src="/training/clinic/trainings"
+              className="w-full border-0 rounded-lg"
+              style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}
+              title="トレーニング一覧"
+            />
+          </div>
+        )}
+
+        {trainingSubTab === 'analytics' && (
+          <div className="w-full">
+            <iframe
+              src="/training/clinic/analytics"
+              className="w-full border-0 rounded-lg"
+              style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}
+              title="分析"
+            />
+          </div>
+        )}
       </div>
     );
   };

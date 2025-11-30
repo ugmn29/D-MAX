@@ -71,16 +71,8 @@ export default function PatientsPage() {
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
       <header className="bg-white shadow-sm">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div>
-            <button
-              onClick={() => router.push('/training/clinic')}
-              className="text-blue-600 hover:text-blue-700 mb-2"
-            >
-              ← 戻る
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">患者管理</h1>
-          </div>
+        <div className="px-6 py-4">
+          <h1 className="text-2xl font-bold text-gray-900">患者管理</h1>
         </div>
       </header>
 

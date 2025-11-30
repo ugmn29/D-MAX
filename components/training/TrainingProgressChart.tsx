@@ -1,109 +1,112 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { EvaluationProgressSummary } from '@/types/evaluation'
+import { supabase } from '@/lib/supabase'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+
+interface TrainingRecord {
+  training_id: string
+  training_name: string
+  total_count: number
+  completed_count: number
+  interrupted_count: number
+  last_performed_at: string
+}
 
 interface TrainingProgressChartProps {
   patientId: string
 }
 
-// カテゴリーマッピング：既存カテゴリーを3つのグループに分類
-const CATEGORY_GROUPS = {
-  tongue: {
-    name: '舌のトレーニング',
-    icon: '👅',
-    color: 'blue',
-    categories: ['舌訓練', '舌位置', '柔軟性'],
-  },
-  lips: {
-    name: '口唇のトレーニング',
-    icon: '👄',
-    color: 'pink',
-    categories: ['筋力訓練', '基礎訓練', 'リラックス', '呼吸訓練'],
-  },
-  bite: {
-    name: '咬合力のトレーニング',
-    icon: '🦷',
-    color: 'green',
-    categories: ['総合訓練', '顎訓練'],
-  },
-} as const
-
-type CategoryGroup = keyof typeof CATEGORY_GROUPS
-
 export default function TrainingProgressChart({ patientId }: TrainingProgressChartProps) {
-  const [progress, setProgress] = useState<EvaluationProgressSummary[]>([])
+  const [records, setRecords] = useState<TrainingRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [totalStats, setTotalStats] = useState({
+    total: 0,
+    completed: 0,
+    interrupted: 0,
+  })
 
   useEffect(() => {
-    loadProgress()
+    loadTrainingRecords()
   }, [patientId])
 
-  const loadProgress = async () => {
+  const loadTrainingRecords = async () => {
     try {
-      const response = await fetch(
-        `/api/training/evaluations/progress?patient_id=${patientId}`
-      )
-      const result = await response.json()
+      // 患者のトレーニング実施記録を集計
+      const { data, error } = await supabase
+        .from('training_records')
+        .select(`
+          training_id,
+          completed,
+          interrupted,
+          performed_at,
+          trainings!inner(
+            training_name
+          )
+        `)
+        .eq('patient_id', patientId)
+        .eq('clinic_id', DEMO_CLINIC_ID)
+        .order('performed_at', { ascending: false })
 
-      if (response.ok) {
-        setProgress(result.data || [])
-      } else {
-        console.error('進捗取得エラー:', result.error)
+      if (error) {
+        console.error('トレーニング記録取得エラー:', error)
+        setIsLoading(false)
+        return
       }
+
+      // トレーニングごとに集計
+      const recordMap = new Map<string, TrainingRecord>()
+      let totalCount = 0
+      let completedCount = 0
+      let interruptedCount = 0
+
+      data?.forEach((record: any) => {
+        const trainingId = record.training_id
+        const trainingName = record.trainings.training_name
+
+        if (!recordMap.has(trainingId)) {
+          recordMap.set(trainingId, {
+            training_id: trainingId,
+            training_name: trainingName,
+            total_count: 0,
+            completed_count: 0,
+            interrupted_count: 0,
+            last_performed_at: record.performed_at,
+          })
+        }
+
+        const existing = recordMap.get(trainingId)!
+        existing.total_count++
+        if (record.completed) existing.completed_count++
+        if (record.interrupted) existing.interrupted_count++
+
+        // 最新の実施日時を保持
+        if (new Date(record.performed_at) > new Date(existing.last_performed_at)) {
+          existing.last_performed_at = record.performed_at
+        }
+
+        totalCount++
+        if (record.completed) completedCount++
+        if (record.interrupted) interruptedCount++
+      })
+
+      const recordsArray = Array.from(recordMap.values()).sort((a, b) =>
+        b.total_count - a.total_count
+      )
+
+      setRecords(recordsArray)
+      setTotalStats({
+        total: totalCount,
+        completed: completedCount,
+        interrupted: interruptedCount,
+      })
     } catch (error) {
-      console.error('進捗取得エラー:', error)
+      console.error('データ取得エラー:', error)
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // カテゴリーグループごとにトレーニングを分類
-  const categorizeProgress = () => {
-    const categorized: Record<CategoryGroup, EvaluationProgressSummary[]> = {
-      tongue: [],
-      lips: [],
-      bite: [],
-    }
-
-    progress.forEach((item) => {
-      const category = item.training_category
-
-      // カテゴリーグループを特定
-      if (CATEGORY_GROUPS.tongue.categories.includes(category)) {
-        categorized.tongue.push(item)
-      } else if (CATEGORY_GROUPS.lips.categories.includes(category)) {
-        categorized.lips.push(item)
-      } else if (CATEGORY_GROUPS.bite.categories.includes(category)) {
-        categorized.bite.push(item)
-      }
-    })
-
-    return categorized
-  }
-
-  // 評価レベルのバッジスタイル
-  const getLevelBadge = (level: number | null) => {
-    if (level === null) {
-      return <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">未評価</span>
-    }
-    switch (level) {
-      case 1:
-        return <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">❌ レベル1</span>
-      case 2:
-        return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded">⚠️ レベル2</span>
-      case 3:
-        return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">✅ レベル3</span>
-      default:
-        return <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">-</span>
-    }
-  }
-
-  // カテゴリーグループの統計を計算
-  const getGroupStats = (items: EvaluationProgressSummary[]) => {
-    const completed = items.filter((item) => item.is_completed).length
-    const total = items.length
-    return { completed, total, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 }
   }
 
   if (isLoading) {
@@ -114,139 +117,160 @@ export default function TrainingProgressChart({ patientId }: TrainingProgressCha
     )
   }
 
-  if (progress.length === 0) {
+  if (records.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-600 mb-2">進捗データがありません</p>
+        <p className="text-gray-600 mb-2">トレーニング実施記録がありません</p>
         <p className="text-sm text-gray-500">
-          来院時評価を記録すると、ここに進捗が表示されます
+          患者さんがトレーニングを実施すると、ここに記録が表示されます
         </p>
       </div>
     )
   }
 
-  const categorizedProgress = categorizeProgress()
-  const completed = progress.filter((p) => p.is_completed)
+  // グラフ用データ
+  const chartData = records.map(record => ({
+    name: record.training_name.length > 12
+      ? record.training_name.substring(0, 12) + '...'
+      : record.training_name,
+    fullName: record.training_name,
+    完了: record.completed_count,
+    中断: record.interrupted_count,
+  }))
+
+  const completionRate = totalStats.total > 0
+    ? Math.round((totalStats.completed / totalStats.total) * 100)
+    : 0
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* 全体サマリー */}
-      <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-6 border border-blue-100">
-        <div className="grid grid-cols-3 gap-6">
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-100">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">全体の実施状況</h3>
+        <div className="grid grid-cols-4 gap-4">
           <div className="text-center">
-            <div className="text-3xl font-bold text-blue-600">{progress.length}</div>
-            <div className="text-sm text-gray-600 mt-1">評価済みトレーニング</div>
+            <div className="text-3xl font-bold text-blue-600">{totalStats.total}</div>
+            <div className="text-sm text-gray-600 mt-1">総実施回数</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-green-600">{completed.length}</div>
-            <div className="text-sm text-gray-600 mt-1">レベル3達成</div>
+            <div className="text-3xl font-bold text-green-600">{totalStats.completed}</div>
+            <div className="text-sm text-gray-600 mt-1">完了</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-gray-600">
-              {progress.length > 0 ? Math.round((completed.length / progress.length) * 100) : 0}%
-            </div>
-            <div className="text-sm text-gray-600 mt-1">達成率</div>
+            <div className="text-3xl font-bold text-orange-600">{totalStats.interrupted}</div>
+            <div className="text-sm text-gray-600 mt-1">中断</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-gray-700">{completionRate}%</div>
+            <div className="text-sm text-gray-600 mt-1">完了率</div>
           </div>
         </div>
         <div className="mt-4">
           <div className="w-full bg-gray-200 rounded-full h-3">
             <div
               className="bg-green-500 h-3 rounded-full transition-all duration-500"
-              style={{
-                width: `${progress.length > 0 ? (completed.length / progress.length) * 100 : 0}%`,
-              }}
+              style={{ width: `${completionRate}%` }}
             />
           </div>
         </div>
       </div>
 
-      {/* カテゴリー別フローチャート */}
-      {(Object.keys(CATEGORY_GROUPS) as CategoryGroup[]).map((groupKey) => {
-        const group = CATEGORY_GROUPS[groupKey]
-        const items = categorizedProgress[groupKey]
-
-        if (items.length === 0) return null
-
-        const stats = getGroupStats(items)
-        const colorClasses = {
-          blue: { border: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-600', progress: 'bg-blue-500' },
-          pink: { border: 'border-pink-200', bg: 'bg-pink-50', text: 'text-pink-600', progress: 'bg-pink-500' },
-          green: { border: 'border-green-200', bg: 'bg-green-50', text: 'text-green-600', progress: 'bg-green-500' },
-        }
-        const colors = colorClasses[group.color]
-
-        return (
-          <div key={groupKey} className={`rounded-xl border-2 ${colors.border} ${colors.bg} p-6`}>
-            {/* カテゴリーヘッダー */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className={`text-xl font-bold ${colors.text} flex items-center gap-2`}>
-                  <span className="text-2xl">{group.icon}</span>
-                  {group.name}
-                </h3>
-                <div className="text-sm font-semibold text-gray-700">
-                  {stats.completed}/{stats.total} 達成 ({stats.percentage}%)
-                </div>
-              </div>
-              <div className="w-full bg-white rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all duration-500 ${colors.progress}`}
-                  style={{ width: `${stats.percentage}%` }}
-                />
-              </div>
-            </div>
-
-            {/* フローチャート形式のトレーニング一覧 */}
-            <div className="space-y-3">
-              {items.map((item, index) => (
-                <div key={item.training_id}>
-                  <div className="bg-white rounded-lg p-4 border-2 border-gray-200 hover:border-gray-300 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1">
-                        {/* ステータスアイコン */}
-                        <div className="flex-shrink-0">
-                          {item.is_completed ? (
-                            <span className="text-2xl">✅</span>
-                          ) : item.latest_evaluation_level === 2 ? (
-                            <span className="text-2xl">⚠️</span>
-                          ) : item.latest_evaluation_level === 1 ? (
-                            <span className="text-2xl">❌</span>
-                          ) : (
-                            <span className="text-2xl">⚪</span>
-                          )}
-                        </div>
-
-                        {/* トレーニング名 */}
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">{item.training_name}</h4>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                            <span>評価 {item.evaluation_count}回</span>
-                            {item.latest_evaluated_at && (
-                              <span>
-                                最終評価: {new Date(item.latest_evaluated_at).toLocaleDateString('ja-JP')}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 現在のレベル */}
-                        <div className="flex-shrink-0">{getLevelBadge(item.latest_evaluation_level)}</div>
+      {/* トレーニング別実施回数グラフ */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">トレーニング別実施回数</h3>
+        <div className="h-96">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="name"
+                angle={-45}
+                textAnchor="end"
+                height={100}
+                fontSize={12}
+              />
+              <YAxis label={{ value: '実施回数', angle: -90, position: 'insideLeft' }} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-white border border-gray-300 rounded-lg p-3 shadow-lg">
+                        <p className="text-sm font-medium text-gray-900 mb-2">
+                          {payload[0].payload.fullName}
+                        </p>
+                        <p className="text-sm text-green-600">
+                          完了: {payload[0].value}回
+                        </p>
+                        <p className="text-sm text-orange-600">
+                          中断: {payload[1].value}回
+                        </p>
                       </div>
-                    </div>
-                  </div>
+                    )
+                  }
+                  return null
+                }}
+              />
+              <Legend />
+              <Bar dataKey="完了" fill="#10b981" />
+              <Bar dataKey="中断" fill="#f97316" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
-                  {/* 矢印（最後のアイテム以外） */}
-                  {index < items.length - 1 && (
-                    <div className="flex justify-center py-2">
-                      <span className="text-2xl text-gray-400">↓</span>
-                    </div>
-                  )}
+      {/* トレーニング詳細一覧 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">
+          トレーニング詳細 ({records.length}種類)
+        </h3>
+        <div className="space-y-3">
+          {records.map((record) => {
+            const rate = record.total_count > 0
+              ? Math.round((record.completed_count / record.total_count) * 100)
+              : 0
+
+            return (
+              <div
+                key={record.training_id}
+                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-900">{record.training_name}</h4>
+                  <span className="text-sm text-gray-500">
+                    最終実施: {new Date(record.last_performed_at).toLocaleDateString('ja-JP')}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
+
+                <div className="grid grid-cols-4 gap-4 mb-3">
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-blue-600">{record.total_count}</div>
+                    <div className="text-xs text-gray-600">総回数</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-green-600">{record.completed_count}</div>
+                    <div className="text-xs text-gray-600">完了</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-orange-600">{record.interrupted_count}</div>
+                    <div className="text-xs text-gray-600">中断</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-gray-700">{rate}%</div>
+                    <div className="text-xs text-gray-600">完了率</div>
+                  </div>
+                </div>
+
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-500 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${rate}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
