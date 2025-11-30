@@ -360,6 +360,11 @@ export async function updatePatient(
     (updateData as any).primary_doctor_id = (updateData as any).primary_doctor || null
   }
 
+  // 空文字列をnullに変換（チェック制約対策）
+  if ((updateData as any).preferred_contact_method === '') {
+    (updateData as any).preferred_contact_method = null
+  }
+
   // データベースに存在しないフィールドを削除
   delete (updateData as any).patient_icons  // 患者アイコンは別テーブル
   delete (updateData as any).family_members // 家族連携は別テーブル
@@ -367,10 +372,6 @@ export async function updatePatient(
   delete (updateData as any).assigned_dh    // primary_hygienist_idにマッピング済み
   delete (updateData as any).primary_doctor // primary_doctor_idにマッピング済み
   delete (updateData as any).special_notes  // 特記事項は患者アイコンで管理
-
-  console.log('updatePatient: 送信するデータ:', updateData)
-  console.log('updatePatient: 送信データの primary_doctor_id:', (updateData as any).primary_doctor_id)
-  console.log('updatePatient: 送信データの primary_hygienist_id:', (updateData as any).primary_hygienist_id)
 
   const { data, error } = await client
     .from('patients')
@@ -381,20 +382,10 @@ export async function updatePatient(
     .single()
 
   if (error) {
-    console.error('患者更新エラー詳細:', {
-      error,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-      updateData
-    })
+    console.error('患者更新エラー:', error.message)
     throw new Error(`患者情報の更新に失敗しました: ${error.message}`)
   }
 
-  console.log('updatePatient: データベースに保存されたデータ:', data)
-  console.log('updatePatient: 保存後の primary_doctor_id:', (data as any).primary_doctor_id)
-  console.log('updatePatient: 保存後の primary_hygienist_id:', (data as any).primary_hygienist_id)
   return data
 }
 

@@ -116,9 +116,6 @@ export function PatientEditModal({ isOpen, onClose, patient, clinicId, onSave }:
   const loadPatientData = async () => {
     if (!patient) return
 
-    console.log('PatientEditModal: loadPatientData - patient.primary_doctor_id:', (patient as any).primary_doctor_id)
-    console.log('PatientEditModal: loadPatientData - patient.primary_hygienist_id:', (patient as any).primary_hygienist_id)
-
     // patientプロップから直接データを使用（基本情報タブと同じデータを表示）
     setEditData({
       last_name: patient.last_name,
@@ -139,9 +136,6 @@ export function PatientEditModal({ isOpen, onClose, patient, clinicId, onSave }:
       primary_doctor: (patient as any).primary_doctor_id || '',
       assigned_dh: (patient as any).primary_hygienist_id || ''
     })
-
-    console.log('PatientEditModal: loadPatientData - editDataにセット primary_doctor:', (patient as any).primary_doctor_id || '')
-    console.log('PatientEditModal: loadPatientData - editDataにセット assigned_dh:', (patient as any).primary_hygienist_id || '')
 
     // 通知受信設定を読み込む
     try {
@@ -344,13 +338,7 @@ export function PatientEditModal({ isOpen, onClose, patient, clinicId, onSave }:
         family_members: familyMembers.map(f => f.id)
       }
 
-      console.log('患者編集モーダル: 保存するデータ:', patientDataToSave)
-      console.log('患者編集モーダル: 保存データの primary_doctor:', patientDataToSave.primary_doctor)
-      console.log('患者編集モーダル: 保存データの assigned_dh:', patientDataToSave.assigned_dh)
-      console.log('患者編集モーダル: editDataの primary_doctor:', editData.primary_doctor)
-      console.log('患者編集モーダル: editDataの assigned_dh:', editData.assigned_dh)
       await updatePatient(clinicId, patient.id, patientDataToSave)
-      console.log('患者編集モーダル: updatePatient完了')
 
       // 通知受信設定を保存
       try {
@@ -368,14 +356,11 @@ export function PatientEditModal({ isOpen, onClose, patient, clinicId, onSave }:
         // このエラーは致命的ではないので続行
       }
 
-      console.log('患者情報の保存に成功しました')
-
       // 他のコンポーネントに患者データ更新を通知
       const event = new CustomEvent('patientDataUpdated', {
         detail: { patientId: patient.id, clinicId }
       })
       window.dispatchEvent(event)
-      console.log('patientDataUpdatedイベントを発行しました:', { patientId: patient.id, clinicId })
 
       // 親コンポーネントのコールバックを呼び出し
       if (onSave) {

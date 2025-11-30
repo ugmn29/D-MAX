@@ -153,8 +153,15 @@ export function AppointmentLogsTab({ patientId }: AppointmentLogsTabProps) {
   }
 
   const formatDateTime = (dateTime: string) => {
+    if (!dateTime) {
+      return '-'
+    }
     try {
-      return format(new Date(dateTime), 'yyyy年MM月dd日 HH:mm', { locale: ja })
+      const date = new Date(dateTime)
+      if (isNaN(date.getTime())) {
+        return dateTime
+      }
+      return format(date, 'yyyy年MM月dd日 HH:mm', { locale: ja })
     } catch (error) {
       console.error('日時フォーマットエラー:', error, dateTime)
       return dateTime

@@ -399,13 +399,28 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // 未保存の変更管理
+  // 未保存の変更管理（タブごとに個別管理）
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<string | null>(null);
   const isSavingRef = useRef(false); // 保存中フラグ
-  const initialDataRef = useRef<any>(null); // 初期データを保存
-  const isInitialLoadRef = useRef(true); // 初回ロードフラグ
+
+  // 各タブごとの初期データと初回ロードフラグ
+  const initialClinicDataRef = useRef<any>(null);
+  const initialCalendarDataRef = useRef<any>(null);
+  const initialWebDataRef = useRef<any>(null);
+  const initialStaffDataRef = useRef<any>(null);
+  const initialMenuDataRef = useRef<any>(null);
+  const initialUnitDataRef = useRef<any>(null);
+  const initialNotificationDataRef = useRef<any>(null);
+
+  const isClinicInitialLoadRef = useRef(true);
+  const isCalendarInitialLoadRef = useRef(true);
+  const isWebInitialLoadRef = useRef(true);
+  const isStaffInitialLoadRef = useRef(true);
+  const isMenuInitialLoadRef = useRef(true);
+  const isUnitInitialLoadRef = useRef(true);
+  const isNotificationInitialLoadRef = useRef(true);
 
   // 保存完了モーダル
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
@@ -1471,31 +1486,49 @@ export default function SettingsPage() {
 
   // ユニットデータの読み込み
   useEffect(() => {
-    if (selectedCategory === "units") {
-      loadUnitsData();
-      // スタッフデータも読み込み
-      const loadStaffForUnits = async () => {
+    const loadUnitsAndStaff = async () => {
+      if (selectedCategory === "units") {
         try {
           setStaffLoading(true);
-          const data = await getStaff(DEMO_CLINIC_ID);
-          console.log("ユニットタブ用スタッフデータ:", data);
-          setStaff(data);
+
+          // ユニットデータとスタッフデータを並行読み込み
+          const [unitsResult, staffResult, prioritiesResult] = await Promise.all([
+            getUnits(DEMO_CLINIC_ID),
+            getStaff(DEMO_CLINIC_ID),
+            getStaffUnitPriorities(DEMO_CLINIC_ID)
+          ]);
+
+          console.log("ユニットデータ:", unitsResult);
+          console.log("スタッフデータ:", staffResult);
+          console.log("優先順位データ:", prioritiesResult);
+
+          setUnitsData(unitsResult);
+          setStaff(staffResult);
+          setStaffUnitPriorities(prioritiesResult);
+
+          // データロード完了後、初期データRefを設定
+          initialUnitDataRef.current = JSON.parse(JSON.stringify({
+            unitsData: unitsResult,
+            staffUnitPriorities: prioritiesResult
+          }));
+
         } catch (error) {
-          console.error("スタッフデータ読み込みエラー:", error);
+          console.error("ユニット関連データ読み込みエラー:", error);
         } finally {
           setStaffLoading(false);
         }
-      };
-      loadStaffForUnits();
       }
+    };
+
+    loadUnitsAndStaff();
   }, [selectedCategory]);
 
-  // スタッフユニット優先順位を読み込み
+  // スタッフユニット優先順位を読み込み（タブ切り替え時のみ）
   useEffect(() => {
     if (selectedCategory === "units" && unitsActiveTab === "priorities") {
       loadStaffUnitPriorities();
     }
-  }, [selectedCategory, unitsActiveTab]);
+  }, [unitsActiveTab]); // selectedCategoryを依存配列から削除
 
   // デフォルトテキストの読み込み
   useEffect(() => {
@@ -1649,9 +1682,21 @@ export default function SettingsPage() {
         console.log("クリニック設定読み込み開始");
         const settings = await getClinicSettings(DEMO_CLINIC_ID);
         console.log("読み込んだ設定:", settings);
-        
+
+        let loadedBusinessHours;
+        let loadedBreakTimes = {};
+        let loadedHolidays: string[] = [];
+        let loadedClinicInfo = {
+          name: "",
+          website_url: "",
+          postal_code: "",
+          address_line: "",
+          phone: "",
+        };
+
         // 保存された設定があれば使用、なければデフォルト値を使用
         if (settings.business_hours) {
+          loadedBusinessHours = settings.business_hours;
           setBusinessHours(settings.business_hours);
         } else {
           // デフォルトの診療時間を設定
@@ -1686,25 +1731,37 @@ export default function SettingsPage() {
               };
             }
           });
+          loadedBusinessHours = defaultBusinessHours;
           setBusinessHours(defaultBusinessHours);
         }
-        
+
         if (settings.break_times) {
+          loadedBreakTimes = settings.break_times;
           setBreakTimes(settings.break_times);
         }
-        
+
         if (settings.time_slot_minutes) {
           setTimeSlotMinutes(settings.time_slot_minutes);
         }
-        
+
         if (settings.holidays) {
           console.log("読み込んだ休診日:", settings.holidays);
+          loadedHolidays = settings.holidays;
           setHolidays(settings.holidays);
         }
-        
+
         if (settings.clinic_info) {
+          loadedClinicInfo = settings.clinic_info;
           setClinicInfo(settings.clinic_info);
         }
+
+        // データロード完了後、初期データRefを設定
+        initialClinicDataRef.current = JSON.parse(JSON.stringify({
+          clinicInfo: loadedClinicInfo,
+          businessHours: loadedBusinessHours,
+          breakTimes: loadedBreakTimes,
+          holidays: loadedHolidays
+        }));
 
         // カレンダー設定を読み込み
         if (settings.display_items) {
@@ -1799,12 +1856,6 @@ export default function SettingsPage() {
     // 全データの読み込みを待ってから初期読み込みフラグをfalseにする
     const initializeData = async () => {
       await loadClinicSettings();
-
-      // 初期読み込み完了フラグを設定（データ読み込み完了後、さらに少し待つ）
-      setTimeout(() => {
-        console.log("✅ 初期読み込み完了: isInitialLoadをfalseに設定");
-        isInitialLoadRef.current = false;
-      }, 500); // 500msに増やして確実にデータがセットされるまで待つ
     };
 
     initializeData();
@@ -1913,51 +1964,155 @@ export default function SettingsPage() {
     }
   }, [clinicInfo.website_url]);
 
-  // 設定変更を監視して未保存フラグを立てる
+  // クリニックタブの変更検知
   useEffect(() => {
-    // 初期読み込み中または保存中はスキップ
-    if (isInitialLoadRef.current || isSavingRef.current) {
-      console.log("🔵 初期読み込み中または保存中のため、変更検知をスキップ");
+    if (selectedCategory !== 'clinic') return;
+    if (isSavingRef.current) return;
+
+    const currentData = { clinicInfo, businessHours, breakTimes, holidays };
+
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialClinicDataRef.current === null) {
+      initialClinicDataRef.current = JSON.parse(JSON.stringify(currentData));
       return;
     }
 
-    // 初回ロード時は初期データを保存するだけ
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialClinicDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [clinicInfo, businessHours, breakTimes, holidays, selectedCategory]);
+
+  // カレンダータブの変更検知
+  useEffect(() => {
+    if (selectedCategory !== 'calendar') return;
+    if (isSavingRef.current) return;
+
+    const currentData = { displayItems, cellHeight };
+
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialCalendarDataRef.current === null) {
+      initialCalendarDataRef.current = JSON.parse(JSON.stringify(currentData));
+      return;
+    }
+
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialCalendarDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [displayItems, cellHeight, selectedCategory]);
+
+  // Web予約タブの変更検知
+  useEffect(() => {
+    if (selectedCategory !== 'web') return;
+    if (isSavingRef.current) return;
+
+    const currentData = { webSettings, webBookingMenus };
+
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialWebDataRef.current === null) {
+      initialWebDataRef.current = JSON.parse(JSON.stringify(currentData));
+      return;
+    }
+
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialWebDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [webSettings, webBookingMenus, selectedCategory]);
+
+  // スタッフタブの変更検知
+  useEffect(() => {
+    if (selectedCategory !== 'staff') return;
+    if (isSavingRef.current) return;
+
+    const currentData = { staff, staffUnitPriorities };
+
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialStaffDataRef.current === null) {
+      initialStaffDataRef.current = JSON.parse(JSON.stringify(currentData));
+      return;
+    }
+
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialStaffDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [staff, staffUnitPriorities, selectedCategory]);
+
+  // 診療メニュータブの変更検知
+  useEffect(() => {
+    if (selectedCategory !== 'treatment') return;
+    if (isSavingRef.current) return;
+
+    const currentData = { treatmentMenus };
+
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialMenuDataRef.current === null) {
+      initialMenuDataRef.current = JSON.parse(JSON.stringify(currentData));
+      return;
+    }
+
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialMenuDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [treatmentMenus, selectedCategory]);
+
+  // ユニットタブの変更検知
+  useEffect(() => {
+    if (selectedCategory !== 'units') return;
+    if (isSavingRef.current) return;
+
+    const currentData = { unitsData, staffUnitPriorities };
+
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialUnitDataRef.current === null) {
+      initialUnitDataRef.current = JSON.parse(JSON.stringify(currentData));
+      return;
+    }
+
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialUnitDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [unitsData, staffUnitPriorities, selectedCategory]);
+
+  // 通知タブの変更検知
+  useEffect(() => {
+    if (selectedCategory !== 'notification') return;
+    if (isSavingRef.current) return;
+
+    const currentData = { notificationSettings };
+
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialNotificationDataRef.current === null) {
+      initialNotificationDataRef.current = JSON.parse(JSON.stringify(currentData));
+      return;
+    }
+
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialNotificationDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [notificationSettings, selectedCategory]);
+  // 注: questionnairesは即座に保存されるため、未保存変更として扱わない
+
+  // マスタタブの変更検知
+  const initialMasterDataRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (selectedCategory !== 'master') return;
+    if (isSavingRef.current) return;
+
     const currentData = {
-      clinicInfo,
-      businessHours,
-      breakTimes,
-      holidays,
-      displayItems,
-      cellHeight,
-      webSettings,
-      webBookingMenus,
-      notificationSettings,
-      treatmentMenus,
-      unitsData,
-      staff,
-      staffUnitPriorities
+      iconMaster,
+      staffPositions,
+      patientNoteTypes,
+      cancelReasons,
+      memoTemplates
     };
 
-    if (isInitialLoadRef.current) {
-      // 初回ロード時は初期データとして保存
-      initialDataRef.current = JSON.parse(JSON.stringify(currentData));
-      isInitialLoadRef.current = false;
+    // 初期データがnullの場合のみ初期化（初回ロード時）
+    if (initialMasterDataRef.current === null) {
+      initialMasterDataRef.current = JSON.parse(JSON.stringify(currentData));
       return;
     }
 
-    // 保存中は変更検知をスキップ
-    if (isSavingRef.current) {
-      return;
-    }
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialMasterDataRef.current);
+    setHasUnsavedChanges(hasChanged);
+  }, [iconMaster, staffPositions, patientNoteTypes, cancelReasons, memoTemplates, selectedCategory]);
 
-    // データが変更されたら未保存フラグを立てる（初期データと比較）
-    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialDataRef.current);
-    if (hasChanged) {
-      console.log("🔶 設定変更検知: 未保存フラグをONにします");
-      setHasUnsavedChanges(true);
-    }
-  }, [clinicInfo, businessHours, breakTimes, holidays, displayItems, cellHeight, webSettings, webBookingMenus, notificationSettings, treatmentMenus, unitsData, staff, staffUnitPriorities]);
-  // 注: questionnairesは即座に保存されるため、未保存変更として扱わない
+  // タブ切り替え時に未保存フラグをリセット
+  useEffect(() => {
+    setHasUnsavedChanges(false);
+  }, [selectedCategory]);
 
   // 未保存の変更がある場合、ページ離脱時に警告を表示
   useEffect(() => {
@@ -1985,13 +2140,13 @@ export default function SettingsPage() {
   // timeSlotMinutesの変更を監視して自動保存
   useEffect(() => {
     console.log(
-      "設定ページ: 自動保存useEffect実行 - isInitialLoad:",
-      isInitialLoadRef.current,
+      "設定ページ: 自動保存useEffect実行 - isCalendarInitialLoad:",
+      isCalendarInitialLoadRef.current,
       "timeSlotMinutes:",
       timeSlotMinutes,
     );
 
-    if (isInitialLoadRef.current) {
+    if (isCalendarInitialLoadRef.current) {
       console.log("設定ページ: 初期読み込み中のため自動保存をスキップ");
       return; // 初期読み込み時は保存しない
     }
@@ -2954,27 +3109,14 @@ export default function SettingsPage() {
 
         // 未保存フラグをクリアし、初期データを更新
         setHasUnsavedChanges(false);
-        initialDataRef.current = JSON.parse(JSON.stringify({
-          clinicInfo,
-          businessHours,
-          breakTimes,
-          holidays,
-          displayItems,
-          cellHeight,
-          webSettings,
-          webBookingMenus,
-          notificationSettings,
-          treatmentMenus: reloadedMenus,
-          unitsData,
-          staff,
-          staffUnitPriorities
-        }));
+        initialMenuDataRef.current = JSON.parse(JSON.stringify({ treatmentMenus: reloadedMenus }));
 
         console.log("診療メニュー保存完了");
 
         // 早期リターンして、下のsetHasUnsavedChanges(false)の二重実行を防ぐ
         setShowSaveSuccessModal(true);
         setSaving(false);
+        isSavingRef.current = false;
         return;
       } else if (selectedCategory === "questionnaire") {
         console.log("=== 問診表設定を保存中 ===");
@@ -3015,8 +3157,12 @@ export default function SettingsPage() {
         setUnitsData(reloadedUnits);
         setStaffUnitPriorities(reloadedPriorities);
 
-        // 未保存フラグをクリア
+        // 未保存フラグをクリアし、初期データを更新
         setHasUnsavedChanges(false);
+        initialUnitDataRef.current = JSON.parse(JSON.stringify({
+          unitsData: reloadedUnits,
+          staffUnitPriorities: reloadedPriorities
+        }));
 
         console.log("ユニット設定保存完了");
 
@@ -3057,20 +3203,27 @@ export default function SettingsPage() {
 
         // 保存後にデータを再読み込み
         const reloadedStaff = await getStaff(DEMO_CLINIC_ID);
+        const reloadedPriorities = await getStaffUnitPriorities(DEMO_CLINIC_ID);
 
         setStaff(reloadedStaff);
+        setStaffUnitPriorities(reloadedPriorities);
 
         // シフト表をリフレッシュ
         setRefreshTrigger((prev) => prev + 1);
 
-        // 未保存フラグをクリア
+        // 未保存フラグをクリアし、初期データを更新
         setHasUnsavedChanges(false);
+        initialStaffDataRef.current = JSON.parse(JSON.stringify({
+          staff: reloadedStaff,
+          staffUnitPriorities: reloadedPriorities
+        }));
 
         console.log("スタッフ設定保存完了");
 
         // 早期リターンして、下のsetHasUnsavedChanges(false)の二重実行を防ぐ
         setShowSaveSuccessModal(true);
         setSaving(false);
+        isSavingRef.current = false;
         return;
       } else if (selectedCategory === "shift") {
         console.log("=== シフト設定を保存中 ===");
@@ -3122,6 +3275,52 @@ export default function SettingsPage() {
         return;
       }
 
+      // 保存成功時に該当タブの初期データを更新
+      if (selectedCategory === "clinic") {
+        initialClinicDataRef.current = JSON.parse(JSON.stringify({
+          clinicInfo,
+          businessHours,
+          breakTimes,
+          holidays
+        }));
+      } else if (selectedCategory === "calendar") {
+        initialCalendarDataRef.current = JSON.parse(JSON.stringify({
+          displayItems,
+          cellHeight
+        }));
+      } else if (selectedCategory === "web") {
+        initialWebDataRef.current = JSON.parse(JSON.stringify({
+          webSettings,
+          webBookingMenus
+        }));
+      } else if (selectedCategory === "staff") {
+        initialStaffDataRef.current = JSON.parse(JSON.stringify({
+          staff,
+          staffUnitPriorities
+        }));
+      } else if (selectedCategory === "treatment") {
+        initialMenuDataRef.current = JSON.parse(JSON.stringify({
+          treatmentMenus
+        }));
+      } else if (selectedCategory === "units") {
+        initialUnitDataRef.current = JSON.parse(JSON.stringify({
+          unitsData,
+          staffUnitPriorities
+        }));
+      } else if (selectedCategory === "notification") {
+        initialNotificationDataRef.current = JSON.parse(JSON.stringify({
+          notificationSettings
+        }));
+      } else if (selectedCategory === "master") {
+        initialMasterDataRef.current = JSON.parse(JSON.stringify({
+          iconMaster,
+          staffPositions,
+          patientNoteTypes,
+          cancelReasons,
+          memoTemplates
+        }));
+      }
+
       setHasUnsavedChanges(false);
       setShowSaveSuccessModal(true);
     } catch (error) {
@@ -3129,6 +3328,7 @@ export default function SettingsPage() {
       showAlert("保存に失敗しました: " + (error as Error).message, "error");
     } finally {
       setSaving(false);
+      isSavingRef.current = false;
     }
   };
 
@@ -7114,71 +7314,61 @@ export default function SettingsPage() {
                   return sortedPositions.map((positionName) => (
                     <div
                       key={positionName}
-                      className="bg-white rounded-lg border border-gray-200 relative"
+                      className="bg-white rounded-lg border border-gray-200 p-3"
                     >
-                        {/* 役職ヘッダー */}
-                        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-                          <div className="flex justify-between items-center">
-                          <h4 className="font-medium text-gray-900">
-                            {positionName}
-                          </h4>
-                            <p className="text-sm text-gray-500">
-                              {staffByPosition[positionName].length}名
-                            </p>
+                        {/* 役職名とスタッフ一覧を横並びに（コンパクト） */}
+                        <div className="flex items-center gap-4">
+                          {/* 役職名（左側、幅固定） */}
+                          <div className="flex-shrink-0 w-24">
+                            <h4 className="font-medium text-gray-900">
+                              {positionName}
+                            </h4>
                           </div>
-                        </div>
-                        
-                        {/* スタッフ一覧 */}
-                        <div className="divide-y divide-gray-200">
-                        {staffByPosition[positionName].map((member) => (
-                          <div
-                            key={member.id}
-                            className="p-3 flex items-center justify-between"
-                          >
-                              <div className="flex-1">
-                              <div className="font-medium text-gray-900">
-                                {member.name}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {member.email}
-                              </div>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <Button
-                                  size="sm"
-                                className={`text-xs px-2 py-1 ${member.is_active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+
+                          {/* スタッフ一覧（右側、横スクロール可能） */}
+                          <div className="flex-1 flex flex-wrap items-center gap-2">
+                            {staffByPosition[positionName].map((member) => (
+                              <div
+                                key={member.id}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-gray-50"
+                              >
+                                <span className="font-medium text-gray-900 text-sm">
+                                  {member.name}
+                                </span>
+                                <span
+                                  className={`text-xs px-1.5 py-0.5 rounded ${member.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}
                                 >
-                                {member.is_active ? "在籍" : "退職"}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setEditingStaff(member)}
-                                  className="p-0.5 text-gray-400 hover:text-blue-600"
-                                >
-                                  <Edit className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    showConfirm("このスタッフを削除しますか？", () => {
-                                      // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
-                                      // 削除フラグを立てる
-                                      setStaff(
-                                        staff.map((s) =>
-                                          s.id === member.id ? { ...s, _deleted: true } : s
-                                        )
-                                      );
-                                    }, { isDanger: true, confirmText: "削除" });
-                                  }}
-                                  className="p-0.5 text-gray-400 hover:text-red-600"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                                  {member.is_active ? "在籍" : "退職"}
+                                </span>
+                                <div className="flex items-center gap-0.5 ml-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setEditingStaff(member)}
+                                    className="p-0.5 h-6 w-6 text-gray-400 hover:text-blue-600"
+                                  >
+                                    <Edit className="w-3 h-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      showConfirm("このスタッフを削除しますか？", () => {
+                                        setStaff(
+                                          staff.map((s) =>
+                                            s.id === member.id ? { ...s, _deleted: true } : s
+                                          )
+                                        );
+                                      }, { isDanger: true, confirmText: "削除" });
+                                    }}
+                                    className="p-0.5 h-6 w-6 text-gray-400 hover:text-red-600"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
                       </div>
                   ));
@@ -7291,13 +7481,7 @@ export default function SettingsPage() {
                       )}
                     </div>
 
-                    <div className="flex justify-end space-x-2 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowAddStaff(false)}
-                      >
-                        キャンセル
-                      </Button>
+                    <div className="flex justify-end pt-4">
                       <Button
                         onClick={() => {
                         console.log("追加ボタンがクリックされました");
@@ -7311,6 +7495,7 @@ export default function SettingsPage() {
                         handleAddStaff();
                         }}
                         disabled={staffLoading || !newStaff.name}
+                        className="bg-blue-600 hover:bg-blue-700"
                       >
                       {staffLoading ? "追加中..." : "追加"}
                       </Button>
@@ -7428,16 +7613,11 @@ export default function SettingsPage() {
                         </Select>
                       </div>
 
-                      <div className="flex justify-end space-x-2 pt-4">
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingStaff(null)}
-                        >
-                          キャンセル
-                        </Button>
+                      <div className="flex justify-end pt-4">
                         <Button
                           onClick={handleUpdateStaff}
                           disabled={staffLoading || !editingStaff.name}
+                          className="bg-blue-600 hover:bg-blue-700"
                         >
                           {staffLoading ? "更新中..." : "更新"}
                         </Button>
@@ -9669,11 +9849,11 @@ export default function SettingsPage() {
                           <div>
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
-                              <div className="grid grid-cols-3 gap-2 mb-3">
+                              <div className="flex flex-wrap gap-2 mb-3">
                                 {staff.map((s) => (
                                   <label
                                     key={s.id}
-                                    className="flex items-center space-x-2 cursor-pointer min-w-0"
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white cursor-pointer"
                                   >
                                     <Checkbox
                                       checked={step.staff_assignments.some(
@@ -9691,7 +9871,7 @@ export default function SettingsPage() {
                                       }}
                                       className="shrink-0"
                                     />
-                                    <span className="text-sm truncate">{s.name}</span>
+                                    <span className="text-sm">{s.name}</span>
                                   </label>
                                 ))}
                               </div>
@@ -10165,11 +10345,11 @@ export default function SettingsPage() {
                           <div>
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
-                              <div className="grid grid-cols-3 gap-2 mb-3">
+                              <div className="flex flex-wrap gap-2 mb-3">
                                 {staff.map((s) => (
                                   <label
                                     key={s.id}
-                                    className="flex items-center space-x-2 cursor-pointer min-w-0"
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white cursor-pointer"
                                   >
                                     <Checkbox
                                       checked={step.staff_assignments.some(
@@ -10187,7 +10367,7 @@ export default function SettingsPage() {
                                       }}
                                       className="shrink-0"
                                     />
-                                    <span className="text-sm truncate">{s.name}</span>
+                                    <span className="text-sm">{s.name}</span>
                                   </label>
                                 ))}
                               </div>

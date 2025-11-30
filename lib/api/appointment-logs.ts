@@ -32,7 +32,7 @@ export interface CreateAppointmentLogParams {
   before_data?: Record<string, any>
   after_data?: Record<string, any>
   reason: string
-  operator_id: string
+  operator_id: string | null
   ip_address?: string
 }
 
@@ -223,9 +223,10 @@ export async function createAppointmentLog(params: CreateAppointmentLogParams): 
     const log: AppointmentLog = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       ...params,
+      operator_id: params.operator_id || 'system',
       created_at: new Date().toISOString(),
       operator: {
-        id: params.operator_id,
+        id: params.operator_id || 'system',
         name: 'システム' // デフォルト名
       }
     }
@@ -235,9 +236,15 @@ export async function createAppointmentLog(params: CreateAppointmentLogParams): 
   }
 
   try {
+    // operator_idがnullの場合はシステムユーザーとして保存
+    const insertData = {
+      ...params,
+      operator_id: params.operator_id || null
+    }
+
     const { data, error } = await supabase
       .from('appointment_logs')
-      .insert([params])
+      .insert([insertData])
       .select(`
         *,
         operator:staff(id, name),
@@ -258,7 +265,7 @@ export async function createAppointmentLog(params: CreateAppointmentLogParams): 
         details: error.details,
         hint: error.hint,
         code: error.code,
-        params: params
+        params: insertData
       })
       throw error
     }

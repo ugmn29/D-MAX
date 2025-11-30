@@ -2879,107 +2879,117 @@ export function AppointmentEditModal({
       {showStaffModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowStaffModal(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+          <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">担当者選択</h3>
-              
-              <div className="space-y-4">
-                {(() => {
-                  // 出勤しているスタッフのみをフィルタリング
-                  const workingStaffIds = workingStaff.map(ws => ws.staff.id)
-                  const availableStaff = staff.filter(member => workingStaffIds.includes(member.id))
 
-                  if (availableStaff.length === 0) {
-                    return (
-                      <div className="text-center py-8 text-gray-500">
-                        <p>出勤しているスタッフがいません</p>
-                        <p className="text-sm mt-1">選択可能なスタッフがありません</p>
-                      </div>
-                    )
-                  }
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <tbody>
+                    {(() => {
+                      // 出勤しているスタッフのみをフィルタリング
+                      const workingStaffIds = workingStaff.map(ws => ws.staff.id)
+                      const availableStaff = staff.filter(member => workingStaffIds.includes(member.id))
 
-                  // 出勤しているスタッフを役職ごとにグループ化
-                  const groupedStaff = availableStaff.reduce((groups, member) => {
-                    const positionName = typeof member.position === 'object'
-                      ? member.position?.name || '未設定'
-                      : member.position || '未設定'
-                    const sortOrder = typeof member.position === 'object'
-                      ? member.position?.sort_order ?? 999
-                      : 999
+                      if (availableStaff.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={2} className="text-center py-8 text-gray-500">
+                              <p>出勤しているスタッフがいません</p>
+                              <p className="text-sm mt-1">選択可能なスタッフがありません</p>
+                            </td>
+                          </tr>
+                        )
+                      }
 
-                    if (!groups[positionName]) {
-                      groups[positionName] = { members: [], sortOrder }
-                    }
-                    groups[positionName].members.push(member)
-                    return groups
-                  }, {} as Record<string, { members: typeof availableStaff; sortOrder: number }>)
+                      // 出勤しているスタッフを役職ごとにグループ化
+                      const groupedStaff = availableStaff.reduce((groups, member) => {
+                        const positionName = typeof member.position === 'object'
+                          ? member.position?.name || '未設定'
+                          : member.position || '未設定'
+                        const sortOrder = typeof member.position === 'object'
+                          ? member.position?.sort_order ?? 999
+                          : 999
 
-                  // sort_orderで並び替え
-                  const sortedPositions = Object.entries(groupedStaff).sort(([, a], [, b]) => a.sortOrder - b.sortOrder)
+                        if (!groups[positionName]) {
+                          groups[positionName] = { members: [], sortOrder }
+                        }
+                        groups[positionName].members.push(member)
+                        return groups
+                      }, {} as Record<string, { members: typeof availableStaff; sortOrder: number }>)
 
-                  return sortedPositions.map(([positionName, { members }]) => (
-                    <div key={positionName} className="relative">
-                      <div
-                        className="text-sm font-medium text-gray-700 border border-gray-300 rounded px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors inline-flex items-center w-fit"
-                        onMouseEnter={() => setHoveredPosition(positionName)}
-                        onMouseLeave={() => setHoveredPosition(null)}
-                      >
-                        {positionName}
-                        {selectedStaff.some(s => {
-                          const staffPositionName = typeof s.position === 'object'
-                            ? s.position?.name || '未設定'
-                            : s.position || '未設定'
-                          return staffPositionName === positionName
-                        }) && (
-                          <span className="ml-2 text-xs text-blue-600 whitespace-nowrap">
-                            ({selectedStaff.filter(s => {
-                              const staffPositionName = typeof s.position === 'object'
-                                ? s.position?.name || '未設定'
-                                : s.position || '未設定'
-                              return staffPositionName === positionName
-                            }).length}人選択中)
-                          </span>
-                        )}
-                      </div>
+                      // sort_orderで並び替え
+                      const sortedPositions = Object.entries(groupedStaff).sort(([, a], [, b]) => a.sortOrder - b.sortOrder)
 
-                      {/* ホバー時に右側に表示されるスタッフリスト */}
-                      {hoveredPosition === positionName && (
-                        <div
-                          className="absolute left-full top-0 ml-2 bg-white border border-gray-300 rounded shadow-lg p-2 z-50 min-w-[200px]"
-                          onMouseEnter={() => setHoveredPosition(positionName)}
-                          onMouseLeave={() => setHoveredPosition(null)}
+                      return sortedPositions.map(([positionName, { members }], index) => (
+                        <tr
+                          key={positionName}
+                          className={index !== sortedPositions.length - 1 ? 'border-b border-gray-200' : ''}
                         >
-                          <div className="space-y-1">
-                            {members.map((member) => (
-                              <div
-                                key={member.id}
-                                className={`px-3 py-2 rounded cursor-pointer transition-colors ${
-                                  selectedStaff.some(s => s.id === member.id)
-                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                    : 'hover:bg-gray-100'
-                                }`}
-                                onClick={() => {
-                                  if (selectedStaff.some(s => s.id === member.id)) {
-                                    setSelectedStaff(prev => prev.filter(s => s.id !== member.id))
-                                  } else {
-                                    setSelectedStaff(prev => [...prev, member])
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm">{member.name}</span>
-                                  {selectedStaff.some(s => s.id === member.id) && (
-                                    <CheckCircle className="w-4 h-4" />
-                                  )}
-                                </div>
+                          {/* 役職名のセル */}
+                          <td
+                            className="px-4 py-3 bg-gray-50 border-r border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors w-40"
+                            onMouseEnter={() => setHoveredPosition(positionName)}
+                            onMouseLeave={() => setHoveredPosition(null)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-900">
+                                {positionName}
+                              </span>
+                              {selectedStaff.some(s => {
+                                const staffPositionName = typeof s.position === 'object'
+                                  ? s.position?.name || '未設定'
+                                  : s.position || '未設定'
+                                return staffPositionName === positionName
+                              }) && (
+                                <span className="text-xs text-blue-600 font-medium">
+                                  ({selectedStaff.filter(s => {
+                                    const staffPositionName = typeof s.position === 'object'
+                                      ? s.position?.name || '未設定'
+                                      : s.position || '未設定'
+                                    return staffPositionName === positionName
+                                  }).length})
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* スタッフ名のセル（ホバー時のみ表示） */}
+                          <td
+                            className="px-4 py-3 bg-white"
+                            onMouseEnter={() => setHoveredPosition(positionName)}
+                            onMouseLeave={() => setHoveredPosition(null)}
+                          >
+                            {hoveredPosition === positionName && (
+                              <div className="flex flex-col gap-1">
+                                {members.map((member) => (
+                                  <span
+                                    key={member.id}
+                                    className={`text-sm cursor-pointer hover:underline ${
+                                      selectedStaff.some(s => s.id === member.id)
+                                        ? 'text-blue-600 font-medium'
+                                        : 'text-gray-700'
+                                    }`}
+                                    onClick={() => {
+                                      if (selectedStaff.some(s => s.id === member.id)) {
+                                        setSelectedStaff(prev => prev.filter(s => s.id !== member.id))
+                                      } else {
+                                        setSelectedStaff(prev => [...prev, member])
+                                      }
+                                    }}
+                                  >
+                                    {member.name}
+                                    {selectedStaff.some(s => s.id === member.id) && ' ✓'}
+                                  </span>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                })()}
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    })()}
+                  </tbody>
+                </table>
               </div>
 
               <div className="flex justify-end mt-6">
