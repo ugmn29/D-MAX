@@ -329,14 +329,21 @@ export function PatientEditModal({ isOpen, onClose, patient, clinicId, onSave }:
       setSaving(true)
 
       // 患者アイコンを保存
-      await upsertPatientIcons(patient.id, clinicId, selectedIconIds)
+      try {
+        await upsertPatientIcons(patient.id, clinicId, selectedIconIds)
+      } catch (iconError) {
+        console.warn('患者アイコンの保存エラー（無視）:', iconError)
+        // このエラーは致命的ではないので続行
+      }
 
       // 患者データを保存
       const patientDataToSave = {
-        ...editData,
-        patient_icons: selectedIconIds,
-        family_members: familyMembers.map(f => f.id)
+        ...editData
       }
+
+      // データベースに存在しないフィールドを削除
+      delete (patientDataToSave as any).patient_icons
+      delete (patientDataToSave as any).family_members
 
       await updatePatient(clinicId, patient.id, patientDataToSave)
 

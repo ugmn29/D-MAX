@@ -2,7 +2,7 @@
 // 環境変数 USE_DATABASE=true でデータベース使用を強制
 // デフォルトは開発環境ではモック、本番環境ではデータベース
 // 一時的にデータベースを使用する場合は false に設定
-export const MOCK_MODE = false // process.env.USE_DATABASE === 'true' ? false : process.env.NODE_ENV === 'development'
+export const MOCK_MODE = true // process.env.USE_DATABASE === 'true' ? false : process.env.NODE_ENV === 'development'
 
 // 問診票のみデータベースを使用するフラグ
 export const USE_DATABASE_FOR_QUESTIONNAIRES = process.env.USE_DATABASE_QUESTIONNAIRES === 'true'
@@ -462,7 +462,46 @@ export const initializeMockData = () => {
     saveToStorage(STORAGE_KEYS.TREATMENT_MENUS, DEFAULT_TREATMENT_MENUS)
     console.log('診療メニューデータを初期化しました')
   }
-  
+
+  // 問診表が3件未満の場合はデフォルトデータで初期化
+  const existingQuestionnaires = getMockQuestionnaires()
+  if (existingQuestionnaires.length < 3) {
+    const defaultQuestionnaires = [
+      {
+        id: '11111111-1111-1111-1111-111111111112',
+        clinic_id: '11111111-1111-1111-1111-111111111111',
+        name: '標準問診表',
+        description: '標準的な初診問診表',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        questions: []
+      },
+      {
+        id: '11111111-1111-1111-1111-111111111114',
+        clinic_id: '11111111-1111-1111-1111-111111111111',
+        name: '習慣チェック表',
+        description: '生活習慣チェック用の問診表',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        questions: []
+      },
+      {
+        id: '11111111-1111-1111-1111-111111111113',
+        clinic_id: '11111111-1111-1111-1111-111111111111',
+        name: '簡易問診表',
+        description: 'デモ・検証用の簡易版問診表',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        questions: []
+      }
+    ]
+    saveToStorage(QUESTIONNAIRES_KEY, defaultQuestionnaires)
+    console.log('問診表データを初期化しました（3種類）')
+  }
+
   console.log('モックデータの初期化が完了しました')
 }
 

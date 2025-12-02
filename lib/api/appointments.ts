@@ -12,7 +12,6 @@ export async function getAppointments(
 ): Promise<Appointment[]> {
   // モックモードの場合はlocalStorageから取得
   if (MOCK_MODE) {
-    console.log('モックモード: 予約データを取得します', { clinicId, startDate, endDate })
     const { getMockAppointments, getMockStaff, getMockTreatmentMenus, updateMockAppointment, initializeMockData } = await import('@/lib/utils/mock-mode')
     
     // モックデータを初期化
@@ -20,7 +19,6 @@ export async function getAppointments(
     
     const appointments = getMockAppointments()
     
-    console.log('モックモード: localStorageの全予約データ:', appointments)
     
     // 既存の予約データにスタッフ情報、メニュー情報、患者情報を追加（不足している場合）
     const staff = getMockStaff()
@@ -28,11 +26,9 @@ export async function getAppointments(
     const { getMockPatients } = await import('@/lib/utils/mock-mode')
     const patients = getMockPatients()
     
-    console.log('モックモード: 予約データの患者情報を更新開始', { appointmentCount: appointments.length })
     for (const appointment of appointments) {
       let needsUpdate = false
       const updatedAppointment = { ...appointment }
-      console.log('モックモード: 予約を処理中', { appointmentId: appointment.id, patientId: appointment.patient_id })
       
       // スタッフ情報を追加
       if (!(appointment as any).staff1 && appointment.staff1_id) {
@@ -85,13 +81,6 @@ export async function getAppointments(
         let patient = (appointment as any).patient || patients.find(p => p.id === appointment.patient_id)
 
         if (!patient) {
-          console.log('患者情報検索:', {
-            appointmentId: appointment.id,
-            patientId: appointment.patient_id,
-            foundPatient: patient,
-            allPatients: patients.map(p => ({ id: p.id, name: `${p.last_name} ${p.first_name}` }))
-          })
-
           // Web予約の仮患者でlocalStorageに見つからない場合、notesから復元
           if (appointment.patient_id?.startsWith('web-booking-temp-') && appointment.memo) {
             console.log('警告: Web予約の患者がlocalStorageに見つかりません。notesから復元を試みます。')
@@ -119,11 +108,9 @@ export async function getAppointments(
 
         if (patient) {
           // 常に最新の患者アイコン情報をデータベースから取得
-          console.log('モックモード: 患者アイコン取得開始', { patientId: patient.id, patientName: `${patient.last_name} ${patient.first_name}` })
           const { getPatientIcons } = await import('@/lib/api/patient-icons')
           try {
             const patientIconsData = await getPatientIcons(patient.id, clinicId)
-            console.log('モックモード: 患者アイコン取得成功', { patientId: patient.id, iconIds: patientIconsData?.icon_ids })
             ;(updatedAppointment as any).patient = {
               ...patient,
               icon_ids: patientIconsData?.icon_ids || []
@@ -136,11 +123,6 @@ export async function getAppointments(
             }
           }
           needsUpdate = true
-          console.log('モックモード: 患者情報を追加/更新完了', {
-            patientId: patient.id,
-            patientName: `${patient.last_name} ${patient.first_name}`,
-            icon_ids: (updatedAppointment as any).patient.icon_ids
-          })
         }
       }
       
@@ -156,21 +138,16 @@ export async function getAppointments(
     // 日付でフィルタリング
     let filteredAppointments = updatedAppointments
     if (startDate) {
-      console.log('日付フィルタリング（開始）:', startDate)
       filteredAppointments = filteredAppointments.filter(apt => {
-        console.log('予約日付:', apt.appointment_date, '比較対象:', startDate, '結果:', apt.appointment_date >= startDate)
         return apt.appointment_date >= startDate
       })
     }
     if (endDate) {
-      console.log('日付フィルタリング（終了）:', endDate)
       filteredAppointments = filteredAppointments.filter(apt => {
-        console.log('予約日付:', apt.appointment_date, '比較対象:', endDate, '結果:', apt.appointment_date <= endDate)
         return apt.appointment_date <= endDate
       })
     }
     
-    console.log('モックモード: フィルタリング後の予約データ:', filteredAppointments)
     return filteredAppointments
   }
 
@@ -215,22 +192,13 @@ export async function getAppointments(
   }))
 
   // 各予約に患者アイコン情報を追加
-  console.log('データベースモード: 患者アイコン情報を取得開始', { appointmentCount: appointments.length })
   const { getPatientIcons } = await import('@/lib/api/patient-icons')
 
   const appointmentsWithIcons = await Promise.all(
     appointments.map(async (appointment) => {
       if (appointment.patient_id && (appointment as any).patient) {
         try {
-          console.log('データベースモード: 患者アイコン取得中', {
-            patientId: appointment.patient_id,
-            patientName: `${(appointment as any).patient.last_name} ${(appointment as any).patient.first_name}`
-          })
           const patientIconsData = await getPatientIcons(appointment.patient_id, clinicId)
-          console.log('データベースモード: 患者アイコン取得成功', {
-            patientId: appointment.patient_id,
-            iconIds: patientIconsData?.icon_ids
-          })
 
           return {
             ...appointment,
@@ -254,7 +222,6 @@ export async function getAppointments(
     })
   )
 
-  console.log('データベースモード: 患者アイコン情報の取得完了')
   return appointmentsWithIcons
 }
 
@@ -277,7 +244,6 @@ export async function getAppointmentById(
 ): Promise<Appointment | null> {
   // モックモードの場合はnullを返す
   if (MOCK_MODE) {
-    console.log('モックモード: 予約詳細データを返します（null）', { clinicId, appointmentId })
     return null
   }
 
@@ -455,7 +421,6 @@ async function createSingleAppointment(
 ): Promise<Appointment> {
   // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
-    console.log('モックモード: 予約を作成します', { clinicId, appointmentData })
     const { addMockAppointment, getMockPatients, getMockTreatmentMenus } = await import('@/lib/utils/mock-mode')
 
     // 患者情報を取得（Web予約の仮患者の場合は仮患者情報を作成）
@@ -483,22 +448,18 @@ async function createSingleAppointment(
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
-      console.log('モックモード: Web予約の仮患者情報を作成:', patient)
 
       // 仮患者情報をlocalStorageに保存
       const { addMockPatient } = await import('@/lib/utils/mock-mode')
       addMockPatient(patient)
-      console.log('モックモード: 仮患者情報をlocalStorageに保存しました')
     }
 
-    console.log('モックモード: 患者情報:', patient)
 
     // メニュー情報を取得
     const menus = getMockTreatmentMenus()
     const menu1 = appointmentData.menu1_id ? menus.find(m => m.id === appointmentData.menu1_id) : null
     const menu2 = appointmentData.menu2_id ? menus.find(m => m.id === appointmentData.menu2_id) : null
     const menu3 = appointmentData.menu3_id ? menus.find(m => m.id === appointmentData.menu3_id) : null
-    console.log('モックモード: メニュー情報:', { menu1, menu2, menu3 })
 
     // スタッフ情報を取得
     const { getMockStaff } = await import('@/lib/utils/mock-mode')
@@ -506,7 +467,6 @@ async function createSingleAppointment(
     const staff1 = appointmentData.staff1_id ? staff.find(s => s.id === appointmentData.staff1_id) : null
     const staff2 = appointmentData.staff2_id ? staff.find(s => s.id === appointmentData.staff2_id) : null
     const staff3 = appointmentData.staff3_id ? staff.find(s => s.id === appointmentData.staff3_id) : null
-    console.log('モックモード: スタッフ情報:', { staff1, staff2, staff3 })
 
     const mockAppointment: Appointment = {
       id: `mock-appointment-${Date.now()}`,
@@ -535,9 +495,7 @@ async function createSingleAppointment(
       staff3: staff3
     } as Appointment
 
-    console.log('モックモード: 保存する予約データ:', mockAppointment)
     const savedAppointment = addMockAppointment(mockAppointment)
-    console.log('モックモード: 保存完了:', savedAppointment)
 
     // 予約作成ログを記録
     const { logAppointmentCreation } = await import('./appointment-logs')
@@ -618,7 +576,6 @@ export async function deleteAppointment(
 ): Promise<void> {
   // モックモードの場合
   if (MOCK_MODE) {
-    console.log('モックモード: 予約を削除します', { clinicId, appointmentId })
     const { getMockAppointments, removeMockAppointment } = await import('@/lib/utils/mock-mode')
 
     // 削除前のデータを取得（ログ記録用）
@@ -698,7 +655,6 @@ export async function deleteAppointment(
 export async function getAppointmentStats(clinicId: string, date?: string) {
   // モックモードの場合は空の統計を返す
   if (MOCK_MODE) {
-    console.log('モックモード: 予約統計を返します（空の統計）', { clinicId, date })
     return {
       total: 0,
       completed: 0,
@@ -749,7 +705,6 @@ export async function updateAppointment(
 ): Promise<Appointment> {
   // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
-    console.log('モックモード: 予約を更新します', { appointmentId, appointmentData })
     const mockUtils = await import('@/lib/utils/mock-mode')
     const { updateMockAppointment, getMockPatients, getMockTreatmentMenus, getMockStaff, getMockAppointments } = mockUtils
 
@@ -784,7 +739,6 @@ export async function updateAppointment(
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
-      console.log('モックモード: 更新時にWeb予約の仮患者情報を復元:', patient)
     }
     const menu1 = appointmentData.menu1_id ? menus.find(m => m.id === appointmentData.menu1_id) : null
     const menu2 = appointmentData.menu2_id ? menus.find(m => m.id === appointmentData.menu2_id) : null
@@ -816,11 +770,8 @@ export async function updateAppointment(
       staff3: staff3
     }
     
-    console.log('モックモード: 更新する予約データ:', updatedData)
-    console.log('モックモード: 更新対象ID:', appointmentId)
     
     const updatedAppointment = updateMockAppointment(appointmentId, updatedData)
-    console.log('モックモード: updateMockAppointmentの戻り値:', updatedAppointment)
 
     if (!updatedAppointment) {
       console.error('モックモード: 予約の更新に失敗しました。IDが見つかりません:', appointmentId)
@@ -856,7 +807,6 @@ export async function updateAppointment(
       )
     }
 
-    console.log('モックモード: 更新完了:', updatedAppointment)
     return updatedAppointment
   }
 
@@ -940,7 +890,6 @@ export async function cancelAppointment(
 ): Promise<Appointment> {
   // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
-    console.log('モックモード: 予約をキャンセルします', { appointmentId, cancelReasonId, cancelledBy, additionalMemo })
     const { updateMockAppointment, getMockCancelReasons, getMockAppointments } = await import('@/lib/utils/mock-mode')
 
     // 既存の予約データを取得

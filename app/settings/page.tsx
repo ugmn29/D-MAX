@@ -7284,61 +7284,58 @@ export default function SettingsPage() {
                   return sortedPositions.map((positionName) => (
                     <div
                       key={positionName}
-                      className="bg-white rounded-lg border border-gray-200 p-3"
+                      className="bg-white rounded-lg border border-gray-200 p-4"
                     >
-                        {/* 役職名とスタッフ一覧を横並びに（コンパクト） */}
-                        <div className="flex items-center gap-4">
-                          {/* 役職名（左側、幅固定） */}
-                          <div className="flex-shrink-0 w-24">
-                            <h4 className="font-medium text-gray-900">
-                              {positionName}
-                            </h4>
-                          </div>
+                        {/* 役職名（上部） */}
+                        <h4 className="font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">
+                          {positionName}
+                        </h4>
 
-                          {/* スタッフ一覧（右側、横スクロール可能） */}
-                          <div className="flex-1 flex flex-wrap items-center gap-2">
-                            {staffByPosition[positionName].map((member) => (
-                              <div
-                                key={member.id}
-                                className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-gray-50"
-                              >
-                                <span className="font-medium text-gray-900 text-sm">
+                        {/* スタッフ一覧（縦並び） */}
+                        <div className="space-y-2">
+                          {staffByPosition[positionName].map((member) => (
+                            <div
+                              key={member.id}
+                              className="flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-gray-50"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="font-medium text-gray-900">
                                   {member.name}
                                 </span>
                                 <span
-                                  className={`text-xs px-1.5 py-0.5 rounded ${member.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}
+                                  className={`text-xs px-2 py-0.5 rounded ${member.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}
                                 >
                                   {member.is_active ? "在籍" : "退職"}
                                 </span>
-                                <div className="flex items-center gap-0.5 ml-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setEditingStaff(member)}
-                                    className="p-0.5 h-6 w-6 text-gray-400 hover:text-blue-600"
-                                  >
-                                    <Edit className="w-3 h-3" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      showConfirm("このスタッフを削除しますか？", () => {
-                                        setStaff(
-                                          staff.map((s) =>
-                                            s.id === member.id ? { ...s, _deleted: true } : s
-                                          )
-                                        );
-                                      }, { isDanger: true, confirmText: "削除" });
-                                    }}
-                                    className="p-0.5 h-6 w-6 text-gray-400 hover:text-red-600"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </div>
                               </div>
-                            ))}
-                          </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingStaff(member)}
+                                  className="p-1.5 h-8 w-8 text-gray-400 hover:text-blue-600"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    showConfirm("このスタッフを削除しますか？", () => {
+                                      setStaff(
+                                        staff.map((s) =>
+                                          s.id === member.id ? { ...s, _deleted: true } : s
+                                        )
+                                      );
+                                    }, { isDanger: true, confirmText: "削除" });
+                                  }}
+                                  className="p-1.5 h-8 w-8 text-gray-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                   ));

@@ -828,12 +828,32 @@ export function AppointmentEditModal({
         if (editingAppointment.menu3) {
           setSelectedMenu3(editingAppointment.menu3)
         }
+
+        // 既存のスタッフを設定
+        const staffIds = [
+          editingAppointment.staff1_id,
+          editingAppointment.staff2_id,
+          editingAppointment.staff3_id
+        ].filter(Boolean)
+
+        if (staffIds.length > 0 && staff.length > 0) {
+          const staffObjects = staffIds
+            .map(staffId => staff.find(s => s.id === staffId))
+            .filter((s): s is Staff => s !== undefined)
+
+          if (staffObjects.length > 0) {
+            setSelectedStaff(staffObjects)
+            console.log('既存のスタッフを設定:', staffObjects)
+          }
+        } else {
+          setSelectedStaff([])
+        }
       } else {
         setAppointmentData(getInitialAppointmentData())
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, editingAppointment?.id])
+  }, [isOpen, editingAppointment?.id, editingAppointment?.staff1_id, editingAppointment?.staff2_id, editingAppointment?.staff3_id, staff])
 
   // 選択されたスタッフインデックスまたはユニットインデックスに基づいて自動選択
   useEffect(() => {
@@ -1572,9 +1592,9 @@ export function AppointmentEditModal({
         menu1_id: appointmentData.menu1_id || (selectedMenu1?.id || 'menu-1'),
         menu2_id: appointmentData.menu2_id || selectedMenu2?.id || null,
         menu3_id: appointmentData.menu3_id || selectedMenu3?.id || null,
-        staff1_id: appointmentData.staff1_id || (selectedStaff.length > 0 ? selectedStaff[0].id : 'staff-1'),
-        staff2_id: appointmentData.staff2_id || null,
-        staff3_id: appointmentData.staff3_id || null,
+        staff1_id: selectedStaff.length > 0 ? selectedStaff[0].id : (appointmentData.staff1_id || 'staff-1'),
+        staff2_id: selectedStaff.length > 1 ? selectedStaff[1].id : (appointmentData.staff2_id || null),
+        staff3_id: selectedStaff.length > 2 ? selectedStaff[2].id : (appointmentData.staff3_id || null),
         memo: currentMemo,
         status: editingAppointment ? editingAppointment.status : '未来院'
       }
@@ -2398,10 +2418,7 @@ export function AppointmentEditModal({
                   </button>
                   {selectedStaff.length > 0 && (
                     <div className="text-gray-600 font-medium">
-                      : {selectedStaff.length === 1 
-                        ? selectedStaff[0].name 
-                        : `${selectedStaff.length}人選択済み (${selectedStaff.map(s => s.name).join(', ')})`
-                      }
+                      : {selectedStaff.map(s => s.name).join(' / ')}
                     </div>
                   )}
                 </div>
@@ -2881,7 +2898,14 @@ export function AppointmentEditModal({
           <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowStaffModal(false)} />
           <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">担当者選択</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">担当者選択</h3>
+                {selectedStaff.length > 0 && (
+                  <div className="text-sm font-medium text-gray-900">
+                    {selectedStaff.map(s => s.name).join(' / ')}
+                  </div>
+                )}
+              </div>
 
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <table className="w-full">

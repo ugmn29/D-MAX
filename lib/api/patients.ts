@@ -13,7 +13,6 @@ export async function getPatients(clinicId: string): Promise<Patient[]> {
     try {
       const { getMockPatients } = await import('@/lib/utils/mock-mode')
       const mockPatients = getMockPatients()
-      console.log('MOCK_MODE: localStorageから患者データを取得:', mockPatients.length, '件')
 
       // データベースからも患者を取得
       const client = getSupabaseClient()
@@ -24,7 +23,6 @@ export async function getPatients(clinicId: string): Promise<Patient[]> {
         .order('patient_number', { ascending: true })
 
       if (!error && dbPatients) {
-        console.log('MOCK_MODE: データベースから患者データを取得:', dbPatients.length, '件')
         // モック患者とデータベース患者をマージ（重複除去）
         const allPatients = [...mockPatients]
         dbPatients.forEach(dbPatient => {
@@ -32,7 +30,6 @@ export async function getPatients(clinicId: string): Promise<Patient[]> {
             allPatients.push(dbPatient)
           }
         })
-        console.log('MOCK_MODE: 合計患者数:', allPatients.length, '件')
         return allPatients
       }
 
@@ -146,7 +143,6 @@ export async function getPatientById(
     const mockPatient = mockPatients.find((p: any) => p.id === patientId && p.clinic_id === clinicId)
 
     if (mockPatient) {
-      console.log('getPatientById (MOCK_MODE - localStorage):', { patientId, found: true })
       return mockPatient
     }
 
@@ -160,11 +156,9 @@ export async function getPatientById(
       .single()
 
     if (!dbError && dbPatient) {
-      console.log('getPatientById (MOCK_MODE - database):', { patientId, found: true })
       return dbPatient
     }
 
-    console.log('getPatientById (MOCK_MODE):', { patientId, found: false })
     return null
   }
 
@@ -450,7 +444,6 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
 }> {
   const client = getSupabaseClient()
 
-  console.log('🔍 連携状況データ取得開始 - clinicId:', clinicId)
 
   try {
     // 仮登録患者（未連携）を取得
@@ -476,9 +469,7 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
       console.error('未連携患者取得エラー:', unlinkedError)
     }
 
-    console.log('✅ 未連携患者取得:', unlinkedPatients?.length || 0, '件')
     if (unlinkedPatients && unlinkedPatients.length > 0) {
-      console.log('未連携患者サンプル:', unlinkedPatients[0])
     }
 
     // 本登録患者（連携済み）を取得
@@ -504,20 +495,13 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
       console.error('連携済み患者取得エラー:', linkedError)
     }
 
-    console.log('✅ 連携済み患者取得:', linkedPatients?.length || 0, '件')
     if (linkedPatients && linkedPatients.length > 0) {
-      console.log('連携済み患者サンプル:', linkedPatients[0])
     }
 
     const result = {
       unlinkedPatients: unlinkedPatients || [],
       linkedPatients: linkedPatients || []
     }
-
-    console.log('📦 最終結果:', {
-      unlinkedCount: result.unlinkedPatients.length,
-      linkedCount: result.linkedPatients.length
-    })
 
     return result
   } catch (error) {
@@ -536,7 +520,6 @@ export async function linkPatientToQuestionnaire(patientId: string): Promise<voi
   const client = getSupabaseClient()
 
   try {
-    console.log('🔗 患者連携開始 - patientId:', patientId)
 
     const { error } = await client
       .from('patients')
@@ -551,7 +534,6 @@ export async function linkPatientToQuestionnaire(patientId: string): Promise<voi
       throw error
     }
 
-    console.log('✅ 患者連携完了 - patientId:', patientId)
   } catch (error) {
     console.error('患者連携エラー:', error)
     throw error
@@ -565,7 +547,6 @@ export async function unlinkPatientFromQuestionnaire(patientId: string): Promise
   const client = getSupabaseClient()
 
   try {
-    console.log('🔓 患者連携解除開始 - patientId:', patientId)
 
     // 1. 患者を仮登録に戻す
     const { error: patientError } = await client
@@ -581,7 +562,6 @@ export async function unlinkPatientFromQuestionnaire(patientId: string): Promise
       throw patientError
     }
 
-    console.log('✅ 患者を仮登録に戻しました')
 
     // 2. この患者に紐づいている問診票のpatient_idをnullに戻す
     const { error: questionnaireError } = await client
@@ -597,8 +577,6 @@ export async function unlinkPatientFromQuestionnaire(patientId: string): Promise
       throw questionnaireError
     }
 
-    console.log('✅ 問診票の連携を解除しました')
-    console.log('✅ 患者連携解除完了 - patientId:', patientId)
   } catch (error) {
     console.error('患者連携解除エラー:', error)
     throw error

@@ -59,7 +59,11 @@ export async function getPatientWebBookingSettings(
       if (error.code === 'PGRST116') {
         return null
       }
-      console.error('Failed to get web booking settings:', JSON.stringify(error, null, 2))
+      // テーブルが見つからない場合も静かにnullを返す
+      if (error.code === 'PGRST205' || error.code === '42P01') {
+        return null
+      }
+      console.warn('Web予約設定取得時に予期しないエラー:', { code: error.code, message: error.message })
       return null
     }
 

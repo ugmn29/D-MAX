@@ -20,9 +20,20 @@ export default function NewPatientPage() {
     setIsSubmitting(true)
 
     try {
+      // 住所フィールドを結合
+      const addressParts = [
+        formData.postal_code,
+        formData.prefecture,
+        formData.city,
+        formData.address_line
+      ].filter(Boolean) // 空でない要素のみ
+
+      const address = addressParts.join(' ')
+
       // Supabaseに患者データを保存（本登録として作成）
       await createPatient(DEMO_CLINIC_ID, {
         ...formData,
+        address, // 結合された住所
         is_registered: true  // 本登録として作成
       })
 

@@ -53,8 +53,6 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
       initializeMockData()
 
       const questionnaires = getMockQuestionnaires()
-      console.log('MOCK_MODE: 問診表取得成功 - データ件数:', questionnaires.length)
-      console.log('MOCK_MODE: 問診表取得成功 - データ:', questionnaires)
       return questionnaires.filter(q => q.clinic_id === clinicId)
     } catch (mockError) {
       console.error('MOCK_MODE問診表取得エラー:', mockError)
@@ -90,8 +88,6 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
     throw error
   }
 
-  console.log('問診表取得成功 - 生データ:', data)
-  console.log('問診表取得成功 - データ件数:', data?.length)
 
   // questionnaire_questions を questions にマッピング
   const mappedData = (data || []).map((questionnaire: any) => ({
@@ -99,7 +95,6 @@ export async function getQuestionnaires(clinicId: string): Promise<Questionnaire
     questions: questionnaire.questionnaire_questions || []
   }))
 
-  console.log('問診表取得成功 - マッピング後:', mappedData)
   console.log('問診表取得成功 - マッピング後件数:', mappedData.length)
 
   // 初診問診票の質問を詳細ログ
@@ -386,28 +381,9 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
   if (MOCK_MODE) {
     try {
       const responsesStr = localStorage.getItem('questionnaire_responses') || '[]'
-      console.log('MOCK_MODE: localStorageから取得した生データ:', responsesStr)
       const responses = JSON.parse(responsesStr)
-      console.log('MOCK_MODE: パース後の全問診票:', {
-        count: responses.length,
-        responses: responses.map((r: QuestionnaireResponse) => ({
-          id: r.id,
-          patient_id: r.patient_id,
-          name: r.response_data?.patient_name || r.response_data?.['q1-1'] || '名前なし',
-          phone: r.response_data?.patient_phone || r.response_data?.['q1-10'] || '電話なし'
-        }))
-      })
       // patient_idがnullまたは未定義のものを未連携として扱う
       const unlinked = responses.filter((r: QuestionnaireResponse) => !r.patient_id)
-      console.log('MOCK_MODE: 未連携問診票取得成功', {
-        count: unlinked.length,
-        unlinked: unlinked.map((r: QuestionnaireResponse) => ({
-          id: r.id,
-          patient_id: r.patient_id,
-          name: r.response_data?.patient_name || r.response_data?.['q1-1'] || '名前なし',
-          phone: r.response_data?.patient_phone || r.response_data?.['q1-10'] || '電話なし'
-        }))
-      })
       return unlinked
     } catch (error) {
       console.error('MOCK_MODE: 未連携問診票取得エラー', error)
@@ -417,7 +393,6 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
 
   const client = getSupabaseClient()
 
-  console.log('🔍 未連携問診票取得開始 - clinicId:', clinicId)
 
   // 1. patient_idがnullの問診票を取得
   const { data: nullPatientResponses, error: nullError } = await client
@@ -431,7 +406,6 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
     throw nullError
   }
 
-  console.log('✅ patient_id=nullの問診票:', nullPatientResponses?.length || 0, '件')
 
   // 2. 仮登録患者(is_registered=false)に紐づいている問診票を取得
   const { data: tempPatientResponses, error: tempError } = await client
@@ -452,7 +426,6 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
     throw tempError
   }
 
-  console.log('✅ 仮登録患者の問診票:', tempPatientResponses?.length || 0, '件')
 
   // 3. 両方を結合（重複を除外）
   const allResponses = [
@@ -465,7 +438,6 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
     new Map(allResponses.map(r => [r.id, r])).values()
   )
 
-  console.log('📦 未連携問診票合計:', uniqueResponses.length, '件')
 
   return uniqueResponses
 }

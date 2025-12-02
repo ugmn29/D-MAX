@@ -30,8 +30,17 @@ export async function getPatientIcons(
       // レコードが存在しない場合はnullを返す
       return null
     }
-    console.error('患者アイコンの取得エラー:', error)
-    throw error
+    // テーブルが見つからない場合もnullを返す（マイグレーション前の互換性）
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      console.warn('patient_iconsテーブルが存在しません。マイグレーションを実行してください。')
+      return null
+    }
+    // その他のエラーもログ出力してnullを返す（エラーをthrowしない）
+    console.warn('患者アイコンの取得時に予期しないエラーが発生しました:', {
+      code: error.code,
+      message: error.message
+    })
+    return null
   }
 
   return data
@@ -64,6 +73,11 @@ export async function upsertPatientIcons(
     .single()
 
   if (error) {
+    // テーブルが見つからない場合
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      console.warn('patient_iconsテーブルが存在しません。マイグレーションを実行してください。')
+      throw error
+    }
     console.error('患者アイコンの保存エラー:', error)
     throw error
   }

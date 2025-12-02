@@ -9,7 +9,6 @@ import { MOCK_MODE, MOCK_CLINIC_SETTINGS } from '@/lib/utils/mock-mode'
 export async function getClinic(clinicId: string): Promise<Clinic | null> {
   // モックモードの場合はモックデータを返す
   if (MOCK_MODE) {
-    console.log('モックモード: クリニック情報を返します')
     
     // localStorageから保存された設定を読み込む
     let savedSettings: any = {}
@@ -17,8 +16,6 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
       const savedData = localStorage.getItem('mock_clinic_settings')
       if (savedData) {
         savedSettings = JSON.parse(savedData)
-        console.log('モックモード: 保存された設定を読み込みました', savedSettings)
-        console.log('モックモード: 保存された設定のcancel_types:', savedSettings.cancel_types)
       }
     } catch (error) {
       console.error('モックモード: localStorage読み込みエラー:', error)
@@ -81,11 +78,9 @@ export async function getClinic(clinicId: string): Promise<Clinic | null> {
  * クリニック設定を取得
  */
 export async function getClinicSettings(clinicId: string): Promise<Record<string, any>> {
-  console.log('getClinicSettings呼び出し:', clinicId)
   
   // モックモードの場合はモックデータを返す
   if (MOCK_MODE) {
-    console.log('モックモード: クリニック設定データを返します')
     
     // localStorageから保存された設定を読み込む
     let savedSettings = {}
@@ -93,8 +88,6 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
       const savedData = localStorage.getItem('mock_clinic_settings')
       if (savedData) {
         savedSettings = JSON.parse(savedData)
-        console.log('モックモード: 保存された設定を読み込みました', savedSettings)
-        console.log('モックモード: 保存された設定のcancel_types:', savedSettings.cancel_types)
       }
     } catch (error) {
       console.error('モックモード: localStorage読み込みエラー:', error)
@@ -102,21 +95,17 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
     
     // デフォルト設定と保存された設定をマージ
     const mergedSettings = { ...MOCK_CLINIC_SETTINGS, ...savedSettings }
-    console.log('モックモード: マージされた設定:', mergedSettings)
-    console.log('モックモード: cancel_typesの値:', mergedSettings.cancel_types)
     return mergedSettings
   }
   
   try {
     const client = getSupabaseClient()
-    console.log('使用するクライアント:', client ? 'クライアント取得成功' : 'クライアント取得失敗')
     
     const { data, error } = await client
       .from('clinic_settings')
       .select('setting_key, setting_value')
       .eq('clinic_id', clinicId)
 
-    console.log('getClinicSettingsレスポンス:', { data, error })
 
     if (error) {
       console.error('クリニック設定取得エラー:', error)
@@ -138,11 +127,9 @@ export async function getClinicSettings(clinicId: string): Promise<Record<string
 
     const settings: Record<string, any> = {}
     data?.forEach(setting => {
-      console.log(`設定項目: ${setting.setting_key} = ${setting.setting_value}`)
       settings[setting.setting_key] = setting.setting_value
     })
 
-    console.log('処理後の設定:', settings)
     console.log('time_slot_minutesの値:', settings.time_slot_minutes)
     return settings
   } catch (error) {
@@ -346,11 +333,9 @@ export async function saveDailyMemo(
  * 診療時間を取得（デフォルト値付き）
  */
 export async function getBusinessHours(clinicId: string) {
-  console.log('getBusinessHours呼び出し:', clinicId)
 
   // モックモードの場合はlocalStorageから読み込む
   if (MOCK_MODE) {
-    console.log('モックモード: 診療時間データを返します')
 
     // localStorageから保存された設定を読み込む
     try {
@@ -358,7 +343,6 @@ export async function getBusinessHours(clinicId: string) {
       if (savedData) {
         const savedSettings = JSON.parse(savedData)
         if (savedSettings.business_hours) {
-          console.log('モックモード: localStorageから取得した診療時間:', savedSettings.business_hours)
           return savedSettings.business_hours
         }
       }
@@ -376,7 +360,6 @@ export async function getBusinessHours(clinicId: string) {
       saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
       sunday: { isOpen: false, timeSlots: [] }
     }
-    console.log('モックモード: デフォルトの診療時間を返します:', defaultBusinessHours)
     return defaultBusinessHours
   }
   
@@ -384,7 +367,6 @@ export async function getBusinessHours(clinicId: string) {
     // まずclinic_settingsテーブルから取得を試行
     const settingsBusinessHours = await getClinicSetting(clinicId, 'business_hours')
     if (settingsBusinessHours) {
-      console.log('clinic_settingsから取得した診療時間:', settingsBusinessHours)
       return settingsBusinessHours
     }
   } catch (error) {
@@ -403,7 +385,6 @@ export async function getBusinessHours(clinicId: string) {
     sunday: { isOpen: false, timeSlots: [] }
   }
   
-  console.log('取得した診療時間:', businessHours)
   return businessHours
 }
 
@@ -441,7 +422,6 @@ function calculateBreakTimesFromBusinessHours(businessHours: any) {
     }
   })
 
-  console.log('診療時間から計算された休憩時間:', breakTimes)
   return breakTimes
 }
 
@@ -450,7 +430,6 @@ function calculateBreakTimesFromBusinessHours(businessHours: any) {
  * 明示的に設定された休憩時間は無視し、常に診療時間から自動計算する
  */
 export async function getBreakTimes(clinicId: string) {
-  console.log('getBreakTimes呼び出し - 診療時間から自動計算します:', clinicId)
 
   // 診療時間を取得
   const businessHours = await getBusinessHours(clinicId)
@@ -458,7 +437,6 @@ export async function getBreakTimes(clinicId: string) {
   // 診療時間から休憩時間を自動計算
   const calculatedBreakTimes = calculateBreakTimesFromBusinessHours(businessHours)
 
-  console.log('診療時間から自動計算された休憩時間:', calculatedBreakTimes)
   return calculatedBreakTimes
 }
 
@@ -466,13 +444,11 @@ export async function getBreakTimes(clinicId: string) {
  * 1コマ時間を取得（デフォルト値付き）
  */
 export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
-  console.log('getTimeSlotMinutes呼び出し:', clinicId)
   
   try {
     // まずclinic_settingsテーブルから取得を試行
     const settingsTimeSlotMinutes = await getClinicSetting(clinicId, 'time_slot_minutes')
     if (settingsTimeSlotMinutes !== null) {
-      console.log('clinic_settingsから取得した1コマ時間:', settingsTimeSlotMinutes)
       return settingsTimeSlotMinutes
     }
   } catch (error) {
@@ -483,7 +459,6 @@ export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
   const clinic = await getClinic(clinicId)
   const timeSlotMinutes = clinic?.time_slot_minutes || 15
   
-  console.log('取得した1コマ時間:', timeSlotMinutes)
   return timeSlotMinutes
 }
 

@@ -58,7 +58,11 @@ export async function getPatientNotificationPreferences(
       if (error.code === 'PGRST116') {
         return null
       }
-      console.error('患者通知設定取得エラー:', JSON.stringify(error, null, 2))
+      // テーブルが見つからない場合も静かにnullを返す
+      if (error.code === 'PGRST205' || error.code === '42P01') {
+        return null
+      }
+      console.warn('患者通知設定取得時に予期しないエラー:', { code: error.code, message: error.message })
       // エラーがあってもnullを返してデフォルト値を使用する
       return null
     }

@@ -101,6 +101,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // ドラッグ&ドロップ関連
   const [draggedAppointment, setDraggedAppointment] = useState<Appointment | null>(null)
   const [dragStartPosition, setDragStartPosition] = useState<{ x: number; y: number } | null>(null)
+  const [dragStartStaffIndex, setDragStartStaffIndex] = useState<number | null>(null)
   const [dragCurrentPosition, setDragCurrentPosition] = useState<{ x: number; y: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStartTime, setDragStartTime] = useState<number | null>(null)
@@ -204,27 +205,28 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   }
 
   // ドラッグ&ドロップのハンドラー
-  const handleAppointmentMouseDown = (e: React.MouseEvent, appointment: Appointment) => {
+  const handleAppointmentMouseDown = (e: React.MouseEvent, appointment: Appointment, staffIndex: number) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     // キャンセルされた予約はドラッグできない
     if (appointment.status === 'キャンセル') {
       console.log('キャンセルされた予約はドラッグできません')
       return
     }
-    
+
     // マウスがセル内のどの位置を掴んだかを記録
     const rect = e.currentTarget.getBoundingClientRect()
     const offsetX = e.clientX - rect.left
     const offsetY = e.clientY - rect.top
-    
+
     setDragStartTime(Date.now())
     setDragStartPosition({ x: e.clientX, y: e.clientY })
     setDragCurrentPosition({ x: e.clientX, y: e.clientY })
     setDraggedAppointment(appointment)
+    setDragStartStaffIndex(staffIndex) // ドラッグ元のスタッフインデックスを記録
     setHasMoved(false) // 移動フラグをリセット
-    
+
     // マウスオフセットを保存（後で使用）
     ;(e.currentTarget as any).__dragOffset = { x: offsetX, y: offsetY }
   }
@@ -292,6 +294,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     setIsDropTargetValid(true)
     setDragDelta(null)
     setHasMoved(false)
+    setDragStartStaffIndex(null)
 
     // 実際にドラッグが発生した場合のみ、一時的にクリックイベントを無視
     if (didDrag) {
@@ -511,14 +514,33 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       // 列間移動の場合、担当者またはユニットを変更
       if (newStaffIndex !== null) {
         if (displayMode === 'staff' && workingStaff[newStaffIndex]) {
-          // スタッフ表示モード：スタッフを変更
+          // スタッフ表示モード：移動元のスタッフを新しいスタッフに置き換え
           const newStaff = workingStaff[newStaffIndex].staff
-          updateData.staff1_id = newStaff.id
-          
+          const currentStaffIds = [appointment.staff1_id, appointment.staff2_id, appointment.staff3_id].filter(Boolean)
+
+          // 移動元のスタッフIDを特定（dragStartStaffIndexから）
+          let replacedStaffId: string | null = null
+          if (dragStartStaffIndex !== null && workingStaff[dragStartStaffIndex]) {
+            replacedStaffId = workingStaff[dragStartStaffIndex].staff.id
+          }
+
+          // 移動元のスタッフを新しいスタッフに置き換える
+          const updatedStaffIds = currentStaffIds.map(id => id === replacedStaffId ? newStaff.id : id)
+
+          // 重複を削除（念のため）
+          const uniqueStaffIds = Array.from(new Set(updatedStaffIds))
+
+          // staff1_id, staff2_id, staff3_idに再割り当て
+          updateData.staff1_id = uniqueStaffIds[0] || null
+          updateData.staff2_id = uniqueStaffIds[1] || null
+          updateData.staff3_id = uniqueStaffIds[2] || null
+
           console.log('スタッフ間移動:', {
-            from: appointment.staff1_id,
+            from: replacedStaffId,
             to: newStaff.id,
-            staffName: newStaff.name
+            staffName: newStaff.name,
+            before: currentStaffIds,
+            after: uniqueStaffIds
           })
         } else if (displayMode === 'units' && units[newStaffIndex]) {
           // ユニット表示モード：ユニットを変更
@@ -1272,25 +1294,36 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       }
 
       // 通常の単一予約として表示（データベースの時間を使用）
-      // Web予約の複数スタッフ予約は既にデータベースレベルで分割保存されているため、
-      // 各予約はstaff1_idのみを持つ独立した予約として扱われる
       const startMinutes = timeToMinutes(startTime)
       const endMinutes = timeToMinutes(endTime)
 
       const top = (startMinutes - businessStartHour * 60) / validTimeSlotMinutes * cellHeight
       const height = (endMinutes - startMinutes) / validTimeSlotMinutes * cellHeight
 
-      // staffIndexを計算（workingStaffの中でのインデックスを取得）
-      // staff1_idを優先し、なければstaff2_id、staff3_idの順で確認
-      const staffId = appointment.staff1_id || appointment.staff2_id || appointment.staff3_id
-      const staffIndex = workingStaff.findIndex(s => s.staff.id === staffId)
+      // 複数スタッフに対応：staff1_id, staff2_id, staff3_idそれぞれのスタッフ行に予約セルを表示
+      const staffIds = [appointment.staff1_id, appointment.staff2_id, appointment.staff3_id].filter(Boolean)
 
-      blocks.push({
-        appointment,
-        top,
-        height,
-        staffIndex: staffIndex >= 0 ? staffIndex : 0 // 見つからない場合は0
+      staffIds.forEach(staffId => {
+        const staffIndex = workingStaff.findIndex(s => s.staff.id === staffId)
+        if (staffIndex >= 0) {
+          blocks.push({
+            appointment,
+            top,
+            height,
+            staffIndex
+          })
+        }
       })
+
+      // スタッフが1人も見つからない場合は最初の列に表示
+      if (staffIds.length === 0) {
+        blocks.push({
+          appointment,
+          top,
+          height,
+          staffIndex: 0
+        })
+      }
     })
     
     console.log('計算された予約ブロック数:', blocks.length)
@@ -1924,11 +1957,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     : 'cursor-pointer hover:shadow-md'
                 }`}
                 style={{
-                  top: `${isDragging && draggedAppointment?.id === block.appointment.id 
+                  top: `${isDragging && draggedAppointment?.id === block.appointment.id && dragStartStaffIndex === block.staffIndex
                     ? (() => {
                         // ドラッグ中の場合は、マウス位置に基づいて新しい位置を計算
                         if (!dragCurrentPosition || !dragStartPosition) return block.top
-                        
+
                         // マウスの移動量を計算（スクロール位置を考慮）
                         const deltaY = dragCurrentPosition.y - dragStartPosition.y
                         const newTop = block.top + deltaY
@@ -1936,7 +1969,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                       })()
                     : block.top}px`,
                   height: `${isResizing && resizingAppointment?.id === block.appointment.id && resizePreviewHeight ? resizePreviewHeight : block.height}px`,
-                  left: `${isDragging && draggedAppointment?.id === block.appointment.id 
+                  left: `${isDragging && draggedAppointment?.id === block.appointment.id && dragStartStaffIndex === block.staffIndex 
                     ? (() => {
                         // ドラッグ中の場合は、マウス位置に基づいて新しい位置を計算
                         if (!dragCurrentPosition || !dragStartPosition) {
@@ -1993,14 +2026,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     return getTextColorForBackground(menuColor)
                   })(),
                   padding: '2px 8px 8px 8px', // 上を2px、左右8px、下8px
-                  zIndex: isDragging && draggedAppointment?.id === block.appointment.id ? 1000 : isCancelled ? 5 : 10,
-                  opacity: isDragging && draggedAppointment?.id === block.appointment.id ? 0.8 : isPasteMode ? 0.5 : 1, // 貼り付けモード時は半透明にして背景が見えるようにする
-                  transform: isDragging && draggedAppointment?.id === block.appointment.id ? 'scale(1.02)' : 'scale(1)',
-                  boxShadow: isDragging && draggedAppointment?.id === block.appointment.id ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
-                  transition: isDragging && draggedAppointment?.id === block.appointment.id ? 'none' : 'all 0.2s ease',
+                  zIndex: isDragging && draggedAppointment?.id === block.appointment.id && dragStartStaffIndex === block.staffIndex ? 1000 : isCancelled ? 5 : 10,
+                  opacity: isDragging && draggedAppointment?.id === block.appointment.id && dragStartStaffIndex === block.staffIndex ? 0.8 : isPasteMode ? 0.5 : 1, // 貼り付けモード時は半透明にして背景が見えるようにする
+                  transform: isDragging && draggedAppointment?.id === block.appointment.id && dragStartStaffIndex === block.staffIndex ? 'scale(1.02)' : 'scale(1)',
+                  boxShadow: isDragging && draggedAppointment?.id === block.appointment.id && dragStartStaffIndex === block.staffIndex ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
+                  transition: isDragging && draggedAppointment?.id === block.appointment.id && dragStartStaffIndex === block.staffIndex ? 'none' : 'all 0.2s ease',
                   pointerEvents: isPasteMode ? 'none' : 'auto' // 貼り付けモード時はクリックイベントを背景のセルに通す
                 }}
-                onMouseDown={(e) => handleAppointmentMouseDown(e, block.appointment)}
+                onMouseDown={(e) => handleAppointmentMouseDown(e, block.appointment, block.staffIndex)}
                 onClick={(e) => {
                   // 移動やリサイズが行われた場合はモーダルを開かない
                   if (hasMoved) {
@@ -2058,9 +2091,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     setSelectedUnitIndex(undefined)
                   }
 
-                  setEditingAppointment(block.appointment)
+                  // appointmentsステートから最新のデータを取得
+                  const latestAppointment = appointments.find(apt => apt.id === block.appointment.id)
+                  setEditingAppointment(latestAppointment || block.appointment)
                   setShowAppointmentModal(true)
-                  console.log('モーダル表示フラグ設定完了')
+                  console.log('モーダル表示フラグ設定完了', latestAppointment || block.appointment)
                 }}
               >
                 {/* キャンセルされていない予約のみテキストを表示 */}
