@@ -6,17 +6,7 @@ import { MOCK_MODE, getMockTreatmentMenus, addMockTreatmentMenu, removeMockTreat
  * 診療メニューを取得
  */
 export async function getTreatmentMenus(clinicId: string): Promise<TreatmentMenu[]> {
-  // モックモードの場合はモックデータを返す
-  if (MOCK_MODE) {
-    console.log('モックモード: 診療メニューデータを返します')
-    const allMenus = getMockTreatmentMenus()
-    const filteredMenus = allMenus.filter(item => item.clinic_id === clinicId)
-    console.log('モックモード: 全メニュー数', allMenus.length, 'フィルタ後', filteredMenus.length)
-    console.log('モックモード: Level 1メニュー', allMenus.filter(m => m.level === 1))
-    console.log('モックモード: Level 2メニュー', allMenus.filter(m => m.level === 2))
-    return filteredMenus
-  }
-
+  // モックモードでもデータベースから読み込む（createTreatmentMenuでDBに保存しているため）
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('treatment_menus')
@@ -31,7 +21,16 @@ export async function getTreatmentMenus(clinicId: string): Promise<TreatmentMenu
     throw new Error('診療メニューの取得に失敗しました')
   }
 
-  return data || []
+  const menus = data || []
+
+  // モックモードの場合はlocalStorageにも同期
+  if (MOCK_MODE) {
+    console.log('モックモード: データベースから取得した診療メニューをlocalStorageに同期', menus.length)
+    // localStorageをクリアして最新のデータで上書き
+    localStorage.setItem('mock_treatment_menus', JSON.stringify(menus))
+  }
+
+  return menus
 }
 
 /**

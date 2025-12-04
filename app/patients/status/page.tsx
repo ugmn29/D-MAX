@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Calendar,
-  ArrowLeft
+  ArrowLeft,
+  FileText
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -15,6 +17,7 @@ import { getAppointments, updateAppointmentStatus } from '@/lib/api/appointments
 import { getStaff } from '@/lib/api/staff'
 import { Staff } from '@/types/database'
 import { startAutoStatusUpdateTimer } from '@/lib/utils/auto-status-update'
+import { SubKarteTab } from '@/components/patients/subkarte-tab'
 
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
@@ -25,10 +28,11 @@ const STATUS_CONFIG = {
   '来院済み': { color: 'bg-blue-100 text-blue-800 border-blue-300', nextStatus: '診療中' },
   '診療中': { color: 'bg-purple-100 text-purple-800 border-purple-300', nextStatus: '会計' },
   '会計': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', nextStatus: '終了' },
-  '終了': { color: 'bg-green-100 text-green-800 border-green-300', nextStatus: null }
+  '終了': { color: 'bg-green-100 text-green-800 border-green-300', nextStatus: null },
+  'キャンセル': { color: 'bg-red-100 text-red-800 border-red-300', nextStatus: null }
 }
 
-const STATUS_ORDER = ['未来院', '遅刻', '来院済み', '診療中', '会計', '終了']
+const STATUS_ORDER = ['未来院', '遅刻', '来院済み', '診療中', '会計', '終了', 'キャンセル']
 
 export default function PatientStatusPage() {
   const router = useRouter()
@@ -37,6 +41,9 @@ export default function PatientStatusPage() {
   const [appointments, setAppointments] = useState<any[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
+  const [selectedPatientName, setSelectedPatientName] = useState<string>('')
+  const [showSubKarteModal, setShowSubKarteModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -67,8 +74,8 @@ export default function PatientStatusPage() {
         getStaff(DEMO_CLINIC_ID)
       ])
 
-      // キャンセルを除外
-      let filteredAppointments = appointmentsData.filter(apt => apt.status !== 'キャンセル')
+      // キャンセルを含むすべての予約を表示
+      let filteredAppointments = appointmentsData
 
       // スタッフフィルタ
       if (selectedStaff !== 'all') {
@@ -124,6 +131,21 @@ export default function PatientStatusPage() {
 
   const goToToday = () => {
     setSelectedDate(new Date())
+  }
+
+  // サブカルテモーダルを開く
+  const handleOpenSubKarte = (patientId: string, patientName: string, e: React.MouseEvent) => {
+    e.stopPropagation() // カード全体のクリックイベントを止める
+    setSelectedPatientId(patientId)
+    setSelectedPatientName(patientName)
+    setShowSubKarteModal(true)
+  }
+
+  // サブカルテモーダルを閉じる
+  const handleCloseSubKarte = () => {
+    setShowSubKarteModal(false)
+    setSelectedPatientId(null)
+    setSelectedPatientName('')
   }
 
   if (loading) {
@@ -194,7 +216,7 @@ export default function PatientStatusPage() {
       {/* メインコンテンツ */}
       <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* ステータスカードと患者リストを縦に配置 */}
-        <div className="grid grid-cols-6 gap-6">
+        <div className="grid grid-cols-7 gap-6">
           {STATUS_ORDER.map(status => {
             const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
             const count = getStatusCount(status)
@@ -204,31 +226,14 @@ export default function PatientStatusPage() {
               <div key={status} className="flex flex-col space-y-3">
                 {/* ステータスカード */}
                 <Card className="flex-shrink-0">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium text-gray-600">
+                  <CardHeader className="flex items-center justify-center h-20">
+                    <div className="flex items-center justify-between w-full">
+                      <CardTitle className="text-lg font-semibold text-gray-700">
                         {status}
                       </CardTitle>
-                      {config.nextStatus && (
-                        <button
-                          onClick={() => {
-                            // このステータスの患者を次のステータスに一括変更
-                            const currentPatients = getPatientsByStatus(status)
-                            currentPatients.forEach(apt => {
-                              handleStatusChange(apt.id, config.nextStatus!)
-                            })
-                          }}
-                          className="w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center hover:bg-blue-600 transition-colors"
-                          title={`${config.nextStatus}に進む`}
-                        >
-                          {config.nextStatus.charAt(0)}
-                        </button>
-                      )}
+                      <div className="text-2xl font-bold text-gray-900">{count}</div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-gray-900">{count}</div>
-                  </CardContent>
                 </Card>
 
                 {/* 患者リスト */}
@@ -240,51 +245,35 @@ export default function PatientStatusPage() {
                   ) : (
                     patients.map(apt => {
                       const patient = apt.patient
-                      const staffName = apt.staff1?.name || apt.staff2?.name || apt.staff3?.name || '未設定'
+                      // menu1, menu2, menu3のいずれかから診療メニュー名を取得
+                      const treatmentName = apt.menu1?.name || apt.menu2?.name || apt.menu3?.name || '未設定'
 
                       return (
                         <Card
                           key={apt.id}
-                          className="p-4 hover:shadow-md transition-shadow cursor-pointer relative"
+                          className="p-4 hover:shadow-md transition-shadow cursor-pointer"
                           onClick={() => router.push(`/patients/${patient?.id}`)}
                         >
-                          {/* ステータスアイコン（右上） */}
-                          {(() => {
-                            const currentStatus = apt.status
-                            const nextStatus = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]?.nextStatus
-                            const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]
-                            const buttonColor = statusConfig?.color.split(' ')[0] || 'bg-gray-500'
-                            const textColor = statusConfig?.color.split(' ')[1] || 'text-gray-800'
-                            
-                            return (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-medium text-sm text-blue-600 hover:text-blue-800">
+                                {patient?.last_name} {patient?.first_name}
+                              </div>
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  if (nextStatus) {
-                                    handleStatusChange(apt.id, nextStatus)
-                                  }
-                                }}
-                                className={`absolute top-2 right-2 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors z-10 ${
-                                  nextStatus 
-                                    ? `${buttonColor} ${textColor} hover:opacity-80 cursor-pointer` 
-                                    : `${buttonColor} ${textColor} cursor-default`
-                                }`}
-                                title={nextStatus ? `${nextStatus}に進む (現在: ${currentStatus})` : `現在: ${currentStatus} (最終ステータス)`}
+                                onClick={(e) => handleOpenSubKarte(patient?.id, `${patient?.last_name} ${patient?.first_name}`, e)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                                title="サブカルテを開く"
                               >
-                                {currentStatus[0]}
+                                <FileText className="w-4 h-4" />
                               </button>
-                            )
-                          })()}
-                          
-                          <div className="space-y-3 pr-8">
-                            <div className="font-medium text-sm text-blue-600 hover:text-blue-800">
-                              {patient?.last_name} {patient?.first_name}
                             </div>
-                            <div className="text-xs text-gray-500">
-                              {apt.start_time}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              {staffName}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-xs text-gray-500 flex-shrink-0">
+                                {apt.start_time}
+                              </div>
+                              <div className="text-xs text-gray-600 truncate">
+                                {treatmentName}
+                              </div>
                             </div>
                           </div>
                         </Card>
@@ -297,6 +286,18 @@ export default function PatientStatusPage() {
           })}
         </div>
       </div>
+
+      {/* サブカルテモーダル */}
+      <Dialog open={showSubKarteModal} onOpenChange={setShowSubKarteModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>サブカルテ - {selectedPatientName}</DialogTitle>
+          </DialogHeader>
+          {selectedPatientId && (
+            <SubKarteTab patientId={selectedPatientId} layout="vertical" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
