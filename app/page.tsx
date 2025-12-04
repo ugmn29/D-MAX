@@ -83,8 +83,10 @@ export default function HomePage() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('メインページ: ページが可視になった - 設定を再読み込み')
+        console.log('メインページ: ページが可視になった - 設定とカレンダーを再読み込み')
         loadSettings()
+        // カレンダーを再マウントして最新のユニットデータを取得
+        handleRefresh()
       }
     }
 

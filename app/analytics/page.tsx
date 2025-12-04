@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target } from 'lucide-react'
-import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCancelAnalysis, getStaffCancelAnalysis, getTreatmentCancelAnalysis, CancelAnalysisData, TimeSlotCancelData, StaffCancelData, TreatmentCancelData } from '@/lib/api/analytics'
+import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCancelAnalysis, getStaffCancelAnalysis, getTreatmentCancelAnalysis, getTreatmentMenuStatsByParent, CancelAnalysisData, TimeSlotCancelData, StaffCancelData, TreatmentCancelData, TreatmentMenuStats } from '@/lib/api/analytics'
 import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
 import WebBookingEffectTab from '@/components/analytics/WebBookingEffectTab'
 
@@ -20,6 +19,11 @@ export default function AnalyticsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [activeTab, setActiveTab] = useState('basic')
+  const [comparisonType, setComparisonType] = useState<'previous' | 'same_period_last_year' | 'none'>('previous')
+  const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null)
+  const [currentLevel, setCurrentLevel] = useState<1 | 2 | 3>(1)
+  const [drilldownMenus, setDrilldownMenus] = useState<TreatmentMenuStats[]>([])
+  const [menuBreadcrumb, setMenuBreadcrumb] = useState<{id: string, name: string, level: number}[]>([])
 
   // デフォルトの日付範囲を設定（今月）
   useEffect(() => {
@@ -37,9 +41,9 @@ export default function AnalyticsPage() {
     try {
       setLoading(true)
       const clinicId = '11111111-1111-1111-1111-111111111111'
-      
-      // 基本分析データを取得
-      const data = await getAnalyticsData(clinicId, startDate, endDate)
+
+      // 基本分析データを取得（比較タイプを渡す、期間は常に日別）
+      const data = await getAnalyticsData(clinicId, startDate, endDate, 'daily', comparisonType)
       setAnalyticsData(data)
 
       // キャンセル分析データを取得
@@ -73,7 +77,71 @@ export default function AnalyticsPage() {
     if (startDate && endDate) {
       loadAnalyticsData()
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, comparisonType])
+
+  // メニュードリルダウン処理
+  const handleMenuClick = async (menuId: string, menuName: string, level: number) => {
+    const clinicId = '11111111-1111-1111-1111-111111111111'
+
+    // 次のレベルを計算
+    const nextLevel = (level + 1) as 1 | 2 | 3
+
+    if (nextLevel > 3) return // level 3が最深層
+
+    try {
+      // 子メニューを取得
+      const childMenus = await getTreatmentMenuStatsByParent(
+        clinicId,
+        startDate,
+        endDate,
+        menuId,
+        nextLevel
+      )
+
+      // パンくずリストに追加
+      setMenuBreadcrumb([...menuBreadcrumb, { id: menuId, name: menuName, level }])
+      setDrilldownMenus(childMenus)
+      setCurrentLevel(nextLevel)
+      setSelectedMenuId(menuId)
+    } catch (error) {
+      console.error('子メニュー取得エラー:', error)
+    }
+  }
+
+  // パンくずリストから戻る処理
+  const handleBreadcrumbClick = async (index: number) => {
+    if (index === -1) {
+      // トップレベルに戻る
+      setMenuBreadcrumb([])
+      setDrilldownMenus([])
+      setCurrentLevel(1)
+      setSelectedMenuId(null)
+    } else {
+      // 指定されたレベルに戻る
+      const targetBreadcrumb = menuBreadcrumb[index]
+      const newBreadcrumb = menuBreadcrumb.slice(0, index + 1)
+
+      const clinicId = '11111111-1111-1111-1111-111111111111'
+      const nextLevel = (targetBreadcrumb.level + 1) as 1 | 2 | 3
+
+      try {
+        const childMenus = await getTreatmentMenuStatsByParent(
+          clinicId,
+          startDate,
+          endDate,
+          targetBreadcrumb.id,
+          nextLevel
+        )
+
+        setMenuBreadcrumb(newBreadcrumb)
+        setDrilldownMenus(childMenus)
+        setCurrentLevel(nextLevel)
+        setSelectedMenuId(targetBreadcrumb.id)
+      } catch (error) {
+        console.error('メニュー取得エラー:', error)
+      }
+    }
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -123,7 +191,7 @@ export default function AnalyticsPage() {
           <CardTitle>分析設定</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="startDate">開始日</Label>
               <Input
@@ -143,16 +211,13 @@ export default function AnalyticsPage() {
               />
             </div>
             <div>
-              <Label htmlFor="period">期間</Label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="monthly">月別</option>
-                <option value="weekly">週別</option>
-                <option value="daily">日別</option>
-              </select>
-            </div>
-            <div>
               <Label htmlFor="comparison">比較</Label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select
+                id="comparison"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={comparisonType}
+                onChange={(e) => setComparisonType(e.target.value as 'previous' | 'same_period_last_year' | 'none')}
+              >
                 <option value="previous">前期間</option>
                 <option value="same_period_last_year">前年同期</option>
                 <option value="none">比較なし</option>
@@ -176,10 +241,13 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{analyticsData.kpi.total_appointments}</div>
-                    <p className="text-xs text-muted-foreground flex items-center">
-                      <TrendingUp className="w-3 h-3 mr-1" />
-                      {analyticsData.kpi.appointments_change_percentage.toFixed(1)}% 前期比
-                    </p>
+                    {comparisonType !== 'none' && analyticsData.comparison_data && (
+                      <p className={`text-xs flex items-center ${analyticsData.comparison_data.changes.appointments_change_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <TrendingUp className={`w-3 h-3 mr-1 ${analyticsData.comparison_data.changes.appointments_change_percentage < 0 ? 'rotate-180' : ''}`} />
+                        {analyticsData.comparison_data.changes.appointments_change_percentage >= 0 ? '+' : ''}
+                        {analyticsData.comparison_data.changes.appointments_change_percentage.toFixed(1)}% {analyticsData.comparison_data.comparison_label}
+                      </p>
+                    )}
                     <p className="text-xs text-red-600 mt-1">
                       キャンセル率: {analyticsData.kpi.cancellation_rate.toFixed(1)}%
                     </p>
@@ -193,10 +261,13 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{analyticsData.kpi.total_patients}</div>
-                    <p className="text-xs text-muted-foreground flex items-center">
-                      <TrendingUp className="w-3 h-3 mr-1" />
-                      {analyticsData.kpi.patients_change_percentage.toFixed(1)}% 前期比
-                    </p>
+                    {comparisonType !== 'none' && analyticsData.comparison_data && (
+                      <p className={`text-xs flex items-center ${analyticsData.comparison_data.changes.patients_change_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <TrendingUp className={`w-3 h-3 mr-1 ${analyticsData.comparison_data.changes.patients_change_percentage < 0 ? 'rotate-180' : ''}`} />
+                        {analyticsData.comparison_data.changes.patients_change_percentage >= 0 ? '+' : ''}
+                        {analyticsData.comparison_data.changes.patients_change_percentage.toFixed(1)}% {analyticsData.comparison_data.comparison_label}
+                      </p>
+                    )}
                     <p className="text-xs text-green-600 mt-1">
                       継続率: {analyticsData.kpi.retention_rate.toFixed(1)}%
                     </p>
@@ -210,8 +281,15 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{analyticsData.kpi.new_patients}</div>
-                    <p className="text-xs text-muted-foreground">
-                      全体の{((analyticsData.kpi.new_patients / analyticsData.kpi.total_patients) * 100).toFixed(0)}%
+                    {comparisonType !== 'none' && analyticsData.comparison_data && (
+                      <p className={`text-xs flex items-center ${analyticsData.comparison_data.changes.new_patients_change_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <TrendingUp className={`w-3 h-3 mr-1 ${analyticsData.comparison_data.changes.new_patients_change_percentage < 0 ? 'rotate-180' : ''}`} />
+                        {analyticsData.comparison_data.changes.new_patients_change_percentage >= 0 ? '+' : ''}
+                        {analyticsData.comparison_data.changes.new_patients_change_percentage.toFixed(1)}% {analyticsData.comparison_data.comparison_label}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      全体の{analyticsData.kpi.total_patients > 0 ? ((analyticsData.kpi.new_patients / analyticsData.kpi.total_patients) * 100).toFixed(0) : 0}%
                     </p>
                   </CardContent>
                 </Card>
@@ -223,10 +301,13 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">¥{analyticsData.kpi.total_sales.toLocaleString()}</div>
-                    <p className="text-xs text-muted-foreground flex items-center">
-                      <TrendingUp className="w-3 h-3 mr-1" />
-                      {analyticsData.kpi.sales_change_percentage.toFixed(1)}% 前期比
-                    </p>
+                    {comparisonType !== 'none' && analyticsData.comparison_data && (
+                      <p className={`text-xs flex items-center ${analyticsData.comparison_data.changes.sales_change_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <TrendingUp className={`w-3 h-3 mr-1 ${analyticsData.comparison_data.changes.sales_change_percentage < 0 ? 'rotate-180' : ''}`} />
+                        {analyticsData.comparison_data.changes.sales_change_percentage >= 0 ? '+' : ''}
+                        {analyticsData.comparison_data.changes.sales_change_percentage.toFixed(1)}% {analyticsData.comparison_data.comparison_label}
+                      </p>
+                    )}
                     <p className="text-xs text-blue-600 mt-1">
                       患者平均: ¥{analyticsData.kpi.average_sales_per_patient.toLocaleString()}
                     </p>
@@ -301,26 +382,110 @@ export default function AnalyticsPage() {
                 </Card>
               </div>
 
+              {/* 期間別売上推移 */}
+              {analyticsData.aggregated_sales_trend && analyticsData.aggregated_sales_trend.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>売上推移（日別）</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-3 font-medium text-gray-600">期間</th>
+                            <th className="text-right py-2 px-3 font-medium text-gray-600">予約数</th>
+                            <th className="text-right py-2 px-3 font-medium text-gray-600">総売上</th>
+                            <th className="text-right py-2 px-3 font-medium text-gray-600">保険診療</th>
+                            <th className="text-right py-2 px-3 font-medium text-gray-600">自費診療</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analyticsData.aggregated_sales_trend.map((item, index) => (
+                            <tr key={index} className="border-b last:border-b-0 hover:bg-gray-50">
+                              <td className="py-2 px-3 font-medium">{item.label}</td>
+                              <td className="text-right py-2 px-3">{item.appointment_count}件</td>
+                              <td className="text-right py-2 px-3 font-semibold">¥{item.total_sales.toLocaleString()}</td>
+                              <td className="text-right py-2 px-3 text-blue-600">¥{item.insurance_sales.toLocaleString()}</td>
+                              <td className="text-right py-2 px-3 text-green-600">¥{item.self_pay_sales.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-gray-50 font-semibold">
+                            <td className="py-2 px-3">合計</td>
+                            <td className="text-right py-2 px-3">
+                              {analyticsData.aggregated_sales_trend.reduce((sum, item) => sum + item.appointment_count, 0)}件
+                            </td>
+                            <td className="text-right py-2 px-3">
+                              ¥{analyticsData.aggregated_sales_trend.reduce((sum, item) => sum + item.total_sales, 0).toLocaleString()}
+                            </td>
+                            <td className="text-right py-2 px-3 text-blue-600">
+                              ¥{analyticsData.aggregated_sales_trend.reduce((sum, item) => sum + item.insurance_sales, 0).toLocaleString()}
+                            </td>
+                            <td className="text-right py-2 px-3 text-green-600">
+                              ¥{analyticsData.aggregated_sales_trend.reduce((sum, item) => sum + item.self_pay_sales, 0).toLocaleString()}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* 診療メニュー別の予約数 */}
               <Card>
                 <CardHeader>
-                  <CardTitle>診療メニュー別の予約数</CardTitle>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>診療メニュー別の予約数</span>
+                    {menuBreadcrumb.length > 0 && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <button
+                          onClick={() => handleBreadcrumbClick(-1)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          メニュー-1
+                        </button>
+                        {menuBreadcrumb.map((crumb, index) => (
+                          <span key={crumb.id} className="flex items-center gap-2">
+                            <span className="text-gray-400">/</span>
+                            <button
+                              onClick={() => handleBreadcrumbClick(index)}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {crumb.name}
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {analyticsData.treatment_menu_stats && analyticsData.treatment_menu_stats.length > 0 ? (
-                      analyticsData.treatment_menu_stats
-                        .sort((a, b) => b.appointment_count - a.appointment_count)
+                    {(currentLevel === 1 ? analyticsData.treatment_menu_stats : drilldownMenus) &&
+                     (currentLevel === 1 ? analyticsData.treatment_menu_stats : drilldownMenus).length > 0 ? (
+                      (currentLevel === 1 ? analyticsData.treatment_menu_stats : drilldownMenus)
                         .map((menu, index) => {
-                          const total = analyticsData.treatment_menu_stats.reduce((sum, m) => sum + m.appointment_count, 0)
+                          const menuList = currentLevel === 1 ? analyticsData.treatment_menu_stats : drilldownMenus
+                          const total = menuList.reduce((sum, m) => sum + m.appointment_count, 0)
                           const percentage = total > 0 ? (menu.appointment_count / total) * 100 : 0
+                          const hasChildren = menu.level < 3
 
                           return (
-                            <div key={index} className="border-b pb-3 last:border-b-0">
+                            <div
+                              key={menu.menu_id}
+                              className={`border-b pb-3 last:border-b-0 ${hasChildren ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                              onClick={() => hasChildren && handleMenuClick(menu.menu_id, menu.treatment_name, menu.level)}
+                            >
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-3">
                                   <span className="text-sm font-bold text-gray-400">#{index + 1}</span>
                                   <span className="font-medium text-gray-900">{menu.treatment_name}</span>
+                                  {hasChildren && (
+                                    <span className="text-xs text-gray-400">(クリックで詳細表示)</span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="text-sm text-gray-500">{percentage.toFixed(1)}%</span>

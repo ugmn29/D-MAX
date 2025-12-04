@@ -1,8 +1,8 @@
 -- 患者の特記事項アイコンを保存するテーブル
 CREATE TABLE IF NOT EXISTS patient_icons (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
+  patient_id TEXT NOT NULL,
+  clinic_id TEXT NOT NULL,
   icon_ids TEXT[] NOT NULL DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),

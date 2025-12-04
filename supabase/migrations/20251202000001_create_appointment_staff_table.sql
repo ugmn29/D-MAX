@@ -17,13 +17,22 @@ CREATE INDEX IF NOT EXISTS idx_appointment_staff_is_primary ON appointment_staff
 -- RLS無効化（開発環境用）
 ALTER TABLE appointment_staff DISABLE ROW LEVEL SECURITY;
 
--- 既存データの移行（staff_idがある予約）
-INSERT INTO appointment_staff (appointment_id, staff_id, is_primary)
-SELECT id, staff_id, true
-FROM appointments
-WHERE staff_id IS NOT NULL
-ON CONFLICT (appointment_id, staff_id) DO NOTHING;
+-- 既存データの移行（staff_idがある場合のみ）
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'appointments'
+    AND column_name = 'staff_id'
+  ) THEN
+    INSERT INTO appointment_staff (appointment_id, staff_id, is_primary)
+    SELECT id, staff_id, true
+    FROM appointments
+    WHERE staff_id IS NOT NULL
+    ON CONFLICT (appointment_id, staff_id) DO NOTHING;
 
--- 既存のstaff_idカラムは残す（互換性のため）
--- 必要に応じて後で削除可能
-COMMENT ON COLUMN appointments.staff_id IS '後方互換性のため残している。appointment_staffテーブルを使用すること。';
+    -- 既存のstaff_idカラムにコメント
+    COMMENT ON COLUMN appointments.staff_id IS '後方互換性のため残している。appointment_staffテーブルを使用すること。';
+  END IF;
+END $$;

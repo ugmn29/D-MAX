@@ -43,22 +43,45 @@ export async function createTreatmentMenu(
 ): Promise<TreatmentMenu> {
   console.log('createTreatmentMenu呼び出し:', { clinicId, menuData })
 
-  // モックモードの場合はモックデータを生成して返す
+  // モックモードの場合でも、データベースにも保存する（分析画面で使用するため）
   if (MOCK_MODE) {
-    console.log('モックモード: 診療メニューを作成します', { clinicId, menuData })
-    const newMenu: TreatmentMenu = {
+    console.log('モックモード: 診療メニューを作成します（DB同期あり）', { clinicId, menuData })
+
+    // まずデータベースに保存
+    const newMenuInsert: TreatmentMenuInsert = {
+      ...menuData,
+      clinic_id: clinicId,
+      standard_duration: menuData.standard_duration || 30,
+      color: menuData.color || '#bfbfbf',
+      level: menuData.level || 1,
+      sort_order: menuData.sort_order || 0,
+      is_active: menuData.is_active ?? true
+    }
+
+    const client = getSupabaseClient()
+    const { data: dbMenu, error: dbError } = await client
+      .from('treatment_menus')
+      .insert(newMenuInsert)
+      .select()
+      .single()
+
+    if (dbError) {
+      console.error('データベース保存エラー:', dbError)
+      // データベースエラーでもモックデータは作成する
+    }
+
+    // モックデータを作成（UIで使用）
+    const newMenu: TreatmentMenu = dbMenu || {
       id: `mock-treatment-${Date.now()}`,
       clinic_id: clinicId,
       name: menuData.name,
-      description: menuData.description,
-      duration_minutes: menuData.duration_minutes || 30,
+      standard_duration: menuData.standard_duration || 30,
       color: menuData.color || '#bfbfbf',
       level: menuData.level || 1,
       parent_id: menuData.parent_id || null,
       sort_order: menuData.sort_order || 0,
       is_active: menuData.is_active ?? true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      created_at: new Date().toISOString()
     }
     addMockTreatmentMenu(newMenu)
     return newMenu

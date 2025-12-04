@@ -152,9 +152,9 @@ export function AppointmentEditModal({
   const [showUnitModal, setShowUnitModal] = useState(false)
   const [staffUnitPriorities, setStaffUnitPriorities] = useState<StaffUnitPriority[]>([])
   const [availableUnits, setAvailableUnits] = useState<Unit[]>([])
-  
-  // propsのunitsとローカルのunitsを統合
-  const allUnits = units.length > 0 ? units : localUnits
+
+  // 常に最新のユニットデータを使用（モーダル内で読み込む）
+  const allUnits = localUnits
   
   // 時間変換のヘルパー関数
   const timeToMinutes = (time: string): number => {
@@ -760,8 +760,18 @@ export function AppointmentEditModal({
           staff1_id: editingAppointment.staff1_id || null,
           staff2_id: editingAppointment.staff2_id || null,
           staff3_id: editingAppointment.staff3_id || null,
+          unit_id: editingAppointment.unit_id || null,
           memo: editingAppointment.memo || ''
         })
+
+        // 既存のユニット情報を設定
+        if (editingAppointment.unit_id && localUnits.length > 0) {
+          const unit = localUnits.find(u => u.id === editingAppointment.unit_id)
+          if (unit) {
+            setSelectedUnit(unit)
+            console.log('既存予約のユニット情報を設定:', unit)
+          }
+        }
 
         // 既存の患者を設定
         console.log('モーダル: editingAppointmentの内容:', editingAppointment)
@@ -905,21 +915,45 @@ export function AppointmentEditModal({
       else if (selectedUnitIndex !== undefined && allUnits.length > 0) {
         const selectedUnitMember = allUnits[selectedUnitIndex]
         if (selectedUnitMember) {
-          setSelectedUnit(selectedUnitMember)
-          setAppointmentData(prev => ({
-            ...prev,
-            unit_id: selectedUnitMember.id
-          }))
-          console.log('自動選択されたユニット:', selectedUnitMember)
-          console.log('selectedUnitIndex:', selectedUnitIndex)
-          console.log('allUnits:', allUnits)
-          
+          // ユニット優先順位を考慮した自動割り当て
+          const autoAssignUnitByPriority = async () => {
+            const autoUnit = await getAutoAssignedUnitByPriority(
+              selectedUnitMember.id,
+              selectedDate,
+              selectedTime,
+              calculateEndTime(selectedTime, timeSlotMinutes * selectedTimeSlots.length)
+            )
+
+            if (autoUnit) {
+              setSelectedUnit(autoUnit)
+              setAppointmentData(prev => ({
+                ...prev,
+                unit_id: autoUnit.id
+              }))
+              console.log('自動選択されたユニット:', autoUnit)
+
+              if (autoUnit.id !== selectedUnitMember.id) {
+                // 代替ユニットが選択された場合、ユーザーに通知
+                console.log(`選択されたユニット(${selectedUnitMember.name})は埋まっているため、${autoUnit.name}に自動変更されました`)
+              }
+            } else {
+              // すべてのユニットが埋まっている場合でも、選択されたユニットを設定（警告表示）
+              setSelectedUnit(selectedUnitMember)
+              setAppointmentData(prev => ({
+                ...prev,
+                unit_id: selectedUnitMember.id
+              }))
+              console.warn('すべてのユニットが埋まっています。重複予約になる可能性があります。')
+            }
+          }
+          autoAssignUnitByPriority()
+
           // ユニット選択時にスタッフをクリア（ユニット優先）
           setSelectedStaff([])
         }
       }
-      // どちらも選択されていない場合
-      else {
+      // どちらも選択されていない場合（新規予約で空のセルをクリックした場合のみ）
+      else if (!editingAppointment) {
         setSelectedStaff([])
         setSelectedUnit(null)
         setAppointmentData(prev => ({
@@ -928,6 +962,7 @@ export function AppointmentEditModal({
         }))
         console.log('担当者とユニットをクリア（空のセル選択）')
       }
+      // 既存予約の場合は、既にuseEffectの前半で設定されているのでクリアしない
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, selectedStaffIndex, selectedUnitIndex, selectedDate])
@@ -935,6 +970,11 @@ export function AppointmentEditModal({
   // スタッフ選択が変更されたときに自動的にユニットを割り当て
   useEffect(() => {
     const autoAssignUnitForSelectedStaff = async () => {
+      // 既存予約の場合は自動割り当てをスキップ（既にユニット情報が設定されているため）
+      if (editingAppointment) {
+        return
+      }
+
       // 条件: スタッフが選択されていて、開始・終了時間が設定されている
       if (selectedStaff.length > 0 && appointmentData.start_time && appointmentData.end_time) {
         const primaryStaff = selectedStaff[0] // 主担当スタッフ（最初のスタッフ）
@@ -1158,16 +1198,22 @@ export function AppointmentEditModal({
   // 診療時間の総合計を計算
   const calculateDuration = (startTime: string, endTime: string) => {
     if (!startTime || !endTime) return 0
-    
+
     const start = new Date(`2000-01-01T${startTime}:00`)
     const end = new Date(`2000-01-01T${endTime}:00`)
-    
+
     const diffMs = end.getTime() - start.getTime()
     const diffMinutes = Math.round(diffMs / (1000 * 60))
-    
+
     return diffMinutes
   }
 
+  // 開始時刻と時間（分）から終了時刻を計算
+  const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+    const start = new Date(`2000-01-01T${startTime}:00`)
+    const end = new Date(start.getTime() + durationMinutes * 60 * 1000)
+    return end.toTimeString().substring(0, 5)
+  }
 
   // 診療メニュー階層の取得
   const getMenuLevel1 = () => treatmentMenus.filter(menu => menu.level === 1)
@@ -1230,7 +1276,7 @@ export function AppointmentEditModal({
 
   const getAvailableUnits = async (date: string, startTime: string, endTime: string): Promise<Unit[]> => {
     const availableUnits: Unit[] = []
-    
+
     for (const unit of allUnits) {
       if (unit.is_active) {
         const isAvailable = await checkUnitAvailability(unit.id, date, startTime, endTime)
@@ -1239,8 +1285,49 @@ export function AppointmentEditModal({
         }
       }
     }
-    
+
     return availableUnits
+  }
+
+  // ユニット優先順位を考慮した自動割り当て（ユニット直接選択時用）
+  const getAutoAssignedUnitByPriority = async (
+    requestedUnitId: string,
+    date: string,
+    startTime: string,
+    endTime: string
+  ): Promise<Unit | null> => {
+    try {
+      // 1. 選択されたユニットが空いているかチェック
+      const requestedUnit = allUnits.find(u => u.id === requestedUnitId)
+      if (requestedUnit) {
+        const isAvailable = await checkUnitAvailability(requestedUnitId, date, startTime, endTime)
+        if (isAvailable) {
+          console.log('選択されたユニットが空いています:', requestedUnit.name)
+          return requestedUnit
+        }
+        console.log('選択されたユニットは埋まっています:', requestedUnit.name)
+      }
+
+      // 2. 全ユニットをsort_order順にソート
+      const sortedUnits = [...allUnits]
+        .filter(u => u.is_active && u.id !== requestedUnitId) // 選択されたユニット以外
+        .sort((a, b) => a.sort_order - b.sort_order)
+
+      // 3. 優先順位順に空いているユニットを探す
+      for (const unit of sortedUnits) {
+        const isAvailable = await checkUnitAvailability(unit.id, date, startTime, endTime)
+        if (isAvailable) {
+          console.log('代替ユニットを自動割り当て:', unit.name, '(優先順位:', unit.sort_order, ')')
+          return unit
+        }
+      }
+
+      console.log('すべてのユニットが埋まっています')
+      return null // すべてのユニットが埋まっている
+    } catch (error) {
+      console.error('ユニット優先順位による自動割り当てエラー:', error)
+      return null
+    }
   }
 
   const handleUnitSelect = (unit: Unit) => {
@@ -1595,6 +1682,7 @@ export function AppointmentEditModal({
         staff1_id: selectedStaff.length > 0 ? selectedStaff[0].id : (appointmentData.staff1_id || 'staff-1'),
         staff2_id: selectedStaff.length > 1 ? selectedStaff[1].id : (appointmentData.staff2_id || null),
         staff3_id: selectedStaff.length > 2 ? selectedStaff[2].id : (appointmentData.staff3_id || null),
+        unit_id: selectedUnit?.id || appointmentData.unit_id || null,
         memo: currentMemo,
         status: editingAppointment ? editingAppointment.status : '未来院'
       }

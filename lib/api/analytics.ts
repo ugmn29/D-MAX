@@ -95,8 +95,11 @@ export interface TreatmentCancelData {
 }
 
 export interface TreatmentMenuStats {
+  menu_id: string
   treatment_name: string
   appointment_count: number
+  level: number
+  parent_id?: string
 }
 
 export interface AnalyticsData {
@@ -106,23 +109,60 @@ export interface AnalyticsData {
   staff_productivity: StaffProductivityData[]
   time_slot_analysis: TimeSlotAnalysisData[]
   treatment_menu_stats: TreatmentMenuStats[]
+  aggregated_sales_trend?: AggregatedSalesTrendData[]
+  comparison_data?: ComparisonData
 }
+
+export interface AggregatedSalesTrendData {
+  period: string
+  label: string
+  total_sales: number
+  insurance_sales: number
+  self_pay_sales: number
+  appointment_count: number
+}
+
+export interface ComparisonData {
+  current_period: {
+    total_sales: number
+    total_appointments: number
+    total_patients: number
+    new_patients: number
+  }
+  comparison_period: {
+    total_sales: number
+    total_appointments: number
+    total_patients: number
+    new_patients: number
+  }
+  changes: {
+    sales_change_percentage: number
+    appointments_change_percentage: number
+    patients_change_percentage: number
+    new_patients_change_percentage: number
+  }
+  comparison_type: 'previous' | 'same_period_last_year' | 'none'
+  comparison_label: string
+}
+
+export type PeriodType = 'daily' | 'weekly' | 'monthly'
+export type ComparisonType = 'previous' | 'same_period_last_year' | 'none'
 
 // 基本分析データを取得
 export async function getAnalyticsData(
   clinicId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  periodType: PeriodType = 'daily',
+  comparisonType: ComparisonType = 'previous'
 ): Promise<AnalyticsData> {
   try {
-    // 期間の前月同期間のデータも取得（比較用）
-    const prevStartDate = new Date(startDate)
-    prevStartDate.setMonth(prevStartDate.getMonth() - 1)
-    const prevEndDate = new Date(endDate)
-    prevEndDate.setMonth(prevEndDate.getMonth() - 1)
-
-    const prevStartDateStr = prevStartDate.toISOString().split('T')[0]
-    const prevEndDateStr = prevEndDate.toISOString().split('T')[0]
+    // 比較期間を計算
+    const { prevStartDate, prevEndDate, comparisonLabel } = calculateComparisonPeriod(
+      startDate,
+      endDate,
+      comparisonType
+    )
 
     // 並列でデータを取得
     const [
@@ -131,15 +171,22 @@ export async function getAnalyticsData(
       treatmentSalesData,
       staffProductivityData,
       timeSlotAnalysisData,
-      treatmentMenuStats
+      treatmentMenuStats,
+      comparisonData
     ] = await Promise.all([
-      getKPIData(clinicId, startDate, endDate, prevStartDateStr, prevEndDateStr),
+      getKPIData(clinicId, startDate, endDate, prevStartDate, prevEndDate),
       getSalesTrendData(clinicId, startDate, endDate),
       getTreatmentSalesData(clinicId, startDate, endDate),
       getStaffProductivityData(clinicId, startDate, endDate),
       getTimeSlotAnalysisData(clinicId, startDate, endDate),
-      getTreatmentMenuStats(clinicId, startDate, endDate)
+      getTreatmentMenuStats(clinicId, startDate, endDate),
+      comparisonType !== 'none'
+        ? getComparisonData(clinicId, startDate, endDate, prevStartDate, prevEndDate, comparisonType, comparisonLabel)
+        : Promise.resolve(undefined)
     ])
+
+    // 期間タイプに応じて売上推移を集計
+    const aggregatedSalesTrend = aggregateSalesTrendByPeriod(salesTrendData, periodType)
 
     return {
       kpi: kpiData,
@@ -147,11 +194,201 @@ export async function getAnalyticsData(
       treatment_sales: treatmentSalesData,
       staff_productivity: staffProductivityData,
       time_slot_analysis: timeSlotAnalysisData,
-      treatment_menu_stats: treatmentMenuStats
+      treatment_menu_stats: treatmentMenuStats,
+      aggregated_sales_trend: aggregatedSalesTrend,
+      comparison_data: comparisonData
     }
   } catch (error) {
     console.error('分析データ取得エラー:', error)
     throw error
+  }
+}
+
+// 比較期間を計算するヘルパー関数
+function calculateComparisonPeriod(
+  startDate: string,
+  endDate: string,
+  comparisonType: ComparisonType
+): { prevStartDate: string; prevEndDate: string; comparisonLabel: string } {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+
+  if (comparisonType === 'none') {
+    return { prevStartDate: '', prevEndDate: '', comparisonLabel: '' }
+  }
+
+  if (comparisonType === 'same_period_last_year') {
+    // 前年同期
+    const prevStart = new Date(start)
+    prevStart.setFullYear(prevStart.getFullYear() - 1)
+    const prevEnd = new Date(end)
+    prevEnd.setFullYear(prevEnd.getFullYear() - 1)
+
+    return {
+      prevStartDate: prevStart.toISOString().split('T')[0],
+      prevEndDate: prevEnd.toISOString().split('T')[0],
+      comparisonLabel: '前年同期比'
+    }
+  }
+
+  // 前期間（デフォルト）
+  const periodDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  const prevEnd = new Date(start)
+  prevEnd.setDate(prevEnd.getDate() - 1)
+  const prevStart = new Date(prevEnd)
+  prevStart.setDate(prevStart.getDate() - periodDays + 1)
+
+  return {
+    prevStartDate: prevStart.toISOString().split('T')[0],
+    prevEndDate: prevEnd.toISOString().split('T')[0],
+    comparisonLabel: '前期比'
+  }
+}
+
+// 売上推移を期間タイプで集計するヘルパー関数
+function aggregateSalesTrendByPeriod(
+  salesTrend: SalesTrendData[],
+  periodType: PeriodType
+): AggregatedSalesTrendData[] {
+  if (periodType === 'daily') {
+    // 日別はそのまま返す
+    return salesTrend.map(item => ({
+      period: item.date,
+      label: formatDateLabel(item.date, 'daily'),
+      total_sales: item.total_sales,
+      insurance_sales: item.insurance_sales,
+      self_pay_sales: item.self_pay_sales,
+      appointment_count: item.appointment_count
+    }))
+  }
+
+  const aggregatedMap = new Map<string, AggregatedSalesTrendData>()
+
+  salesTrend.forEach(item => {
+    const date = new Date(item.date)
+    let periodKey: string
+    let label: string
+
+    if (periodType === 'weekly') {
+      // 週の開始日（月曜日）を計算
+      const dayOfWeek = date.getDay()
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+      const monday = new Date(date)
+      monday.setDate(date.getDate() + mondayOffset)
+      periodKey = monday.toISOString().split('T')[0]
+
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      label = `${formatDateLabel(periodKey, 'weekly')} 〜 ${formatDateLabel(sunday.toISOString().split('T')[0], 'weekly')}`
+    } else {
+      // 月別
+      periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      label = `${date.getFullYear()}年${date.getMonth() + 1}月`
+    }
+
+    if (!aggregatedMap.has(periodKey)) {
+      aggregatedMap.set(periodKey, {
+        period: periodKey,
+        label,
+        total_sales: 0,
+        insurance_sales: 0,
+        self_pay_sales: 0,
+        appointment_count: 0
+      })
+    }
+
+    const aggregated = aggregatedMap.get(periodKey)!
+    aggregated.total_sales += item.total_sales
+    aggregated.insurance_sales += item.insurance_sales
+    aggregated.self_pay_sales += item.self_pay_sales
+    aggregated.appointment_count += item.appointment_count
+  })
+
+  // 期間順にソート
+  return Array.from(aggregatedMap.values()).sort((a, b) => a.period.localeCompare(b.period))
+}
+
+// 日付ラベルをフォーマットするヘルパー関数
+function formatDateLabel(dateStr: string, periodType: PeriodType): string {
+  const date = new Date(dateStr)
+
+  if (periodType === 'daily' || periodType === 'weekly') {
+    return `${date.getMonth() + 1}/${date.getDate()}`
+  }
+
+  return `${date.getFullYear()}年${date.getMonth() + 1}月`
+}
+
+// 比較データを取得するヘルパー関数
+async function getComparisonData(
+  clinicId: string,
+  startDate: string,
+  endDate: string,
+  prevStartDate: string,
+  prevEndDate: string,
+  comparisonType: ComparisonType,
+  comparisonLabel: string
+): Promise<ComparisonData> {
+  // 現在期間のデータ
+  const currentAppointments = await getAppointments(clinicId, startDate, endDate)
+  const currentPatients = await getPatients(clinicId)
+
+  // 比較期間のデータ
+  const comparisonAppointments = await getAppointments(clinicId, prevStartDate, prevEndDate)
+
+  // 現在期間の計算
+  const currentCompleted = currentAppointments.filter(apt =>
+    ['来院済み', '診療中', '会計', '終了'].includes(apt.status)
+  ).length
+  const currentPatientIds = new Set(currentAppointments.map(apt => apt.patient_id))
+  const currentPeriodStart = new Date(startDate)
+  const currentNewPatients = currentPatients.filter(patient => {
+    const createdAt = new Date(patient.created_at)
+    return createdAt >= currentPeriodStart && currentPatientIds.has(patient.id)
+  }).length
+
+  // 比較期間の計算
+  const comparisonCompleted = comparisonAppointments.filter(apt =>
+    ['来院済み', '診療中', '会計', '終了'].includes(apt.status)
+  ).length
+  const comparisonPatientIds = new Set(comparisonAppointments.map(apt => apt.patient_id))
+  const comparisonPeriodStart = new Date(prevStartDate)
+  const comparisonNewPatients = currentPatients.filter(patient => {
+    const createdAt = new Date(patient.created_at)
+    return createdAt >= comparisonPeriodStart && createdAt < currentPeriodStart && comparisonPatientIds.has(patient.id)
+  }).length
+
+  // 売上（仮の計算）
+  const currentSales = currentCompleted * 35000
+  const comparisonSales = comparisonCompleted * 35000
+
+  // 変化率の計算
+  const calcChangePercentage = (current: number, previous: number) => {
+    if (previous === 0) return current > 0 ? 100 : 0
+    return ((current - previous) / previous) * 100
+  }
+
+  return {
+    current_period: {
+      total_sales: currentSales,
+      total_appointments: currentAppointments.length,
+      total_patients: currentPatientIds.size,
+      new_patients: currentNewPatients
+    },
+    comparison_period: {
+      total_sales: comparisonSales,
+      total_appointments: comparisonAppointments.length,
+      total_patients: comparisonPatientIds.size,
+      new_patients: comparisonNewPatients
+    },
+    changes: {
+      sales_change_percentage: calcChangePercentage(currentSales, comparisonSales),
+      appointments_change_percentage: calcChangePercentage(currentAppointments.length, comparisonAppointments.length),
+      patients_change_percentage: calcChangePercentage(currentPatientIds.size, comparisonPatientIds.size),
+      new_patients_change_percentage: calcChangePercentage(currentNewPatients, comparisonNewPatients)
+    },
+    comparison_type: comparisonType,
+    comparison_label: comparisonLabel
   }
 }
 
@@ -900,51 +1137,153 @@ async function getTreatmentMenuStats(
   // 予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
 
-  // 診療メニューを取得
+  // 診療メニューを取得（level, parent_id, sort_order含む）
   const supabase = getSupabaseClient()
   const { data: menus, error } = await supabase
     .from('treatment_menus')
-    .select('id, name')
+    .select('id, name, level, parent_id, sort_order')
     .eq('clinic_id', clinicId)
     .eq('is_active', true)
+    .order('level', { ascending: true })
+    .order('sort_order', { ascending: true })
 
   if (error) {
     console.error('診療メニュー取得エラー:', error)
     return []
   }
 
-  // メニューIDごとの予約数を集計
-  const menuCountMap = new Map<string, { name: string, count: number }>()
+  // 全メニューを初期化（0件も含む）
+  const menuCountMap = new Map<string, {
+    name: string
+    count: number
+    level: number
+    parent_id?: string
+    sort_order: number
+  }>()
 
   menus?.forEach(menu => {
-    menuCountMap.set(menu.id, { name: menu.name, count: 0 })
+    menuCountMap.set(menu.id, {
+      name: menu.name,
+      count: 0,
+      level: menu.level,
+      parent_id: menu.parent_id || undefined,
+      sort_order: menu.sort_order || 0
+    })
   })
 
-  // 予約データから診療メニューを集計（キャンセル除外）
+  // 予約データから診療メニューを集計（キャンセル除外、レベル別に集計）
   appointments.forEach(apt => {
     if (apt.status !== 'キャンセル') {
+      // メニュー1（level=1）のみ集計
       if (apt.menu1_id && menuCountMap.has(apt.menu1_id)) {
-        menuCountMap.get(apt.menu1_id)!.count++
-      }
-      if (apt.menu2_id && menuCountMap.has(apt.menu2_id)) {
-        menuCountMap.get(apt.menu2_id)!.count++
-      }
-      if (apt.menu3_id && menuCountMap.has(apt.menu3_id)) {
-        menuCountMap.get(apt.menu3_id)!.count++
+        const menu = menuCountMap.get(apt.menu1_id)!
+        if (menu.level === 1) {
+          menu.count++
+        }
       }
     }
   })
 
-  // 結果を配列に変換（予約数が0より大きいもののみ）
+  // 全メニューを配列に変換（0件も含む）
   const result: TreatmentMenuStats[] = []
 
-  menuCountMap.forEach((data) => {
-    if (data.count > 0) {
-      result.push({
-        treatment_name: data.name,
-        appointment_count: data.count
+  menuCountMap.forEach((data, menuId) => {
+    result.push({
+      menu_id: menuId,
+      treatment_name: data.name,
+      appointment_count: data.count,
+      level: data.level,
+      parent_id: data.parent_id
+    })
+  })
+
+  // level=1のみをフィルタして、予約数順でソート
+  const level1Menus = result.filter(m => m.level === 1)
+  level1Menus.sort((a, b) => b.appointment_count - a.appointment_count)
+
+  return level1Menus
+}
+
+// 指定した親メニューの子メニュー統計を取得（ドリルダウン用）
+export async function getTreatmentMenuStatsByParent(
+  clinicId: string,
+  startDate: string,
+  endDate: string,
+  parentMenuId: string,
+  targetLevel: 1 | 2 | 3
+): Promise<TreatmentMenuStats[]> {
+  // 予約データを取得
+  const appointments = await getAppointments(clinicId, startDate, endDate)
+
+  // 診療メニューを取得
+  const supabase = getSupabaseClient()
+  const { data: menus, error } = await supabase
+    .from('treatment_menus')
+    .select('id, name, level, parent_id, sort_order')
+    .eq('clinic_id', clinicId)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.error('診療メニュー取得エラー:', error)
+    return []
+  }
+
+  // 指定されたlevelのメニューのみを初期化
+  const menuCountMap = new Map<string, {
+    name: string
+    count: number
+    level: number
+    parent_id?: string
+    sort_order: number
+  }>()
+
+  menus?.forEach(menu => {
+    if (menu.level === targetLevel) {
+      menuCountMap.set(menu.id, {
+        name: menu.name,
+        count: 0,
+        level: menu.level,
+        parent_id: menu.parent_id || undefined,
+        sort_order: menu.sort_order || 0
       })
     }
+  })
+
+  // 予約データから集計（キャンセル除外）
+  appointments.forEach(apt => {
+    if (apt.status !== 'キャンセル') {
+      // targetLevelに応じて集計
+      if (targetLevel === 1) {
+        // level=1: menu1_idを集計
+        if (apt.menu1_id && menuCountMap.has(apt.menu1_id)) {
+          menuCountMap.get(apt.menu1_id)!.count++
+        }
+      } else if (targetLevel === 2) {
+        // level=2: 指定されたparentMenuIdがmenu1_idの場合、menu2_idを集計
+        if (apt.menu1_id === parentMenuId && apt.menu2_id && menuCountMap.has(apt.menu2_id)) {
+          menuCountMap.get(apt.menu2_id)!.count++
+        }
+      } else if (targetLevel === 3) {
+        // level=3: 指定されたparentMenuIdがmenu2_idの場合、menu3_idを集計
+        if (apt.menu2_id === parentMenuId && apt.menu3_id && menuCountMap.has(apt.menu3_id)) {
+          menuCountMap.get(apt.menu3_id)!.count++
+        }
+      }
+    }
+  })
+
+  // 結果を配列に変換
+  const result: TreatmentMenuStats[] = []
+
+  menuCountMap.forEach((data, menuId) => {
+    result.push({
+      menu_id: menuId,
+      treatment_name: data.name,
+      appointment_count: data.count,
+      level: data.level,
+      parent_id: data.parent_id
+    })
   })
 
   // 予約数順でソート

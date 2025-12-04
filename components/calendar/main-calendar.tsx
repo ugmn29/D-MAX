@@ -413,24 +413,63 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const hasConflict = appointments.some(existingAppointment => {
       if (existingAppointment.id === appointment.id) return false // 自分自身は除外
       if (existingAppointment.status === 'キャンセル') return false // キャンセルされた予約は除外
-      
+
+      // 同じスタッフまたは同じユニットの予約のみチェック
+      const isSameStaffOrUnit = displayMode === 'staff'
+        ? (
+          // staff1_idの比較（nullでない場合のみ）
+          (appointment.staff1_id && (
+            existingAppointment.staff1_id === appointment.staff1_id ||
+            existingAppointment.staff2_id === appointment.staff1_id ||
+            existingAppointment.staff3_id === appointment.staff1_id
+          )) ||
+          // staff2_idの比較（nullでない場合のみ）
+          (appointment.staff2_id && (
+            existingAppointment.staff1_id === appointment.staff2_id ||
+            existingAppointment.staff2_id === appointment.staff2_id ||
+            existingAppointment.staff3_id === appointment.staff2_id
+          )) ||
+          // staff3_idの比較（nullでない場合のみ）
+          (appointment.staff3_id && (
+            existingAppointment.staff1_id === appointment.staff3_id ||
+            existingAppointment.staff2_id === appointment.staff3_id ||
+            existingAppointment.staff3_id === appointment.staff3_id
+          ))
+        )
+        : (existingAppointment.unit_id && appointment.unit_id && existingAppointment.unit_id === appointment.unit_id)
+
+      if (!isSameStaffOrUnit) return false // 異なるスタッフ/ユニットは除外
+
       const existingStartMinutes = timeToMinutes(existingAppointment.start_time)
       const existingEndMinutes = timeToMinutes(existingAppointment.end_time)
-      
+
       // 時間の重複をチェック
       const isOverlapping = !(newEndMinutes <= existingStartMinutes || newStartMinutes >= existingEndMinutes)
-      
+
       if (isOverlapping) {
         console.log('予約重複検出:', {
-          movingAppointment: { id: appointment.id, time: `${newStartTime}-${newEndTime}` },
-          conflictingAppointment: { 
-            id: existingAppointment.id, 
+          displayMode: displayMode,
+          isSameStaffOrUnit: isSameStaffOrUnit,
+          movingAppointment: {
+            id: appointment.id,
+            time: `${newStartTime}-${newEndTime}`,
+            staff1_id: appointment.staff1_id,
+            staff2_id: appointment.staff2_id,
+            staff3_id: appointment.staff3_id,
+            unit_id: appointment.unit_id
+          },
+          conflictingAppointment: {
+            id: existingAppointment.id,
             time: `${existingAppointment.start_time}-${existingAppointment.end_time}`,
-            status: existingAppointment.status
+            status: existingAppointment.status,
+            staff1_id: existingAppointment.staff1_id,
+            staff2_id: existingAppointment.staff2_id,
+            staff3_id: existingAppointment.staff3_id,
+            unit_id: existingAppointment.unit_id
           }
         })
       }
-      
+
       return isOverlapping
     })
     
@@ -1300,29 +1339,52 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       const top = (startMinutes - businessStartHour * 60) / validTimeSlotMinutes * cellHeight
       const height = (endMinutes - startMinutes) / validTimeSlotMinutes * cellHeight
 
-      // 複数スタッフに対応：staff1_id, staff2_id, staff3_idそれぞれのスタッフ行に予約セルを表示
-      const staffIds = [appointment.staff1_id, appointment.staff2_id, appointment.staff3_id].filter(Boolean)
-
-      staffIds.forEach(staffId => {
-        const staffIndex = workingStaff.findIndex(s => s.staff.id === staffId)
-        if (staffIndex >= 0) {
+      // 表示モードに応じて予約ブロックを作成
+      if (displayMode === 'units') {
+        // ユニット表示モード：1つの予約は1つのユニットにのみ表示
+        const unitIndex = units.findIndex(u => u.id === appointment.unit_id)
+        if (unitIndex >= 0) {
           blocks.push({
             appointment,
             top,
             height,
-            staffIndex
+            staffIndex: unitIndex // ユニット表示モードではstaffIndexを列インデックスとして使用
+          })
+        } else {
+          // ユニットが見つからない場合は最初の列に表示
+          blocks.push({
+            appointment,
+            top,
+            height,
+            staffIndex: 0
           })
         }
-      })
+      } else {
+        // スタッフ表示モード：複数スタッフに対応
+        // staff1_id, staff2_id, staff3_idそれぞれのスタッフ行に予約セルを表示
+        const staffIds = [appointment.staff1_id, appointment.staff2_id, appointment.staff3_id].filter(Boolean)
 
-      // スタッフが1人も見つからない場合は最初の列に表示
-      if (staffIds.length === 0) {
-        blocks.push({
-          appointment,
-          top,
-          height,
-          staffIndex: 0
+        staffIds.forEach(staffId => {
+          const staffIndex = workingStaff.findIndex(s => s.staff.id === staffId)
+          if (staffIndex >= 0) {
+            blocks.push({
+              appointment,
+              top,
+              height,
+              staffIndex
+            })
+          }
         })
+
+        // スタッフが1人も見つからない場合は最初の列に表示
+        if (staffIds.length === 0) {
+          blocks.push({
+            appointment,
+            top,
+            height,
+            staffIndex: 0
+          })
+        }
       }
     })
     

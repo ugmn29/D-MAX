@@ -329,10 +329,12 @@ export function PatientEditModal({ isOpen, onClose, patient, clinicId, onSave }:
       setSaving(true)
 
       // 患者アイコンを保存
+      console.log('患者アイコン保存開始:', { patientId: patient.id, clinicId, selectedIconIds })
       try {
-        await upsertPatientIcons(patient.id, clinicId, selectedIconIds)
+        const result = await upsertPatientIcons(patient.id, clinicId, selectedIconIds)
+        console.log('患者アイコン保存成功:', result)
       } catch (iconError) {
-        console.warn('患者アイコンの保存エラー（無視）:', iconError)
+        console.error('患者アイコンの保存エラー:', iconError)
         // このエラーは致命的ではないので続行
       }
 

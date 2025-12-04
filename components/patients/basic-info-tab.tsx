@@ -2111,6 +2111,26 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                 (updatedPatient as any).primary_hygienist_id || "",
               );
             }
+
+            // 患者アイコンも再取得
+            try {
+              const patientIconsData = await getPatientIcons(
+                patientId,
+                DEMO_CLINIC_ID,
+              );
+              if (patientIconsData && patientIconsData.icon_ids) {
+                setSelectedIconIds(patientIconsData.icon_ids);
+                console.log(
+                  "BasicInfoTab: onSave - アイコンを再取得しました:",
+                  patientIconsData.icon_ids,
+                );
+              } else {
+                setSelectedIconIds([]);
+                console.log("BasicInfoTab: onSave - アイコンデータがありません");
+              }
+            } catch (iconError) {
+              console.error("BasicInfoTab: onSave - アイコンデータの再取得エラー:", iconError);
+            }
           } catch (error) {
             console.error("BasicInfoTab: 患者情報の再取得エラー:", error);
           }

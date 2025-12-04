@@ -42,17 +42,10 @@ export async function POST(request: NextRequest) {
       clinic_id,
       name: template.name,
       notification_type: template.notification_type,
-      message_template: template.message_template,
-      line_message: template.line_message,
-      email_subject: template.email_subject,
-      email_message: template.email_message,
-      sms_message: template.sms_message,
-      is_system_template: true,
-      system_template_id: template.id,
-      auto_send_enabled: false, // デフォルトは手動送信
-      auto_send_trigger: "manual",
-      auto_send_timing_value: template.default_timing_value || 3,
-      auto_send_timing_unit: template.default_timing_unit || "days_before",
+      message_template: template.line_message || template.message_template, // LINE用メッセージを優先
+      default_timing_value: template.default_timing_value || 3,
+      default_timing_unit: template.default_timing_unit || 'days',
+      template_id: template.id, // システムテンプレートIDへの参照
     }));
 
     // 一括挿入
