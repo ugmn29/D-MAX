@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
         .from('clinic_settings')
         .insert({
           clinic_id: DEMO_CLINIC_ID,
+          setting_key: 'line_rich_menu', // NOT NULL制約のため必須
           [columnName]: richMenuId
         })
         .select()
