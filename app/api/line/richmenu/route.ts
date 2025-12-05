@@ -227,11 +227,10 @@ export async function POST(request: NextRequest) {
     console.log(`リッチメニューID保存完了: ${columnName} = ${richMenuId}`)
     console.log('保存結果:', saveResult)
 
-    // 6. 連携済み用の場合のみデフォルトとして設定（未連携用は個別にリンク）
-    if (menuType === 'registered') {
-      await client.setDefaultRichMenu(richMenuId)
-      console.log('Set as default rich menu')
-    }
+    // 6. デフォルトリッチメニューとして設定
+    await client.setDefaultRichMenu(richMenuId)
+    console.log('Set as default rich menu')
+    console.log('注意: デフォルトリッチメニューは全ユーザーに適用されます。')
 
     return NextResponse.json({
       success: true,
