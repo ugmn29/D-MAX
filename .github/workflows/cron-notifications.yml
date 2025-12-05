@@ -1,0 +1,31 @@
+name: Cron Notifications
+
+on:
+  schedule:
+    # 毎時実行。頻度を下げたい場合は cron を変更してください（例: 0 0 * * * で毎日0時）。
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  call-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call cron endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_ENDPOINT: ${{ secrets.CRON_ENDPOINT }}
+        run: |
+          # CRON_ENDPOINT に本番のエンドポイント (例: https://example.com/api/cron/notifications) を設定してください。
+          if [ -z "$CRON_ENDPOINT" ]; then
+            echo "CRON_ENDPOINT is not set. Please add it to GitHub Secrets." >&2
+            exit 1
+          fi
+
+          AUTH_HEADER=""
+          if [ -n "$CRON_SECRET" ]; then
+            AUTH_HEADER="-H \"Authorization: Bearer ${CRON_SECRET}\""
+          fi
+
+          # shellcheck disable=SC2086
+          eval "curl -f -X GET $AUTH_HEADER \"$CRON_ENDPOINT\""
+
