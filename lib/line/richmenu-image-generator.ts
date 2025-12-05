@@ -1,4 +1,5 @@
-import { createCanvas, registerFont } from 'canvas'
+import { createCanvas } from 'canvas'
+import { registerRichMenuFont, getRichMenuFontFamily } from './richmenu-font-config'
 
 export interface RichMenuButton {
   id: number
@@ -6,15 +7,6 @@ export interface RichMenuButton {
   icon: string
   action: string
   url: string
-}
-
-const iconEmojis: Record<string, string> = {
-  qr: '📱',
-  calendar: '📅',
-  users: '👥',
-  web: '🌐',
-  chat: '💬',
-  booking: '📝'
 }
 
 // プレビューと一致する色設定（3列2段レイアウト順）
@@ -36,6 +28,9 @@ export async function generateRichMenuImage(
   buttons: RichMenuButton[],
   menuType: 'registered' | 'unregistered' = 'registered'
 ): Promise<Buffer> {
+  // フォントを登録
+  registerRichMenuFont()
+
   const width = 2500
   const height = menuType === 'unregistered' ? 843 : 1686  // 未連携は1行分のみ
   const canvas = createCanvas(width, height)
@@ -204,7 +199,7 @@ export async function generateRichMenuImage(
 
     if (isTextOnly) {
       // テキストのみ中央配置
-      ctx.font = 'bold 85px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo UI", sans-serif'
+      ctx.font = `bold 85px ${getRichMenuFontFamily()}`
       ctx.fillStyle = '#1F2937'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -536,7 +531,7 @@ export async function generateRichMenuImage(
     }
 
       // ラベル（下部、太字で読みやすく）- アイコンありボタンのみ
-      ctx.font = 'bold 95px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo UI", sans-serif'
+      ctx.font = `bold 95px ${getRichMenuFontFamily()}`
       ctx.fillStyle = '#1F2937'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -545,12 +540,12 @@ export async function generateRichMenuImage(
       if (button.label === '予約確認') {
         ctx.fillText(button.label, centerX, buttonY + buttonH - 240)
         // 2段目の小さい文字
-        ctx.font = 'bold 65px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo UI", sans-serif'
+        ctx.font = `bold 65px ${getRichMenuFontFamily()}`
         ctx.fillStyle = '#6B7280'
         ctx.fillText('変更/キャンセル', centerX, buttonY + buttonH - 140)
       } else if (type === 'booking') {
         // 予約を取るは大きめに
-        ctx.font = 'bold 110px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo UI", sans-serif'
+        ctx.font = `bold 110px ${getRichMenuFontFamily()}`
         ctx.fillText(button.label, centerX, buttonY + buttonH - 200)
       } else {
         ctx.fillText(button.label, centerX, buttonY + buttonH - 200)
