@@ -181,12 +181,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`データベース保存開始: clinic_id=${DEMO_CLINIC_ID}, ${columnName}=${richMenuId}`)
 
-    // 既存レコードをチェック
+    // 既存レコードをチェック（clinic_id + setting_keyの組み合わせ）
     const { data: existingData } = await supabase
       .from('clinic_settings')
       .select('clinic_id')
       .eq('clinic_id', DEMO_CLINIC_ID)
-      .single()
+      .eq('setting_key', 'line_rich_menu')
+      .maybeSingle()
 
     let saveResult
     if (existingData) {
@@ -196,6 +197,7 @@ export async function POST(request: NextRequest) {
         .from('clinic_settings')
         .update({ [columnName]: richMenuId })
         .eq('clinic_id', DEMO_CLINIC_ID)
+        .eq('setting_key', 'line_rich_menu')
         .select()
 
       if (error) {
