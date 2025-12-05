@@ -36,12 +36,27 @@ export async function POST(request: NextRequest) {
 
     do {
       // フォロワーのリストを取得（最大300件）
-      const followers = await client.getFollowers(continuationToken)
+      const url = continuationToken
+        ? `https://api.line.me/v2/bot/followers/ids?start=${continuationToken}`
+        : 'https://api.line.me/v2/bot/followers/ids'
 
-      console.log(`取得したユーザー数: ${followers.userIds.length}`)
+      const followersResponse = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${channelAccessToken}`
+        }
+      })
+
+      if (!followersResponse.ok) {
+        throw new Error(`Failed to get followers: ${followersResponse.statusText}`)
+      }
+
+      const followersData = await followersResponse.json()
+      const userIds = followersData.userIds || []
+
+      console.log(`取得したユーザー数: ${userIds.length}`)
 
       // 各ユーザーにリッチメニューをリンク
-      for (const userId of followers.userIds) {
+      for (const userId of userIds) {
         try {
           await linkRichMenuToUser(userId, richMenuId, channelAccessToken)
           totalApplied++
@@ -52,7 +67,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      continuationToken = followers.next
+      continuationToken = followersData.next
     } while (continuationToken)
 
     console.log(`=== 完了 ===`)
