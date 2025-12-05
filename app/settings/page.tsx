@@ -12964,17 +12964,25 @@ export default function SettingsPage() {
                         try {
                           const { getSupabaseClient } = await import('@/lib/utils/supabase-client');
                           const supabase = getSupabaseClient();
-                          const { data } = await supabase
+
+                          console.log("データベースから取得するカラム:", columnName);
+
+                          const { data, error } = await supabase
                             .from('clinic_settings')
-                            .select(columnName)
+                            .select('line_registered_rich_menu_id, line_unregistered_rich_menu_id')
                             .limit(1)
                             .single();
 
+                          console.log("データベース取得結果:", data);
+                          console.log("データベースエラー:", error);
+
                           const richMenuId = data?.[columnName];
+
+                          console.log("取得したリッチメニューID:", richMenuId);
 
                           if (!richMenuId) {
                             showAlert(
-                              "先に「LINEに反映」ボタンでリッチメニューを作成してください",
+                              "先に「LINEに反映」ボタンでリッチメニューを作成してください\n\n取得したデータ: " + JSON.stringify(data),
                               "error"
                             );
                             return;
