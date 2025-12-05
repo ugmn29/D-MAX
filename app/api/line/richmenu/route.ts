@@ -179,12 +179,26 @@ export async function POST(request: NextRequest) {
       ? 'line_registered_rich_menu_id'
       : 'line_unregistered_rich_menu_id'
 
-    await supabase
+    console.log(`データベース保存開始: clinic_id=${DEMO_CLINIC_ID}, ${columnName}=${richMenuId}`)
+
+    // UPSERTを使用（レコードがなければ作成、あれば更新）
+    const { data: upsertData, error: upsertError } = await supabase
       .from('clinic_settings')
-      .update({ [columnName]: richMenuId })
-      .eq('clinic_id', DEMO_CLINIC_ID)
+      .upsert({
+        clinic_id: DEMO_CLINIC_ID,
+        [columnName]: richMenuId
+      }, {
+        onConflict: 'clinic_id'
+      })
+      .select()
+
+    if (upsertError) {
+      console.error('データベース保存エラー:', upsertError)
+      throw new Error(`Failed to save rich menu ID: ${upsertError.message}`)
+    }
 
     console.log(`リッチメニューID保存完了: ${columnName} = ${richMenuId}`)
+    console.log('保存結果:', upsertData)
 
     // 6. 連携済み用の場合のみデフォルトとして設定（未連携用は個別にリンク）
     if (menuType === 'registered') {
