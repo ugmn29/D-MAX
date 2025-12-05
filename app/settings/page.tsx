@@ -12944,6 +12944,107 @@ export default function SettingsPage() {
                       </svg>
                       {saving ? "LINEに反映中..." : "LINEに反映"}
                     </Button>
+                    <Button
+                      onClick={async () => {
+                        if (!notificationSettings.line.channel_access_token) {
+                          showAlert(
+                            "LINE設定のChannel Access Tokenを入力してください",
+                            "error"
+                          );
+                          return;
+                        }
+
+                        // 現在のリッチメニューIDを取得（clinic_settingsから）
+                        const columnName = richMenuSubTab === "registered"
+                          ? "line_registered_rich_menu_id"
+                          : "line_unregistered_rich_menu_id";
+
+                        // リッチメニューIDを取得するために設定をフェッチ
+                        setSaving(true);
+                        try {
+                          const { getSupabaseClient } = await import('@/lib/utils/supabase-client');
+                          const supabase = getSupabaseClient();
+                          const { data } = await supabase
+                            .from('clinic_settings')
+                            .select(columnName)
+                            .limit(1)
+                            .single();
+
+                          const richMenuId = data?.[columnName];
+
+                          if (!richMenuId) {
+                            showAlert(
+                              "先に「LINEに反映」ボタンでリッチメニューを作成してください",
+                              "error"
+                            );
+                            return;
+                          }
+
+                          console.log("既存ユーザーへの適用開始...");
+                          console.log("Rich Menu ID:", richMenuId);
+
+                          const response = await fetch("/api/line/richmenu/apply-to-all", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              channelAccessToken:
+                                notificationSettings.line.channel_access_token,
+                              richMenuId,
+                              menuType: richMenuSubTab,
+                            }),
+                          });
+
+                          const result = await response.json();
+                          console.log("Response result:", result);
+
+                          if (response.ok) {
+                            showAlert(
+                              `✅ ${result.message}\n\n成功: ${result.totalApplied}人\n失敗: ${result.totalErrors}人`,
+                              "success"
+                            );
+                          } else {
+                            showAlert(
+                              "❌ エラー: " +
+                                result.error +
+                                "\n詳細: " +
+                                (result.details || "なし"),
+                              "error"
+                            );
+                          }
+                        } catch (error) {
+                          console.error("既存ユーザーへの適用エラー:", error);
+                          showAlert(
+                            "❌ 既存ユーザーへの適用に失敗しました\n\nエラー: " +
+                              (error instanceof Error
+                                ? error.message
+                                : String(error)),
+                            "error"
+                          );
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={
+                        saving ||
+                        !notificationSettings.line.channel_access_token
+                      }
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <svg
+                        className="w-4 h-4 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                        />
+                      </svg>
+                      {saving ? "適用中..." : "既存ユーザーに適用"}
+                    </Button>
                   </div>
                 </div>
 
