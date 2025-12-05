@@ -12971,7 +12971,8 @@ export default function SettingsPage() {
                             .from('clinic_settings')
                             .select('line_registered_rich_menu_id, line_unregistered_rich_menu_id')
                             .eq('clinic_id', DEMO_CLINIC_ID)
-                            .single();
+                            .eq('setting_key', 'line_rich_menu')
+                            .maybeSingle();
 
                           console.log("データベース取得結果:", data);
                           console.log("データベースエラー:", error);
