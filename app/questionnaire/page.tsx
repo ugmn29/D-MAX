@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,7 @@ import { FileText, CheckCircle, Link2, Check } from 'lucide-react'
 // 仮のクリニックID
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
-export default function QuestionnairePage() {
+function QuestionnairePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const questionnaireId = searchParams.get('id')
@@ -260,5 +260,22 @@ export default function QuestionnairePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function QuestionnairePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">読み込み中...</p>
+          </div>
+        </div>
+      }
+    >
+      <QuestionnairePageInner />
+    </Suspense>
   )
 }
