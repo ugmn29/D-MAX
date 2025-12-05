@@ -117,24 +117,20 @@ export async function POST(request: NextRequest) {
             bounds: { x: 0, y: 1124, width: 833, height: 562 },
             action: { type: 'message' as const, text: buttons[4]?.url || 'CONTACT_REQUEST' }
           },
-          // QRコード (中央上) - LIFF URL
+          // QRコード (中央上) - メッセージ送信
           {
             bounds: { x: 833, y: 0, width: 834, height: 843 },
             action: {
-              type: 'uri' as const,
-              uri: liffIdQrCode
-                ? `https://liff.line.me/${liffIdQrCode}`
-                : 'https://liff.line.me/qr-code'
+              type: 'message' as const,
+              text: 'QR_CODE_REQUEST'
             }
           },
-          // 予約確認 (右上) - LIFF URL
+          // 予約確認 (右上) - メッセージ送信
           {
             bounds: { x: 1667, y: 0, width: 833, height: 843 },
             action: {
-              type: 'uri' as const,
-              uri: liffIdAppointments
-                ? `https://liff.line.me/${liffIdAppointments}`
-                : 'https://liff.line.me/appointments'
+              type: 'message' as const,
+              text: 'APPOINTMENT_CHECK'
             }
           },
           // 予約を取る (中央下+右下の2マス分) - LIFF URL
