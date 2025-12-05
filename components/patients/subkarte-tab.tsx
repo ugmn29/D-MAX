@@ -895,7 +895,6 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
       setTextContent('')
       setRichTextContentState('')
       setUploadedFiles([])
-      setRecordingTime(0)
       
       // リッチテキストエディタをクリア
       const editor = document.getElementById('rich-text-editor') as HTMLDivElement

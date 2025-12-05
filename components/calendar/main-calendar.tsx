@@ -2134,23 +2134,91 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   // 予約編集モーダルを開く
                   console.log('予約セルクリック:', block.appointment)
                   console.log('選択された時間スロット:', block.appointment.start_time)
-                  console.log('選択されたスタッフインデックス:', block.staffIndex)
+                  console.log('block.staffIndex:', block.staffIndex)
                   console.log('表示モード:', displayMode)
+                  console.log('予約のunit_id:', block.appointment.unit_id)
+                  console.log('現在のunits:', units)
 
                   setSelectedTimeSlot(block.appointment.start_time)
 
-                  // 予約の現在位置を計算して設定
-                  const { staffIndex: calculatedStaffIndex, unitIndex: calculatedUnitIndex } = calculateAppointmentPosition(block.appointment)
-
+                  // ブロックが表示されている列インデックスを直接使用
                   // 表示モードに応じてスタッフインデックスとユニットインデックスを設定
                   if (displayMode === 'units') {
-                    // ユニット表示モードの場合
+                    // ユニット表示モードの場合：block.staffIndexがユニットのインデックス
+                    // unit_idから再計算して確実に正しいインデックスを取得
+                    const currentUnitIndex = units.findIndex(u => u.id === block.appointment.unit_id)
+                    console.log('計算されたユニットインデックス:', currentUnitIndex)
                     setSelectedStaffIndex(undefined)
-                    setSelectedUnitIndex(calculatedUnitIndex)
+                    setSelectedUnitIndex(currentUnitIndex >= 0 ? currentUnitIndex : block.staffIndex)
                   } else if (displayMode === 'staff') {
-                    // スタッフ表示モードの場合
-                    setSelectedStaffIndex(calculatedStaffIndex)
-                    setSelectedUnitIndex(undefined)
+                    // スタッフ表示モードの場合：クリックされた列のスタッフを使用
+                    // block.staffIndexが示す列のスタッフIDを取得
+                    const appointment = block.appointment
+
+                    // クリックされた列のスタッフIDを取得
+                    let clickedStaffId: string | null = null
+                    if (block.staffIndex >= 0 && block.staffIndex < workingStaff.length) {
+                      clickedStaffId = workingStaff[block.staffIndex].staff.id
+                    }
+
+                    console.log('=== スタッフ表示モード: デバッグ情報 ===')
+                    console.log('クリックされた列:', block.staffIndex)
+                    console.log('クリックされた列のスタッフID:', clickedStaffId)
+                    console.log('予約のスタッフID:', {
+                      staff1_id: appointment.staff1_id,
+                      staff2_id: appointment.staff2_id,
+                      staff3_id: appointment.staff3_id
+                    })
+                    console.log('予約のunit_id:', appointment.unit_id)
+
+                    // そのスタッフIDで現在のworkingStaff配列内のインデックスを再計算
+                    const currentStaffIndex = clickedStaffId
+                      ? workingStaff.findIndex(ws => ws.staff.id === clickedStaffId)
+                      : 0
+
+                    // ユニット情報を設定
+                    let currentUnitIndex: number | undefined = undefined
+
+                    // 予約にunit_idがある場合はそれを使用
+                    if (appointment.unit_id) {
+                      currentUnitIndex = units.findIndex(u => u.id === appointment.unit_id)
+                    } else {
+                      // unit_idが無い場合は、スタッフの優先ユニットから自動判定
+                      // 予約に割り当てられているスタッフのIDを取得
+                      const assignedStaffIds = [
+                        appointment.staff1_id,
+                        appointment.staff2_id,
+                        appointment.staff3_id
+                      ].filter(Boolean) // null/undefined を除外
+
+                      console.log('予約に割り当てられているスタッフID:', assignedStaffIds)
+
+                      if (assignedStaffIds.length > 0) {
+                        // スタッフ優先度を使ってユニットを判定
+                        const staffUnitMap = staffUnitPriorities.filter(p =>
+                          assignedStaffIds.includes(p.staff_id)
+                        ).sort((a, b) => a.priority - b.priority) // 優先度順にソート
+
+                        console.log('スタッフの優先ユニット情報:', staffUnitMap)
+
+                        // 最優先のユニットを取得
+                        if (staffUnitMap.length > 0) {
+                          const priorityUnitId = staffUnitMap[0].unit_id
+                          currentUnitIndex = units.findIndex(u => u.id === priorityUnitId)
+                          console.log('スタッフ優先度から自動判定されたユニット:', {
+                            unitId: priorityUnitId,
+                            unitIndex: currentUnitIndex
+                          })
+                        }
+                      }
+                    }
+
+                    console.log('最終的に選択されるスタッフインデックス:', currentStaffIndex)
+                    console.log('最終的に選択されるユニットインデックス:', currentUnitIndex)
+                    console.log('====================================')
+
+                    setSelectedStaffIndex(currentStaffIndex >= 0 ? currentStaffIndex : 0)
+                    setSelectedUnitIndex(currentUnitIndex !== undefined && currentUnitIndex >= 0 ? currentUnitIndex : undefined)
                   }
 
                   // appointmentsステートから最新のデータを取得
@@ -2451,6 +2519,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           setSelectedCell(null)
           setSelectedCells([])
           setIsSelectingCells(false)
+          // スタッフ・ユニットインデックスもリセット
+          setSelectedStaffIndex(undefined)
+          setSelectedUnitIndex(undefined)
         }}
         clinicId={clinicId}
         selectedDate={formatDateForDB(selectedDate)}
@@ -2555,6 +2626,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             setSelectedCell(null)
             setSelectedCells([])
             setIsSelectingCells(false)
+            // スタッフ・ユニットインデックスもリセット
+            setSelectedStaffIndex(undefined)
+            setSelectedUnitIndex(undefined)
 
             // コピー状態を解除（保存成功時のみ）
             if (isPasteMode) {

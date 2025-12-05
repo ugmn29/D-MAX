@@ -765,11 +765,24 @@ export function AppointmentEditModal({
         })
 
         // 既存のユニット情報を設定
+        // 1. unit_idがある場合はそれを使用
         if (editingAppointment.unit_id && localUnits.length > 0) {
           const unit = localUnits.find(u => u.id === editingAppointment.unit_id)
           if (unit) {
             setSelectedUnit(unit)
-            console.log('既存予約のユニット情報を設定:', unit)
+            console.log('既存予約のユニット情報を設定（unit_idから）:', unit)
+          }
+        }
+        // 2. unit_idが無く、selectedUnitIndexが渡されている場合はそれを使用
+        else if (selectedUnitIndex !== undefined && localUnits.length > 0 && selectedUnitIndex >= 0 && selectedUnitIndex < localUnits.length) {
+          const unit = localUnits[selectedUnitIndex]
+          if (unit) {
+            setSelectedUnit(unit)
+            setAppointmentData(prev => ({
+              ...prev,
+              unit_id: unit.id
+            }))
+            console.log('既存予約のユニット情報を設定（selectedUnitIndexから）:', unit)
           }
         }
 
