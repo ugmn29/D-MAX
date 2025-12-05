@@ -181,24 +181,48 @@ export async function POST(request: NextRequest) {
 
     console.log(`データベース保存開始: clinic_id=${DEMO_CLINIC_ID}, ${columnName}=${richMenuId}`)
 
-    // UPSERTを使用（レコードがなければ作成、あれば更新）
-    const { data: upsertData, error: upsertError } = await supabase
+    // 既存レコードをチェック
+    const { data: existingData } = await supabase
       .from('clinic_settings')
-      .upsert({
-        clinic_id: DEMO_CLINIC_ID,
-        [columnName]: richMenuId
-      }, {
-        onConflict: 'clinic_id'
-      })
-      .select()
+      .select('clinic_id')
+      .eq('clinic_id', DEMO_CLINIC_ID)
+      .single()
 
-    if (upsertError) {
-      console.error('データベース保存エラー:', upsertError)
-      throw new Error(`Failed to save rich menu ID: ${upsertError.message}`)
+    let saveResult
+    if (existingData) {
+      // 既存レコードがあればUPDATE
+      console.log('既存レコードを更新します')
+      const { data, error } = await supabase
+        .from('clinic_settings')
+        .update({ [columnName]: richMenuId })
+        .eq('clinic_id', DEMO_CLINIC_ID)
+        .select()
+
+      if (error) {
+        console.error('データベース更新エラー:', error)
+        throw new Error(`Failed to update rich menu ID: ${error.message}`)
+      }
+      saveResult = data
+    } else {
+      // 新規レコードを作成
+      console.log('新規レコードを作成します')
+      const { data, error } = await supabase
+        .from('clinic_settings')
+        .insert({
+          clinic_id: DEMO_CLINIC_ID,
+          [columnName]: richMenuId
+        })
+        .select()
+
+      if (error) {
+        console.error('データベース挿入エラー:', error)
+        throw new Error(`Failed to insert rich menu ID: ${error.message}`)
+      }
+      saveResult = data
     }
 
     console.log(`リッチメニューID保存完了: ${columnName} = ${richMenuId}`)
-    console.log('保存結果:', upsertData)
+    console.log('保存結果:', saveResult)
 
     // 6. 連携済み用の場合のみデフォルトとして設定（未連携用は個別にリンク）
     if (menuType === 'registered') {
