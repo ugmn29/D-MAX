@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // clinic_idを取得（実際の実装では認証から取得）
-    const DEMO_CLINIC_ID = '00000000-0000-0000-0000-000000000000'
+    const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
     // LINE Bot クライアント初期化
     const client = new Client({
