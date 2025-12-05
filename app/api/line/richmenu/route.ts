@@ -20,6 +20,11 @@ export async function POST(request: NextRequest) {
     const body: RichMenuRequest = await request.json()
     const { channelAccessToken, buttons, menuType = 'registered', liffIds } = body
 
+    console.log('=== Rich Menu API Request ===')
+    console.log('Menu Type:', menuType)
+    console.log('Buttons:', JSON.stringify(buttons, null, 2))
+    console.log('LIFF IDs:', JSON.stringify(liffIds, null, 2))
+
     if (!channelAccessToken) {
       return NextResponse.json(
         { error: 'Channel Access Tokenが設定されていません' },
@@ -74,18 +79,24 @@ export async function POST(request: NextRequest) {
               type: 'uri' as const,
               uri: liffIdInitialLink
                 ? `https://liff.line.me/${liffIdInitialLink}`
-                : buttons[0]?.url || '/liff/initial-link'
+                : (buttons[0]?.action === 'url' && buttons[0]?.url ? buttons[0].url : 'https://liff.line.me/2008448369-kGjrJLjO')
             }
           },
           // Webサイト (中央) - 外部URL
           {
             bounds: { x: 833, y: 0, width: 834, height: 843 },
-            action: { type: 'uri' as const, uri: buttons[1]?.url || 'https://example.com' }
+            action: {
+              type: 'uri' as const,
+              uri: (buttons[1]?.action === 'url' && buttons[1]?.url) ? buttons[1].url : 'https://example.com'
+            }
           },
           // お問合せ (右) - メッセージ送信
           {
             bounds: { x: 1667, y: 0, width: 833, height: 843 },
-            action: { type: 'message' as const, text: buttons[2]?.url || 'CONTACT_REQUEST' }
+            action: {
+              type: 'message' as const,
+              text: (buttons[2]?.action === 'message' && buttons[2]?.url) ? buttons[2].url : 'CONTACT_REQUEST'
+            }
           }
         ]
       }
