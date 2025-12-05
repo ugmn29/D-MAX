@@ -556,6 +556,11 @@ async function handleFollow(
     if (unregisteredMenuId) {
       await linkRichMenuToUser(lineUserId, unregisteredMenuId, channelAccessToken)
       console.log(`未連携用リッチメニューを設定: ${lineUserId}`)
+    } else {
+      // 未連携用リッチメニューが未作成の場合、ユーザーのリッチメニューを解除
+      // （デフォルトの連携済み用メニューが表示されないようにする）
+      await unlinkRichMenuFromUser(lineUserId, channelAccessToken)
+      console.log(`リッチメニュー未設定のため解除: ${lineUserId}`)
     }
 
     // ウェルカムメッセージを送信
@@ -623,6 +628,31 @@ async function linkRichMenuToUser(
     const error = await response.text()
     console.error('リッチメニューリンクエラー:', error)
     throw new Error('Failed to link rich menu')
+  }
+}
+
+/**
+ * ユーザーのリッチメニューを解除
+ */
+async function unlinkRichMenuFromUser(
+  userId: string,
+  channelAccessToken: string
+) {
+  const response = await fetch(
+    `https://api.line.me/v2/bot/user/${userId}/richmenu`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${channelAccessToken}`
+      }
+    }
+  )
+
+  // 404の場合はリッチメニューが元々リンクされていないだけなのでOK
+  if (!response.ok && response.status !== 404) {
+    const error = await response.text()
+    console.error('リッチメニュー解除エラー:', error)
+    throw new Error('Failed to unlink rich menu')
   }
 }
 
