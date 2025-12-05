@@ -191,6 +191,51 @@ npx supabase migration new fix_previous_migration
 # 修正マイグレーションで対応
 ```
 
+### マイグレーション履歴の不整合エラー
+
+**エラー**: `Remote migration versions not found in local migrations directory`
+
+**原因**: 本番環境とローカルのマイグレーション履歴が一致しない
+
+**解決方法 (3つの選択肢)**:
+
+#### 方法1: Supabase SQL Editorで直接実行 (推奨) ✅
+
+1. https://supabase.com/dashboard/project/obdfmwpdkwraqqqyjgwu/sql にアクセス
+2. マイグレーションファイルのSQLをコピー
+3. SQL Editorで実行
+
+**メリット**: 簡単、確実、履歴の問題を回避
+
+#### 方法2: Node.jsスクリプトで実行
+
+```bash
+# run-migration.mjsを作成して実行
+SUPABASE_DB_PASSWORD='your_password' node run-migration.mjs
+```
+
+**メリット**: 自動化できる、スクリプトで再利用可能
+
+#### 方法3: マイグレーション履歴を修復
+
+```bash
+# 本番のマイグレーション履歴を確認
+npx supabase migration list
+
+# 問題のあるマイグレーションを修復
+npx supabase migration repair --status reverted 20251112
+
+# 再度プッシュ
+npx supabase db push
+```
+
+**メリット**: 履歴が正しく管理される
+
+**今後のベストプラクティス**:
+- マイグレーションファイル名は必ずユニークにする
+- 同じ日付で複数のマイグレーションを作る場合は時刻も含める（例: `20251205132347`）
+- 本番適用前に必ず `npx supabase migration list` で履歴を確認
+
 ### Vercelのデプロイが失敗した場合
 
 1. Vercel Deploymentsタブでエラーログを確認
