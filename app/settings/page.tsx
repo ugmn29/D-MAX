@@ -12970,7 +12970,7 @@ export default function SettingsPage() {
                           const { data, error } = await supabase
                             .from('clinic_settings')
                             .select('line_registered_rich_menu_id, line_unregistered_rich_menu_id')
-                            .limit(1)
+                            .eq('clinic_id', DEMO_CLINIC_ID)
                             .single();
 
                           console.log("データベース取得結果:", data);

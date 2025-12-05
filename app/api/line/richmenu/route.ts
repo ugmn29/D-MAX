@@ -235,7 +235,13 @@ export async function POST(request: NextRequest) {
       success: true,
       richMenuId,
       menuType,
-      message: `${menuType === 'registered' ? '連携済み' : '未連携'}用リッチメニューを作成しました`
+      message: `${menuType === 'registered' ? '連携済み' : '未連携'}用リッチメニューを作成しました`,
+      debug: {
+        existingRecordFound: !!existingData,
+        saveResult: saveResult,
+        columnName: columnName,
+        clinicId: DEMO_CLINIC_ID
+      }
     })
   } catch (error) {
     console.error('Error creating rich menu:', error)
