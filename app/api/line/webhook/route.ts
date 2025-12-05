@@ -151,7 +151,10 @@ export async function POST(request: NextRequest) {
 
     // イベント処理
     for (const event of body.events) {
-      if (event.type === 'message' && event.message?.type === 'text') {
+      if (event.type === 'follow') {
+        // 友だち追加イベント - 未連携用リッチメニューを設定
+        await handleFollow(event, settings.line.channel_access_token, DEMO_CLINIC_ID)
+      } else if (event.type === 'message' && event.message?.type === 'text') {
         await handleTextMessage(event, settings.line.channel_access_token, DEMO_CLINIC_ID)
       } else if (event.type === 'postback') {
         await handlePostback(event, settings.line.channel_access_token, DEMO_CLINIC_ID)
@@ -232,9 +235,12 @@ async function handleTextMessage(event: LineEvent, channelAccessToken: string, c
         selectedPatientId: link.patient_id  // 後方互換性のため
       })
 
+      // 連携完了 → 連携済み用リッチメニューに切り替え
+      await switchUserRichMenu(lineUserId, 'registered', channelAccessToken)
+
       await sendLineMessage(
         event.replyToken,
-        [createTextMessage(`認証が完了しました。\n\nこんにちは、${link.patient_name}様`)],
+        [createTextMessage(`認証が完了しました。\n\nこんにちは、${link.patient_name}様\n\nリッチメニューが更新されました。QRコードや予約確認などがご利用いただけます。`)],
         channelAccessToken
       )
     } catch (error) {
@@ -532,6 +538,114 @@ async function handleContactRequest(
     [createTextMessage('お問い合わせ内容をこちらに送信してください。\n\nスタッフが確認次第、返信いたします。')],
     channelAccessToken
   )
+}
+
+/**
+ * 友だち追加イベントを処理（未連携用リッチメニューを設定）
+ */
+async function handleFollow(
+  event: LineEvent,
+  channelAccessToken: string,
+  clinicId: string
+) {
+  const lineUserId = event.source.userId
+
+  try {
+    // 未連携用リッチメニューIDを取得して設定
+    const unregisteredMenuId = await getUnregisteredRichMenuId(channelAccessToken)
+    if (unregisteredMenuId) {
+      await linkRichMenuToUser(lineUserId, unregisteredMenuId, channelAccessToken)
+      console.log(`未連携用リッチメニューを設定: ${lineUserId}`)
+    }
+
+    // ウェルカムメッセージを送信
+    await sendLineMessage(
+      event.replyToken,
+      [createTextMessage('友だち追加ありがとうございます！\n\n患者登録を行うには、リッチメニューの「初回登録」ボタンを押してください。')],
+      channelAccessToken
+    )
+  } catch (error) {
+    console.error('友だち追加処理エラー:', error)
+  }
+}
+
+/**
+ * 未連携用リッチメニューIDを取得（clinic_settingsから）
+ */
+async function getUnregisteredRichMenuId(channelAccessToken: string): Promise<string | null> {
+  const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
+  const client = getSupabaseClient()
+
+  const { data } = await client
+    .from('clinic_settings')
+    .select('line_unregistered_rich_menu_id')
+    .limit(1)
+    .single()
+
+  return data?.line_unregistered_rich_menu_id || null
+}
+
+/**
+ * 連携済み用リッチメニューIDを取得（clinic_settingsから）
+ */
+async function getRegisteredRichMenuId(channelAccessToken: string): Promise<string | null> {
+  const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
+  const client = getSupabaseClient()
+
+  const { data } = await client
+    .from('clinic_settings')
+    .select('line_registered_rich_menu_id')
+    .limit(1)
+    .single()
+
+  return data?.line_registered_rich_menu_id || null
+}
+
+/**
+ * ユーザーにリッチメニューをリンク
+ */
+async function linkRichMenuToUser(
+  userId: string,
+  richMenuId: string,
+  channelAccessToken: string
+) {
+  const response = await fetch(
+    `https://api.line.me/v2/bot/user/${userId}/richmenu/${richMenuId}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${channelAccessToken}`
+      }
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('リッチメニューリンクエラー:', error)
+    throw new Error('Failed to link rich menu')
+  }
+}
+
+/**
+ * ユーザーのリッチメニューを切り替え（連携完了時に呼び出す）
+ */
+export async function switchUserRichMenu(
+  userId: string,
+  menuType: 'registered' | 'unregistered',
+  channelAccessToken: string
+) {
+  try {
+    const richMenuId = menuType === 'registered'
+      ? await getRegisteredRichMenuId(channelAccessToken)
+      : await getUnregisteredRichMenuId(channelAccessToken)
+
+    if (richMenuId) {
+      await linkRichMenuToUser(userId, richMenuId, channelAccessToken)
+      console.log(`リッチメニュー切り替え成功: ${userId} → ${menuType}`)
+    }
+  } catch (error) {
+    console.error('リッチメニュー切り替えエラー:', error)
+  }
 }
 
 /**

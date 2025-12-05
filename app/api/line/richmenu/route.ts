@@ -27,6 +27,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // clinic_idを取得（実際の実装では認証から取得）
+    const DEMO_CLINIC_ID = '00000000-0000-0000-0000-000000000000'
+
     // LINE Bot クライアント初期化
     const client = new Client({
       channelAccessToken: channelAccessToken
@@ -157,14 +160,32 @@ export async function POST(request: NextRequest) {
     await client.setRichMenuImage(richMenuId, imageBuffer, 'image/png')
     console.log('Uploaded rich menu image')
 
-    // 5. デフォルトリッチメニューとして設定
-    await client.setDefaultRichMenu(richMenuId)
-    console.log('Set as default rich menu')
+    // 5. リッチメニューIDをデータベースに保存
+    const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
+    const supabase = getSupabaseClient()
+
+    const columnName = menuType === 'registered'
+      ? 'line_registered_rich_menu_id'
+      : 'line_unregistered_rich_menu_id'
+
+    await supabase
+      .from('clinic_settings')
+      .update({ [columnName]: richMenuId })
+      .eq('clinic_id', DEMO_CLINIC_ID)
+
+    console.log(`リッチメニューID保存完了: ${columnName} = ${richMenuId}`)
+
+    // 6. 連携済み用の場合のみデフォルトとして設定（未連携用は個別にリンク）
+    if (menuType === 'registered') {
+      await client.setDefaultRichMenu(richMenuId)
+      console.log('Set as default rich menu')
+    }
 
     return NextResponse.json({
       success: true,
       richMenuId,
-      message: 'リッチメニューをLINE公式アカウントに反映しました'
+      menuType,
+      message: `${menuType === 'registered' ? '連携済み' : '未連携'}用リッチメニューを作成しました`
     })
   } catch (error) {
     console.error('Error creating rich menu:', error)
