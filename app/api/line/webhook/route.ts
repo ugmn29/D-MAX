@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 通知設定から認証情報を取得（実際の実装ではclinic_idを適切に取得）
-    const DEMO_CLINIC_ID = '00000000-0000-0000-0000-000000000000'
+    const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
     const settings = await getNotificationSettings(DEMO_CLINIC_ID)
 
     if (!settings?.line.enabled || !settings.line.channel_secret) {
@@ -177,6 +177,12 @@ async function handleTextMessage(event: LineEvent, channelAccessToken: string, c
 
   // 会話状態を取得
   const state = await getConversationState(lineUserId)
+
+  // リッチメニューからの特殊コマンドをチェック（認証前でも処理可能）
+  if (text === 'CONTACT_REQUEST') {
+    await handleContactRequest(event, channelAccessToken)
+    return
+  }
 
   // 既存のLINE連携があるかチェック
   const existingLinks = await getLineUserLinks(lineUserId, clinicId)
@@ -584,8 +590,9 @@ async function getUnregisteredRichMenuId(channelAccessToken: string): Promise<st
   const { data } = await client
     .from('clinic_settings')
     .select('line_unregistered_rich_menu_id')
+    .eq('setting_key', 'line_rich_menu')
     .limit(1)
-    .single()
+    .maybeSingle()
 
   return data?.line_unregistered_rich_menu_id || null
 }
@@ -600,8 +607,9 @@ async function getRegisteredRichMenuId(channelAccessToken: string): Promise<stri
   const { data } = await client
     .from('clinic_settings')
     .select('line_registered_rich_menu_id')
+    .eq('setting_key', 'line_rich_menu')
     .limit(1)
-    .single()
+    .maybeSingle()
 
   return data?.line_registered_rich_menu_id || null
 }
