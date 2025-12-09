@@ -197,6 +197,13 @@ function WebBookingPageInner() {
           cancelPolicyText: shouldUpdateCancelPolicy ? defaultSettings.cancelPolicyText : (savedCancelPolicyText || defaultSettings.cancelPolicyText)
         }
 
+        console.log('🔍 Web予約設定の読み込み:', {
+          hasWebReservationSettings: !!settings.web_reservation,
+          isEnabled: webReservation.isEnabled,
+          fullWebReservation: webReservation,
+          rawSettings: settings.web_reservation
+        })
+
         setWebSettings(webReservation)
 
         // Web予約メニューを取得（booking_menusがあればそれを使用、なければ全メニュー）
