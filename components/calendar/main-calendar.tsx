@@ -1017,8 +1017,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     })
 
     // 診療時間が設定されている場合はその時間範囲を使用、そうでなければデフォルト値
-    let startTimeMinutes = 8 * 60 // デフォルト 8:00（9:00診療開始の1時間前）
-    let endTimeMinutes = 19 * 60 // デフォルト 19:00（18:00診療終了の1時間後）
+    let startTimeMinutes = 9 * 60 // デフォルト 9:00
+    let endTimeMinutes = 18 * 60 // デフォルト 18:00
 
     if (dayHours?.isOpen && dayHours?.timeSlots && dayHours.timeSlots.length > 0) {
       // 最初の時間枠の開始時間と最後の時間枠の終了時間を使用
@@ -1033,22 +1033,16 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         lastSlotEndType: typeof lastSlot.end
       })
 
-      // 時間と分を分単位に変換
+      // 時間と分を分単位に変換（設定された診療時間そのままを使用）
       const [startHourNum, startMinuteNum] = firstSlot.start.split(':').map(Number)
       const [endHourNum, endMinuteNum] = lastSlot.end.split(':').map(Number)
 
-      // 開始時刻の1時間前から表示（最小0時）
-      startTimeMinutes = Math.max(0, startHourNum * 60 + startMinuteNum - 60)
-
-      // 終了時刻の1時間後まで表示（最大23:45）
-      const businessEndMinutes = endHourNum * 60 + endMinuteNum
-      endTimeMinutes = Math.min(23 * 60 + 45, businessEndMinutes + 60)
+      startTimeMinutes = startHourNum * 60 + startMinuteNum
+      endTimeMinutes = endHourNum * 60 + endMinuteNum
 
       console.log('MainCalendar: 診療時間に基づく時間範囲:', {
         businessStart: firstSlot.start,
         businessEnd: lastSlot.end,
-        displayStart: `${Math.floor(startTimeMinutes / 60).toString().padStart(2, '0')}:${(startTimeMinutes % 60).toString().padStart(2, '0')}`,
-        displayEnd: `${Math.floor(endTimeMinutes / 60).toString().padStart(2, '0')}:${(endTimeMinutes % 60).toString().padStart(2, '0')}`,
         startTimeMinutes,
         endTimeMinutes
       })
