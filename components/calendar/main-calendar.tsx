@@ -1017,8 +1017,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     })
 
     // 診療時間が設定されている場合はその時間範囲を使用、そうでなければデフォルト値
-    let startTimeMinutes = 9 * 60 // デフォルト 9:00
-    let endTimeMinutes = 18 * 60 // デフォルト 18:00
+    let startTimeMinutes = 8 * 60 // デフォルト 8:00（9:00診療開始の1時間前）
+    let endTimeMinutes = 19 * 60 // デフォルト 19:00（18:00診療終了の1時間後）
 
     if (dayHours?.isOpen && dayHours?.timeSlots && dayHours.timeSlots.length > 0) {
       // 最初の時間枠の開始時間と最後の時間枠の終了時間を使用
@@ -1036,14 +1036,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       // 時間と分を分単位に変換
       const [startHourNum, startMinuteNum] = firstSlot.start.split(':').map(Number)
       const [endHourNum, endMinuteNum] = lastSlot.end.split(':').map(Number)
-      startTimeMinutes = startHourNum * 60 + startMinuteNum
-      endTimeMinutes = endHourNum * 60 + endMinuteNum
+
+      // 開始時刻の1時間前から表示（最小0時）
+      startTimeMinutes = Math.max(0, startHourNum * 60 + startMinuteNum - 60)
+
+      // 終了時刻の1時間後まで表示（最大23:45）
+      const businessEndMinutes = endHourNum * 60 + endMinuteNum
+      endTimeMinutes = Math.min(23 * 60 + 45, businessEndMinutes + 60)
 
       console.log('MainCalendar: 診療時間に基づく時間範囲:', {
-        start: firstSlot.start,
-        end: lastSlot.end,
-        endHourNum,
-        endMinuteNum,
+        businessStart: firstSlot.start,
+        businessEnd: lastSlot.end,
+        displayStart: `${Math.floor(startTimeMinutes / 60).toString().padStart(2, '0')}:${(startTimeMinutes % 60).toString().padStart(2, '0')}`,
+        displayEnd: `${Math.floor(endTimeMinutes / 60).toString().padStart(2, '0')}:${(endTimeMinutes % 60).toString().padStart(2, '0')}`,
         startTimeMinutes,
         endTimeMinutes
       })
@@ -1266,54 +1271,6 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   useEffect(() => {
     loadWorkingStaff(selectedDate)
   }, [selectedDate])
-
-  // 初期スクロール位置を設定（診療開始時間の少し前にスクロール）
-  useEffect(() => {
-    if (!loading && timeAxisRef.current && gridRef.current && timeSlots.length > 0) {
-      // 診療開始時間の1時間前（例：9:00開始なら8:00の位置）にスクロール
-      const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
-      const dayMapping: Record<string, string> = {
-        'monday': 'monday',
-        'tuesday': 'tuesday',
-        'wednesday': 'wednesday',
-        'thursday': 'thursday',
-        'friday': 'friday',
-        'saturday': 'saturday',
-        'sunday': 'sunday'
-      }
-      const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
-      const dayHours = businessHours[dayId]
-
-      if (dayHours?.isOpen && dayHours?.timeSlots && dayHours.timeSlots.length > 0) {
-        const firstSlot = dayHours.timeSlots[0]
-        const [startHour] = firstSlot.start.split(':').map(Number)
-
-        // 開始時間の1時間前（最小で0時から）
-        const scrollToHour = Math.max(0, startHour - 1)
-        const scrollToTime = `${scrollToHour.toString().padStart(2, '0')}:00`
-
-        // その時間のインデックスを探す
-        const scrollIndex = timeSlots.findIndex(slot => slot.time === scrollToTime)
-
-        if (scrollIndex >= 0) {
-          // セルの高さを計算（displayMode考慮）
-          const baseHeight = displayMode === 'compact' ? 30 : displayMode === 'comfortable' ? 50 : 40
-          const scrollPosition = scrollIndex * baseHeight
-
-          console.log('MainCalendar: 初期スクロール位置を設定:', {
-            scrollToTime,
-            scrollIndex,
-            baseHeight,
-            scrollPosition
-          })
-
-          // スクロール位置を設定
-          timeAxisRef.current.scrollTop = scrollPosition
-          gridRef.current.scrollTop = scrollPosition
-        }
-      }
-    }
-  }, [loading, timeSlots, businessHours, selectedDate, displayMode])
 
   // 患者アイコン更新イベントをリッスン
   useEffect(() => {
