@@ -201,6 +201,13 @@ function WebBookingPageInner() {
 
         // Web予約メニューを取得（booking_menusがあればそれを使用、なければ全メニュー）
         const bookingMenus = webReservation.booking_menus || []
+        console.log('🔍 Web予約: booking_menusの読み込み:', {
+          hasBookingMenus: !!webReservation.booking_menus,
+          bookingMenusLength: bookingMenus.length,
+          bookingMenus: bookingMenus,
+          firstMenu: bookingMenus[0],
+          firstMenuSteps: bookingMenus[0]?.steps
+        })
         setWebBookingMenus(bookingMenus)
 
         setQuestionnaireSettings(settings.questionnaire || {
@@ -626,10 +633,25 @@ function WebBookingPageInner() {
 
       console.log('Web予約: 選択されたメニュー', selectedMenuData)
       console.log('Web予約: Web予約メニュー設定', selectedWebBookingMenu)
+      console.log('🔍 Web予約: selectedWebBookingMenuの全フィールド:', {
+        treatment_menu_id: selectedWebBookingMenu.treatment_menu_id,
+        display_order: selectedWebBookingMenu.display_order,
+        steps: selectedWebBookingMenu.steps,
+        stepsType: typeof selectedWebBookingMenu.steps,
+        stepsIsArray: Array.isArray(selectedWebBookingMenu.steps),
+        stepsLength: selectedWebBookingMenu.steps?.length,
+        allKeys: Object.keys(selectedWebBookingMenu)
+      })
 
       // stepsから複数ステップの情報を取得
       const steps = selectedWebBookingMenu.steps || []
       console.log('Web予約: ステップ情報', steps)
+      console.log('🔍 Web予約: steps詳細:', {
+        length: steps.length,
+        isEmpty: steps.length === 0,
+        firstStep: steps[0],
+        allSteps: steps
+      })
 
       // 既存予約を取得（キャンセル除外）
       const { getAppointments } = await import('@/lib/api/appointments')
