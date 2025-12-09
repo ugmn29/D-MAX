@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Modal } from '@/components/ui/modal'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Save, Plus, Trash2, Edit3, Settings, ArrowRight, Stethoscope, Copy, ExternalLink } from 'lucide-react'
-import { getClinicSettings, setClinicSetting, getClinicById } from '@/lib/api/clinic'
+import { getClinicSettings, setClinicSetting, getClinic } from '@/lib/api/clinic'
 import { getTreatmentMenus, updateTreatmentMenu } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 
@@ -86,7 +86,7 @@ export default function WebReservationSettingsPage() {
       try {
         setLoading(true)
         const [clinicData, settings, menus, staffData] = await Promise.all([
-          getClinicById(DEMO_CLINIC_ID),
+          getClinic(DEMO_CLINIC_ID),
           getClinicSettings(DEMO_CLINIC_ID),
           getTreatmentMenus(DEMO_CLINIC_ID),
           getStaff(DEMO_CLINIC_ID)
