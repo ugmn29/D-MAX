@@ -2925,20 +2925,9 @@ export default function SettingsPage() {
 
       // 保存成功時に未保存フラグをクリアし、初期データを更新
       setHasUnsavedChanges(false);
-      initialDataRef.current = JSON.parse(JSON.stringify({
-        clinicInfo,
-        businessHours,
-        breakTimes,
-        holidays,
-        displayItems,
-        cellHeight,
+      initialWebDataRef.current = JSON.parse(JSON.stringify({
         webSettings,
-        webBookingMenus,
-        notificationSettings,
-        treatmentMenus,
-        unitsData,
-        staff,
-        staffUnitPriorities
+        webBookingMenus
       }));
 
       showAlert("Web予約設定を保存しました", "success");
