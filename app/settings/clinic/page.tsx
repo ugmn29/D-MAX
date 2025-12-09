@@ -438,8 +438,8 @@ export default function ClinicSettingsPage() {
                             <Input
                               id={`end_${day.id}`}
                               type="time"
-                              value={businessHours[day.id]?.end || '18:00'}
-                              onChange={(e) => 
+                              value={businessHours[day.id]?.end || '18:30'}
+                              onChange={(e) =>
                                 handleBusinessHoursChange(day.id, 'end', e.target.value)
                               }
                             />
