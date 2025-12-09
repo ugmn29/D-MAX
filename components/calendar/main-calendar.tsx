@@ -1050,18 +1050,18 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       console.log('MainCalendar: デフォルト時間範囲を使用:', { startTimeMinutes, endTimeMinutes })
     }
 
-    // 最後の予約可能枠を計算（診療終了時刻 - 1枠の時間）
-    const lastBookableTime = endTimeMinutes - validTimeSlotMinutes
-
-    console.log('MainCalendar: 予約可能時間の計算:', {
+    // 時間軸ラベルは診療終了時刻まで生成（予約セルを表示するため）
+    // 例：18:30終了の場合、18:15の予約セルを表示するには18:30のラベルが必要
+    console.log('MainCalendar: 時間スロット生成範囲:', {
+      startTimeMinutes,
       endTimeMinutes,
       validTimeSlotMinutes,
-      lastBookableTime,
-      lastBookableTimeFormatted: `${Math.floor(lastBookableTime / 60)}:${(lastBookableTime % 60).toString().padStart(2, '0')}`
+      startFormatted: `${Math.floor(startTimeMinutes / 60).toString().padStart(2, '0')}:${(startTimeMinutes % 60).toString().padStart(2, '0')}`,
+      endFormatted: `${Math.floor(endTimeMinutes / 60).toString().padStart(2, '0')}:${(endTimeMinutes % 60).toString().padStart(2, '0')}`
     })
 
-    // 開始時刻から最後の予約可能枠まで、指定された時間間隔でスロットを生成
-    for (let minutes = startTimeMinutes; minutes <= lastBookableTime; minutes += validTimeSlotMinutes) {
+    // 開始時刻から診療終了時刻まで、指定された時間間隔でスロットを生成
+    for (let minutes = startTimeMinutes; minutes <= endTimeMinutes; minutes += validTimeSlotMinutes) {
       const hour = Math.floor(minutes / 60)
       const minute = minutes % 60
       slots.push({
