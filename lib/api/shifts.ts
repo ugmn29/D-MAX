@@ -204,6 +204,9 @@ export async function getStaffShiftsByDate(clinicId: string, date: string): Prom
   }
 
   const client = getSupabaseClient()
+
+  console.log('shifts.ts: データベースクエリ実行:', { clinicId, date })
+
   const { data, error } = await client
     .from('staff_shifts')
     .select(`
@@ -232,6 +235,12 @@ export async function getStaffShiftsByDate(clinicId: string, date: string): Prom
     `)
     .eq('clinic_id', clinicId)
     .eq('date', date)
+
+  console.log('shifts.ts: データベースレスポンス:', {
+    dataCount: data?.length || 0,
+    data,
+    error
+  })
 
   if (error) {
     console.error('日付別シフトデータ取得エラー:', error)

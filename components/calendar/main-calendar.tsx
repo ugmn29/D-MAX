@@ -899,9 +899,16 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // 出勤スタッフデータを取得する関数
   const loadWorkingStaff = async (date: Date) => {
     const dateString = formatDateForDB(date) // 日本時間で日付を処理
-    
+
+    console.log('MainCalendar: スタッフシフト取得開始:', {
+      selectedDate: date,
+      dateString,
+      clinicId
+    })
+
     // キャッシュをチェック
     if (staffCache.has(dateString)) {
+      console.log('MainCalendar: キャッシュからスタッフデータを取得')
       setWorkingStaff(staffCache.get(dateString)!)
       return
     }
@@ -909,7 +916,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     try {
       setStaffLoading(true)
       setStaffError(null)
-      
+
+      console.log('MainCalendar: APIからスタッフシフトを取得:', { clinicId, dateString })
       const shifts = await getStaffShiftsByDate(clinicId, dateString)
       
       // デバッグログを追加
