@@ -1865,6 +1865,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     console.log('MainCalendar: 18:15行のセル生成:', {
                       timeSlot: slot.time,
                       displayMode,
+                      isBreak,
+                      isOutside,
                       originalColumnsLength: columns.length,
                       effectiveColumnsLength: effectiveColumns.length,
                       columns,
