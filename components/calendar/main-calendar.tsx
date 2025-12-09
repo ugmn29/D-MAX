@@ -1073,6 +1073,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
     console.log('MainCalendar: 生成された時間スロット数:', slots.length)
     console.log('MainCalendar: 最初の5つのスロット:', slots.slice(0, 5))
+    console.log('MainCalendar: 最後の5つのスロット:', slots.slice(-5))
     return slots
   }, [timeSlotMinutes, businessHours, selectedDate])
 
