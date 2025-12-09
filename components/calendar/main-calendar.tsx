@@ -998,33 +998,41 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     
     const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
     const dayHours = businessHours[dayId]
-    
+
     // 診療時間が設定されている場合はその時間範囲を使用、そうでなければデフォルト値
-    let startHour = 9
-    let endHour = 18
-    
+    let startTimeMinutes = 9 * 60 // デフォルト 9:00
+    let endTimeMinutes = 18 * 60 // デフォルト 18:00
+
     if (dayHours?.isOpen && dayHours?.timeSlots && dayHours.timeSlots.length > 0) {
       // 最初の時間枠の開始時間と最後の時間枠の終了時間を使用
       const firstSlot = dayHours.timeSlots[0]
       const lastSlot = dayHours.timeSlots[dayHours.timeSlots.length - 1]
-      
-      startHour = parseInt(firstSlot.start.split(':')[0])
-      endHour = parseInt(lastSlot.end.split(':')[0])
-      
-      console.log('MainCalendar: 診療時間に基づく時間範囲:', { startHour, endHour })
+
+      // 時間と分を分単位に変換
+      const [startHourNum, startMinuteNum] = firstSlot.start.split(':').map(Number)
+      const [endHourNum, endMinuteNum] = lastSlot.end.split(':').map(Number)
+      startTimeMinutes = startHourNum * 60 + startMinuteNum
+      endTimeMinutes = endHourNum * 60 + endMinuteNum
+
+      console.log('MainCalendar: 診療時間に基づく時間範囲:', {
+        start: firstSlot.start,
+        end: lastSlot.end,
+        startTimeMinutes,
+        endTimeMinutes
+      })
     } else {
-      console.log('MainCalendar: デフォルト時間範囲を使用:', { startHour, endHour })
+      console.log('MainCalendar: デフォルト時間範囲を使用:', { startTimeMinutes, endTimeMinutes })
     }
 
-    for (let hour = startHour; hour <= endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += validTimeSlotMinutes) {
-        if (hour === endHour && minute > 0) break
-        slots.push({
-          time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-          hour,
-          minute
-        })
-      }
+    // 開始時刻から終了時刻まで、指定された時間間隔でスロットを生成
+    for (let minutes = startTimeMinutes; minutes < endTimeMinutes; minutes += validTimeSlotMinutes) {
+      const hour = Math.floor(minutes / 60)
+      const minute = minutes % 60
+      slots.push({
+        time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+        hour,
+        minute
+      })
     }
     console.log('MainCalendar: 生成された時間スロット数:', slots.length)
     console.log('MainCalendar: 最初の5つのスロット:', slots.slice(0, 5))
