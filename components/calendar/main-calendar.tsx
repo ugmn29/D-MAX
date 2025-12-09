@@ -1485,33 +1485,39 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // 診療時間外かどうかを判定
   const isOutsideBusinessHours = (time: string): boolean => {
     const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
-    
+
     // 曜日名のマッピング（英語 → 設定で使用されるID）
     const dayMapping: Record<string, string> = {
       'monday': 'monday',
-      'tuesday': 'tuesday', 
+      'tuesday': 'tuesday',
       'wednesday': 'wednesday',
       'thursday': 'thursday',
       'friday': 'friday',
       'saturday': 'saturday',
       'sunday': 'sunday'
     }
-    
+
     const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
     const dayHours = businessHours[dayId]
-    
+
     // 休診日または診療時間が設定されていない場合は診療時間外
     if (!dayHours?.isOpen || !dayHours?.timeSlots || dayHours.timeSlots.length === 0) return true
-    
+
     const timeMinutes = timeToMinutes(time)
-    
+    // timeSlotMinutesが有効な数値でない場合はデフォルト値15を使用
+    const validTimeSlotMinutes = (typeof timeSlotMinutes === 'number' && timeSlotMinutes > 0) ? timeSlotMinutes : 15
+    // この時間に予約を開始した場合の終了時刻
+    const endTimeMinutes = timeMinutes + validTimeSlotMinutes
+
     // 設定された時間枠のいずれかに含まれるかチェック
+    // 予約の開始時刻と終了時刻が両方とも診療時間内に収まるかを確認
     const isWithinAnyTimeSlot = dayHours.timeSlots.some(slot => {
-      const startMinutes = timeToMinutes(slot.start)
-      const endMinutes = timeToMinutes(slot.end)
-      return timeMinutes >= startMinutes && timeMinutes < endMinutes
+      const slotStartMinutes = timeToMinutes(slot.start)
+      const slotEndMinutes = timeToMinutes(slot.end)
+      // 予約開始時刻がslot内、かつ予約終了時刻もslot終了時刻以内
+      return timeMinutes >= slotStartMinutes && endTimeMinutes <= slotEndMinutes
     })
-    
+
     return !isWithinAnyTimeSlot
   }
 
