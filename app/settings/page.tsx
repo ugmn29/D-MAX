@@ -1562,7 +1562,7 @@ export default function SettingsPage() {
             // Webhook URLを常に現在のオリジンで設定
             const webhookUrl = `${window.location.origin}/api/line/webhook`;
 
-            setNotificationSettings({
+            const notificationData = {
               ...settings,
               line: {
                 ...settings.line,
@@ -1574,7 +1574,13 @@ export default function SettingsPage() {
                 liff_id_appointments: settings.line?.liff_id_appointments || "",
                 liff_id_web_booking: settings.line?.liff_id_web_booking || "",
               },
-            });
+            };
+            setNotificationSettings(notificationData);
+            // データ読み込み後に初期データとして保存（変更検知の基準）
+            if (isNotificationInitialLoadRef.current) {
+              initialNotificationDataRef.current = JSON.parse(JSON.stringify({ notificationSettings: notificationData }));
+              isNotificationInitialLoadRef.current = false;
+            }
           }
         } catch (error) {
           console.error("通知設定の読み込みエラー:", error);
@@ -2072,11 +2078,13 @@ export default function SettingsPage() {
     if (selectedCategory !== 'notification') return;
     if (isSavingRef.current) return;
 
+    // 初回ロード中はスキップ（データ読み込み完了後に初期データが設定される）
+    if (isNotificationInitialLoadRef.current) return;
+
     const currentData = { notificationSettings };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
+    // 初期データがnullの場合は何もしない（データ読み込み時に設定される）
     if (initialNotificationDataRef.current === null) {
-      initialNotificationDataRef.current = JSON.parse(JSON.stringify(currentData));
       return;
     }
 
