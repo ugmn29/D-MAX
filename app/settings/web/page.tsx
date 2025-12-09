@@ -221,19 +221,24 @@ export default function WebReservationSettingsPage() {
 
   // 保存処理
   const handleSave = async () => {
+    console.log('🔵 handleSave呼び出し開始')
     try {
       setSaving(true)
+      console.log('🔵 saving状態をtrueに設定')
       const settingsToSave = {
         ...webSettings,
         booking_menus: webBookingMenus
       }
+      console.log('🔵 保存するデータ:', settingsToSave)
       await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', settingsToSave)
+      console.log('🔵 setClinicSetting完了')
       alert('設定を保存しました')
     } catch (error) {
-      console.error('保存エラー:', error)
+      console.error('🔴 保存エラー:', error)
       alert('保存に失敗しました')
     } finally {
       setSaving(false)
+      console.log('🔵 saving状態をfalseに設定')
     }
   }
 
