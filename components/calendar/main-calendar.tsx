@@ -1007,6 +1007,15 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     const dayId = dayMapping[dayOfWeek] as keyof BusinessHours
     const dayHours = businessHours[dayId]
 
+    console.log('MainCalendar: 診療時間データの検証:', {
+      dayOfWeek,
+      dayId,
+      dayHours,
+      hasTimeSlots: dayHours?.timeSlots ? true : false,
+      timeSlotsLength: dayHours?.timeSlots?.length,
+      timeSlots: dayHours?.timeSlots
+    })
+
     // 診療時間が設定されている場合はその時間範囲を使用、そうでなければデフォルト値
     let startTimeMinutes = 9 * 60 // デフォルト 9:00
     let endTimeMinutes = 18 * 60 // デフォルト 18:00
@@ -1015,6 +1024,14 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       // 最初の時間枠の開始時間と最後の時間枠の終了時間を使用
       const firstSlot = dayHours.timeSlots[0]
       const lastSlot = dayHours.timeSlots[dayHours.timeSlots.length - 1]
+
+      console.log('MainCalendar: timeSlots配列の詳細:', {
+        timeSlotsArray: dayHours.timeSlots,
+        firstSlot,
+        lastSlot,
+        lastSlotEnd: lastSlot.end,
+        lastSlotEndType: typeof lastSlot.end
+      })
 
       // 時間と分を分単位に変換
       const [startHourNum, startMinuteNum] = firstSlot.start.split(':').map(Number)
@@ -1025,6 +1042,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       console.log('MainCalendar: 診療時間に基づく時間範囲:', {
         start: firstSlot.start,
         end: lastSlot.end,
+        endHourNum,
+        endMinuteNum,
         startTimeMinutes,
         endTimeMinutes
       })
