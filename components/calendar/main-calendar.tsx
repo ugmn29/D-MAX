@@ -2416,14 +2416,25 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           const menu1 = (block.appointment as any).menu1
                           const menu2 = (block.appointment as any).menu2
                           const menu3 = (block.appointment as any).menu3
-                          
+
+                          // デバッグログ: メニュー情報を出力
+                          if (block.appointment.id) {
+                            console.log('診療メニュー表示デバッグ:', {
+                              appointmentId: block.appointment.id,
+                              menu1: menu1 ? { id: (block.appointment as any).menu1_id, name: menu1.name } : null,
+                              menu2: menu2 ? { id: (block.appointment as any).menu2_id, name: menu2.name } : null,
+                              menu3: menu3 ? { id: (block.appointment as any).menu3_id, name: menu3.name } : null,
+                              fullAppointment: block.appointment
+                            })
+                          }
+
                           if (!menu1 && !menu2 && !menu3) return null
-                          
+
                           const menuParts = []
                           if (menu1) menuParts.push(menu1.name)
                           if (menu2) menuParts.push(menu2.name)
                           if (menu3) menuParts.push(menu3.name)
-                          
+
                           return (
                             <span>
                               {displayItems.some(item => item.match(/^(name|furigana|age|patient_icon|medical_card_number|reservation_time)$/)) ? ' / ' : ''}
