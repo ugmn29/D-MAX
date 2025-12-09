@@ -1659,8 +1659,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             </div>
           ) : displayMode === 'staff' ? (
             workingStaff.length === 0 ? (
-              <div className="flex-1 h-full flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
-                出勤スタッフなし
+              // スタッフが0でも1列表示する（診療時間内の予約を可能にするため）
+              <div
+                className="flex-1 border-r border-gray-200 flex items-center justify-center bg-gray-50 h-full"
+                style={{
+                  minWidth: getColumnMinWidth(),
+                  maxWidth: getColumnWidth()
+                }}
+              >
+                <div className="text-center px-2">
+                  <div className="text-sm font-medium text-gray-700 truncate">
+                    予約可能
+                  </div>
+                </div>
               </div>
             ) : (
               workingStaff.map((shift, index) => {
@@ -1825,19 +1836,24 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                     columns = workingStaff
                   }
 
+                  // スタッフ/ユニットが0の場合でも、診療時間内であれば1列表示する
+                  // これにより、シフトが未設定でも予約枠が表示される
+                  const effectiveColumns = columns.length > 0 ? columns : [{ staff: { id: 'default', name: '予約可能', position: '' }, shift_pattern: null, is_holiday: false }]
+
                   // デバッグ: 18:15の行で列数を確認
                   if (slot.time === '18:15') {
                     console.log('MainCalendar: 18:15行のセル生成:', {
                       timeSlot: slot.time,
                       displayMode,
-                      columnsLength: columns.length,
+                      originalColumnsLength: columns.length,
+                      effectiveColumnsLength: effectiveColumns.length,
                       columns,
                       workingStaffLength: workingStaff.length,
                       unitsLength: units.length
                     })
                   }
 
-                  return columns.map((_, columnIndex) => {
+                  return effectiveColumns.map((_, columnIndex) => {
                     const isLastColumn = columnIndex === columns.length - 1
                     const isDropTargetColumn = isDragging && dropTargetTime === slot.time && (() => {
                       if (!dragCurrentPosition) return false
