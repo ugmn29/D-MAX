@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 
 export interface SubKarteEntry {
   id: string

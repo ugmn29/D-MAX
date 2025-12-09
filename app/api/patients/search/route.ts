@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/utils/supabase-client'server'
 
 /**
  * 患者検索API（家族登録用）

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
 
 // GET: 広告費記録を取得
 export async function GET(request: NextRequest) {

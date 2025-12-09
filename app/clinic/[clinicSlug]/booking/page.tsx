@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { notFound, redirect } from 'next/navigation'
 
 interface BookingPageProps {

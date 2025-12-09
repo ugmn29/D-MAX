@@ -3,7 +3,7 @@
  * 電子カルテAPI関数
  */
 
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 import { DiseaseCode, TreatmentCode, MedicalRecord } from '@/types/emr'
 
 /**

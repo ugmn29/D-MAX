@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/utils/supabase-client'
 
 // GET: トラッキングタグ設定を取得
 export async function GET(request: NextRequest) {

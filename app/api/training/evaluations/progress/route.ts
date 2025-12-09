@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 
 // GET /api/training/evaluations/progress?patient_id=xxx
 // 各トレーニングの評価進捗サマリーを取得

@@ -3,7 +3,7 @@
  * Treatment Sets API Functions
  */
 
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 
 export interface TreatmentSet {
   id: string

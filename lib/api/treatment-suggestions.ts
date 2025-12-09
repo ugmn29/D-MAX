@@ -5,7 +5,7 @@
  * 選択された診療行為に基づいて、関連する処置や加算を自動提案
  */
 
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 import { TreatmentCode } from '@/types/emr'
 
 export interface TreatmentSuggestion {

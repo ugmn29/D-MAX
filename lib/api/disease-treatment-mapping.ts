@@ -5,7 +5,7 @@
  * 病名を選択すると、その病名に対応する適切な処置を提案
  */
 
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 import type { TreatmentSuggestion } from './treatment-suggestions'
 
 /**

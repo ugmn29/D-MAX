@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 
 // PUT /api/training/issues/[id]
 // 課題を解決済みにする、または更新する

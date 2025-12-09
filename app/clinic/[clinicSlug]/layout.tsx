@@ -1,6 +1,6 @@
 import { DynamicTrackingTags } from '@/components/tracking/DynamicTrackingTags'
 import { UTMCapture } from '@/components/tracking/UTMCapture'
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { notFound } from 'next/navigation'
 
 interface ClinicLayoutProps {

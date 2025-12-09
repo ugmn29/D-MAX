@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 
 // GET /api/training/evaluations/history?patient_id=xxx
 // タイムライン形式の評価履歴を取得

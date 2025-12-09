@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import { supabase, supabaseAdmin } from '@/lib/utils/supabase-client'
 
 // 開発環境用の認証バイパス
 const isDevelopment = process.env.NODE_ENV === 'development'

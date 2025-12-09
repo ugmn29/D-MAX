@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 import { IssueRecordInput } from '@/types/evaluation'
 
 // GET /api/training/issues?patient_id=xxx&include_resolved=false

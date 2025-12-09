@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/utils/supabase-client'
 import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 export interface AppointmentLog {
