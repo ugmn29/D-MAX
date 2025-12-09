@@ -77,7 +77,8 @@ export default function WebReservationSettingsPage() {
     duration: 30,
     staff_ids: [] as string[],
     allow_new_patient: true,
-    allow_returning: true
+    allow_returning: true,
+    steps: [] as any[]
   })
 
   // データ読み込み
@@ -170,7 +171,8 @@ export default function WebReservationSettingsPage() {
       duration: newWebMenu.duration,
       staff_ids: newWebMenu.staff_ids,
       allow_new_patient: newWebMenu.allow_new_patient,
-      allow_returning: newWebMenu.allow_returning
+      allow_returning: newWebMenu.allow_returning,
+      steps: newWebMenu.steps
     }
 
     setWebBookingMenus([...webBookingMenus, webMenu])
@@ -180,7 +182,8 @@ export default function WebReservationSettingsPage() {
       duration: 30,
       staff_ids: [],
       allow_new_patient: true,
-      allow_returning: true
+      allow_returning: true,
+      steps: []
     })
   }
 
@@ -884,6 +887,91 @@ export default function WebReservationSettingsPage() {
                       />
                       <Label htmlFor="new_menu_allow_returning">再診</Label>
                     </div>
+                  </div>
+                </div>
+
+                {/* 診療ステップ（複数メニュー対応） */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>診療ステップ（診療メニュー2, 3を追加）</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newStep = {
+                          id: `step_${Date.now()}`,
+                          step_order: newWebMenu.steps.length + 1,
+                          menu_id: '',
+                          staff_assignments: newWebMenu.staff_ids.map((staffId, index) => ({
+                            staff_id: staffId,
+                            priority: index + 1
+                          }))
+                        }
+                        setNewWebMenu(prev => ({
+                          ...prev,
+                          steps: [...prev.steps, newStep]
+                        }))
+                      }}
+                    >
+                      + ステップを追加
+                    </Button>
+                  </div>
+                  <div className="space-y-3 max-h-60 overflow-y-auto border rounded-lg p-3">
+                    {newWebMenu.steps.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">
+                        診療メニュー2以降が必要な場合は「+ ステップを追加」ボタンをクリック
+                      </p>
+                    ) : (
+                      newWebMenu.steps.map((step, index) => (
+                        <div key={step.id} className="border rounded p-3 bg-gray-50">
+                          <div className="flex items-center justify-between mb-2">
+                            <Label className="font-semibold">ステップ {index + 2}</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setNewWebMenu(prev => ({
+                                  ...prev,
+                                  steps: prev.steps.filter(s => s.id !== step.id)
+                                }))
+                              }}
+                            >
+                              削除
+                            </Button>
+                          </div>
+                          <Select
+                            value={step.menu_id}
+                            onValueChange={(value) => {
+                              setNewWebMenu(prev => ({
+                                ...prev,
+                                steps: prev.steps.map(s =>
+                                  s.id === step.id ? { ...s, menu_id: value } : s
+                                )
+                              }))
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="診療メニューを選択" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {treatmentMenus.map(menu => (
+                                <SelectItem key={menu.id} value={menu.id}>
+                                  <div className="flex items-center space-x-2">
+                                    <div
+                                      className="w-4 h-4 rounded"
+                                      style={{ backgroundColor: menu.color || '#bfbfbf' }}
+                                    />
+                                    <span>{menu.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
