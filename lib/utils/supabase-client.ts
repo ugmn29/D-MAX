@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '@/lib/utils/supabase-client'
+import { supabase, supabaseAdmin } from '@/lib/supabase'
 
 // 開発環境用の認証バイパス
 const isDevelopment = process.env.NODE_ENV === 'development'
@@ -10,7 +10,7 @@ export const getSupabaseClient = () => {
     hasSupabaseAdmin: !!supabaseAdmin,
     hasSupabase: !!supabase
   })
-  
+
   if (isDevelopment && supabaseAdmin) {
     console.log('サービスロールクライアントを使用')
     return supabaseAdmin
@@ -19,3 +19,6 @@ export const getSupabaseClient = () => {
     return supabase
   }
 }
+
+// Re-export for backward compatibility
+export { supabase, supabaseAdmin }
