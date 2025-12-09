@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/utils/supabase-client'server'
+import { createClient } from '@/lib/utils/supabase-client'
 
 /**
  * LINE予約管理API
