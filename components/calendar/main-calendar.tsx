@@ -1816,7 +1816,19 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                   } else {
                     columns = workingStaff
                   }
-                  
+
+                  // デバッグ: 18:15の行で列数を確認
+                  if (slot.time === '18:15') {
+                    console.log('MainCalendar: 18:15行のセル生成:', {
+                      timeSlot: slot.time,
+                      displayMode,
+                      columnsLength: columns.length,
+                      columns,
+                      workingStaffLength: workingStaff.length,
+                      unitsLength: units.length
+                    })
+                  }
+
                   return columns.map((_, columnIndex) => {
                     const isLastColumn = columnIndex === columns.length - 1
                     const isDropTargetColumn = isDragging && dropTargetTime === slot.time && (() => {
