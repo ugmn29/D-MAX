@@ -394,10 +394,16 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
   const client = getSupabaseClient()
 
 
-  // 1. patient_idがnullの問診票を取得
+  // 1. patient_idがnullの問診票を取得（questionnaires情報も含める）
   const { data: nullPatientResponses, error: nullError } = await client
     .from('questionnaire_responses')
-    .select('*')
+    .select(`
+      *,
+      questionnaires (
+        id,
+        name
+      )
+    `)
     .is('patient_id', null)
     .order('created_at', { ascending: false })
 
@@ -412,6 +418,10 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
     .from('questionnaire_responses')
     .select(`
       *,
+      questionnaires (
+        id,
+        name
+      ),
       patients!inner (
         id,
         is_registered
