@@ -448,6 +448,19 @@ export async function getUnlinkedQuestionnaireResponses(clinicId?: string): Prom
     new Map(allResponses.map(r => [r.id, r])).values()
   )
 
+  console.log('🔍 getUnlinkedQuestionnaireResponses 結果:', {
+    nullPatientCount: nullPatientResponses?.length || 0,
+    tempPatientCount: tempPatientResponses?.length || 0,
+    totalUnique: uniqueResponses.length,
+    responses: uniqueResponses.map(r => ({
+      id: r.id,
+      questionnaire_id: r.questionnaire_id,
+      questionnaire_name: (r as any).questionnaires?.name || 'N/A',
+      patient_id: r.patient_id,
+      has_response_data: !!r.response_data,
+      response_data_keys: Object.keys(r.response_data || {}).length
+    }))
+  })
 
   return uniqueResponses
 }
