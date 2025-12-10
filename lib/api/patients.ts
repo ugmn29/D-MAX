@@ -516,32 +516,86 @@ export async function linkPatientToQuestionnaire(patientId: string): Promise<voi
 
 /**
  * 患者を仮登録に戻す（連携解除）
+ * 元の患者データを復元してから連携を解除
  */
 export async function unlinkPatientFromQuestionnaire(patientId: string): Promise<void> {
   const client = getSupabaseClient()
 
   try {
+    console.log('🔓 患者連携解除開始:', patientId)
 
-    // 1. 患者を仮登録に戻す
-    const { error: patientError } = await client
-      .from('patients')
-      .update({
-        is_registered: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', patientId)
+    // 1. この患者に紐づいている問診票から元の患者データを取得
+    const { data: responses, error: fetchError } = await client
+      .from('questionnaire_responses')
+      .select('id, original_patient_data')
+      .eq('patient_id', patientId)
+      .limit(1)
 
-    if (patientError) {
-      console.error('❌ 患者更新エラー:', patientError)
-      throw patientError
+    if (fetchError) {
+      console.error('❌ 問診票データ取得エラー:', fetchError)
+      throw fetchError
     }
 
+    console.log('📋 取得した問診票:', responses)
 
-    // 2. この患者に紐づいている問診票のpatient_idをnullに戻す
+    // 2. 元のデータが存在する場合は患者情報を復元
+    if (responses && responses.length > 0 && responses[0].original_patient_data) {
+      const originalData = responses[0].original_patient_data as any
+      const restoreData: any = {
+        is_registered: false, // 仮登録状態に戻す
+        updated_at: new Date().toISOString()
+      }
+
+      // 元のデータを復元（nullや空文字列も含めて完全に復元）
+      const fieldsToRestore = [
+        'last_name', 'first_name', 'last_name_kana', 'first_name_kana',
+        'birth_date', 'gender', 'phone', 'email', 'postal_code', 'address',
+        'allergies', 'medical_history', 'medications', 'visit_reason', 'preferred_contact_method'
+      ]
+
+      fieldsToRestore.forEach(field => {
+        if (field in originalData) {
+          restoreData[field] = originalData[field]
+        }
+      })
+
+      console.log('♻️ 患者データを元の状態に復元:', restoreData)
+
+      const { error: updateError } = await client
+        .from('patients')
+        .update(restoreData)
+        .eq('id', patientId)
+
+      if (updateError) {
+        console.error('❌ 患者データ復元エラー:', updateError)
+        throw updateError
+      }
+
+      console.log('✅ 患者データの復元完了')
+    } else {
+      console.log('ℹ️ 元の患者データが保存されていないため、is_registeredのみ更新')
+
+      // 元データがない場合はis_registeredだけ更新
+      const { error: updateError } = await client
+        .from('patients')
+        .update({
+          is_registered: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', patientId)
+
+      if (updateError) {
+        console.error('❌ 患者データ更新エラー:', updateError)
+        throw updateError
+      }
+    }
+
+    // 3. この患者に紐づいている問診票のpatient_idをnullに戻し、original_patient_dataもクリア
     const { error: questionnaireError } = await client
       .from('questionnaire_responses')
       .update({
         patient_id: null,
+        original_patient_data: null,
         updated_at: new Date().toISOString()
       })
       .eq('patient_id', patientId)
@@ -551,8 +605,10 @@ export async function unlinkPatientFromQuestionnaire(patientId: string): Promise
       throw questionnaireError
     }
 
+    console.log('✅ 患者連携解除完了:', patientId)
+
   } catch (error) {
-    console.error('患者連携解除エラー:', error)
+    console.error('❌ 患者連携解除エラー:', error)
     throw error
   }
 }
