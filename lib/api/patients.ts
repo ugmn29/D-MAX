@@ -446,56 +446,30 @@ export async function getPatientLinkStatus(clinicId: string): Promise<{
 
 
   try {
-    // 仮登録患者（未連携）を取得
+    // 仮登録患者（未連携）を取得 - シンプルなクエリに変更
     const { data: unlinkedPatients, error: unlinkedError } = await client
       .from('patients')
-      .select(`
-        *,
-        questionnaire_responses (
-          id,
-          questionnaire_id,
-          completed_at,
-          questionnaires (
-            id,
-            name
-          )
-        )
-      `)
+      .select('*')
       .eq('clinic_id', clinicId)
       .eq('is_registered', false)
       .order('created_at', { ascending: false })
 
     if (unlinkedError) {
       console.error('未連携患者取得エラー:', unlinkedError)
+      throw unlinkedError
     }
 
-    if (unlinkedPatients && unlinkedPatients.length > 0) {
-    }
-
-    // 本登録患者（連携済み）を取得
+    // 本登録患者（連携済み）を取得 - シンプルなクエリに変更
     const { data: linkedPatients, error: linkedError } = await client
       .from('patients')
-      .select(`
-        *,
-        questionnaire_responses (
-          id,
-          questionnaire_id,
-          completed_at,
-          questionnaires (
-            id,
-            name
-          )
-        )
-      `)
+      .select('*')
       .eq('clinic_id', clinicId)
       .eq('is_registered', true)
       .order('updated_at', { ascending: false })
 
     if (linkedError) {
       console.error('連携済み患者取得エラー:', linkedError)
-    }
-
-    if (linkedPatients && linkedPatients.length > 0) {
+      throw linkedError
     }
 
     const result = {
