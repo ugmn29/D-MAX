@@ -648,11 +648,39 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
   let mobilePhone = null // 携帯電話番号
 
   questions.forEach((question: any) => {
-    const { id: questionId, linked_field, question_text } = question
-    const answer = answers[questionId]
+    const { id: questionId, linked_field, question_text, sort_order } = question
+
+    // 回答を取得：複数の形式に対応
+    // 1. UUID形式のID (新形式)
+    // 2. q{section}-{number} 形式 (レガシー形式、例: q1-1, q1-2)
+    // 3. sort_orderベース (フォールバック)
+    let answer = answers[questionId]  // UUID形式を試す
+
+    if (answer === undefined || answer === null || answer === '') {
+      // レガシー形式を試す（例: q1-1, q3-5）
+      // sort_orderから推測: 0-9 -> q1-1～q1-10, 10-19 -> q2-1～q2-10, etc.
+      const section = Math.floor(sort_order / 10) + 1
+      const number = sort_order % 10 || 10
+      const legacyKey = `q${section}-${number}`
+      answer = answers[legacyKey]
+
+      if (answer !== undefined) {
+        console.log(`レガシーキー ${legacyKey} で回答を取得: ${answer}`)
+      }
+    }
+
+    // セクション名ベースも試す（例: section1_q1, section2_q3）
+    if (answer === undefined || answer === null || answer === '') {
+      const sectionKey = `section${Math.floor(sort_order / 10) + 1}_q${sort_order % 10 || 10}`
+      answer = answers[sectionKey]
+
+      if (answer !== undefined) {
+        console.log(`セクションキー ${sectionKey} で回答を取得: ${answer}`)
+      }
+    }
 
     if (linked_field && answer !== undefined && answer !== null && answer !== '') {
-      console.log(`linked_field: ${linked_field} = ${answer}`)
+      console.log(`linked_field: ${linked_field} = ${answer} (questionId: ${questionId}, sort_order: ${sort_order})`)
 
       switch (linked_field) {
         case 'name':
