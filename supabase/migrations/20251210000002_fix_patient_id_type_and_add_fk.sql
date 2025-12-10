@@ -1,10 +1,23 @@
--- questionnaire_responsesテーブルにpatient_idの外部キー制約を追加
+-- questionnaire_responses.patient_idの型をtextからuuidに変更してから外部キーを追加
 
--- 既存の制約を削除（存在する場合）
+-- ステップ1: patient_idカラムの型をUUIDに変更
+-- まず、既存のtext値をUUIDに変換できるか確認
+-- NULLや無効な値は保持
+ALTER TABLE questionnaire_responses
+ALTER COLUMN patient_id TYPE uuid
+USING (
+  CASE
+    WHEN patient_id IS NULL THEN NULL
+    WHEN patient_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      THEN patient_id::uuid
+    ELSE NULL
+  END
+);
+
+-- ステップ2: 外部キー制約を追加
 ALTER TABLE questionnaire_responses
 DROP CONSTRAINT IF EXISTS questionnaire_responses_patient_id_fkey;
 
--- 外部キー制約を追加
 ALTER TABLE questionnaire_responses
 ADD CONSTRAINT questionnaire_responses_patient_id_fkey
 FOREIGN KEY (patient_id)

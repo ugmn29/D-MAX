@@ -145,3 +145,166 @@ ORDER BY table_name;
 1. ✅ Vercel環境変数を設定
 2. ✅ Vercelを再デプロイ
 3. ✅ 本番環境で動作確認
+
+---
+
+## 方法3: 自動マイグレーション適用（最新・推奨）
+
+### 概要
+
+2025年12月10日より、Supabase CLIを使った自動マイグレーション適用スクリプトを導入しました。
+このスクリプトを使えば、コマンド1つで本番環境にマイグレーションを適用できます。
+
+### 前提条件
+
+- Supabase CLIがインストールされていること（既にインストール済み）
+- プロジェクトが`supabase link`でリンク済みであること
+
+### 使い方
+
+```bash
+# マイグレーションを自動適用
+node push-migrations.mjs
+```
+
+### スクリプトの機能
+
+1. Supabaseプロジェクトへの接続確認
+2. 未適用のマイグレーションファイルを自動検出
+3. ユーザー確認後、本番環境に自動適用
+4. 実行結果の詳細表示
+
+### 初回セットアップ
+
+初めて使用する場合は、以下のコマンドでSupabaseプロジェクトにリンクします：
+
+```bash
+# プロジェクトにリンク（初回のみ）
+supabase link --project-ref obdfmwpdkwraqqqyjgwu
+```
+
+パスワードを求められた場合は、Supabaseダッシュボードから確認できます。
+
+### マイグレーションファイルの作成
+
+新しいマイグレーションを作成する場合：
+
+1. `supabase/migrations/`ディレクトリに新しいSQLファイルを作成
+2. ファイル名は`YYYYMMDDHHMMSS_description.sql`形式で命名
+   - 例: `20251210000002_fix_patient_id_type_and_add_fk.sql`
+3. SQLを記述
+4. `node push-migrations.mjs`を実行
+
+### 実行例
+
+```bash
+$ node push-migrations.mjs
+
+🚀 Supabaseマイグレーション自動プッシュ
+
+📋 プロジェクト: obdfmwpdkwraqqqyjgwu
+
+💡 既にSupabaseプロジェクトにリンク済みである必要があります
+   初回のみ: supabase link --project-ref obdfmwpdkwraqqqyjgwu
+
+📤 マイグレーションをプッシュ中...
+
+Initialising login role...
+Connecting to remote database...
+Do you want to push these migrations to the remote database?
+ • 20251210000002_fix_patient_id_type_and_add_fk.sql
+
+ [Y/n] Y
+Applying migration 20251210000002_fix_patient_id_type_and_add_fk.sql...
+Finished supabase db push.
+
+✅ すべてのマイグレーションは既に適用済みです
+```
+
+### 確認方法
+
+マイグレーション適用後、以下のエンドポイントで動作確認できます：
+
+```bash
+# 問診票データの確認
+curl "https://dmax-mu.vercel.app/api/questionnaires/debug"
+
+# 患者連携状況の確認（設定ページAPI）
+curl "https://dmax-mu.vercel.app/api/patients/link-status?clinic_id=11111111-1111-1111-1111-111111111111"
+```
+
+### トラブルシューティング
+
+#### 1. 型の不一致エラー
+
+```
+ERROR: foreign key constraint cannot be implemented
+Key columns are of incompatible types: text and uuid
+```
+
+**解決策**: 外部キー制約を追加する前に、カラムの型を変換するマイグレーションを作成してください。
+
+例:
+```sql
+ALTER TABLE questionnaire_responses
+ALTER COLUMN patient_id TYPE uuid
+USING (
+  CASE
+    WHEN patient_id IS NULL THEN NULL
+    WHEN patient_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      THEN patient_id::uuid
+    ELSE NULL
+  END
+);
+```
+
+#### 2. リンクエラー
+
+```
+Error: Project not linked
+```
+
+**解決策**: プロジェクトにリンクしてください：
+
+```bash
+supabase link --project-ref obdfmwpdkwraqqqyjgwu
+```
+
+#### 3. 権限エラー
+
+```
+Error: permission denied
+```
+
+**解決策**: データベースパスワードを確認してください。Supabaseダッシュボード > Settings > Database から確認できます。
+
+### 最近の修正履歴
+
+#### 2025年12月10日: questionnaire_responses外部キー修正
+
+**問題**:
+- Web予約から送信された問診票が予約編集モーダルに表示されない
+- 設定ページで400エラー（「Could not find a relationship」）
+
+**原因**:
+- `questionnaire_responses.patient_id`が`text`型だったが、`patients.id`は`uuid`型
+- 外部キー制約が存在しなかった
+
+**適用したマイグレーション**: `20251210000002_fix_patient_id_type_and_add_fk.sql`
+
+**修正内容**:
+1. `patient_id`カラムの型を`text`から`uuid`に変換
+2. `patient_id`と`patients.id`の間に外部キー制約を追加
+
+**実行コマンド**:
+```bash
+node push-migrations.mjs
+```
+
+**結果**: ✅ 問診票が正常に表示されるようになり、設定ページの400エラーも解消
+
+### 参考資料
+
+- Supabase CLI ドキュメント: https://supabase.com/docs/guides/cli
+- PostgreSQL外部キー: https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK
+- マイグレーションベストプラクティス: https://supabase.com/docs/guides/cli/local-development#database-migrations
