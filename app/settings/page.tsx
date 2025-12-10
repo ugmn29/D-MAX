@@ -2079,16 +2079,30 @@ export default function SettingsPage() {
     if (isSavingRef.current) return;
 
     // 初回ロード中はスキップ（データ読み込み完了後に初期データが設定される）
-    if (isNotificationInitialLoadRef.current) return;
+    if (isNotificationInitialLoadRef.current) {
+      console.log('🔍 通知タブ: 初回ロード中のためスキップ');
+      return;
+    }
 
     const currentData = { notificationSettings };
 
     // 初期データがnullの場合は何もしない（データ読み込み時に設定される）
     if (initialNotificationDataRef.current === null) {
+      console.log('🔍 通知タブ: 初期データがnullのためスキップ');
       return;
     }
 
-    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialNotificationDataRef.current);
+    const currentStr = JSON.stringify(currentData);
+    const initialStr = JSON.stringify(initialNotificationDataRef.current);
+    const hasChanged = currentStr !== initialStr;
+
+    console.log('🔍 通知タブ変更検知:', {
+      hasChanged,
+      isInitialLoad: isNotificationInitialLoadRef.current,
+      currentData,
+      initialData: initialNotificationDataRef.current
+    });
+
     setHasUnsavedChanges(hasChanged);
   }, [notificationSettings, selectedCategory]);
   // 注: questionnairesは即座に保存されるため、未保存変更として扱わない
