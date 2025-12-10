@@ -71,12 +71,20 @@ export default function PatientsPage() {
             <h1 className="text-2xl font-bold text-gray-900">患者管理</h1>
             <p className="text-gray-600">患者情報の管理と検索</p>
           </div>
-          <Link href="/patients/new">
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              新規患者登録
-            </Button>
-          </Link>
+          <div className="flex space-x-2">
+            <Link href="/patients/unlinked-questionnaires">
+              <Button variant="outline">
+                <Search className="w-4 h-4 mr-2" />
+                未連携問診票
+              </Button>
+            </Link>
+            <Link href="/patients/new">
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                新規患者登録
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* エラー表示 */}

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import {
   getLinkedQuestionnaireResponses,
+  getUnlinkedQuestionnaireResponses,
   unlinkQuestionnaireResponse,
   QuestionnaireResponse,
   getQuestionnaires
@@ -85,18 +86,27 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       setLoading(true)
       setError(null)
 
-      // この患者に連携済みの問診票回答を取得
-      const patientResponses = await getLinkedQuestionnaireResponses(patientId)
-      console.log('連携済み問診票:', patientResponses)
-      console.log('連携済み問診票の件数:', patientResponses.length)
-      console.log('連携済み問診票の詳細:', patientResponses.map(r => ({
+      // 連携済みと未連携の両方を取得
+      const [linkedResponses, unlinkedResponses] = await Promise.all([
+        getLinkedQuestionnaireResponses(patientId),
+        getUnlinkedQuestionnaireResponses('11111111-1111-1111-1111-111111111111')
+      ])
+
+      console.log('連携済み問診票:', linkedResponses.length, '件')
+      console.log('未連携問診票:', unlinkedResponses.length, '件')
+
+      // 両方を結合
+      const allResponses = [...linkedResponses, ...unlinkedResponses]
+
+      console.log('全問診票:', allResponses.length, '件')
+      console.log('問診票詳細:', allResponses.map(r => ({
         id: r.id,
         questionnaire_id: r.questionnaire_id,
         questionnaire_name: r.questionnaire?.name,
-        patient_id: r.patient_id,
+        patient_id: r.patient_id || 'NULL (未連携)',
         response_data_keys: Object.keys(r.response_data || {})
       })))
-      console.log('問診票名一覧:', patientResponses.map(r => r.questionnaire?.name).filter(Boolean))
+      console.log('問診票名一覧:', allResponses.map(r => r.questionnaire?.name).filter(Boolean))
 
       // 問診票の定義を取得（質問IDから質問文を取得するため）
       // 仮のclinicIdを使用（実際の実装では適切なclinicIdを使用）
@@ -117,7 +127,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       })
       setQuestionnaireDefinitions(questionMap)
 
-      setQuestionnaireResponses(patientResponses)
+      setQuestionnaireResponses(allResponses)
 
       // 全ての問診票をデフォルトで展開状態にする
       // expandedResponseは使用しないので設定不要
