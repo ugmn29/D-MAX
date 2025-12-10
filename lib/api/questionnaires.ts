@@ -689,6 +689,26 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
         case 'furigana_kana':
           // フリガナも既に設定されている場合はスキップ
           break
+        case 'last_name':
+          // 姓を設定
+          patientUpdate.last_name = answer
+          console.log('姓を設定:', answer)
+          break
+        case 'first_name':
+          // 名を設定
+          patientUpdate.first_name = answer
+          console.log('名を設定:', answer)
+          break
+        case 'last_name_kana':
+          // 姓（カナ）を設定
+          patientUpdate.last_name_kana = answer
+          console.log('姓（カナ）を設定:', answer)
+          break
+        case 'first_name_kana':
+          // 名（カナ）を設定
+          patientUpdate.first_name_kana = answer
+          console.log('名（カナ）を設定:', answer)
+          break
         case 'birth_date':
           patientUpdate.birth_date = answer
           break
