@@ -494,7 +494,39 @@ export async function linkPatientToQuestionnaire(patientId: string): Promise<voi
   const client = getSupabaseClient()
 
   try {
+    console.log('🔗 患者連携開始:', patientId)
 
+    // 1. 連携前の患者データを取得して保存（解除時の復元用）
+    const { data: currentPatient, error: patientFetchError } = await client
+      .from('patients')
+      .select('last_name, first_name, last_name_kana, first_name_kana, birth_date, gender, phone, email, postal_code, address, allergies, medical_history, medications, visit_reason, preferred_contact_method')
+      .eq('id', patientId)
+      .single()
+
+    if (patientFetchError) {
+      console.error('❌ 患者データ取得エラー:', patientFetchError)
+      throw patientFetchError
+    }
+
+    console.log('💾 連携前の患者データを保存:', currentPatient)
+
+    // 2. この患者に紐づいている問診票に元データを保存
+    const { error: questionnaireUpdateError } = await client
+      .from('questionnaire_responses')
+      .update({
+        original_patient_data: currentPatient,
+        updated_at: new Date().toISOString()
+      })
+      .eq('patient_id', patientId)
+
+    if (questionnaireUpdateError) {
+      console.error('❌ 問診票更新エラー:', questionnaireUpdateError)
+      throw questionnaireUpdateError
+    }
+
+    console.log('✅ 問診票に元データを保存完了')
+
+    // 3. 患者を本登録に変更
     const { error } = await client
       .from('patients')
       .update({
@@ -504,12 +536,14 @@ export async function linkPatientToQuestionnaire(patientId: string): Promise<voi
       .eq('id', patientId)
 
     if (error) {
-      console.error('❌ Supabaseエラー:', error)
+      console.error('❌ 患者更新エラー:', error)
       throw error
     }
 
+    console.log('✅ 患者連携完了:', patientId)
+
   } catch (error) {
-    console.error('患者連携エラー:', error)
+    console.error('❌ 患者連携エラー:', error)
     throw error
   }
 }
