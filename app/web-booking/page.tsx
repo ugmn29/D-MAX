@@ -207,7 +207,58 @@ function WebBookingPageInner() {
         setWebSettings(webReservation)
 
         // Web予約メニューを取得（booking_menusがあればそれを使用、なければ全メニュー）
-        const bookingMenus = webReservation.booking_menus || []
+        const bookingMenus = (webReservation.booking_menus || []).map(menu => {
+          // 古い形式のデータ（treatment_menu_level2_id）を新しい形式（steps[].menu_id）に変換
+          if (menu.treatment_menu_level2_id && menu.steps && menu.steps.length > 0 && !menu.steps[0].menu_id) {
+            console.log('🔄 古い形式のデータを検出、変換中:', {
+              menuName: menu.treatment_menu_name,
+              treatment_menu_level2_id: menu.treatment_menu_level2_id,
+              steps: menu.steps
+            })
+            // steps[0].menu_idに treatment_menu_level2_id を設定
+            menu.steps[0].menu_id = menu.treatment_menu_level2_id
+            console.log('✅ 変換完了:', menu.steps[0])
+          }
+
+          // stepsが空または存在しない場合、治療メニューのmenu2_id, menu3_idから自動生成
+          if (!menu.steps || menu.steps.length === 0) {
+            const treatmentMenu = menus.find(m => m.id === menu.treatment_menu_id)
+            if (treatmentMenu) {
+              const autoSteps = []
+              if (treatmentMenu.menu2_id) {
+                autoSteps.push({
+                  id: `step_auto_2_${Date.now()}`,
+                  step_order: 1,
+                  menu_id: treatmentMenu.menu2_id,
+                  staff_assignments: menu.staff_ids?.map((staffId, index) => ({
+                    staff_id: staffId,
+                    priority: index + 1
+                  })) || []
+                })
+              }
+              if (treatmentMenu.menu3_id) {
+                autoSteps.push({
+                  id: `step_auto_3_${Date.now()}`,
+                  step_order: 2,
+                  menu_id: treatmentMenu.menu3_id,
+                  staff_assignments: menu.staff_ids?.map((staffId, index) => ({
+                    staff_id: staffId,
+                    priority: index + 1
+                  })) || []
+                })
+              }
+              console.log('🔍 自動ステップ生成:', {
+                menuName: menu.treatment_menu_name,
+                menu2_id: treatmentMenu.menu2_id,
+                menu3_id: treatmentMenu.menu3_id,
+                autoSteps
+              })
+              return { ...menu, steps: autoSteps }
+            }
+          }
+          return menu
+        })
+
         console.log('🔍 Web予約: booking_menusの読み込み:', {
           hasBookingMenus: !!webReservation.booking_menus,
           bookingMenusLength: bookingMenus.length,
@@ -714,13 +765,28 @@ function WebBookingPageInner() {
         memo: `Web予約${bookingData.isNewPatient ? '(初診)' : '(再診)'}${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`
       }
 
-      // 各ステップのメニューとスタッフを設定
+      // 診療メニュー1を必ず設定（選択されたメニュー）
+      appointmentData.menu1_id = bookingData.selectedMenu
+      if (bookingData.selectedStaff) {
+        appointmentData.staff1_id = bookingData.selectedStaff
+      }
+      console.log('Web予約: 診療メニュー1を設定', {
+        menu1_id: bookingData.selectedMenu,
+        staff1_id: bookingData.selectedStaff
+      })
+
+      // stepsがある場合、診療メニュー2, 3を設定
       if (steps.length > 0) {
         // 各ステップごとに優先順位順に空いているスタッフを探す
-        for (let index = 0; index < steps.length && index < 3; index++) {
+        for (let index = 0; index < steps.length && index < 2; index++) {
           const step = steps[index]
-          const menuNumber = index + 1
-          const stepMenuId = step.menu_id || bookingData.selectedMenu
+          const menuNumber = index + 2  // menu2, menu3なので+2
+          const stepMenuId = step.menu_id
+
+          if (!stepMenuId) {
+            console.warn(`Web予約: ステップ${index}のmenu_idが未設定です`)
+            continue
+          }
 
           // メニューIDを設定
           appointmentData[`menu${menuNumber}_id`] = stepMenuId
@@ -737,7 +803,7 @@ function WebBookingPageInner() {
 
             if (availableStaff) {
               appointmentData[`staff${menuNumber}_id`] = availableStaff.staff_id
-              console.log(`Web予約: ステップ${menuNumber}のスタッフを設定`, {
+              console.log(`Web予約: 診療メニュー${menuNumber}のスタッフを設定`, {
                 menu_id: stepMenuId,
                 staff_id: availableStaff.staff_id,
                 staff_name: staff.find(s => s.id === availableStaff.staff_id)?.name,
@@ -745,17 +811,11 @@ function WebBookingPageInner() {
               })
             } else {
               // 全員埋まっている場合
-              console.error(`Web予約: ステップ${menuNumber}の全スタッフが予約済みです`)
-              alert(`ステップ${menuNumber}の全スタッフが予約済みです。別の時間をお選びください。`)
+              console.error(`Web予約: 診療メニュー${menuNumber}の全スタッフが予約済みです`)
+              alert(`診療メニュー${menuNumber}の全スタッフが予約済みです。別の時間をお選びください。`)
               return
             }
           }
-        }
-      } else {
-        // ステップがない場合は従来通りmenu1のみ
-        appointmentData.menu1_id = bookingData.selectedMenu
-        if (bookingData.selectedStaff) {
-          appointmentData.staff1_id = bookingData.selectedStaff
         }
       }
 

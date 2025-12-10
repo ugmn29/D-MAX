@@ -151,6 +151,12 @@ export default function WebReservationSettingsPage() {
 
   // Web予約メニューを追加
   const handleAddWebMenu = () => {
+    console.log('🔴🔴🔴 handleAddWebMenu が呼ばれました！', {
+      treatment_menu_id: newWebMenu.treatment_menu_id,
+      staff_ids: newWebMenu.staff_ids,
+      duration: newWebMenu.duration
+    })
+
     if (!newWebMenu.treatment_menu_id) {
       alert('診療メニューを選択してください')
       return
@@ -163,6 +169,45 @@ export default function WebReservationSettingsPage() {
     const menu = treatmentMenus.find(m => m.id === newWebMenu.treatment_menu_id)
     if (!menu) return
 
+    // 診療メニュー1に紐づく診療メニュー2, 3を自動的にstepsに追加
+    const autoSteps: any[] = []
+    if (menu.menu2_id) {
+      const menu2 = treatmentMenus.find(m => m.id === menu.menu2_id)
+      if (menu2) {
+        autoSteps.push({
+          id: `step_${Date.now()}_2`,
+          step_order: 1,
+          menu_id: menu.menu2_id,
+          staff_assignments: newWebMenu.staff_ids.map((staffId, index) => ({
+            staff_id: staffId,
+            priority: index + 1
+          }))
+        })
+      }
+    }
+    if (menu.menu3_id) {
+      const menu3 = treatmentMenus.find(m => m.id === menu.menu3_id)
+      if (menu3) {
+        autoSteps.push({
+          id: `step_${Date.now()}_3`,
+          step_order: 2,
+          menu_id: menu.menu3_id,
+          staff_assignments: newWebMenu.staff_ids.map((staffId, index) => ({
+            staff_id: staffId,
+            priority: index + 1
+          }))
+        })
+      }
+    }
+
+    console.log('🔍 診療メニュー自動ステップ生成:', {
+      selectedMenuId: menu.id,
+      selectedMenuName: menu.name,
+      menu2_id: menu.menu2_id,
+      menu3_id: menu.menu3_id,
+      autoSteps
+    })
+
     const webMenu = {
       id: `web_${Date.now()}`,
       treatment_menu_id: newWebMenu.treatment_menu_id,
@@ -172,7 +217,7 @@ export default function WebReservationSettingsPage() {
       staff_ids: newWebMenu.staff_ids,
       allow_new_patient: newWebMenu.allow_new_patient,
       allow_returning: newWebMenu.allow_returning,
-      steps: newWebMenu.steps
+      steps: autoSteps // 自動生成されたstepsを使用
     }
 
     setWebBookingMenus([...webBookingMenus, webMenu])
@@ -224,7 +269,11 @@ export default function WebReservationSettingsPage() {
 
   // 保存処理
   const handleSave = async () => {
-    console.log('🔵 handleSave呼び出し開始')
+    console.log('🔵 handleSave呼び出し開始', {
+      webSettings,
+      webBookingMenus,
+      isEnabled: webSettings.isEnabled
+    })
     let saveSuccessful = false
     try {
       setSaving(true)
@@ -235,7 +284,7 @@ export default function WebReservationSettingsPage() {
       }
       console.log('🔵 保存するデータ:', settingsToSave)
       await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', settingsToSave)
-      console.log('🔵 setClinicSetting完了')
+      console.log('🔵 setClinicSetting完了 - 保存成功')
       saveSuccessful = true
     } catch (error) {
       console.error('🔴 保存エラー:', error)
@@ -248,6 +297,7 @@ export default function WebReservationSettingsPage() {
 
     // 保存成功後の処理（別のtry-catchで囲む）
     if (saveSuccessful) {
+      console.log('✅ 保存完了 - アラート表示')
       alert('設定を保存しました')
     }
   }
@@ -725,7 +775,17 @@ export default function WebReservationSettingsPage() {
                                   className="w-6 h-6 rounded"
                                   style={{ backgroundColor: menu.treatment_menu_color || '#bfbfbf' }}
                                 />
-                                <h4 className="font-medium text-lg">{menu.treatment_menu_name}</h4>
+                                <h4 className="font-medium text-lg">
+                                  {menu.treatment_menu_name}
+                                  {menu.steps && menu.steps.length > 0 && (
+                                    <>
+                                      {menu.steps.map((step: any) => {
+                                        const stepMenu = treatmentMenus.find(m => m.id === step.menu_id)
+                                        return stepMenu ? ` > ${stepMenu.name}` : ''
+                                      })}
+                                    </>
+                                  )}
+                                </h4>
                               </div>
 
                               {/* 診療時間 */}
