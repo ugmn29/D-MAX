@@ -733,8 +733,7 @@ export function QuestionnaireEditModal({
                 />
               </div>
 
-              {/* 患者情報フィールドとの連携 - システムテンプレートで自動設定されるため非表示 */}
-              {/*
+              {/* 患者情報フィールドとの連携 */}
               <div>
                 <Label htmlFor="linked_field">患者情報フィールドとの連携</Label>
                 <select
@@ -765,7 +764,6 @@ export function QuestionnaireEditModal({
                   患者情報と自動連携するフィールドを選択できます
                 </p>
               </div>
-              */}
 
               {/* 必須項目 */}
               <div className="flex items-center space-x-2">

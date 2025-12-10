@@ -74,7 +74,8 @@ export async function copySystemTemplateToClinic(
       options: q.options,
       is_required: q.is_required,
       conditional_logic: q.conditional_logic,
-      sort_order: q.sort_order
+      sort_order: q.sort_order,
+      linked_field: q.linked_field
     }))
 
     if (newQuestions.length > 0) {
@@ -173,7 +174,8 @@ export async function getSystemQuestionnaireTemplates() {
         options,
         is_required,
         conditional_logic,
-        sort_order
+        sort_order,
+        linked_field
       )
     `)
     .eq('is_active', true)
