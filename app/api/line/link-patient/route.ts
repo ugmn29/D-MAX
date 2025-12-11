@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { Database } from '@/types/database'
 import { normalizeInvitationCode, validateInvitationCodeFormat } from '@/lib/line/invitation-code'
+import { supabaseAdmin } from '@/lib/supabase'
 
 /**
  * POST /api/line/link-patient
@@ -10,7 +9,16 @@ import { normalizeInvitationCode, validateInvitationCodeFormat } from '@/lib/lin
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    // Service Role Keyを使用してRLSをバイパス（LINE連携は認証前の操作のため）
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      console.error('Supabase Admin clientが初期化されていません')
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
 
     // リクエストボディを取得
     const body = await request.json()
@@ -40,9 +48,16 @@ export async function POST(request: NextRequest) {
 
     // 招待コードを正規化
     const normalizedCode = normalizeInvitationCode(invitation_code)
+    console.log('🔍 招待コード検証:', {
+      original: invitation_code,
+      normalized: normalizedCode,
+      birth_date,
+      line_user_id
+    })
 
     // 招待コードのフォーマットを検証
     if (!validateInvitationCodeFormat(normalizedCode)) {
+      console.error('❌ 招待コードフォーマットエラー:', normalizedCode)
       return NextResponse.json(
         { error: '招待コードの形式が正しくありません' },
         { status: 400 }
@@ -58,7 +73,17 @@ export async function POST(request: NextRequest) {
       .gt('expires_at', new Date().toISOString())
       .single()
 
+    console.log('🔍 招待コード検索結果:', {
+      found: !!invitationData,
+      error: invitationError,
+      code: normalizedCode
+    })
+
     if (invitationError || !invitationData) {
+      console.error('❌ 招待コード検索失敗:', {
+        code: normalizedCode,
+        error: invitationError
+      })
       return NextResponse.json(
         { error: '招待コードが見つからないか、有効期限が切れています' },
         { status: 404 }
@@ -67,7 +92,17 @@ export async function POST(request: NextRequest) {
 
     // 患者の生年月日と照合
     const patient = invitationData.patients as any
+    console.log('🔍 生年月日チェック:', {
+      patient_birth_date: patient.birth_date,
+      input_birth_date: birth_date,
+      match: patient.birth_date === birth_date
+    })
+
     if (patient.birth_date !== birth_date) {
+      console.error('❌ 生年月日不一致:', {
+        expected: patient.birth_date,
+        received: birth_date
+      })
       return NextResponse.json(
         { error: '生年月日が一致しません' },
         { status: 401 }
@@ -206,7 +241,16 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    // Service Role Keyを使用してRLSをバイパス
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
+
     const searchParams = request.nextUrl.searchParams
     const line_user_id = searchParams.get('line_user_id')
 
@@ -264,7 +308,16 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    // Service Role Keyを使用してRLSをバイパス
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
+
     const searchParams = request.nextUrl.searchParams
     const linkage_id = searchParams.get('linkage_id')
 
