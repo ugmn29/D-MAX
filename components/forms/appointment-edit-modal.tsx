@@ -483,14 +483,6 @@ export function AppointmentEditModal({
       const lastNameKana = kanaParts[0] || ''
       const firstNameKana = kanaParts.slice(1).join(' ') || ''
       
-      // 性別を変換
-      let genderValue: 'male' | 'female' | 'other' = 'other'
-      if (gender === '男' || gender === 'male') {
-        genderValue = 'male'
-      } else if (gender === '女' || gender === 'female') {
-        genderValue = 'female'
-      }
-      
       // 🔧 FIX: 問診票を先に連携して元のデータを保存
       // データベースの患者情報を更新する前に、元のデータを問診票に保存する必要がある
       console.log('🔧 問診票連携を先に実行（元データ保存のため）')
@@ -500,6 +492,19 @@ export function AppointmentEditModal({
         editingAppointment?.id
       )
 
+      // 問診票から性別を含む全データを再取得
+      const { getPatients } = await import('@/lib/api/patients')
+      const updatedPatients = await getPatients(clinicId)
+      const linkedPatient = updatedPatients.find(p => p.id === selectedPatient.id)
+
+      // 問診票連携で更新された性別を使用（フォールバック付き）
+      let genderValue: 'male' | 'female' | 'other' = linkedPatient?.gender || 'other'
+      if (gender === '男' || gender === 'male') {
+        genderValue = 'male'
+      } else if (gender === '女' || gender === 'female') {
+        genderValue = 'female'
+      }
+
       // 患者情報を更新
       const updatedPatient = {
         ...selectedPatient,
@@ -507,7 +512,7 @@ export function AppointmentEditModal({
         first_name: firstName,
         last_name_kana: lastNameKana,
         first_name_kana: firstNameKana,
-        gender: genderValue,
+        gender: linkedPatient?.gender || genderValue,  // 問診票の性別を優先
         birth_date: birthDate,
         phone: phone,
         email: email,
