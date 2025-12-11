@@ -207,12 +207,21 @@ export default function InitialLinkPage() {
       // DOMを直接更新
       input.value = formatted
 
-      // カーソルを末尾に配置
-      const length = formatted.length
-      input.setSelectionRange(length, length)
-
       // バリデーション用にstateも更新
       setInvitationCode(formatted)
+
+      // カーソルを末尾に配置（次のフレームで実行）
+      requestAnimationFrame(() => {
+        if (document.activeElement === input) {
+          const length = formatted.length
+          input.setSelectionRange(length, length)
+        } else {
+          // フォーカスが外れている場合は再フォーカス
+          input.focus()
+          const length = formatted.length
+          input.setSelectionRange(length, length)
+        }
+      })
     }, 50)
   }
 
