@@ -3,9 +3,9 @@
  */
 
 /**
- * 8桁の招待コードを生成（例: AB12-CD34）
+ * 8桁の招待コードを生成（例: AB12CD34）
  * - 大文字英数字のみ使用（混同しやすい文字を除外: 0, O, I, 1, L）
- * - 4桁-4桁のフォーマット
+ * - ハイフンなしの8桁（表示時にフォーマット可能）
  */
 export function generateInvitationCode(): string {
   // 混同しやすい文字を除外した英数字
@@ -13,9 +13,6 @@ export function generateInvitationCode(): string {
 
   let code = ''
   for (let i = 0; i < 8; i++) {
-    if (i === 4) {
-      code += '-'
-    }
     const randomIndex = Math.floor(Math.random() * chars.length)
     code += chars[randomIndex]
   }
@@ -35,16 +32,31 @@ export function calculateExpiration(days: number = 30): Date {
 
 /**
  * 招待コードのフォーマットを検証
+ * AB12-CD34 形式（ハイフンあり）または AB12CD34 形式（ハイフンなし）の両方を受け付ける
  */
 export function validateInvitationCodeFormat(code: string): boolean {
-  // AB12-CD34 形式かチェック
-  const pattern = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/
-  return pattern.test(code)
+  // ハイフンあり: AB12-CD34
+  const patternWithHyphen = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/
+  // ハイフンなし: AB12CD34
+  const patternWithoutHyphen = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/
+
+  return patternWithHyphen.test(code) || patternWithoutHyphen.test(code)
 }
 
 /**
- * 招待コードを正規化（小文字→大文字、スペース削除）
+ * 招待コードを正規化（小文字→大文字、ハイフン・スペース削除）
  */
 export function normalizeInvitationCode(code: string): string {
-  return code.toUpperCase().replace(/\s/g, '')
+  return code.toUpperCase().replace(/[-\s]/g, '')
+}
+
+/**
+ * 招待コードを表示用にフォーマット（AB12CD34 → AB12-CD34）
+ */
+export function formatInvitationCode(code: string): string {
+  const normalized = normalizeInvitationCode(code)
+  if (normalized.length === 8) {
+    return `${normalized.slice(0, 4)}-${normalized.slice(4)}`
+  }
+  return normalized
 }
