@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Vercelのサーバーレス環境ではTransaction poolerを使用
-    const connectionString = `postgresql://postgres.${projectId}:${dbPassword}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres`
+    const connectionString = `postgresql://postgres.${projectId}:${dbPassword}@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres`
 
     const client = new Client({
       connectionString,
