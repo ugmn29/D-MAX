@@ -35,6 +35,9 @@ export default function InitialLinkPage() {
   const isProcessingInvitation = useRef(false)
   const isProcessingBirthDate = useRef(false)
 
+  // 最後に処理した値を保持（重複処理を防ぐ）
+  const lastInvitationValue = useRef('')
+
   // LIFF SDKをロード
   useEffect(() => {
     // LIFF SDKスクリプトを動的に追加
@@ -137,16 +140,22 @@ export default function InitialLinkPage() {
 
   // 招待コードの入力ハンドラー
   const handleInvitationCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawInput = e.target.value
+
+    // 同じ値なら何もしない
+    if (rawInput === lastInvitationValue.current) {
+      return
+    }
+
     // 処理中の場合は何もしない
     if (isProcessingInvitation.current) {
       return
     }
 
     isProcessingInvitation.current = true
+    lastInvitationValue.current = rawInput
 
     try {
-      const rawInput = e.target.value
-
       // 英数字のみを抽出（ハイフンは除外）
       const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
 
@@ -161,10 +170,10 @@ export default function InitialLinkPage() {
       // 値を設定
       setInvitationCode(formatted)
     } finally {
-      // 次のイベントループで処理中フラグをリセット
+      // 少し遅延させてフラグをリセット（100ms）
       setTimeout(() => {
         isProcessingInvitation.current = false
-      }, 0)
+      }, 100)
     }
   }, [])
 
