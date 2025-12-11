@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +30,10 @@ export default function InitialLinkPage() {
   const [success, setSuccess] = useState(false)
   const [patientName, setPatientName] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
+
+  // 処理中フラグ（複数回の呼び出しを防ぐ）
+  const isProcessingInvitation = useRef(false)
+  const isProcessingBirthDate = useRef(false)
 
   // LIFF SDKをロード
   useEffect(() => {
@@ -132,49 +136,73 @@ export default function InitialLinkPage() {
   }, [])
 
   // 招待コードの入力ハンドラー
-  const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawInput = e.target.value
-
-    // 英数字のみを抽出（ハイフンは除外）
-    const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-
-    // 8文字まで制限
-    const limited = onlyAlphaNum.slice(0, 8)
-
-    // フォーマット: 4文字後にハイフン
-    const formatted = limited.length > 4
-      ? `${limited.slice(0, 4)}-${limited.slice(4)}`
-      : limited
-
-    // 現在の値と異なる場合のみ更新
-    if (formatted !== invitationCode) {
-      setInvitationCode(formatted)
+  const handleInvitationCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // 処理中の場合は何もしない
+    if (isProcessingInvitation.current) {
+      return
     }
-  }
+
+    isProcessingInvitation.current = true
+
+    try {
+      const rawInput = e.target.value
+
+      // 英数字のみを抽出（ハイフンは除外）
+      const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+
+      // 8文字まで制限
+      const limited = onlyAlphaNum.slice(0, 8)
+
+      // フォーマット: 4文字後にハイフン
+      const formatted = limited.length > 4
+        ? `${limited.slice(0, 4)}-${limited.slice(4)}`
+        : limited
+
+      // 値を設定
+      setInvitationCode(formatted)
+    } finally {
+      // 次のイベントループで処理中フラグをリセット
+      setTimeout(() => {
+        isProcessingInvitation.current = false
+      }, 0)
+    }
+  }, [])
 
   // 生年月日の入力ハンドラー
-  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawInput = e.target.value
-
-    // 数字のみを抽出（スラッシュは除外）
-    const onlyDigits = rawInput.replace(/[^0-9]/g, '')
-
-    // 8文字まで制限
-    const limited = onlyDigits.slice(0, 8)
-
-    // フォーマット: YYYY/MM/DD
-    let formatted = limited
-    if (limited.length > 6) {
-      formatted = `${limited.slice(0, 4)}/${limited.slice(4, 6)}/${limited.slice(6)}`
-    } else if (limited.length > 4) {
-      formatted = `${limited.slice(0, 4)}/${limited.slice(4)}`
+  const handleBirthDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // 処理中の場合は何もしない
+    if (isProcessingBirthDate.current) {
+      return
     }
 
-    // 現在の値と異なる場合のみ更新
-    if (formatted !== birthDate) {
+    isProcessingBirthDate.current = true
+
+    try {
+      const rawInput = e.target.value
+
+      // 数字のみを抽出（スラッシュは除外）
+      const onlyDigits = rawInput.replace(/[^0-9]/g, '')
+
+      // 8文字まで制限
+      const limited = onlyDigits.slice(0, 8)
+
+      // フォーマット: YYYY/MM/DD
+      let formatted = limited
+      if (limited.length > 6) {
+        formatted = `${limited.slice(0, 4)}/${limited.slice(4, 6)}/${limited.slice(6)}`
+      } else if (limited.length > 4) {
+        formatted = `${limited.slice(0, 4)}/${limited.slice(4)}`
+      }
+
+      // 値を設定
       setBirthDate(formatted)
+    } finally {
+      // 次のイベントループで処理中フラグをリセット
+      setTimeout(() => {
+        isProcessingBirthDate.current = false
+      }, 0)
     }
-  }
+  }, [])
 
   // 連携処理
   const handleLink = async () => {
