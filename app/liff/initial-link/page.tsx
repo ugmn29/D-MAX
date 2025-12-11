@@ -37,6 +37,8 @@ export default function InitialLinkPage() {
   // デバッグ用：イベント回数をカウント
   const eventCountRef = useRef(0)
 
+  // 入力処理中フラグ（compositionイベント用）
+  const isComposingRef = useRef(false)
 
   // LIFF SDKをロード
   useEffect(() => {
@@ -138,12 +140,16 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー
-  const handleInvitationCodeInput = (e: React.FormEvent<HTMLInputElement>) => {
+  // 招待コードの入力ハンドラー（制御されたコンポーネント方式）
+  const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // compositionイベント中は処理をスキップ
+    if (isComposingRef.current) {
+      return
+    }
+
     eventCountRef.current += 1
     const timestamp = new Date().toLocaleTimeString()
-    const input = e.currentTarget
-    const rawInput = input.value
+    const rawInput = e.target.value
 
     // デバッグ情報を画面に表示
     const debugLog = [
@@ -167,23 +173,22 @@ export default function InitialLinkPage() {
     debugLog.push(`結果: "${formatted}"`)
 
     // デバッグ情報を保存
-    debugLog.push(`DOM更新: "${input.value}" → "${formatted}"`)
+    debugLog.push(`state更新: "${invitationCode}" → "${formatted}"`)
     setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
 
-    // 同じ値なら何もしない
-    if (input.value === formatted) {
-      return
-    }
-
-    // 状態も更新（バリデーション用）
+    // 状態を更新（Reactが自動的にDOMを更新）
     setInvitationCode(formatted)
+  }
 
-    // 即座に値を設定（遅延なし）
-    input.value = formatted
+  // compositionイベントハンドラー
+  const handleCompositionStart = () => {
+    isComposingRef.current = true
+  }
 
-    // カーソルを末尾に（即座に）
-    const length = formatted.length
-    input.setSelectionRange(length, length)
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+    isComposingRef.current = false
+    // composition終了後に入力処理を実行
+    handleInvitationCodeChange(e as any)
   }
 
   // 生年月日の入力ハンドラー
@@ -370,8 +375,10 @@ export default function InitialLinkPage() {
                 type="text"
                 inputMode="text"
                 placeholder="AB12-CD34"
-                defaultValue=""
-                onInput={handleInvitationCodeInput}
+                value={invitationCode}
+                onChange={handleInvitationCodeChange}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
                 disabled={loading}
