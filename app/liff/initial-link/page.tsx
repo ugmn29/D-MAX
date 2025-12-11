@@ -140,7 +140,7 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー（即座処理方式）
+  // 招待コードの入力ハンドラー（完全クリーンアップ方式）
   const handleInvitationCodeChange = (e: React.FormEvent<HTMLInputElement>) => {
     const input = e.currentTarget
     const rawInput = input.value
@@ -177,18 +177,20 @@ export default function InitialLinkPage() {
     // 前回の処理値を保存
     lastProcessedValueRef.current = formatted
 
-    // 現在のカーソル位置を記憶
-    const currentPos = input.selectionStart || 0
-
-    // DOMを直接更新
-    input.value = formatted
-
     // バリデーション用にstateも更新
     setInvitationCode(formatted)
 
-    // カーソル位置を復元（末尾に配置）
-    const newPos = formatted.length
-    input.setSelectionRange(newPos, newPos)
+    // ブラウザの入力バッファをクリアするため、一度空にしてから設定
+    input.value = ''
+    // 次のイベントループで設定（バッファクリア後）
+    setTimeout(() => {
+      input.value = formatted
+      // カーソル位置を末尾に配置
+      const newPos = formatted.length
+      input.setSelectionRange(newPos, newPos)
+      // フォーカスを確保
+      input.focus()
+    }, 0)
   }
 
   // 生年月日の入力ハンドラー
