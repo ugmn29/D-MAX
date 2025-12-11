@@ -32,11 +32,7 @@ export default function InitialLinkPage() {
   const [debugInfo, setDebugInfo] = useState<string[]>([])
 
   // 処理中フラグ（複数回の呼び出しを防ぐ）
-  const isProcessingInvitation = useRef(false)
   const isProcessingBirthDate = useRef(false)
-
-  // 最後に処理した値を保持（重複処理を防ぐ）
-  const lastInvitationValue = useRef('')
 
   // LIFF SDKをロード
   useEffect(() => {
@@ -142,40 +138,25 @@ export default function InitialLinkPage() {
   const handleInvitationCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const rawInput = e.target.value
 
-    // 同じ値なら何もしない
-    if (rawInput === lastInvitationValue.current) {
+    // 英数字のみを抽出（ハイフンは除外）
+    const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+
+    // 8文字まで制限
+    const limited = onlyAlphaNum.slice(0, 8)
+
+    // フォーマット: 4文字後にハイフン
+    const formatted = limited.length > 4
+      ? `${limited.slice(0, 4)}-${limited.slice(4)}`
+      : limited
+
+    // フォーマット後の値が現在の値と同じなら何もしない
+    if (formatted === invitationCode) {
       return
     }
 
-    // 処理中の場合は何もしない
-    if (isProcessingInvitation.current) {
-      return
-    }
-
-    isProcessingInvitation.current = true
-    lastInvitationValue.current = rawInput
-
-    try {
-      // 英数字のみを抽出（ハイフンは除外）
-      const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-
-      // 8文字まで制限
-      const limited = onlyAlphaNum.slice(0, 8)
-
-      // フォーマット: 4文字後にハイフン
-      const formatted = limited.length > 4
-        ? `${limited.slice(0, 4)}-${limited.slice(4)}`
-        : limited
-
-      // 値を設定
-      setInvitationCode(formatted)
-    } finally {
-      // 少し遅延させてフラグをリセット（100ms）
-      setTimeout(() => {
-        isProcessingInvitation.current = false
-      }, 100)
-    }
-  }, [])
+    // 値を設定
+    setInvitationCode(formatted)
+  }, [invitationCode])
 
   // 生年月日の入力ハンドラー
   const handleBirthDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
