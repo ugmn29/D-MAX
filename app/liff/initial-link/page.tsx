@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +30,9 @@ export default function InitialLinkPage() {
   const [success, setSuccess] = useState(false)
   const [patientName, setPatientName] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
+
+  // 入力フィールドのref
+  const invitationInputRef = useRef<HTMLInputElement>(null)
 
 
   // LIFF SDKをロード
@@ -132,9 +135,10 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー
-  const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawInput = e.target.value
+  // 招待コードの入力ハンドラー（onInputイベントを使用）
+  const handleInvitationCodeInput = (e: React.FormEvent<HTMLInputElement>) => {
+    const input = e.currentTarget
+    const rawInput = input.value
 
     // 英数字のみを抽出（ハイフンは除外）
     const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
@@ -147,7 +151,16 @@ export default function InitialLinkPage() {
       ? `${limited.slice(0, 4)}-${limited.slice(4)}`
       : limited
 
-    // 値を設定（Reactが自動的に重複を処理）
+    // カーソル位置を保存
+    const cursorPos = input.selectionStart || 0
+
+    // 直接DOMを更新（Reactのstateを経由しない）
+    input.value = formatted
+
+    // カーソル位置を復元（末尾に移動）
+    input.setSelectionRange(formatted.length, formatted.length)
+
+    // 状態も更新（バリデーション用）
     setInvitationCode(formatted)
   }
 
@@ -330,12 +343,13 @@ export default function InitialLinkPage() {
             <div className="space-y-2">
               <Label htmlFor="invitation-code">招待コード</Label>
               <Input
+                ref={invitationInputRef}
                 id="invitation-code"
                 type="text"
                 inputMode="text"
                 placeholder="AB12-CD34"
-                value={invitationCode}
-                onChange={handleInvitationCodeChange}
+                defaultValue=""
+                onInput={handleInvitationCodeInput}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
                 disabled={loading}
