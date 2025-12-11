@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Database } from '@/types/database'
 import { generateInvitationCode, calculateExpiration } from '@/lib/line/invitation-code'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { supabaseAdmin } from '@/lib/supabase'
 
 /**
  * POST /api/line/invitation-codes
@@ -9,7 +9,16 @@ import { getSupabaseClient } from '@/lib/utils/supabase-client'
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    // Service Role Keyを使用してRLSをバイパス（管理操作のため）
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      console.error('Supabase Admin clientが初期化されていません')
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
 
     // リクエストボディを取得
     const body = await request.json()
@@ -146,7 +155,15 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    // Service Role Keyを使用してRLSをバイパス
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
     const searchParams = request.nextUrl.searchParams
     const patient_id = searchParams.get('patient_id')
 
@@ -189,7 +206,15 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    // Service Role Keyを使用してRLSをバイパス
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
     const searchParams = request.nextUrl.searchParams
     const id = searchParams.get('id')
 
