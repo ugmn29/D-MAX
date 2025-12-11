@@ -133,43 +133,46 @@ export default function InitialLinkPage() {
 
   // 招待コードの入力ハンドラー
   const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    // 英数字とハイフンのみを許可
-    const cleaned = value.replace(/[^A-Z0-9-]/gi, '').toUpperCase()
+    const rawInput = e.target.value
 
-    // ハイフンを除いた文字列
-    const withoutHyphen = cleaned.replace(/-/g, '')
+    // 英数字のみを抽出（ハイフンは除外）
+    const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
 
-    // 最大8文字まで
-    if (withoutHyphen.length <= 8) {
-      // 4文字目の後に自動でハイフンを挿入
-      if (withoutHyphen.length > 4) {
-        setInvitationCode(`${withoutHyphen.slice(0, 4)}-${withoutHyphen.slice(4)}`)
-      } else {
-        setInvitationCode(withoutHyphen)
-      }
+    // 8文字まで制限
+    const limited = onlyAlphaNum.slice(0, 8)
+
+    // フォーマット: 4文字後にハイフン
+    const formatted = limited.length > 4
+      ? `${limited.slice(0, 4)}-${limited.slice(4)}`
+      : limited
+
+    // 現在の値と異なる場合のみ更新
+    if (formatted !== invitationCode) {
+      setInvitationCode(formatted)
     }
   }
 
   // 生年月日の入力ハンドラー
   const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    // 数字とスラッシュのみを許可
-    const cleaned = value.replace(/[^0-9/]/g, '')
+    const rawInput = e.target.value
 
-    // スラッシュを除いた文字列
-    const withoutSlash = cleaned.replace(/\//g, '')
+    // 数字のみを抽出（スラッシュは除外）
+    const onlyDigits = rawInput.replace(/[^0-9]/g, '')
 
-    // 最大8文字まで（YYYYMMDD）
-    if (withoutSlash.length <= 8) {
-      // YYYY/MM/DD形式に自動フォーマット
-      if (withoutSlash.length > 6) {
-        setBirthDate(`${withoutSlash.slice(0, 4)}/${withoutSlash.slice(4, 6)}/${withoutSlash.slice(6)}`)
-      } else if (withoutSlash.length > 4) {
-        setBirthDate(`${withoutSlash.slice(0, 4)}/${withoutSlash.slice(4)}`)
-      } else {
-        setBirthDate(withoutSlash)
-      }
+    // 8文字まで制限
+    const limited = onlyDigits.slice(0, 8)
+
+    // フォーマット: YYYY/MM/DD
+    let formatted = limited
+    if (limited.length > 6) {
+      formatted = `${limited.slice(0, 4)}/${limited.slice(4, 6)}/${limited.slice(6)}`
+    } else if (limited.length > 4) {
+      formatted = `${limited.slice(0, 4)}/${limited.slice(4)}`
+    }
+
+    // 現在の値と異なる場合のみ更新
+    if (formatted !== birthDate) {
+      setBirthDate(formatted)
     }
   }
 
@@ -332,12 +335,14 @@ export default function InitialLinkPage() {
               <Input
                 id="invitation-code"
                 type="text"
+                inputMode="text"
                 placeholder="AB12-CD34"
                 value={invitationCode}
                 onChange={handleInvitationCodeChange}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
                 disabled={loading}
+                autoComplete="off"
               />
               <p className="text-xs text-gray-500">
                 8桁の英数字（ハイフンは自動で挿入されます）
@@ -353,12 +358,14 @@ export default function InitialLinkPage() {
               <Input
                 id="birth-date"
                 type="text"
+                inputMode="numeric"
                 placeholder="1990/01/01"
                 value={birthDate}
                 onChange={handleBirthDateChange}
                 maxLength={10}
                 className="text-lg text-center"
                 disabled={loading}
+                autoComplete="off"
               />
               <p className="text-xs text-gray-500">
                 本人確認のため、生年月日を入力してください
