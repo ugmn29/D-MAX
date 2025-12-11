@@ -40,7 +40,16 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    const connectionString = `postgresql://postgres.obdfmwpdkwraqqqyjgwu:${dbPassword}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres`
+    // SUPABASE_URLからプロジェクトIDを抽出
+    const projectId = SUPABASE_URL.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
+    if (!projectId) {
+      return NextResponse.json({
+        success: false,
+        error: 'Could not extract project ID from SUPABASE_URL'
+      }, { status: 500 })
+    }
+
+    const connectionString = `postgresql://postgres.${projectId}:${dbPassword}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres`
 
     const client = new Client({
       connectionString,
