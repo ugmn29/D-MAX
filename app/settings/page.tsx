@@ -3259,6 +3259,13 @@ export default function SettingsPage() {
         return; // handleSaveWebSettingsで完了メッセージを表示するため、ここでreturn
       } else if (selectedCategory === "notification") {
         console.log("=== 通知設定を保存中 ===");
+        console.log("📊 notificationSettings の値:", notificationSettings);
+        console.log("📊 LINE設定:", {
+          enabled: notificationSettings.line.enabled,
+          hasToken: !!notificationSettings.line.channel_access_token,
+          hasSecret: !!notificationSettings.line.channel_secret,
+          channelId: notificationSettings.line.channel_id
+        });
         // 通知設定はnotificationSettings変数から保存
         const response = await fetch("/api/notification-settings", {
           method: "POST",
