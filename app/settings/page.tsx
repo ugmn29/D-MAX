@@ -1386,9 +1386,13 @@ export default function SettingsPage() {
         await unlinkPatientFromQuestionnaire(patientId);
         console.log('✅ 連携解除成功')
 
-        // カレンダーに患者データの更新を通知
+        // カレンダーに患者データの更新を通知（イベント + localStorage）
         window.dispatchEvent(new CustomEvent('patientDataUpdated', {
           detail: { patientId }
+        }))
+        localStorage.setItem('patient_data_updated', JSON.stringify({
+          patientId,
+          timestamp: Date.now()
         }))
         console.log('📢 patientDataUpdatedイベントを発行しました')
 

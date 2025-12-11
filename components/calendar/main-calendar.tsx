@@ -1304,9 +1304,27 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
   }, [clinicId, selectedDate])
 
+  // ページが再び表示された時にデータを再取得（連携解除後にカレンダーに戻った時など）
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('カレンダー: ページが表示されました - 最新データを取得します')
+        const dateString = formatDateForDB(selectedDate)
+        const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+        setAppointments(updatedAppointments)
+        console.log('カレンダー: 最新データの取得完了')
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [clinicId, selectedDate])
+
   // 個別休診日設定の変更を監視
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
+    const handleStorageChange = async (e: StorageEvent) => {
       if (e.key === 'clinic_settings_updated' && e.newValue) {
         try {
           const updateData = JSON.parse(e.newValue)
@@ -1323,6 +1341,18 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         console.log('メインカレンダー: 個別休診日設定変更を検知')
         // 個別休診日設定が変更された場合はデータを再読み込み
         loadWorkingStaff(selectedDate)
+      } else if (e.key === 'patient_data_updated' && e.newValue) {
+        try {
+          const updateData = JSON.parse(e.newValue)
+          console.log('メインカレンダー: 患者データ更新を検知 (localStorage):', updateData)
+          // 予約データを再読み込みして、最新の患者情報を反映
+          const dateString = formatDateForDB(selectedDate)
+          const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+          setAppointments(updatedAppointments)
+          console.log('メインカレンダー: 患者データ更新により予約を再読み込みしました')
+        } catch (error) {
+          console.error('メインカレンダー: 患者データ更新の解析エラー:', error)
+        }
       }
     }
 
