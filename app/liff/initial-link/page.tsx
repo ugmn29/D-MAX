@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,8 +31,6 @@ export default function InitialLinkPage() {
   const [patientName, setPatientName] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
 
-  // 処理中フラグ（複数回の呼び出しを防ぐ）
-  const isProcessingBirthDate = useRef(false)
 
   // LIFF SDKをロード
   useEffect(() => {
@@ -135,7 +133,7 @@ export default function InitialLinkPage() {
   }, [])
 
   // 招待コードの入力ハンドラー
-  const handleInvitationCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawInput = e.target.value
 
     // 英数字のみを抽出（ハイフンは除外）
@@ -149,50 +147,31 @@ export default function InitialLinkPage() {
       ? `${limited.slice(0, 4)}-${limited.slice(4)}`
       : limited
 
-    // フォーマット後の値が現在の値と同じなら何もしない
-    if (formatted === invitationCode) {
-      return
-    }
-
-    // 値を設定
+    // 値を設定（Reactが自動的に重複を処理）
     setInvitationCode(formatted)
-  }, [invitationCode])
+  }
 
   // 生年月日の入力ハンドラー
-  const handleBirthDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    // 処理中の場合は何もしない
-    if (isProcessingBirthDate.current) {
-      return
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawInput = e.target.value
+
+    // 数字のみを抽出（スラッシュは除外）
+    const onlyDigits = rawInput.replace(/[^0-9]/g, '')
+
+    // 8文字まで制限
+    const limited = onlyDigits.slice(0, 8)
+
+    // フォーマット: YYYY/MM/DD
+    let formatted = limited
+    if (limited.length > 6) {
+      formatted = `${limited.slice(0, 4)}/${limited.slice(4, 6)}/${limited.slice(6)}`
+    } else if (limited.length > 4) {
+      formatted = `${limited.slice(0, 4)}/${limited.slice(4)}`
     }
 
-    isProcessingBirthDate.current = true
-
-    try {
-      const rawInput = e.target.value
-
-      // 数字のみを抽出（スラッシュは除外）
-      const onlyDigits = rawInput.replace(/[^0-9]/g, '')
-
-      // 8文字まで制限
-      const limited = onlyDigits.slice(0, 8)
-
-      // フォーマット: YYYY/MM/DD
-      let formatted = limited
-      if (limited.length > 6) {
-        formatted = `${limited.slice(0, 4)}/${limited.slice(4, 6)}/${limited.slice(6)}`
-      } else if (limited.length > 4) {
-        formatted = `${limited.slice(0, 4)}/${limited.slice(4)}`
-      }
-
-      // 値を設定
-      setBirthDate(formatted)
-    } finally {
-      // 次のイベントループで処理中フラグをリセット
-      setTimeout(() => {
-        isProcessingBirthDate.current = false
-      }, 0)
-    }
-  }, [])
+    // 値を設定（Reactが自動的に重複を処理）
+    setBirthDate(formatted)
+  }
 
   // 連携処理
   const handleLink = async () => {
