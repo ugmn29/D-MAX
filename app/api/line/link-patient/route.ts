@@ -223,7 +223,13 @@ export async function POST(request: NextRequest) {
 
     // リッチメニューを連携済み用に切り替え
     try {
-      await fetch(`${request.nextUrl.origin}/api/line/switch-rich-menu`, {
+      console.log('🔄 リッチメニュー切り替え開始:', {
+        clinic_id: patient.clinic_id,
+        line_user_id,
+        is_linked: true
+      })
+
+      const richMenuResponse = await fetch(`${request.nextUrl.origin}/api/line/switch-rich-menu`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -232,8 +238,19 @@ export async function POST(request: NextRequest) {
           is_linked: true
         })
       })
+
+      const richMenuResult = await richMenuResponse.json()
+
+      if (richMenuResponse.ok) {
+        console.log('✅ リッチメニュー切り替え成功:', richMenuResult)
+      } else {
+        console.error('❌ リッチメニュー切り替え失敗:', {
+          status: richMenuResponse.status,
+          error: richMenuResult
+        })
+      }
     } catch (richMenuError) {
-      console.error('リッチメニュー切り替えエラー:', richMenuError)
+      console.error('❌ リッチメニュー切り替え例外:', richMenuError)
       // リッチメニューエラーは無視（後で手動切り替え可能）
     }
 

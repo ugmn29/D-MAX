@@ -13,25 +13,43 @@ const LINE_MESSAGING_API_BASE = 'https://api.line.me/v2/bot'
 export async function getLineSettings(clinicId: string) {
   const supabase = getSupabaseClient()
 
-  const { data: settings, error } = await supabase
+  // LINE基本設定を取得
+  const { data: lineSettings, error: lineError } = await supabase
     .from('clinic_settings')
-    .select('line_channel_access_token, line_channel_secret, line_registered_rich_menu_id, line_unregistered_rich_menu_id')
+    .select('setting_value')
     .eq('clinic_id', clinicId)
-    .single()
+    .eq('setting_key', 'line')
+    .maybeSingle()
 
-  if (error || !settings) {
+  if (lineError) {
+    throw new Error(`LINE設定取得エラー: ${lineError.message}`)
+  }
+
+  if (!lineSettings || !lineSettings.setting_value) {
     throw new Error('LINE設定が見つかりません')
   }
 
-  if (!settings.line_channel_access_token) {
+  const line = lineSettings.setting_value
+
+  if (!line.channel_access_token) {
     throw new Error('LINE Channel Access Tokenが設定されていません')
   }
 
+  // リッチメニュー設定を取得
+  const { data: richMenuSettings } = await supabase
+    .from('clinic_settings')
+    .select('setting_value')
+    .eq('clinic_id', clinicId)
+    .eq('setting_key', 'line_rich_menu')
+    .maybeSingle()
+
+  const richMenu = richMenuSettings?.setting_value || {}
+
   return {
-    channelAccessToken: settings.line_channel_access_token,
-    channelSecret: settings.line_channel_secret,
-    registeredRichMenuId: settings.line_registered_rich_menu_id,
-    unregisteredRichMenuId: settings.line_unregistered_rich_menu_id
+    channelAccessToken: line.channel_access_token,
+    channelSecret: line.channel_secret,
+    registeredRichMenuId: richMenu.line_registered_rich_menu_id,
+    unregisteredRichMenuId: richMenu.line_unregistered_rich_menu_id
   }
 }
 
