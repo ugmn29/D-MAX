@@ -65,25 +65,43 @@ export async function POST(request: NextRequest) {
     }
 
     // 招待コードを検索
+    const currentTime = new Date().toISOString()
+    console.log('🔍 招待コード検索開始:', {
+      code: normalizedCode,
+      status: 'pending',
+      currentTime
+    })
+
     const { data: invitationData, error: invitationError } = await supabase
       .from('line_invitation_codes')
       .select('*, patients(*)')
       .eq('invitation_code', normalizedCode)
       .eq('status', 'pending')
-      .gt('expires_at', new Date().toISOString())
+      .gt('expires_at', currentTime)
       .single()
 
     console.log('🔍 招待コード検索結果:', {
       found: !!invitationData,
       error: invitationError,
+      errorCode: invitationError?.code,
+      errorMessage: invitationError?.message,
       code: normalizedCode
     })
 
     if (invitationError || !invitationData) {
+      // 全ての招待コードを確認（デバッグ用）
+      const { data: allCodes, error: allCodesError } = await supabase
+        .from('line_invitation_codes')
+        .select('invitation_code, status, expires_at')
+        .limit(10)
+
       console.error('❌ 招待コード検索失敗:', {
         code: normalizedCode,
-        error: invitationError
+        error: invitationError,
+        allCodesInDb: allCodes,
+        allCodesError
       })
+
       return NextResponse.json(
         { error: '招待コードが見つからないか、有効期限が切れています' },
         { status: 404 }
