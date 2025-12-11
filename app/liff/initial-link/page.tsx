@@ -37,11 +37,8 @@ export default function InitialLinkPage() {
   // デバッグ用：イベント回数をカウント
   const eventCountRef = useRef(0)
 
-  // 前回の処理値を保存（重複防止用）
-  const lastProcessedValueRef = useRef('')
-
-  // 入力フィールドの再マウント用キー
-  const [inputKey, setInputKey] = useState(0)
+  // 生の招待コード入力値（フォーマットなし）
+  const [rawInvitationCode, setRawInvitationCode] = useState('')
 
   // LIFF SDKをロード
   useEffect(() => {
@@ -143,48 +140,24 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー（フィールド再マウント方式）
-  const handleInvitationCodeChange = (e: React.FormEvent<HTMLInputElement>) => {
-    const input = e.currentTarget
-    const rawInput = input.value
+  // 招待コードの入力ハンドラー（フォーマットなし・シンプル方式）
+  const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawInput = e.target.value
 
-    // 英数字のみを抽出（ハイフンは除外）
-    const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-
-    // 8文字まで制限
-    const limited = onlyAlphaNum.slice(0, 8)
-
-    // フォーマット: 4文字後にハイフン
-    const formatted = limited.length > 4
-      ? `${limited.slice(0, 4)}-${limited.slice(4)}`
-      : limited
-
-    // 前回と同じ値なら処理をスキップ（重複防止）
-    if (formatted === lastProcessedValueRef.current) {
-      return
-    }
+    // 英数字とハイフンのみ許可、大文字に変換、8文字+ハイフン1つまで
+    const cleaned = rawInput.replace(/[^A-Z0-9-]/gi, '').toUpperCase().slice(0, 9)
 
     // デバッグログ
     eventCountRef.current += 1
     const timestamp = new Date().toLocaleTimeString()
     const debugLog = [
       `[${eventCountRef.current}] ${timestamp}`,
-      `イベント: ${e.type}`,
-      `生入力値: "${rawInput}"`,
-      `抽出: "${onlyAlphaNum}"`,
-      `結果: "${formatted}"`,
-      `前回: "${lastProcessedValueRef.current}"`,
+      `入力値: "${rawInput}" → "${cleaned}"`,
     ]
     setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
 
-    // 前回の処理値を保存
-    lastProcessedValueRef.current = formatted
-
-    // バリデーション用にstateも更新
-    setInvitationCode(formatted)
-
-    // 入力フィールドを完全に再マウント（バッファ完全クリア）
-    setInputKey(prev => prev + 1)
+    // そのまま保存（フォーマットしない）
+    setRawInvitationCode(cleaned)
   }
 
   // 生年月日の入力ハンドラー
@@ -216,8 +189,10 @@ export default function InitialLinkPage() {
       return
     }
 
-    if (!invitationCode || invitationCode.length < 9) {
-      setError('招待コードを正しく入力してください（例: AB12-CD34）')
+    // 招待コードのフォーマット（ハイフンを除去して8文字チェック）
+    const codeOnly = rawInvitationCode.replace(/-/g, '')
+    if (!codeOnly || codeOnly.length !== 8) {
+      setError('招待コードを8桁で入力してください（例: AB12CD34 または AB12-CD34）')
       return
     }
 
@@ -233,12 +208,15 @@ export default function InitialLinkPage() {
       // 生年月日をYYYY-MM-DD形式に変換
       const formattedBirthDate = birthDate.replace(/\//g, '-')
 
+      // 招待コードを正規化（ハイフンを除去）
+      const normalizedCode = rawInvitationCode.replace(/-/g, '')
+
       const response = await fetch('/api/line/link-patient', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           line_user_id: lineUserId,
-          invitation_code: invitationCode,
+          invitation_code: normalizedCode,
           birth_date: formattedBirthDate
         })
       })
@@ -366,21 +344,20 @@ export default function InitialLinkPage() {
             <div className="space-y-2">
               <Label htmlFor="invitation-code">招待コード</Label>
               <Input
-                key={inputKey}
                 ref={invitationInputRef}
                 id="invitation-code"
                 type="text"
                 inputMode="text"
-                placeholder="AB12-CD34"
-                defaultValue={invitationCode}
-                onInput={handleInvitationCodeChange as any}
+                placeholder="AB12-CD34 または AB12CD34"
+                value={rawInvitationCode}
+                onChange={handleInvitationCodeChange}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
                 disabled={loading}
                 autoComplete="off"
               />
               <p className="text-xs text-gray-500">
-                8桁の英数字（ハイフンは自動で挿入されます）
+                8桁の英数字を入力してください（ハイフンあり・なし両方OK）
               </p>
 
               {/* デバッグ情報表示 */}
@@ -422,7 +399,7 @@ export default function InitialLinkPage() {
             {/* 連携ボタン */}
             <Button
               onClick={handleLink}
-              disabled={loading || !invitationCode || !birthDate}
+              disabled={loading || !rawInvitationCode || !birthDate}
               className="w-full bg-green-600 hover:bg-green-700"
               size="lg"
             >
