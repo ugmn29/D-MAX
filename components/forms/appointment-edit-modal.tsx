@@ -524,7 +524,7 @@ export function AppointmentEditModal({
         if (MOCK_MODE) {
           // 本登録時にIDを割り振る（既に患者番号がある場合はそれを使う）
           const { generatePatientNumber } = await import('@/lib/api/patients')
-          const patientNumber = selectedPatient.patient_number || await generatePatientNumber(clinicId)
+          const patientNumber = linkedPatient?.patient_number || selectedPatient.patient_number || await generatePatientNumber(clinicId)
 
           // モックモードではlocalStorageに保存
           const { updateMockPatient, getMockPatients } = await import('@/lib/utils/mock-mode')
@@ -540,15 +540,15 @@ export function AppointmentEditModal({
             first_name: firstName,
             last_name_kana: lastNameKana,
             first_name_kana: firstNameKana,
-            gender: genderValue || null,
+            gender: linkedPatient?.gender || genderValue || null,
             birth_date: birthDate || null,
             phone: phone || null,
             email: email || null,
             is_registered: true
           }
 
-          // patient_numberが未設定の場合のみ追加
-          if (!selectedPatient.patient_number) {
+          // patient_numberが未設定の場合のみ追加（問診票連携で既に設定済みかチェック）
+          if (!linkedPatient?.patient_number && !selectedPatient.patient_number) {
             updateData.patient_number = patientNumber
           }
 
@@ -569,7 +569,7 @@ export function AppointmentEditModal({
         } else {
           // 本登録時にIDを割り振る（既に患者番号がある場合はそれを使う）
           const { generatePatientNumber } = await import('@/lib/api/patients')
-          const patientNumber = selectedPatient.patient_number || await generatePatientNumber(clinicId)
+          const patientNumber = linkedPatient?.patient_number || selectedPatient.patient_number || await generatePatientNumber(clinicId)
 
           // 本番モードではデータベースに保存
           const { updatePatient } = await import('@/lib/api/patients')
@@ -580,15 +580,15 @@ export function AppointmentEditModal({
             first_name: firstName,
             last_name_kana: lastNameKana,
             first_name_kana: firstNameKana,
-            gender: genderValue || null,
+            gender: linkedPatient?.gender || genderValue || null,
             birth_date: birthDate || null,
             phone: phone || null,
             email: email || null,
             is_registered: true
           }
 
-          // patient_numberが未設定の場合のみ追加
-          if (!selectedPatient.patient_number) {
+          // patient_numberが未設定の場合のみ追加（問診票連携で既に設定済みかチェック）
+          if (!linkedPatient?.patient_number && !selectedPatient.patient_number) {
             updateData.patient_number = patientNumber
           }
 
