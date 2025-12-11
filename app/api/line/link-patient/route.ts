@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const { data: invitationData, error: invitationError } = await supabase
       .from('line_invitation_codes')
-      .select('*, patients(*)')
+      .select('*')
       .eq('invitation_code', normalizedCode)
       .eq('status', 'pending')
       .gt('expires_at', currentTime)
@@ -85,21 +85,14 @@ export async function POST(request: NextRequest) {
       error: invitationError,
       errorCode: invitationError?.code,
       errorMessage: invitationError?.message,
-      code: normalizedCode
+      code: normalizedCode,
+      data: invitationData
     })
 
     if (invitationError || !invitationData) {
-      // 全ての招待コードを確認（デバッグ用）
-      const { data: allCodes, error: allCodesError } = await supabase
-        .from('line_invitation_codes')
-        .select('invitation_code, status, expires_at')
-        .limit(10)
-
       console.error('❌ 招待コード検索失敗:', {
         code: normalizedCode,
-        error: invitationError,
-        allCodesInDb: allCodes,
-        allCodesError
+        error: invitationError
       })
 
       return NextResponse.json(
@@ -108,8 +101,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 患者の生年月日と照合
-    const patient = invitationData.patients as any
+    // 患者情報を取得
+    const { data: patient, error: patientError } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('id', invitationData.patient_id)
+      .single()
+
+    if (patientError || !patient) {
+      console.error('❌ 患者情報取得失敗:', {
+        patient_id: invitationData.patient_id,
+        error: patientError
+      })
+      return NextResponse.json(
+        { error: '患者情報が見つかりません' },
+        { status: 404 }
+      )
+    }
     console.log('🔍 生年月日チェック:', {
       patient_birth_date: patient.birth_date,
       input_birth_date: birth_date,
