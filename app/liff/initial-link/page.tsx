@@ -37,8 +37,8 @@ export default function InitialLinkPage() {
   // デバッグ用：イベント回数をカウント
   const eventCountRef = useRef(0)
 
-  // 入力処理中フラグ（compositionイベント用）
-  const isComposingRef = useRef(false)
+  // 前回の処理値を保存（重複防止用）
+  const lastProcessedValueRef = useRef('')
 
   // LIFF SDKをロード
   useEffect(() => {
@@ -140,31 +140,12 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー（制御されたコンポーネント方式）
+  // 招待コードの入力ハンドラー（重複チェック方式）
   const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    eventCountRef.current += 1
-    const timestamp = new Date().toLocaleTimeString()
     const rawInput = e.target.value
-
-    // デバッグ情報を画面に表示
-    const debugLog = [
-      `[${eventCountRef.current}] ${timestamp}`,
-      `イベント: ${e.type}`,
-      `isComposing: ${isComposingRef.current}`,
-      `入力値: "${rawInput}"`,
-      `現state: "${invitationCode}"`,
-    ]
-
-    // compositionイベント中は処理をスキップ（ログは出す）
-    if (isComposingRef.current) {
-      debugLog.push(`⏸️ composition中のためスキップ`)
-      setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
-      return
-    }
 
     // 英数字のみを抽出（ハイフンは除外）
     const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-    debugLog.push(`抽出: "${onlyAlphaNum}"`)
 
     // 8文字まで制限
     const limited = onlyAlphaNum.slice(0, 8)
@@ -173,29 +154,31 @@ export default function InitialLinkPage() {
     const formatted = limited.length > 4
       ? `${limited.slice(0, 4)}-${limited.slice(4)}`
       : limited
-    debugLog.push(`結果: "${formatted}"`)
 
-    // デバッグ情報を保存
-    debugLog.push(`state更新: "${invitationCode}" → "${formatted}"`)
+    // 前回と同じ値なら処理をスキップ（重複防止）
+    if (formatted === lastProcessedValueRef.current) {
+      return
+    }
+
+    // デバッグログ
+    eventCountRef.current += 1
+    const timestamp = new Date().toLocaleTimeString()
+    const debugLog = [
+      `[${eventCountRef.current}] ${timestamp}`,
+      `イベント: ${e.type}`,
+      `入力値: "${rawInput}"`,
+      `抽出: "${onlyAlphaNum}"`,
+      `結果: "${formatted}"`,
+      `前回: "${lastProcessedValueRef.current}"`,
+      `state更新: "${invitationCode}" → "${formatted}"`,
+    ]
     setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
+
+    // 前回の処理値を保存
+    lastProcessedValueRef.current = formatted
 
     // 状態を更新（Reactが自動的にDOMを更新）
     setInvitationCode(formatted)
-  }
-
-  // compositionイベントハンドラー
-  const handleCompositionStart = () => {
-    const timestamp = new Date().toLocaleTimeString()
-    isComposingRef.current = true
-    setDebugInfo(prev => [`🔵 compositionStart ${timestamp}`, '---', ...prev].slice(0, 100))
-  }
-
-  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
-    const timestamp = new Date().toLocaleTimeString()
-    isComposingRef.current = false
-    setDebugInfo(prev => [`🟢 compositionEnd ${timestamp}`, '---', ...prev].slice(0, 100))
-    // composition終了後に入力処理を実行
-    handleInvitationCodeChange(e as any)
   }
 
   // 生年月日の入力ハンドラー
@@ -384,8 +367,6 @@ export default function InitialLinkPage() {
                 placeholder="AB12-CD34"
                 value={invitationCode}
                 onChange={handleInvitationCodeChange}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
                 disabled={loading}
