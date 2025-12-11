@@ -84,11 +84,29 @@ export function ConnectionSettingsTab({ clinicId }: ConnectionSettingsTabProps) 
   const handleSave = async () => {
     try {
       setSaving(true)
-      await setClinicSetting(clinicId, 'notificationConnection', settings)
+
+      // APIエンドポイント経由で保存
+      const response = await fetch('/api/clinic/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clinic_id: clinicId,
+          setting_key: 'notificationConnection',
+          setting_value: settings
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '保存に失敗しました')
+      }
+
+      const result = await response.json()
+      console.log('保存成功:', result)
       alert('設定を保存しました')
     } catch (error) {
       console.error('保存エラー:', error)
-      alert('保存に失敗しました')
+      alert('保存に失敗しました: ' + (error instanceof Error ? error.message : ''))
     } finally {
       setSaving(false)
     }
