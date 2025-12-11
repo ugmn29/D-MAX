@@ -906,6 +906,23 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
 
   console.log('抽出した患者情報:', patientUpdate)
 
+  // 4.5. 診察券番号を自動生成（patient_numberがない場合のみ）
+  const { data: currentPatient } = await client
+    .from('patients')
+    .select('patient_number, clinic_id')
+    .eq('id', patientId)
+    .single()
+
+  if (currentPatient && !currentPatient.patient_number) {
+    // 診察券番号を生成
+    const { generatePatientNumber } = await import('@/lib/api/patients')
+    const patientNumber = await generatePatientNumber(currentPatient.clinic_id)
+    patientUpdate.patient_number = patientNumber
+    console.log('診察券番号を自動生成:', patientNumber)
+  } else {
+    console.log('診察券番号は既に設定済み:', currentPatient?.patient_number)
+  }
+
   // 5. 患者情報を更新
   console.log('患者情報を更新開始:', { patientId, updateData: patientUpdate })
   const { data: updatedPatient, error: patientError } = await client
