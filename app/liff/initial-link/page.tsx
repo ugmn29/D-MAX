@@ -40,9 +40,6 @@ export default function InitialLinkPage() {
   // 前回の処理値を保存（重複防止用）
   const lastProcessedValueRef = useRef('')
 
-  // debounceタイマー
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-
   // LIFF SDKをロード
   useEffect(() => {
     // LIFF SDKスクリプトを動的に追加
@@ -143,86 +140,55 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー（debounce方式）
-  const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawInput = e.target.value
+  // 招待コードの入力ハンドラー（即座処理方式）
+  const handleInvitationCodeChange = (e: React.FormEvent<HTMLInputElement>) => {
+    const input = e.currentTarget
+    const rawInput = input.value
 
-    // デバッグログ（即座に）
+    // 英数字のみを抽出（ハイフンは除外）
+    const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+
+    // 8文字まで制限
+    const limited = onlyAlphaNum.slice(0, 8)
+
+    // フォーマット: 4文字後にハイフン
+    const formatted = limited.length > 4
+      ? `${limited.slice(0, 4)}-${limited.slice(4)}`
+      : limited
+
+    // 前回と同じ値なら処理をスキップ（重複防止）
+    if (formatted === lastProcessedValueRef.current) {
+      return
+    }
+
+    // デバッグログ
     eventCountRef.current += 1
     const timestamp = new Date().toLocaleTimeString()
     const debugLog = [
       `[${eventCountRef.current}] ${timestamp}`,
       `イベント: ${e.type}`,
       `生入力値: "${rawInput}"`,
-      `debounce開始...`,
+      `抽出: "${onlyAlphaNum}"`,
+      `結果: "${formatted}"`,
+      `前回: "${lastProcessedValueRef.current}"`,
     ]
     setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
 
-    // 既存のタイマーをクリア
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-    }
+    // 前回の処理値を保存
+    lastProcessedValueRef.current = formatted
 
-    // 50ms後に処理を実行（ブラウザの入力処理が完了するのを待つ）
-    debounceTimerRef.current = setTimeout(() => {
-      // 最新の値をDOMから直接取得
-      const input = invitationInputRef.current
-      if (!input) return
+    // 現在のカーソル位置を記憶
+    const currentPos = input.selectionStart || 0
 
-      const latestValue = input.value
+    // DOMを直接更新
+    input.value = formatted
 
-      // 英数字のみを抽出（ハイフンは除外）
-      const onlyAlphaNum = latestValue.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+    // バリデーション用にstateも更新
+    setInvitationCode(formatted)
 
-      // 8文字まで制限
-      const limited = onlyAlphaNum.slice(0, 8)
-
-      // フォーマット: 4文字後にハイフン
-      const formatted = limited.length > 4
-        ? `${limited.slice(0, 4)}-${limited.slice(4)}`
-        : limited
-
-      // 前回と同じ値なら処理をスキップ（重複防止）
-      if (formatted === lastProcessedValueRef.current) {
-        const skipLog = [
-          `⏭️ スキップ: "${formatted}" (前回と同じ)`,
-        ]
-        setDebugInfo(prev => [...skipLog, '---', ...prev].slice(0, 100))
-        return
-      }
-
-      // デバッグログ（処理完了）
-      const processLog = [
-        `✅ 処理完了 ${new Date().toLocaleTimeString()}`,
-        `DOM最新値: "${latestValue}"`,
-        `抽出: "${onlyAlphaNum}"`,
-        `結果: "${formatted}"`,
-        `前回: "${lastProcessedValueRef.current}"`,
-      ]
-      setDebugInfo(prev => [...processLog, '---', ...prev].slice(0, 100))
-
-      // 前回の処理値を保存
-      lastProcessedValueRef.current = formatted
-
-      // DOMを直接更新
-      input.value = formatted
-
-      // バリデーション用にstateも更新
-      setInvitationCode(formatted)
-
-      // カーソルを末尾に配置（次のフレームで実行）
-      requestAnimationFrame(() => {
-        if (document.activeElement === input) {
-          const length = formatted.length
-          input.setSelectionRange(length, length)
-        } else {
-          // フォーカスが外れている場合は再フォーカス
-          input.focus()
-          const length = formatted.length
-          input.setSelectionRange(length, length)
-        }
-      })
-    }, 50)
+    // カーソル位置を復元（末尾に配置）
+    const newPos = formatted.length
+    input.setSelectionRange(newPos, newPos)
   }
 
   // 生年月日の入力ハンドラー
