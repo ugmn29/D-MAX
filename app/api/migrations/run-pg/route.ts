@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    const connectionString = `postgresql://postgres.${projectId}:${dbPassword}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres`
+    const connectionString = `postgresql://postgres:${dbPassword}@db.${projectId}.supabase.co:5432/postgres`
 
     const client = new Client({
       connectionString,
