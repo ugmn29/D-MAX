@@ -157,6 +157,41 @@ export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionPr
     setShowQRDialog(true)
   }
 
+  // 連携解除
+  const handleUnlinkAccount = async (linkageId: string) => {
+    if (!confirm('この連携を解除しますか？\n解除すると、LINEからの予約確認や通知が受け取れなくなります。')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/line/patient-linkages?linkage_id=${linkageId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+
+        // 連携情報を再読み込み
+        await loadLineLinkageData()
+
+        if (result.switched_rich_menu) {
+          alert('連携を解除し、LINEリッチメニューを未連携用に切り替えました。')
+        } else {
+          alert('連携を解除しました。')
+        }
+      } else {
+        const error = await response.json()
+        alert(error.error || '連携解除に失敗しました')
+      }
+    } catch (error) {
+      console.error('連携解除エラー:', error)
+      alert('連携解除に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const hasLinkage = linkages.length > 0
   const isCodeExpired = invitationCode && new Date(invitationCode.expires_at) < new Date()
 
@@ -295,19 +330,31 @@ export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionPr
                 <div className="flex items-center gap-3">
                   <MessageCircle className="w-4 h-4 text-green-600" />
                   <div>
-                    <div className="text-sm font-medium text-gray-900">
-                      LINE User
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium text-gray-900">
+                        LINE User
+                      </div>
+                      {linkage.is_primary && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          メイン
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500">
                       {new Date(linkage.linked_at).toLocaleDateString('ja-JP')}に連携
                     </div>
                   </div>
                 </div>
-                {linkage.is_primary && (
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                    メイン
-                  </Badge>
-                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleUnlinkAccount(linkage.id)}
+                  disabled={loading}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  解除
+                </Button>
               </div>
             ))}
           </div>
