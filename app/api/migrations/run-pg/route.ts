@@ -51,13 +51,18 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    const connectionString = `postgresql://postgres:${dbPassword}@db.${projectId}.supabase.co:5432/postgres`
+    // Vercelのサーバーレス環境ではTransaction poolerを使用
+    const connectionString = `postgresql://postgres.${projectId}:${dbPassword}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres`
 
     const client = new Client({
       connectionString,
       ssl: {
         rejectUnauthorized: false
-      }
+      },
+      // Vercelのサーバーレス環境用の設定
+      connectionTimeoutMillis: 10000,
+      query_timeout: 10000,
+      statement_timeout: 10000,
     })
 
     try {
