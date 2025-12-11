@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { supabaseAdmin } from '@/lib/supabase'
 
 const supabase = getSupabaseClient()
 
@@ -117,6 +118,36 @@ export async function saveNotificationSettings(
         })
 
       if (error) throw new Error(`設定の作成に失敗: ${error.message} (code: ${error.code})`)
+    }
+
+    // LINE設定が有効な場合、line キーにも同期保存（getLineSettings関数用）
+    if (settings.line.enabled && settings.line.channel_access_token && settings.line.channel_secret) {
+      console.log('🔄 LINE基本設定を同期中...')
+
+      // Service Role Keyを使用してRLSをバイパス
+      const adminClient = supabaseAdmin || supabase
+
+      const { error: lineError } = await adminClient
+        .from('clinic_settings')
+        .upsert({
+          clinic_id: clinicId,
+          setting_key: 'line',
+          setting_value: {
+            channel_access_token: settings.line.channel_access_token,
+            channel_secret: settings.line.channel_secret,
+            channel_id: settings.line.channel_id || undefined,
+            webhook_url: settings.line.webhook_url || 'https://d-max-lemon.vercel.app/api/line/webhook'
+          }
+        }, {
+          onConflict: 'clinic_id,setting_key'
+        })
+
+      if (lineError) {
+        console.error('⚠️ LINE基本設定の同期に失敗:', lineError)
+        // エラーでも通知設定は保存されているので継続
+      } else {
+        console.log('✅ LINE基本設定を同期しました')
+      }
     }
   } catch (error) {
     console.error('saveNotificationSettings error:', error)
