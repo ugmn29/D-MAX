@@ -492,10 +492,20 @@ export function AppointmentEditModal({
         editingAppointment?.id
       )
 
-      // 問診票から性別を含む全データを再取得
+      // 問診票から性別・名前を含む全データを再取得
       const { getPatients } = await import('@/lib/api/patients')
       const updatedPatients = await getPatients(clinicId)
       const linkedPatient = updatedPatients.find(p => p.id === selectedPatient.id)
+
+      console.log('🔍 問診票連携後の患者データ:', {
+        linkedPatient_last_name: linkedPatient?.last_name,
+        linkedPatient_first_name: linkedPatient?.first_name,
+        linkedPatient_gender: linkedPatient?.gender,
+        linkedPatient_patient_number: linkedPatient?.patient_number,
+        responseData_name: responseData.patient_name || responseData['q1-1'],
+        lastName_variable: lastName,
+        firstName_variable: firstName
+      })
 
       // 問診票連携で更新された性別を使用（フォールバック付き）
       let genderValue: 'male' | 'female' | 'other' = linkedPatient?.gender || 'other'
