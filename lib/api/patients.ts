@@ -216,12 +216,11 @@ export async function generatePatientNumber(clinicId: string): Promise<number> {
   // 通常モードの場合
   const client = getSupabaseClient()
 
-  // 本登録済み患者の番号を全て取得（昇順）
+  // 既に診察券番号を持っている患者の番号を全て取得（is_registeredに関係なく）
   const { data, error } = await client
     .from('patients')
     .select('patient_number')
     .eq('clinic_id', clinicId)
-    .eq('is_registered', true)  // 本登録済みのみ
     .not('patient_number', 'is', null)
     .order('patient_number', { ascending: true })
 
