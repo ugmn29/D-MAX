@@ -722,10 +722,18 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
 
       switch (linked_field) {
         case 'name':
-          // 氏名は既に設定されている場合はスキップ（姓名分割済みのため）
+          // 氏名を姓と名に分割
+          const nameParts = answer.split(' ')
+          patientUpdate.last_name = nameParts[0] || ''
+          patientUpdate.first_name = nameParts.slice(1).join(' ') || ''
+          console.log('氏名を分割:', { 元の値: answer, 姓: patientUpdate.last_name, 名: patientUpdate.first_name })
           break
         case 'furigana_kana':
-          // フリガナも既に設定されている場合はスキップ
+          // フリガナを姓と名に分割
+          const kanaParts = answer.split(' ')
+          patientUpdate.last_name_kana = kanaParts[0] || ''
+          patientUpdate.first_name_kana = kanaParts.slice(1).join(' ') || ''
+          console.log('フリガナを分割:', { 元の値: answer, 姓カナ: patientUpdate.last_name_kana, 名カナ: patientUpdate.first_name_kana })
           break
         case 'last_name':
           // 姓を設定
