@@ -198,14 +198,20 @@ export default function InitialLinkPage() {
         `抽出: "${onlyAlphaNum}"`,
         `結果: "${formatted}"`,
         `前回: "${lastProcessedValueRef.current}"`,
-        `state更新: "${invitationCode}" → "${formatted}"`,
       ]
       setDebugInfo(prev => [...processLog, '---', ...prev].slice(0, 100))
 
       // 前回の処理値を保存
       lastProcessedValueRef.current = formatted
 
-      // 状態を更新（Reactが自動的にDOMを更新）
+      // DOMを直接更新
+      input.value = formatted
+
+      // カーソルを末尾に配置
+      const length = formatted.length
+      input.setSelectionRange(length, length)
+
+      // バリデーション用にstateも更新
       setInvitationCode(formatted)
     }, 50)
   }
@@ -394,8 +400,8 @@ export default function InitialLinkPage() {
                 type="text"
                 inputMode="text"
                 placeholder="AB12-CD34"
-                value={invitationCode}
-                onChange={handleInvitationCodeChange}
+                defaultValue=""
+                onInput={handleInvitationCodeChange as any}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
                 disabled={loading}
