@@ -137,33 +137,46 @@ export default function InitialLinkPage() {
 
   // 招待コードの入力ハンドラー
   const handleInvitationCodeInput = (e: React.FormEvent<HTMLInputElement>) => {
-    e.preventDefault()
-
+    const timestamp = new Date().toISOString()
     const input = e.currentTarget
     const rawInput = input.value
 
+    console.log('=== 招待コード入力イベント ===')
+    console.log('時刻:', timestamp)
+    console.log('イベントタイプ:', e.type)
+    console.log('入力値(raw):', rawInput)
+    console.log('現在のstate:', invitationCode)
+
     // 英数字のみを抽出（ハイフンは除外）
     const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+    console.log('英数字抽出:', onlyAlphaNum)
 
     // 8文字まで制限
     const limited = onlyAlphaNum.slice(0, 8)
+    console.log('8文字制限:', limited)
 
     // フォーマット: 4文字後にハイフン
     const formatted = limited.length > 4
       ? `${limited.slice(0, 4)}-${limited.slice(4)}`
       : limited
+    console.log('フォーマット後:', formatted)
 
     // 値を設定（同期的に）
     if (input.value !== formatted) {
+      console.log('値を更新:', input.value, '→', formatted)
       input.value = formatted
       // カーソルを末尾に
       requestAnimationFrame(() => {
         input.setSelectionRange(formatted.length, formatted.length)
       })
+    } else {
+      console.log('値は同じなので更新しない')
     }
 
     // 状態も更新（バリデーション用）
+    console.log('state更新:', invitationCode, '→', formatted)
     setInvitationCode(formatted)
+    console.log('=== イベント終了 ===\n')
   }
 
   // 生年月日の入力ハンドラー
