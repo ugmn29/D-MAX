@@ -505,17 +505,17 @@ export function AppointmentEditModal({
         genderValue = 'female'
       }
 
-      // 患者情報を更新
+      // 患者情報を更新（問診票連携で既に更新されたデータを優先）
       const updatedPatient = {
         ...selectedPatient,
-        last_name: lastName,
-        first_name: firstName,
-        last_name_kana: lastNameKana,
-        first_name_kana: firstNameKana,
+        last_name: linkedPatient?.last_name || lastName,
+        first_name: linkedPatient?.first_name || firstName,
+        last_name_kana: linkedPatient?.last_name_kana || lastNameKana,
+        first_name_kana: linkedPatient?.first_name_kana || firstNameKana,
         gender: linkedPatient?.gender || genderValue,  // 問診票の性別を優先
-        birth_date: birthDate,
-        phone: phone,
-        email: email,
+        birth_date: linkedPatient?.birth_date || birthDate,
+        phone: linkedPatient?.phone || phone,
+        email: linkedPatient?.email || email,
         is_registered: true // 本登録済みに更新
       }
 
@@ -534,16 +534,16 @@ export function AppointmentEditModal({
           console.log('本登録前の患者一覧:', beforePatients.map(p => ({ id: p.id, name: `${p.last_name} ${p.first_name}`, is_registered: p.is_registered })))
           console.log('更新対象の患者ID:', selectedPatient.id)
 
-          // 更新データを構築（patient_numberは未設定の場合のみ追加）
+          // 更新データを構築（問診票連携で既に更新されたデータを優先）
           const updateData: any = {
-            last_name: lastName,
-            first_name: firstName,
-            last_name_kana: lastNameKana,
-            first_name_kana: firstNameKana,
+            last_name: linkedPatient?.last_name || lastName,
+            first_name: linkedPatient?.first_name || firstName,
+            last_name_kana: linkedPatient?.last_name_kana || lastNameKana,
+            first_name_kana: linkedPatient?.first_name_kana || firstNameKana,
             gender: linkedPatient?.gender || genderValue || null,
-            birth_date: birthDate || null,
-            phone: phone || null,
-            email: email || null,
+            birth_date: linkedPatient?.birth_date || birthDate || null,
+            phone: linkedPatient?.phone || phone || null,
+            email: linkedPatient?.email || email || null,
             is_registered: true
           }
 
@@ -574,16 +574,16 @@ export function AppointmentEditModal({
           // 本番モードではデータベースに保存
           const { updatePatient } = await import('@/lib/api/patients')
 
-          // 更新データを構築（patient_numberは未設定の場合のみ追加）
+          // 更新データを構築（問診票連携で既に更新されたデータを優先）
           const updateData: any = {
-            last_name: lastName,
-            first_name: firstName,
-            last_name_kana: lastNameKana,
-            first_name_kana: firstNameKana,
+            last_name: linkedPatient?.last_name || lastName,
+            first_name: linkedPatient?.first_name || firstName,
+            last_name_kana: linkedPatient?.last_name_kana || lastNameKana,
+            first_name_kana: linkedPatient?.first_name_kana || firstNameKana,
             gender: linkedPatient?.gender || genderValue || null,
-            birth_date: birthDate || null,
-            phone: phone || null,
-            email: email || null,
+            birth_date: linkedPatient?.birth_date || birthDate || null,
+            phone: linkedPatient?.phone || phone || null,
+            email: linkedPatient?.email || email || null,
             is_registered: true
           }
 
