@@ -40,6 +40,9 @@ export default function InitialLinkPage() {
   // 前回の処理値を保存（重複防止用）
   const lastProcessedValueRef = useRef('')
 
+  // 入力フィールドの再マウント用キー
+  const [inputKey, setInputKey] = useState(0)
+
   // LIFF SDKをロード
   useEffect(() => {
     // LIFF SDKスクリプトを動的に追加
@@ -140,7 +143,7 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー（完全クリーンアップ方式）
+  // 招待コードの入力ハンドラー（フィールド再マウント方式）
   const handleInvitationCodeChange = (e: React.FormEvent<HTMLInputElement>) => {
     const input = e.currentTarget
     const rawInput = input.value
@@ -180,17 +183,8 @@ export default function InitialLinkPage() {
     // バリデーション用にstateも更新
     setInvitationCode(formatted)
 
-    // ブラウザの入力バッファをクリアするため、一度空にしてから設定
-    input.value = ''
-    // 次のイベントループで設定（バッファクリア後）
-    setTimeout(() => {
-      input.value = formatted
-      // カーソル位置を末尾に配置
-      const newPos = formatted.length
-      input.setSelectionRange(newPos, newPos)
-      // フォーカスを確保
-      input.focus()
-    }, 0)
+    // 入力フィールドを完全に再マウント（バッファ完全クリア）
+    setInputKey(prev => prev + 1)
   }
 
   // 生年月日の入力ハンドラー
@@ -372,12 +366,13 @@ export default function InitialLinkPage() {
             <div className="space-y-2">
               <Label htmlFor="invitation-code">招待コード</Label>
               <Input
+                key={inputKey}
                 ref={invitationInputRef}
                 id="invitation-code"
                 type="text"
                 inputMode="text"
                 placeholder="AB12-CD34"
-                defaultValue=""
+                defaultValue={invitationCode}
                 onInput={handleInvitationCodeChange as any}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
