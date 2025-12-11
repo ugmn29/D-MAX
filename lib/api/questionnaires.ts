@@ -589,27 +589,47 @@ export async function linkQuestionnaireResponseToPatient(responseId: string, pat
 
   const client = getSupabaseClient()
 
-  // 0. 連携前の患者データを取得して保存（解除時の復元用）
-  const { data: currentPatient, error: patientFetchError } = await client
-    .from('patients')
-    .select('last_name, first_name, last_name_kana, first_name_kana, birth_date, gender, phone, email, postal_code, address, allergies, medical_history, medications, visit_reason, preferred_contact_method')
-    .eq('id', patientId)
+  // 0. この問診票に既にoriginal_patient_dataが保存されているかチェック
+  const { data: existingResponse, error: checkError } = await client
+    .from('questionnaire_responses')
+    .select('original_patient_data')
+    .eq('id', responseId)
     .single()
 
-  if (patientFetchError) {
-    console.error('患者データ取得エラー:', patientFetchError)
-    throw patientFetchError
+  if (checkError) {
+    console.error('問診票データ取得エラー:', checkError)
+    throw checkError
   }
 
-  console.log('連携前の患者データを保存:', currentPatient)
+  // 1. 連携前の患者データを取得（初回連携時のみ保存）
+  let originalPatientData = existingResponse.original_patient_data
 
-  // 1. 問診票のpatient_idを更新（元データも一緒に保存）
+  if (!originalPatientData) {
+    // 初回連携時のみ、現在の患者データを元データとして保存
+    const { data: currentPatient, error: patientFetchError } = await client
+      .from('patients')
+      .select('last_name, first_name, last_name_kana, first_name_kana, birth_date, gender, phone, email, postal_code, address, allergies, medical_history, medications, visit_reason, preferred_contact_method')
+      .eq('id', patientId)
+      .single()
+
+    if (patientFetchError) {
+      console.error('患者データ取得エラー:', patientFetchError)
+      throw patientFetchError
+    }
+
+    originalPatientData = currentPatient
+    console.log('初回連携: 連携前の患者データを保存:', currentPatient)
+  } else {
+    console.log('再連携: 既存のoriginal_patient_dataを維持します')
+  }
+
+  // 2. 問診票のpatient_idを更新（元データも一緒に保存）
   console.log('問診票のpatient_id更新開始:', { responseId, patientId })
   const { data: updatedResponse, error: linkError } = await client
     .from('questionnaire_responses')
     .update({
       patient_id: patientId,
-      original_patient_data: currentPatient, // 元のデータを保存
+      original_patient_data: originalPatientData, // 初回のみ保存、再連携時は既存データを維持
       updated_at: new Date().toISOString()
     })
     .eq('id', responseId)
