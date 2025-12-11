@@ -140,10 +140,6 @@ export default function InitialLinkPage() {
 
   // 招待コードの入力ハンドラー
   const handleInvitationCodeInput = (e: React.FormEvent<HTMLInputElement>) => {
-    // イベントを完全に停止
-    e.preventDefault()
-    e.stopPropagation()
-
     eventCountRef.current += 1
     const timestamp = new Date().toLocaleTimeString()
     const input = e.currentTarget
@@ -174,16 +170,20 @@ export default function InitialLinkPage() {
     debugLog.push(`DOM更新: "${input.value}" → "${formatted}"`)
     setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
 
+    // 同じ値なら何もしない
+    if (input.value === formatted) {
+      return
+    }
+
     // 状態も更新（バリデーション用）
     setInvitationCode(formatted)
 
-    // 次のイベントループで値を設定（ブラウザの入力処理完了後）
-    setTimeout(() => {
-      if (input.value !== formatted) {
-        input.value = formatted
-        input.setSelectionRange(formatted.length, formatted.length)
-      }
-    }, 0)
+    // 即座に値を設定（遅延なし）
+    input.value = formatted
+
+    // カーソルを末尾に（即座に）
+    const length = formatted.length
+    input.setSelectionRange(length, length)
   }
 
   // 生年月日の入力ハンドラー
