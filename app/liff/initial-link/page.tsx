@@ -29,13 +29,9 @@ export default function InitialLinkPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [patientName, setPatientName] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string[]>([])
 
   // 入力フィールドのref
   const invitationInputRef = useRef<HTMLInputElement>(null)
-
-  // デバッグ用：イベント回数をカウント
-  const eventCountRef = useRef(0)
 
   // 生の招待コード入力値（フォーマットなし）
   const [rawInvitationCode, setRawInvitationCode] = useState('')
@@ -56,15 +52,8 @@ export default function InitialLinkPage() {
 
   // LIFF初期化
   useEffect(() => {
-    const addDebug = (msg: string) => {
-      setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`])
-      console.log(msg)
-    }
-
     const initializeLiff = async () => {
       try {
-        addDebug('LIFF初期化開始')
-
         // LIFF SDKが読み込まれるまで待機（最大10秒でタイムアウト）
         const checkLiff = () => {
           return new Promise((resolve, reject) => {
@@ -75,10 +64,8 @@ export default function InitialLinkPage() {
               attempts++
 
               if (typeof window !== 'undefined' && window.liff) {
-                addDebug('LIFF SDK読み込み完了')
                 resolve(true)
               } else if (attempts >= maxAttempts) {
-                addDebug(`LIFF SDK読み込みタイムアウト (試行回数: ${attempts})`)
                 reject(new Error('LIFF SDKの読み込みがタイムアウトしました'))
               } else {
                 setTimeout(check, 100)
@@ -92,7 +79,6 @@ export default function InitialLinkPage() {
 
         // LIFF IDを取得（設定画面の値 > 環境変数の順で優先）
         let liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
-        addDebug(`環境変数のLIFF ID: ${liffId || 'なし'}`)
 
         // localStorageから設定画面の値を取得
         try {
@@ -101,14 +87,11 @@ export default function InitialLinkPage() {
             const settings = JSON.parse(savedSettings)
             if (settings.line?.liff_id_initial_link) {
               liffId = settings.line.liff_id_initial_link
-              addDebug(`localStorageからLIFF ID取得: ${liffId}`)
             }
           }
         } catch (e) {
-          addDebug(`localStorage読み込みエラー: ${e}`)
+          console.error('localStorage読み込みエラー:', e)
         }
-
-        addDebug(`使用するLIFF ID: ${liffId || 'なし'}`)
 
         if (!liffId) {
           setError('LIFF IDが設定されていません')
@@ -116,22 +99,17 @@ export default function InitialLinkPage() {
           return
         }
 
-        addDebug('LIFF初期化中...')
         await window.liff.init({ liffId })
-        addDebug('LIFF初期化成功')
 
         if (window.liff.isLoggedIn()) {
-          addDebug('ログイン済み - プロフィール取得中')
           const profile = await window.liff.getProfile()
-          addDebug(`プロフィール取得成功: ${profile.userId}`)
           setLineUserId(profile.userId)
           setLiffReady(true)
         } else {
-          addDebug('未ログイン - ログインページへリダイレクト')
           window.liff.login()
         }
       } catch (err: any) {
-        addDebug(`エラー発生: ${err.message}`)
+        console.error('LIFF初期化エラー:', err)
         setError(`初期化失敗: ${err.message || 'Unknown error'}`)
         setLiffReady(false)
       }
@@ -146,15 +124,6 @@ export default function InitialLinkPage() {
 
     // 英数字とハイフンのみ許可、大文字に変換、8文字+ハイフン1つまで
     const cleaned = rawInput.replace(/[^A-Z0-9-]/gi, '').toUpperCase().slice(0, 9)
-
-    // デバッグログ
-    eventCountRef.current += 1
-    const timestamp = new Date().toLocaleTimeString()
-    const debugLog = [
-      `[${eventCountRef.current}] ${timestamp}`,
-      `入力値: "${rawInput}" → "${cleaned}"`,
-    ]
-    setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
 
     // そのまま保存（フォーマットしない）
     setRawInvitationCode(cleaned)
@@ -359,18 +328,6 @@ export default function InitialLinkPage() {
               <p className="text-xs text-gray-500">
                 8桁の英数字を入力してください（ハイフンあり・なし両方OK）
               </p>
-
-              {/* デバッグ情報表示 */}
-              {debugInfo.length > 0 && (
-                <div className="mt-4 p-3 bg-gray-100 rounded text-xs font-mono max-h-60 overflow-y-auto">
-                  <div className="font-bold mb-2 text-red-600">🔍 デバッグログ:</div>
-                  {debugInfo.map((info, i) => (
-                    <div key={i} className={info === '---' ? 'border-t border-gray-300 my-1' : 'text-gray-700'}>
-                      {info}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* 生年月日入力 */}
