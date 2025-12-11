@@ -135,8 +135,10 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードの入力ハンドラー（onInputイベントを使用）
+  // 招待コードの入力ハンドラー
   const handleInvitationCodeInput = (e: React.FormEvent<HTMLInputElement>) => {
+    e.preventDefault()
+
     const input = e.currentTarget
     const rawInput = input.value
 
@@ -151,14 +153,14 @@ export default function InitialLinkPage() {
       ? `${limited.slice(0, 4)}-${limited.slice(4)}`
       : limited
 
-    // カーソル位置を保存
-    const cursorPos = input.selectionStart || 0
-
-    // 直接DOMを更新（Reactのstateを経由しない）
-    input.value = formatted
-
-    // カーソル位置を復元（末尾に移動）
-    input.setSelectionRange(formatted.length, formatted.length)
+    // 値を設定（同期的に）
+    if (input.value !== formatted) {
+      input.value = formatted
+      // カーソルを末尾に
+      requestAnimationFrame(() => {
+        input.setSelectionRange(formatted.length, formatted.length)
+      })
+    }
 
     // 状態も更新（バリデーション用）
     setInvitationCode(formatted)
