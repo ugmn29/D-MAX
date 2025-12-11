@@ -131,31 +131,45 @@ export default function InitialLinkPage() {
     initializeLiff()
   }, [])
 
-  // 招待コードをフォーマット（自動でハイフンを挿入）
-  const formatInvitationCode = (value: string) => {
-    // 英数字のみを抽出
-    const cleaned = value.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+  // 招待コードの入力ハンドラー
+  const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    // 英数字とハイフンのみを許可
+    const cleaned = value.replace(/[^A-Z0-9-]/gi, '').toUpperCase()
 
-    // 4文字目の後にハイフンを挿入
-    if (cleaned.length <= 4) {
-      return cleaned
-    } else {
-      return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 8)}`
+    // ハイフンを除いた文字列
+    const withoutHyphen = cleaned.replace(/-/g, '')
+
+    // 最大8文字まで
+    if (withoutHyphen.length <= 8) {
+      // 4文字目の後に自動でハイフンを挿入
+      if (withoutHyphen.length > 4) {
+        setInvitationCode(`${withoutHyphen.slice(0, 4)}-${withoutHyphen.slice(4)}`)
+      } else {
+        setInvitationCode(withoutHyphen)
+      }
     }
   }
 
-  // 生年月日をフォーマット（自動でスラッシュを挿入）
-  const formatBirthDate = (value: string) => {
-    // 数字のみを抽出
-    const cleaned = value.replace(/[^0-9]/g, '')
+  // 生年月日の入力ハンドラー
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    // 数字とスラッシュのみを許可
+    const cleaned = value.replace(/[^0-9/]/g, '')
 
-    // YYYY/MM/DD形式にフォーマット
-    if (cleaned.length <= 4) {
-      return cleaned
-    } else if (cleaned.length <= 6) {
-      return `${cleaned.slice(0, 4)}/${cleaned.slice(4)}`
-    } else {
-      return `${cleaned.slice(0, 4)}/${cleaned.slice(4, 6)}/${cleaned.slice(6, 8)}`
+    // スラッシュを除いた文字列
+    const withoutSlash = cleaned.replace(/\//g, '')
+
+    // 最大8文字まで（YYYYMMDD）
+    if (withoutSlash.length <= 8) {
+      // YYYY/MM/DD形式に自動フォーマット
+      if (withoutSlash.length > 6) {
+        setBirthDate(`${withoutSlash.slice(0, 4)}/${withoutSlash.slice(4, 6)}/${withoutSlash.slice(6)}`)
+      } else if (withoutSlash.length > 4) {
+        setBirthDate(`${withoutSlash.slice(0, 4)}/${withoutSlash.slice(4)}`)
+      } else {
+        setBirthDate(withoutSlash)
+      }
     }
   }
 
@@ -320,10 +334,7 @@ export default function InitialLinkPage() {
                 type="text"
                 placeholder="AB12-CD34"
                 value={invitationCode}
-                onChange={(e) => {
-                  const formatted = formatInvitationCode(e.target.value)
-                  setInvitationCode(formatted)
-                }}
+                onChange={handleInvitationCodeChange}
                 maxLength={9}
                 className="text-lg tracking-wider font-mono text-center"
                 disabled={loading}
@@ -344,10 +355,7 @@ export default function InitialLinkPage() {
                 type="text"
                 placeholder="1990/01/01"
                 value={birthDate}
-                onChange={(e) => {
-                  const formatted = formatBirthDate(e.target.value)
-                  setBirthDate(formatted)
-                }}
+                onChange={handleBirthDateChange}
                 maxLength={10}
                 className="text-lg text-center"
                 disabled={loading}
