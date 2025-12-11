@@ -1,9 +1,17 @@
 /**
  * questionnaire_responsesのoriginal_patient_dataを確認
+ *
+ * 使い方: source .env.local && node check-original-data.mjs
  */
 
-const SUPABASE_URL = 'https://obdfmwpdkwraqqqyjgwu.supabase.co'
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iZGZtd3Bka3dyYXFxcXlqZ3d1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMjMyMzQwNCwiZXhwIjoyMDQ3ODk5NDA0fQ.lG5ug5Ee_WU76l6Xj1Dz6WQhujcHtE04l-w_DwMcqUE'
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error('❌ 環境変数が設定されていません')
+  console.error('使い方: source .env.local && node check-original-data.mjs')
+  process.exit(1)
+}
 
 console.log('🔍 original_patient_dataの確認...')
 console.log('')
@@ -17,6 +25,16 @@ const response = await fetch(`${SUPABASE_URL}/rest/v1/questionnaire_responses?se
 })
 
 const data = await response.json()
+
+if (!response.ok) {
+  console.error('❌ エラー:', data)
+  process.exit(1)
+}
+
+if (!Array.isArray(data)) {
+  console.error('❌ データが配列ではありません:', data)
+  process.exit(1)
+}
 
 console.log(`✅ 連携済み問診票: ${data.length}件`)
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━')
