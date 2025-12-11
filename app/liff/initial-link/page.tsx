@@ -142,11 +142,6 @@ export default function InitialLinkPage() {
 
   // 招待コードの入力ハンドラー（制御されたコンポーネント方式）
   const handleInvitationCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // compositionイベント中は処理をスキップ
-    if (isComposingRef.current) {
-      return
-    }
-
     eventCountRef.current += 1
     const timestamp = new Date().toLocaleTimeString()
     const rawInput = e.target.value
@@ -155,9 +150,17 @@ export default function InitialLinkPage() {
     const debugLog = [
       `[${eventCountRef.current}] ${timestamp}`,
       `イベント: ${e.type}`,
+      `isComposing: ${isComposingRef.current}`,
       `入力値: "${rawInput}"`,
       `現state: "${invitationCode}"`,
     ]
+
+    // compositionイベント中は処理をスキップ（ログは出す）
+    if (isComposingRef.current) {
+      debugLog.push(`⏸️ composition中のためスキップ`)
+      setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
+      return
+    }
 
     // 英数字のみを抽出（ハイフンは除外）
     const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
@@ -182,11 +185,15 @@ export default function InitialLinkPage() {
 
   // compositionイベントハンドラー
   const handleCompositionStart = () => {
+    const timestamp = new Date().toLocaleTimeString()
     isComposingRef.current = true
+    setDebugInfo(prev => [`🔵 compositionStart ${timestamp}`, '---', ...prev].slice(0, 100))
   }
 
   const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+    const timestamp = new Date().toLocaleTimeString()
     isComposingRef.current = false
+    setDebugInfo(prev => [`🟢 compositionEnd ${timestamp}`, '---', ...prev].slice(0, 100))
     // composition終了後に入力処理を実行
     handleInvitationCodeChange(e as any)
   }
