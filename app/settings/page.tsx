@@ -1385,6 +1385,13 @@ export default function SettingsPage() {
         console.log('🔓 連携解除処理開始 - patientId:', patientId)
         await unlinkPatientFromQuestionnaire(patientId);
         console.log('✅ 連携解除成功')
+
+        // カレンダーに患者データの更新を通知
+        window.dispatchEvent(new CustomEvent('patientDataUpdated', {
+          detail: { patientId }
+        }))
+        console.log('📢 patientDataUpdatedイベントを発行しました')
+
         showAlert('患者を仮登録に戻しました', 'success');
         await loadLinkStatusData(); // データを再取得
         console.log('✅ データ再取得完了')

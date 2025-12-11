@@ -1285,6 +1285,25 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
   }, [clinicId, selectedDate])
 
+  // 患者データ更新イベントをリッスン（連携解除時など）
+  useEffect(() => {
+    const handlePatientDataUpdated = async (event: any) => {
+      console.log('カレンダー: patientDataUpdatedイベントを受信しました', event.detail)
+      // 予約データを再読み込みして、最新の患者情報を反映
+      const dateString = formatDateForDB(selectedDate)
+      const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+      setAppointments(updatedAppointments)
+      console.log('患者データ更新: カレンダーを再読み込みしました')
+    }
+
+    console.log('カレンダー: patientDataUpdatedイベントリスナーを登録しました')
+    window.addEventListener('patientDataUpdated', handlePatientDataUpdated as EventListener)
+    return () => {
+      console.log('カレンダー: patientDataUpdatedイベントリスナーを削除しました')
+      window.removeEventListener('patientDataUpdated', handlePatientDataUpdated as EventListener)
+    }
+  }, [clinicId, selectedDate])
+
   // 個別休診日設定の変更を監視
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {

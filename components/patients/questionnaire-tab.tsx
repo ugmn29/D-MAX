@@ -148,6 +148,13 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
     try {
       await unlinkQuestionnaireResponse(responseId, patientId)
       console.log('問診票の連携を解除しました:', responseId)
+
+      // カレンダーに患者データの更新を通知
+      window.dispatchEvent(new CustomEvent('patientDataUpdated', {
+        detail: { patientId }
+      }))
+      console.log('📢 patientDataUpdatedイベントを発行しました')
+
       // 再読み込み
       await loadQuestionnaireResponses()
     } catch (err) {

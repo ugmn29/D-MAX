@@ -710,14 +710,20 @@ export function AppointmentEditModal({
 
       // 問診票の連携を解除
       await unlinkQuestionnaireResponse(linkedQuestionnaireId)
-      
+
+      // カレンダーに患者データの更新を通知
+      window.dispatchEvent(new CustomEvent('patientDataUpdated', {
+        detail: { patientId: selectedPatient.id }
+      }))
+      console.log('📢 patientDataUpdatedイベントを発行しました')
+
       // 患者情報を元に戻す（仮登録状態に戻す）
       const revertedPatient = {
         ...selectedPatient,
         is_registered: false,
         linked_questionnaire_id: null
       }
-      
+
       // 患者情報を更新
       if (MOCK_MODE) {
         const { updateMockPatient } = await import('@/lib/utils/mock-mode')
