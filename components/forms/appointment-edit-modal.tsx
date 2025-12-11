@@ -491,6 +491,15 @@ export function AppointmentEditModal({
         genderValue = 'female'
       }
       
+      // 🔧 FIX: 問診票を先に連携して元のデータを保存
+      // データベースの患者情報を更新する前に、元のデータを問診票に保存する必要がある
+      console.log('🔧 問診票連携を先に実行（元データ保存のため）')
+      await linkQuestionnaireResponseToPatient(
+        selectedQuestionnaireId,
+        selectedPatient.id,
+        editingAppointment?.id
+      )
+
       // 患者情報を更新
       const updatedPatient = {
         ...selectedPatient,
@@ -504,7 +513,7 @@ export function AppointmentEditModal({
         email: email,
         is_registered: true // 本登録済みに更新
       }
-      
+
       // 患者情報を更新
       try {
         if (MOCK_MODE) {
@@ -588,12 +597,6 @@ export function AppointmentEditModal({
         alert('患者情報の更新に失敗しました')
         return
       }
-
-      await linkQuestionnaireResponseToPatient(
-        selectedQuestionnaireId,
-        selectedPatient.id,
-        editingAppointment?.id
-      )
 
       // 患者情報を再取得して表示を更新
       let finalPatient = selectedPatient
