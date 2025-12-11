@@ -3,6 +3,8 @@ import { Client } from 'pg'
 import fs from 'fs'
 import path from 'path'
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+
 export async function POST(request: NextRequest) {
   try {
     const { migrationFile } = await request.json()
