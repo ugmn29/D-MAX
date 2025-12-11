@@ -34,6 +34,9 @@ export default function InitialLinkPage() {
   // 入力フィールドのref
   const invitationInputRef = useRef<HTMLInputElement>(null)
 
+  // デバッグ用：イベント回数をカウント
+  const eventCountRef = useRef(0)
+
 
   // LIFF SDKをロード
   useEffect(() => {
@@ -137,46 +140,49 @@ export default function InitialLinkPage() {
 
   // 招待コードの入力ハンドラー
   const handleInvitationCodeInput = (e: React.FormEvent<HTMLInputElement>) => {
-    const timestamp = new Date().toISOString()
+    eventCountRef.current += 1
+    const timestamp = new Date().toLocaleTimeString()
     const input = e.currentTarget
     const rawInput = input.value
 
-    console.log('=== 招待コード入力イベント ===')
-    console.log('時刻:', timestamp)
-    console.log('イベントタイプ:', e.type)
-    console.log('入力値(raw):', rawInput)
-    console.log('現在のstate:', invitationCode)
+    // デバッグ情報を画面に表示
+    const debugLog = [
+      `[${eventCountRef.current}] ${timestamp}`,
+      `イベント: ${e.type}`,
+      `入力値: "${rawInput}"`,
+      `現state: "${invitationCode}"`,
+    ]
 
     // 英数字のみを抽出（ハイフンは除外）
     const onlyAlphaNum = rawInput.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-    console.log('英数字抽出:', onlyAlphaNum)
+    debugLog.push(`抽出: "${onlyAlphaNum}"`)
 
     // 8文字まで制限
     const limited = onlyAlphaNum.slice(0, 8)
-    console.log('8文字制限:', limited)
 
     // フォーマット: 4文字後にハイフン
     const formatted = limited.length > 4
       ? `${limited.slice(0, 4)}-${limited.slice(4)}`
       : limited
-    console.log('フォーマット後:', formatted)
+    debugLog.push(`結果: "${formatted}"`)
 
     // 値を設定（同期的に）
     if (input.value !== formatted) {
-      console.log('値を更新:', input.value, '→', formatted)
+      debugLog.push(`DOM更新: "${input.value}" → "${formatted}"`)
       input.value = formatted
       // カーソルを末尾に
       requestAnimationFrame(() => {
         input.setSelectionRange(formatted.length, formatted.length)
       })
     } else {
-      console.log('値は同じなので更新しない')
+      debugLog.push('DOM更新なし（同じ値）')
     }
 
+    // デバッグ情報を保存（最新10件のみ）
+    setDebugInfo(prev => [...debugLog, '---', ...prev].slice(0, 100))
+
     // 状態も更新（バリデーション用）
-    console.log('state更新:', invitationCode, '→', formatted)
     setInvitationCode(formatted)
-    console.log('=== イベント終了 ===\n')
   }
 
   // 生年月日の入力ハンドラー
@@ -373,6 +379,18 @@ export default function InitialLinkPage() {
               <p className="text-xs text-gray-500">
                 8桁の英数字（ハイフンは自動で挿入されます）
               </p>
+
+              {/* デバッグ情報表示 */}
+              {debugInfo.length > 0 && (
+                <div className="mt-4 p-3 bg-gray-100 rounded text-xs font-mono max-h-60 overflow-y-auto">
+                  <div className="font-bold mb-2 text-red-600">🔍 デバッグログ:</div>
+                  {debugInfo.map((info, i) => (
+                    <div key={i} className={info === '---' ? 'border-t border-gray-300 my-1' : 'text-gray-700'}>
+                      {info}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 生年月日入力 */}
