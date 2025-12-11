@@ -1,7 +1,7 @@
 // モックモードの設定
 // 環境変数 NEXT_PUBLIC_MOCK_MODE=true でモックモード有効化
-// デフォルトは本番環境ではデータベース、開発環境のみモック
-export const MOCK_MODE = process.env.NEXT_PUBLIC_MOCK_MODE === 'true' ? true : process.env.NODE_ENV === 'development'
+// デフォルトは本番環境では常にデータベース使用、開発環境のみモック
+export const MOCK_MODE = process.env.NEXT_PUBLIC_MOCK_MODE === 'true' ? true : (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_DATABASE !== 'true')
 
 // 問診票のみデータベースを使用するフラグ
 export const USE_DATABASE_FOR_QUESTIONNAIRES = process.env.USE_DATABASE_QUESTIONNAIRES === 'true'
