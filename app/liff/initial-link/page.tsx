@@ -233,16 +233,6 @@ export default function InitialLinkPage() {
                     <p className="text-gray-600">初期化中...</p>
                   </>
                 )}
-
-                {/* デバッグ情報を表示 */}
-                {debugInfo.length > 0 && (
-                  <div className="w-full mt-4 p-3 bg-gray-100 rounded text-xs text-left">
-                    <p className="font-bold mb-2">デバッグ情報:</p>
-                    {debugInfo.map((info, i) => (
-                      <div key={i} className="text-gray-700 font-mono">{info}</div>
-                    ))}
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
