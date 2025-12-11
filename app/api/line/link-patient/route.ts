@@ -160,6 +160,22 @@ export async function POST(request: NextRequest) {
       // QRコード生成エラーは無視（後で生成可能）
     }
 
+    // リッチメニューを連携済み用に切り替え
+    try {
+      await fetch(`${request.nextUrl.origin}/api/line/switch-rich-menu`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clinic_id: patient.clinic_id,
+          line_user_id,
+          is_linked: true
+        })
+      })
+    } catch (richMenuError) {
+      console.error('リッチメニュー切り替えエラー:', richMenuError)
+      // リッチメニューエラーは無視（後で手動切り替え可能）
+    }
+
     // 成功レスポンス
     return NextResponse.json({
       success: true,

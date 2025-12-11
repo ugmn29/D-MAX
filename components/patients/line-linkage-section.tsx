@@ -64,7 +64,11 @@ export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionPr
       }
 
       // 連携情報取得（patient_idから逆引き）
-      // TODO: 患者IDから連携情報を取得するAPIが必要
+      const linkageRes = await fetch(`/api/line/patient-linkages?patient_id=${patientId}`)
+      if (linkageRes.ok) {
+        const { linkages: linkageData } = await linkageRes.json()
+        setLinkages(linkageData || [])
+      }
     } catch (error) {
       console.error('LINE連携情報の読み込みエラー:', error)
     }

@@ -37,15 +37,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 患者が存在するか確認
+    // 患者が存在するか確認（patient_idはTEXT型）
     const { data: patient, error: patientError } = await supabase
       .from('patients')
-      .select('id, clinic_id')
+      .select('id, clinic_id, last_name, first_name')
       .eq('id', patient_id)
       .eq('clinic_id', clinic_id)
       .single()
 
     if (patientError || !patient) {
+      console.error('患者が見つかりません:', { patient_id, clinic_id, error: patientError })
       return NextResponse.json(
         { error: '患者が見つかりません' },
         { status: 404 }
