@@ -183,36 +183,71 @@ export async function getPatientById(
 }
 
 /**
- * 新しい患者番号を生成
+ * 新しい患者番号を生成（欠番を優先的に再利用）
  */
 export async function generatePatientNumber(clinicId: string): Promise<number> {
   // モックモードの場合
   if (MOCK_MODE) {
     const { getMockPatients } = await import('@/lib/utils/mock-mode')
     const patients = getMockPatients()
-    const maxNumber = patients.length > 0
-      ? Math.max(...patients.map(p => p.patient_number || 0))
-      : 0
-    return maxNumber + 1
+
+    // 本登録済み患者の番号のみを取得
+    const registeredNumbers = patients
+      .filter(p => p.is_registered && p.patient_number != null)
+      .map(p => p.patient_number)
+      .sort((a, b) => a - b)
+
+    if (registeredNumbers.length === 0) {
+      return 1
+    }
+
+    // 欠番を探す
+    for (let i = 0; i < registeredNumbers.length; i++) {
+      const expectedNumber = i + 1
+      if (registeredNumbers[i] !== expectedNumber) {
+        return expectedNumber
+      }
+    }
+
+    // 欠番がない場合は最大番号+1
+    return registeredNumbers[registeredNumbers.length - 1] + 1
   }
 
   // 通常モードの場合
   const client = getSupabaseClient()
+
+  // 本登録済み患者の番号を全て取得（昇順）
   const { data, error } = await client
     .from('patients')
     .select('patient_number')
     .eq('clinic_id', clinicId)
-    .not('patient_number', 'is', null)  // NULL値を除外
-    .order('patient_number', { ascending: false })
-    .limit(1)
+    .eq('is_registered', true)  // 本登録済みのみ
+    .not('patient_number', 'is', null)
+    .order('patient_number', { ascending: true })
 
   if (error) {
     console.error('患者番号生成エラー:', error)
     throw new Error('患者番号の生成に失敗しました')
   }
 
-  const maxNumber = data && data.length > 0 && data[0].patient_number != null ? data[0].patient_number : 0
-  return maxNumber + 1
+  if (!data || data.length === 0) {
+    return 1
+  }
+
+  // 欠番を探す
+  const numbers = data.map(d => d.patient_number as number).sort((a, b) => a - b)
+  for (let i = 0; i < numbers.length; i++) {
+    const expectedNumber = i + 1
+    if (numbers[i] !== expectedNumber) {
+      console.log(`欠番発見: ${expectedNumber}を再利用します`)
+      return expectedNumber
+    }
+  }
+
+  // 欠番がない場合は最大番号+1
+  const nextNumber = numbers[numbers.length - 1] + 1
+  console.log(`欠番なし: 新規番号${nextNumber}を割り当てます`)
+  return nextNumber
 }
 
 /**
@@ -357,6 +392,12 @@ export async function updatePatient(
   // 空文字列をnullに変換（チェック制約対策）
   if ((updateData as any).preferred_contact_method === '') {
     (updateData as any).preferred_contact_method = null
+  }
+
+  // 仮登録に戻す場合、診察券番号をnullにして番号を解放
+  if (updateData.is_registered === false) {
+    (updateData as any).patient_number = null
+    console.log('仮登録に戻すため診察券番号を解放します')
   }
 
   // データベースに存在しないフィールドを削除
