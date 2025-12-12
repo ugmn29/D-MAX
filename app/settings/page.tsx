@@ -10579,6 +10579,35 @@ export default function SettingsPage() {
             {/* タブコンテンツ */}
             {notificationTab === "connection" && (
               <div className="space-y-6">
+                {/* デバッグ用: 設定確認ボタン */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <button
+                    onClick={() => {
+                      console.log('🔍 現在のnotificationSettings:', notificationSettings);
+                      console.log('🔍 LINE設定詳細:', {
+                        enabled: notificationSettings.line.enabled,
+                        channel_id: notificationSettings.line.channel_id,
+                        has_secret: !!notificationSettings.line.channel_secret,
+                        has_token: !!notificationSettings.line.channel_access_token,
+                        webhook_url: notificationSettings.line.webhook_url,
+                        liff_ids: {
+                          initial_link: notificationSettings.line.liff_id_initial_link,
+                          qr_code: notificationSettings.line.liff_id_qr_code,
+                          family_register: notificationSettings.line.liff_id_family_register,
+                          appointments: notificationSettings.line.liff_id_appointments,
+                          web_booking: notificationSettings.line.liff_id_web_booking
+                        }
+                      });
+                      alert('コンソールに設定内容を出力しました（F12で確認）');
+                    }}
+                    className="text-sm bg-yellow-100 hover:bg-yellow-200 px-4 py-2 rounded-lg border border-yellow-300"
+                  >
+                    🔍 設定内容を確認（コンソールに出力）
+                  </button>
+                  <p className="text-xs text-yellow-800 mt-2">
+                    保存前に、入力した値が正しくセットされているか確認できます
+                  </p>
+                </div>
                 {/* メール設定 */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                   <div className="flex items-center justify-between mb-6">
