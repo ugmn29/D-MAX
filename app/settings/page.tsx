@@ -12926,6 +12926,18 @@ export default function SettingsPage() {
                             const col = index % cols;
                             const row = Math.floor(index / cols);
 
+                            // URLを絶対URLに変換（空の場合はデフォルトURLを使用）
+                            let actionUri = btn.url;
+                            if (btn.action === "url") {
+                              if (!actionUri || actionUri === "" || actionUri === "/") {
+                                // 空の場合はWebサイトURLまたはデフォルトURLを使用
+                                actionUri = clinicInfo.website_url || `${baseUrl}/`;
+                              } else if (actionUri.startsWith("/")) {
+                                // 相対パスを絶対URLに変換
+                                actionUri = `${baseUrl}${actionUri}`;
+                              }
+                            }
+
                             return {
                               bounds: {
                                 x: col * cellWidth,
@@ -12936,8 +12948,8 @@ export default function SettingsPage() {
                               action: {
                                 type: btn.action === "message" ? "message" : "uri",
                                 ...(btn.action === "message"
-                                  ? { text: btn.url }
-                                  : { uri: btn.url.startsWith("/") ? `${baseUrl}${btn.url}` : btn.url }
+                                  ? { text: btn.url || "お問い合わせ" }
+                                  : { uri: actionUri }
                                 )
                               }
                             };
