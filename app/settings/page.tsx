@@ -13048,7 +13048,7 @@ export default function SettingsPage() {
 
                         setSaving(true);
                         try {
-                          console.log("📋 既存のリッチメニューを取得中...");
+                          console.log("📋 既存のリッチメニューを自動取得中...");
 
                           // LINE APIから既存のリッチメニュー一覧を取得
                           const listResponse = await fetch(
@@ -13073,31 +13073,48 @@ export default function SettingsPage() {
                             return;
                           }
 
-                          // リッチメニューをリスト表示してユーザーに選択させる
-                          const menuList = richmenus.map((menu: any, index: number) =>
-                            `${index + 1}. ${menu.name || "名前なし"}\n   ID: ${menu.richMenuId}\n   チャットバー: ${menu.chatBarText || "未設定"}`
-                          ).join('\n\n');
+                          // 自動判別: 名前やチャットバーテキストから連携済み/未連携を判別
+                          let registeredMenu = null;
+                          let unregisteredMenu = null;
 
-                          const message = `既存のリッチメニューが${richmenus.length}個見つかりました:\n\n${menuList}\n\n現在の「${richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用"}」メニューとして、どれを使用しますか？\n\n番号を入力してください (1-${richmenus.length}):`;
+                          for (const menu of richmenus) {
+                            const name = (menu.name || "").toLowerCase();
+                            const chatBarText = (menu.chatBarText || "").toLowerCase();
 
-                          const input = prompt(message);
-
-                          if (!input) {
-                            showAlert("キャンセルしました", "info");
-                            return;
+                            // 連携済み用の判定
+                            if (
+                              name.includes("連携済み") ||
+                              name.includes("registered") ||
+                              chatBarText.includes("メニュー") ||
+                              menu.areas?.length >= 6  // 6ボタン以上なら連携済み用
+                            ) {
+                              registeredMenu = menu;
+                            }
+                            // 未連携用の判定
+                            else if (
+                              name.includes("未連携") ||
+                              name.includes("unregistered") ||
+                              chatBarText.includes("はじめに") ||
+                              chatBarText.includes("初回") ||
+                              menu.areas?.length <= 3  // 3ボタン以下なら未連携用
+                            ) {
+                              unregisteredMenu = menu;
+                            }
                           }
 
-                          const selectedIndex = parseInt(input) - 1;
+                          console.log("🔍 自動判別結果:", {
+                            registered: registeredMenu?.name,
+                            unregistered: unregisteredMenu?.name
+                          });
 
-                          if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= richmenus.length) {
-                            showAlert("無効な番号です", "error");
+                          // 両方見つからない場合
+                          if (!registeredMenu && !unregisteredMenu) {
+                            showAlert(
+                              `既存のリッチメニューが${richmenus.length}個見つかりましたが、連携済み/未連携を自動判別できませんでした。\n\n「LINE APIに登録」ボタンで新規作成してください。`,
+                              "info"
+                            );
                             return;
                           }
-
-                          const selectedMenu = richmenus[selectedIndex];
-                          const richMenuId = selectedMenu.richMenuId;
-
-                          console.log("📌 選択されたリッチメニュー:", selectedMenu);
 
                           // データベースに保存
                           const saveResponse = await fetch("/api/line/save-rich-menu-ids", {
@@ -13105,8 +13122,8 @@ export default function SettingsPage() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               clinic_id: DEMO_CLINIC_ID,
-                              registered_menu_id: richMenuSubTab === "registered" ? richMenuId : undefined,
-                              unregistered_menu_id: richMenuSubTab === "unregistered" ? richMenuId : undefined
+                              registered_menu_id: registeredMenu?.richMenuId,
+                              unregistered_menu_id: unregisteredMenu?.richMenuId
                             }),
                           });
 
@@ -13115,13 +13132,34 @@ export default function SettingsPage() {
                             throw new Error(error.error || "リッチメニューID保存に失敗しました");
                           }
 
-                          console.log("✅ リッチメニューIDを保存しました");
+                          console.log("✅ リッチメニューIDを自動保存しました");
 
-                          const menuTypeText = richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用";
-                          showAlert(
-                            `✅ ${menuTypeText}リッチメニューを設定しました\n\nメニュー名: ${selectedMenu.name}\nリッチメニューID: ${richMenuId}\n\nもう片方のメニューも設定してください。`,
-                            "success"
-                          );
+                          // 結果メッセージ
+                          let resultMessage = "✅ 既存のリッチメニューを自動設定しました\n\n";
+
+                          if (registeredMenu) {
+                            resultMessage += `【連携済みユーザー用】\n`;
+                            resultMessage += `メニュー名: ${registeredMenu.name}\n`;
+                            resultMessage += `ID: ${registeredMenu.richMenuId}\n\n`;
+                          } else {
+                            resultMessage += `【連携済みユーザー用】未検出\n\n`;
+                          }
+
+                          if (unregisteredMenu) {
+                            resultMessage += `【未連携ユーザー用】\n`;
+                            resultMessage += `メニュー名: ${unregisteredMenu.name}\n`;
+                            resultMessage += `ID: ${unregisteredMenu.richMenuId}\n\n`;
+                          } else {
+                            resultMessage += `【未連携ユーザー用】未検出\n\n`;
+                          }
+
+                          if (!registeredMenu || !unregisteredMenu) {
+                            resultMessage += `⚠️ 片方のメニューが見つかりませんでした。\n「LINE APIに登録」ボタンで作成してください。`;
+                          } else {
+                            resultMessage += `🎉 患者連携時に自動的に切り替わります！`;
+                          }
+
+                          showAlert(resultMessage, "success");
                         } catch (error) {
                           console.error("❌ 既存リッチメニュー取得エラー:", error);
                           showAlert(
@@ -13150,7 +13188,7 @@ export default function SettingsPage() {
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                       </svg>
-                      {saving ? "読み込み中..." : "既存メニューを読み込む"}
+                      {saving ? "自動読み込み中..." : "既存メニューを自動読み込み"}
                     </Button>
                   </div>
                   <div className="mt-3 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -13158,11 +13196,10 @@ export default function SettingsPage() {
                       💡 リッチメニューの登録と切り替えについて
                     </p>
                     <ul className="list-disc list-inside space-y-1">
-                      <li>「既存メニューを読み込む」でLINE APIに登録済みのリッチメニューを取得して設定できます</li>
+                      <li>「既存メニューを自動読み込み」でLINE APIに登録済みのリッチメニューを自動判別して設定します</li>
                       <li>「LINE APIに登録」ボタンで新しいリッチメニューをLINE Messaging APIに作成します</li>
-                      <li>連携済みと未連携の両方のメニューを設定してください</li>
+                      <li>連携済み・未連携の両方のメニューが自動判別されデータベースに保存されます</li>
                       <li>患者連携時に自動的に未連携→連携済みに切り替わります</li>
-                      <li>リッチメニューIDはデータベースに自動保存されます</li>
                     </ul>
                   </div>
                 </div>
