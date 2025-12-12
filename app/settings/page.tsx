@@ -12910,72 +12910,94 @@ export default function SettingsPage() {
 
                         setSaving(true);
                         try {
-                          console.log("LINEリッチメニュー反映開始...");
-                          console.log(
-                            "Channel Access Token:",
-                            notificationSettings.line.channel_access_token?.substring(
-                              0,
-                              20,
-                            ) + "...",
-                          );
+                          console.log("🎨 LINEリッチメニュー作成開始...");
+                          console.log("📊 Menu Type:", richMenuSubTab);
 
                           // 相対パスを絶対URLに変換
                           const baseUrl = window.location.origin;
                           const currentButtons = richMenuSubTab === "registered" ? richMenuButtons : unregisteredRichMenuButtons;
-                          const buttonsWithFullUrl = currentButtons.map(
-                            (btn) => ({
-                            ...btn,
-                              url:
-                                btn.action === "url" && btn.url.startsWith("/")
-                              ? `${baseUrl}${btn.url}`
-                                  : btn.url,
-                            }),
-                          );
 
-                          console.log(
-                            `Buttons (${richMenuSubTab}, with full URLs):`,
-                            buttonsWithFullUrl,
-                          );
+                          // LINE Rich Menu APIのareas形式に変換
+                          const areas = currentButtons.map((btn, index) => {
+                            const cols = richMenuSubTab === "registered" ? 2 : 3; // 連携済み: 2列, 未連携: 3列
+                            const rows = Math.ceil(currentButtons.length / cols);
+                            const cellWidth = 2500 / cols;
+                            const cellHeight = 1686 / rows;
+                            const col = index % cols;
+                            const row = Math.floor(index / cols);
 
-                          const response = await fetch("/api/line/richmenu", {
+                            return {
+                              bounds: {
+                                x: col * cellWidth,
+                                y: row * cellHeight,
+                                width: cellWidth,
+                                height: cellHeight
+                              },
+                              action: {
+                                type: btn.action === "message" ? "message" : "uri",
+                                ...(btn.action === "message"
+                                  ? { text: btn.url }
+                                  : { uri: btn.url.startsWith("/") ? `${baseUrl}${btn.url}` : btn.url }
+                                )
+                              }
+                            };
+                          });
+
+                          console.log("📐 Areas:", areas);
+
+                          // 1. リッチメニューを作成
+                          const createResponse = await fetch("/api/line/create-rich-menu", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                              channelAccessToken:
-                                notificationSettings.line.channel_access_token,
-                              buttons: buttonsWithFullUrl,
-                              menuType: richMenuSubTab, // "registered" or "unregistered"
-                              liffIds: {
-                                initial_link: notificationSettings.line.liff_id_initial_link,
-                                qr_code: notificationSettings.line.liff_id_qr_code,
-                                family_register: notificationSettings.line.liff_id_family_register,
-                                appointments: notificationSettings.line.liff_id_appointments,
-                                web_booking: notificationSettings.line.liff_id_web_booking,
-                              },
+                              clinic_id: DEMO_CLINIC_ID,
+                              name: richMenuSubTab === "registered"
+                                ? "連携済みユーザー用リッチメニュー"
+                                : "未連携ユーザー用リッチメニュー",
+                              chatBarText: richMenuSubTab === "registered" ? "メニュー" : "はじめに",
+                              areas: areas,
+                              size: { width: 2500, height: 1686 },
+                              selected: richMenuSubTab === "unregistered" // 未連携はデフォルト表示
                             }),
                           });
 
-                          console.log("Response status:", response.status);
-                          const result = await response.json();
-                          console.log("Response result:", result);
-
-                          if (response.ok) {
-                            const menuTypeText = richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用";
-                            showAlert(`✅ ${menuTypeText}リッチメニューをLINE公式アカウントに反映しました`, "success");
-                          } else {
-                            console.error("エラー詳細:", result);
-                            showAlert(
-                              "❌ エラー: " +
-                                result.error +
-                                "\n詳細: " +
-                                (result.details || "なし"),
-                              "error"
-                            );
+                          if (!createResponse.ok) {
+                            const error = await createResponse.json();
+                            throw new Error(error.error || "リッチメニュー作成に失敗しました");
                           }
-                        } catch (error) {
-                          console.error("LINEリッチメニュー反映エラー:", error);
+
+                          const createResult = await createResponse.json();
+                          const richMenuId = createResult.richMenuId;
+
+                          console.log("✅ リッチメニュー作成成功:", richMenuId);
+
+                          // 2. リッチメニューIDをデータベースに保存
+                          const saveResponse = await fetch("/api/line/save-rich-menu-ids", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              clinic_id: DEMO_CLINIC_ID,
+                              registered_menu_id: richMenuSubTab === "registered" ? richMenuId : undefined,
+                              unregistered_menu_id: richMenuSubTab === "unregistered" ? richMenuId : undefined
+                            }),
+                          });
+
+                          if (!saveResponse.ok) {
+                            const error = await saveResponse.json();
+                            console.warn("⚠️ リッチメニューID保存失敗:", error);
+                          } else {
+                            console.log("✅ リッチメニューIDを保存しました");
+                          }
+
+                          const menuTypeText = richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用";
                           showAlert(
-                            "❌ LINEへの反映に失敗しました\n\nエラー: " +
+                            `✅ ${menuTypeText}リッチメニューをLINE APIに登録しました\n\nリッチメニューID: ${richMenuId}\n\n次のステップ:\n1. 画像をアップロード (LINE Developers Console)\n2. もう片方のメニューも登録\n3. 患者連携で自動切り替えをテスト`,
+                            "success"
+                          );
+                        } catch (error) {
+                          console.error("❌ LINEリッチメニュー作成エラー:", error);
+                          showAlert(
+                            "❌ LINEへの登録に失敗しました\n\nエラー: " +
                               (error instanceof Error
                                 ? error.message
                                 : String(error)) +
@@ -13000,16 +13022,19 @@ export default function SettingsPage() {
                         <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z" />
                         <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z" />
                       </svg>
-                      {saving ? "LINEに反映中..." : "LINEに反映"}
+                      {saving ? "LINE APIに登録中..." : "LINE APIに登録"}
                     </Button>
                   </div>
                   <div className="mt-3 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="font-medium text-blue-900 mb-1">
-                      💡 リッチメニューの適用について
+                      💡 リッチメニューの登録と切り替えについて
                     </p>
-                    <p>
-                      「LINEに反映」ボタンを押すと、デフォルトリッチメニューとして設定され、既存ユーザーを含む全ユーザーに自動的に適用されます。
-                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>「LINE APIに登録」ボタンでLINE Messaging APIにリッチメニューを作成します</li>
+                      <li>連携済みと未連携の両方のメニューを登録してください</li>
+                      <li>患者連携時に自動的に未連携→連携済みに切り替わります</li>
+                      <li>リッチメニューIDはデータベースに自動保存されます</li>
+                    </ul>
                   </div>
                 </div>
 
