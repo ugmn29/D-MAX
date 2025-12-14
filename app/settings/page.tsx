@@ -12865,41 +12865,6 @@ export default function SettingsPage() {
                     </Button>
                     <Button
                       onClick={async () => {
-                        setSaving(true);
-                        try {
-                          const richMenuConfig = {
-                            layout: richMenuLayout,
-                            buttons: richMenuSubTab === "registered" ? richMenuButtons : unregisteredRichMenuButtons,
-                            type: richMenuSubTab
-                          };
-
-                          // LocalStorageに保存（デモ用）
-                          const storageKey = richMenuSubTab === "registered"
-                            ? "rich_menu_config_registered"
-                            : "rich_menu_config_unregistered";
-                          localStorage.setItem(
-                            storageKey,
-                            JSON.stringify(richMenuConfig),
-                          );
-
-                          showAlert(
-                            `${richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用"}リッチメニュー設定を保存しました！`,
-                            "success"
-                          );
-                        } catch (error) {
-                          console.error("保存エラー:", error);
-                          showAlert("保存に失敗しました", "error");
-                        } finally {
-                          setSaving(false);
-                        }
-                      }}
-                      disabled={saving}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      {saving ? "保存中..." : "保存"}
-                    </Button>
-                    <Button
-                      onClick={async () => {
                         if (!notificationSettings.line.channel_access_token) {
                           showAlert(
                             "LINE設定のChannel Access Tokenを入力してください",
@@ -12910,30 +12875,26 @@ export default function SettingsPage() {
 
                         setSaving(true);
                         try {
-                          console.log("🎨 LINEリッチメニュー作成開始...");
+                          console.log("💾 リッチメニュー保存開始...");
                           console.log("📊 Menu Type:", richMenuSubTab);
 
-                          // 相対パスを絶対URLに変換
                           const baseUrl = window.location.origin;
                           const currentButtons = richMenuSubTab === "registered" ? richMenuButtons : unregisteredRichMenuButtons;
 
                           // LINE Rich Menu APIのareas形式に変換
                           const areas = currentButtons.map((btn, index) => {
-                            const cols = richMenuSubTab === "registered" ? 2 : 3; // 連携済み: 2列, 未連携: 3列
+                            const cols = richMenuSubTab === "registered" ? 2 : 3;
                             const rows = Math.ceil(currentButtons.length / cols);
                             const cellWidth = 2500 / cols;
                             const cellHeight = 1686 / rows;
                             const col = index % cols;
                             const row = Math.floor(index / cols);
 
-                            // URLを絶対URLに変換（空の場合はデフォルトURLを使用）
                             let actionUri = btn.url;
                             if (btn.action === "url") {
                               if (!actionUri || actionUri === "" || actionUri === "/") {
-                                // 空の場合はWebサイトURLまたはデフォルトURLを使用
                                 actionUri = clinicInfo.website_url || `${baseUrl}/`;
                               } else if (actionUri.startsWith("/")) {
-                                // 相対パスを絶対URLに変換
                                 actionUri = `${baseUrl}${actionUri}`;
                               }
                             }
@@ -12955,9 +12916,7 @@ export default function SettingsPage() {
                             };
                           });
 
-                          console.log("📐 Areas:", areas);
-
-                          // 1. リッチメニューを作成
+                          // 1. LINE APIにリッチメニューを作成
                           const createResponse = await fetch("/api/line/create-rich-menu", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -12969,7 +12928,7 @@ export default function SettingsPage() {
                               chatBarText: richMenuSubTab === "registered" ? "メニュー" : "はじめに",
                               areas: areas,
                               size: { width: 2500, height: 1686 },
-                              selected: richMenuSubTab === "unregistered" // 未連携はデフォルト表示
+                              selected: richMenuSubTab === "unregistered"
                             }),
                           });
 
@@ -12983,7 +12942,7 @@ export default function SettingsPage() {
 
                           console.log("✅ リッチメニュー作成成功:", richMenuId);
 
-                          // 2. リッチメニューIDをデータベースに保存
+                          // 2. リッチメニューIDをデータベースに自動保存
                           const saveResponse = await fetch("/api/line/save-rich-menu-ids", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -12997,209 +12956,54 @@ export default function SettingsPage() {
                           if (!saveResponse.ok) {
                             const error = await saveResponse.json();
                             console.warn("⚠️ リッチメニューID保存失敗:", error);
-                          } else {
-                            console.log("✅ リッチメニューIDを保存しました");
-                          }
-
-                          const menuTypeText = richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用";
-                          showAlert(
-                            `✅ ${menuTypeText}リッチメニューをLINE APIに登録しました\n\nリッチメニューID: ${richMenuId}\n\n次のステップ:\n1. 画像をアップロード (LINE Developers Console)\n2. もう片方のメニューも登録\n3. 患者連携で自動切り替えをテスト`,
-                            "success"
-                          );
-                        } catch (error) {
-                          console.error("❌ LINEリッチメニュー作成エラー:", error);
-                          showAlert(
-                            "❌ LINEへの登録に失敗しました\n\nエラー: " +
-                              (error instanceof Error
-                                ? error.message
-                                : String(error)) +
-                              "\n\nブラウザのコンソール(F12)で詳細を確認してください",
-                            "error"
-                          );
-                        } finally {
-                          setSaving(false);
-                        }
-                      }}
-                      disabled={
-                        saving ||
-                        !notificationSettings.line.channel_access_token
-                      }
-                      className="bg-[#00B900] hover:bg-[#00A000] text-white"
-                    >
-                      <svg
-                        className="w-4 h-4 mr-2"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z" />
-                        <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z" />
-                      </svg>
-                      {saving ? "LINE APIに登録中..." : "LINE APIに登録"}
-                    </Button>
-                    <Button
-                      onClick={async () => {
-                        if (!notificationSettings.line.channel_access_token) {
-                          showAlert(
-                            "LINE設定のChannel Access Tokenを入力してください",
-                            "error"
-                          );
-                          return;
-                        }
-
-                        setSaving(true);
-                        try {
-                          console.log("📋 既存のリッチメニューを自動取得中...");
-
-                          // LINE APIから既存のリッチメニュー一覧を取得
-                          const listResponse = await fetch(
-                            `/api/line/list-rich-menus?clinic_id=${DEMO_CLINIC_ID}`
-                          );
-
-                          if (!listResponse.ok) {
-                            const error = await listResponse.json();
-                            throw new Error(error.error || "リッチメニュー取得に失敗しました");
-                          }
-
-                          const listResult = await listResponse.json();
-                          const richmenus = listResult.richmenus || [];
-
-                          console.log("✅ リッチメニュー取得成功:", richmenus);
-
-                          if (richmenus.length === 0) {
-                            showAlert(
-                              "既存のリッチメニューが見つかりません。\n\n「LINE APIに登録」ボタンで新規作成してください。",
-                              "info"
-                            );
-                            return;
-                          }
-
-                          // 自動判別: 名前やチャットバーテキストから連携済み/未連携を判別
-                          let registeredMenu = null;
-                          let unregisteredMenu = null;
-
-                          for (const menu of richmenus) {
-                            const name = (menu.name || "").toLowerCase();
-                            const chatBarText = (menu.chatBarText || "").toLowerCase();
-
-                            // 連携済み用の判定
-                            if (
-                              name.includes("連携済み") ||
-                              name.includes("registered") ||
-                              chatBarText.includes("メニュー") ||
-                              menu.areas?.length >= 6  // 6ボタン以上なら連携済み用
-                            ) {
-                              registeredMenu = menu;
-                            }
-                            // 未連携用の判定
-                            else if (
-                              name.includes("未連携") ||
-                              name.includes("unregistered") ||
-                              chatBarText.includes("はじめに") ||
-                              chatBarText.includes("初回") ||
-                              menu.areas?.length <= 3  // 3ボタン以下なら未連携用
-                            ) {
-                              unregisteredMenu = menu;
-                            }
-                          }
-
-                          console.log("🔍 自動判別結果:", {
-                            registered: registeredMenu?.name,
-                            unregistered: unregisteredMenu?.name
-                          });
-
-                          // 両方見つからない場合
-                          if (!registeredMenu && !unregisteredMenu) {
-                            showAlert(
-                              `既存のリッチメニューが${richmenus.length}個見つかりましたが、連携済み/未連携を自動判別できませんでした。\n\n「LINE APIに登録」ボタンで新規作成してください。`,
-                              "info"
-                            );
-                            return;
-                          }
-
-                          // データベースに保存
-                          const saveResponse = await fetch("/api/line/save-rich-menu-ids", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              clinic_id: DEMO_CLINIC_ID,
-                              registered_menu_id: registeredMenu?.richMenuId,
-                              unregistered_menu_id: unregisteredMenu?.richMenuId
-                            }),
-                          });
-
-                          if (!saveResponse.ok) {
-                            const error = await saveResponse.json();
                             throw new Error(error.error || "リッチメニューID保存に失敗しました");
                           }
 
                           console.log("✅ リッチメニューIDを自動保存しました");
 
-                          // 結果メッセージ
-                          let resultMessage = "✅ 既存のリッチメニューを自動設定しました\n\n";
+                          // LocalStorageにも保存
+                          const richMenuConfig = {
+                            layout: richMenuLayout,
+                            buttons: currentButtons,
+                            type: richMenuSubTab,
+                            richMenuId: richMenuId
+                          };
+                          const storageKey = richMenuSubTab === "registered"
+                            ? "rich_menu_config_registered"
+                            : "rich_menu_config_unregistered";
+                          localStorage.setItem(storageKey, JSON.stringify(richMenuConfig));
 
-                          if (registeredMenu) {
-                            resultMessage += `【連携済みユーザー用】\n`;
-                            resultMessage += `メニュー名: ${registeredMenu.name}\n`;
-                            resultMessage += `ID: ${registeredMenu.richMenuId}\n\n`;
-                          } else {
-                            resultMessage += `【連携済みユーザー用】未検出\n\n`;
-                          }
-
-                          if (unregisteredMenu) {
-                            resultMessage += `【未連携ユーザー用】\n`;
-                            resultMessage += `メニュー名: ${unregisteredMenu.name}\n`;
-                            resultMessage += `ID: ${unregisteredMenu.richMenuId}\n\n`;
-                          } else {
-                            resultMessage += `【未連携ユーザー用】未検出\n\n`;
-                          }
-
-                          if (!registeredMenu || !unregisteredMenu) {
-                            resultMessage += `⚠️ 片方のメニューが見つかりませんでした。\n「LINE APIに登録」ボタンで作成してください。`;
-                          } else {
-                            resultMessage += `🎉 患者連携時に自動的に切り替わります！`;
-                          }
-
-                          showAlert(resultMessage, "success");
-                        } catch (error) {
-                          console.error("❌ 既存リッチメニュー取得エラー:", error);
+                          const menuTypeText = richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用";
                           showAlert(
-                            "❌ リッチメニューの取得に失敗しました\n\nエラー: " +
-                              (error instanceof Error
-                                ? error.message
-                                : String(error)),
+                            `✅ ${menuTypeText}リッチメニューを保存しました\n\nLINE APIに自動登録され、データベースにも保存されました。\n\nリッチメニューID: ${richMenuId}`,
+                            "success"
+                          );
+                        } catch (error) {
+                          console.error("❌ リッチメニュー保存エラー:", error);
+                          showAlert(
+                            "❌ 保存に失敗しました\n\nエラー: " +
+                              (error instanceof Error ? error.message : String(error)),
                             "error"
                           );
                         } finally {
                           setSaving(false);
                         }
                       }}
-                      disabled={
-                        saving ||
-                        !notificationSettings.line.channel_access_token
-                      }
-                      variant="outline"
-                      className="border-[#00B900] text-[#00B900] hover:bg-[#00B900]/10"
+                      disabled={saving || !notificationSettings.line.channel_access_token}
                     >
-                      <svg
-                        className="w-4 h-4 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      {saving ? "自動読み込み中..." : "既存メニューを自動読み込み"}
+                      <Save className="w-4 h-4 mr-2" />
+                      {saving ? "保存中..." : "保存してLINE APIに登録"}
                     </Button>
                   </div>
                   <div className="mt-3 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="font-medium text-blue-900 mb-1">
-                      💡 リッチメニューの登録と切り替えについて
+                      💡 リッチメニューの自動登録について
                     </p>
                     <ul className="list-disc list-inside space-y-1">
-                      <li>「既存メニューを自動読み込み」でLINE APIに登録済みのリッチメニューを自動判別して設定します</li>
-                      <li>「LINE APIに登録」ボタンで新しいリッチメニューをLINE Messaging APIに作成します</li>
-                      <li>連携済み・未連携の両方のメニューが自動判別されデータベースに保存されます</li>
+                      <li>ボタンを設定して「保存」を押すと、自動的にLINE APIに登録されます</li>
+                      <li>連携済みと未連携の両方のメニューを保存してください</li>
                       <li>患者連携時に自動的に未連携→連携済みに切り替わります</li>
+                      <li>リッチメニューIDは自動的にデータベースに保存されます</li>
                     </ul>
                   </div>
                 </div>
