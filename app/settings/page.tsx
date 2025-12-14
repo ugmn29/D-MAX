@@ -12942,7 +12942,28 @@ export default function SettingsPage() {
 
                           console.log("✅ リッチメニュー作成成功:", richMenuId);
 
-                          // 2. リッチメニューIDをデータベースに自動保存
+                          // 2. リッチメニューに画像をアップロード
+                          console.log("📤 画像アップロード開始...");
+                          const uploadResponse = await fetch("/api/line/upload-rich-menu-image", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              clinic_id: DEMO_CLINIC_ID,
+                              rich_menu_id: richMenuId,
+                              buttons: currentButtons,
+                              menu_type: richMenuSubTab
+                            }),
+                          });
+
+                          if (!uploadResponse.ok) {
+                            const error = await uploadResponse.json();
+                            console.warn("⚠️ 画像アップロード失敗:", error);
+                            throw new Error(error.error || "画像アップロードに失敗しました");
+                          }
+
+                          console.log("✅ 画像アップロード成功");
+
+                          // 3. リッチメニューIDをデータベースに自動保存
                           const saveResponse = await fetch("/api/line/save-rich-menu-ids", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -12961,6 +12982,25 @@ export default function SettingsPage() {
 
                           console.log("✅ リッチメニューIDを自動保存しました");
 
+                          // 4. 未連携メニューの場合はデフォルトとして設定
+                          if (richMenuSubTab === "unregistered") {
+                            console.log("🔧 デフォルトリッチメニューとして設定...");
+                            const defaultResponse = await fetch("/api/line/set-default-rich-menu", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                clinic_id: DEMO_CLINIC_ID,
+                                rich_menu_id: richMenuId
+                              }),
+                            });
+
+                            if (defaultResponse.ok) {
+                              console.log("✅ デフォルトリッチメニュー設定成功");
+                            } else {
+                              console.warn("⚠️ デフォルトリッチメニュー設定をスキップ");
+                            }
+                          }
+
                           // LocalStorageにも保存
                           const richMenuConfig = {
                             layout: richMenuLayout,
@@ -12974,8 +13014,9 @@ export default function SettingsPage() {
                           localStorage.setItem(storageKey, JSON.stringify(richMenuConfig));
 
                           const menuTypeText = richMenuSubTab === "registered" ? "連携済みユーザー用" : "未連携ユーザー用";
+                          const defaultText = richMenuSubTab === "unregistered" ? "\n📌 デフォルトメニューとして設定されました" : "";
                           showAlert(
-                            `✅ ${menuTypeText}リッチメニューを保存しました\n\nLINE APIに自動登録され、データベースにも保存されました。\n\nリッチメニューID: ${richMenuId}`,
+                            `✅ ${menuTypeText}リッチメニューを保存しました\n\n✓ LINE APIに自動登録\n✓ 画像を自動生成・アップロード\n✓ データベースに保存${defaultText}\n\nリッチメニューID: ${richMenuId}`,
                             "success"
                           );
                         } catch (error) {
@@ -13001,7 +13042,9 @@ export default function SettingsPage() {
                     </p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>ボタンを設定して「保存」を押すと、自動的にLINE APIに登録されます</li>
+                      <li>画像は自動生成されアップロードされます（手動アップロード不要）</li>
                       <li>連携済みと未連携の両方のメニューを保存してください</li>
+                      <li>未連携メニューは自動的にデフォルトメニューとして設定されます</li>
                       <li>患者連携時に自動的に未連携→連携済みに切り替わります</li>
                       <li>リッチメニューIDは自動的にデータベースに保存されます</li>
                     </ul>
