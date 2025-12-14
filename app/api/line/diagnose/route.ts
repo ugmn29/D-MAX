@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       linkageHistory: {
         count: linkages?.length || 0,
         recent: linkages?.slice(0, 3).map(l => ({
-          lineUserId: l.line_user_id.substring(0, 30) + '...',
+          lineUserId: l.line_user_id,  // 完全なIDを返す
           createdAt: l.created_at
         })) || []
       },
