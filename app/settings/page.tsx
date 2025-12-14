@@ -12882,39 +12882,96 @@ export default function SettingsPage() {
                           const currentButtons = richMenuSubTab === "registered" ? richMenuButtons : unregisteredRichMenuButtons;
 
                           // LINE Rich Menu APIのareas形式に変換
-                          const areas = currentButtons.map((btn, index) => {
+                          let areas;
+
+                          if (richMenuSubTab === "registered" && currentButtons.length === 6) {
+                            // 連携済みメニュー: 特殊なレイアウト
+                            // 左列3段 + 右側2x2グリッド
+                            const leftColWidth = 2500 / 3;  // 全体の1/3
+                            const rightColWidth = (2500 * 2) / 3;  // 全体の2/3
+                            const rowHeight = 1686 / 2;  // 2行
+                            const leftCellHeight = 1686 / 3;  // 左列は3段
+
+                            areas = currentButtons.map((btn, index) => {
+                              let bounds;
+
+                              if (index === 0) {
+                                // Webサイト - 左上 (1/3)
+                                bounds = { x: 0, y: 0, width: leftColWidth, height: leftCellHeight };
+                              } else if (index === 1) {
+                                // 家族登録 - 左中 (1/3)
+                                bounds = { x: 0, y: leftCellHeight, width: leftColWidth, height: leftCellHeight };
+                              } else if (index === 2) {
+                                // お問合せ - 左下 (1/3)
+                                bounds = { x: 0, y: leftCellHeight * 2, width: leftColWidth, height: leftCellHeight };
+                              } else if (index === 3) {
+                                // QRコード - 右上左
+                                bounds = { x: leftColWidth, y: 0, width: rightColWidth / 2, height: rowHeight };
+                              } else if (index === 4) {
+                                // 予約確認 - 右上右
+                                bounds = { x: leftColWidth + (rightColWidth / 2), y: 0, width: rightColWidth / 2, height: rowHeight };
+                              } else if (index === 5) {
+                                // 予約を取る - 右下全体 (2マス分)
+                                bounds = { x: leftColWidth, y: rowHeight, width: rightColWidth, height: rowHeight };
+                              }
+
+                              let actionUri = btn.url;
+                              if (btn.action === "url") {
+                                if (!actionUri || actionUri === "" || actionUri === "/") {
+                                  actionUri = clinicInfo.website_url || `${baseUrl}/`;
+                                } else if (actionUri.startsWith("/")) {
+                                  actionUri = `${baseUrl}${actionUri}`;
+                                }
+                              }
+
+                              return {
+                                bounds,
+                                action: {
+                                  type: btn.action === "message" ? "message" : "uri",
+                                  ...(btn.action === "message"
+                                    ? { text: btn.url || "お問い合わせ" }
+                                    : { uri: actionUri }
+                                  )
+                                }
+                              };
+                            });
+                          } else {
+                            // 未連携メニューまたは通常のグリッドレイアウト
                             const cols = richMenuSubTab === "registered" ? 2 : 3;
                             const rows = Math.ceil(currentButtons.length / cols);
                             const cellWidth = 2500 / cols;
                             const cellHeight = 1686 / rows;
-                            const col = index % cols;
-                            const row = Math.floor(index / cols);
 
-                            let actionUri = btn.url;
-                            if (btn.action === "url") {
-                              if (!actionUri || actionUri === "" || actionUri === "/") {
-                                actionUri = clinicInfo.website_url || `${baseUrl}/`;
-                              } else if (actionUri.startsWith("/")) {
-                                actionUri = `${baseUrl}${actionUri}`;
-                              }
-                            }
+                            areas = currentButtons.map((btn, index) => {
+                              const col = index % cols;
+                              const row = Math.floor(index / cols);
 
-                            return {
-                              bounds: {
-                                x: col * cellWidth,
-                                y: row * cellHeight,
-                                width: cellWidth,
-                                height: cellHeight
-                              },
-                              action: {
-                                type: btn.action === "message" ? "message" : "uri",
-                                ...(btn.action === "message"
-                                  ? { text: btn.url || "お問い合わせ" }
-                                  : { uri: actionUri }
-                                )
+                              let actionUri = btn.url;
+                              if (btn.action === "url") {
+                                if (!actionUri || actionUri === "" || actionUri === "/") {
+                                  actionUri = clinicInfo.website_url || `${baseUrl}/`;
+                                } else if (actionUri.startsWith("/")) {
+                                  actionUri = `${baseUrl}${actionUri}`;
+                                }
                               }
-                            };
-                          });
+
+                              return {
+                                bounds: {
+                                  x: col * cellWidth,
+                                  y: row * cellHeight,
+                                  width: cellWidth,
+                                  height: cellHeight
+                                },
+                                action: {
+                                  type: btn.action === "message" ? "message" : "uri",
+                                  ...(btn.action === "message"
+                                    ? { text: btn.url || "お問い合わせ" }
+                                    : { uri: actionUri }
+                                  )
+                                }
+                              };
+                            });
+                          }
 
                           // 1. LINE APIにリッチメニューを作成
                           const createResponse = await fetch("/api/line/create-rich-menu", {

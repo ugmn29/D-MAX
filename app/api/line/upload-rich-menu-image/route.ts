@@ -32,18 +32,47 @@ export async function POST(request: NextRequest) {
     ctx.fillStyle = '#FFFFFF'
     ctx.fillRect(0, 0, width, height)
 
-    // ボタン数に応じたレイアウト
-    const cols = menu_type === 'registered' ? 2 : 3
-    const rows = Math.ceil(buttons.length / cols)
-    const cellWidth = width / cols
-    const cellHeight = height / rows
-
     // 各ボタンを描画
     buttons.forEach((button: any, index: number) => {
-      const col = index % cols
-      const row = Math.floor(index / cols)
-      const x = col * cellWidth
-      const y = row * cellHeight
+      let x, y, cellWidth, cellHeight;
+
+      if (menu_type === 'registered' && buttons.length === 6) {
+        // 連携済みメニュー: 特殊なレイアウト
+        const leftColWidth = width / 3;
+        const rightColWidth = (width * 2) / 3;
+        const rowHeight = height / 2;
+        const leftCellHeight = height / 3;
+
+        if (index === 0) {
+          // Webサイト - 左上
+          x = 0; y = 0; cellWidth = leftColWidth; cellHeight = leftCellHeight;
+        } else if (index === 1) {
+          // 家族登録 - 左中
+          x = 0; y = leftCellHeight; cellWidth = leftColWidth; cellHeight = leftCellHeight;
+        } else if (index === 2) {
+          // お問合せ - 左下
+          x = 0; y = leftCellHeight * 2; cellWidth = leftColWidth; cellHeight = leftCellHeight;
+        } else if (index === 3) {
+          // QRコード - 右上左
+          x = leftColWidth; y = 0; cellWidth = rightColWidth / 2; cellHeight = rowHeight;
+        } else if (index === 4) {
+          // 予約確認 - 右上右
+          x = leftColWidth + (rightColWidth / 2); y = 0; cellWidth = rightColWidth / 2; cellHeight = rowHeight;
+        } else if (index === 5) {
+          // 予約を取る - 右下全体
+          x = leftColWidth; y = rowHeight; cellWidth = rightColWidth; cellHeight = rowHeight;
+        }
+      } else {
+        // 未連携メニューまたは通常のグリッドレイアウト
+        const cols = menu_type === 'registered' ? 2 : 3;
+        const rows = Math.ceil(buttons.length / cols);
+        cellWidth = width / cols;
+        cellHeight = height / rows;
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        x = col * cellWidth;
+        y = row * cellHeight;
+      }
 
       // ボタンの枠線
       ctx.strokeStyle = '#E0E0E0'
