@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getLineSettings } from '@/lib/line/messaging'
-import { createCanvas, CanvasRenderingContext2D } from 'canvas'
+import { createCanvas, registerFont, CanvasRenderingContext2D } from 'canvas'
+import path from 'path'
+
+// フォントを登録（サーバー起動時に1回だけ実行）
+let fontRegistered = false
+function ensureFontRegistered() {
+  if (fontRegistered) return
+  try {
+    // NotoSansJP.ttfを使用（Variable Fontなのでboldにも対応）
+    const fontPath = path.join(process.cwd(), 'public', 'fonts', 'NotoSansJP.ttf')
+    registerFont(fontPath, { family: 'NotoSansJP', weight: 'bold' })
+    fontRegistered = true
+    console.log('Font registered successfully:', fontPath)
+  } catch (error) {
+    console.error('Font registration failed:', error)
+  }
+}
 
 /**
  * POST /api/line/upload-rich-menu-image
@@ -10,6 +26,9 @@ import { createCanvas, CanvasRenderingContext2D } from 'canvas'
  */
 export async function POST(request: NextRequest) {
   try {
+    // フォント登録を確認
+    ensureFontRegistered()
+
     const body = await request.json()
     const { clinic_id, rich_menu_id, menu_type } = body
 
@@ -293,7 +312,7 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
 
     // テキスト描画
     ctx.fillStyle = '#1F2937'
-    ctx.font = `bold ${fontSize}px sans-serif`
+    ctx.font = `bold ${fontSize}px "NotoSansJP", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     const textY = startY + iconSize + gap
@@ -303,7 +322,7 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
       const subFontSize = fontSize * 0.7
-      ctx.font = `600 ${subFontSize}px sans-serif`
+      ctx.font = `600 ${subFontSize}px "NotoSansJP", sans-serif`
       ctx.fillText(subLabel, centerX, textY + fontSize + gap * 0.5)
     }
   } else {
@@ -311,7 +330,7 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     ctx.fillStyle = '#1F2937'
     const scale = height / 90
     const fontSize = 11 * scale * 2.2  // 2.2倍
-    ctx.font = `bold ${fontSize}px sans-serif`
+    ctx.font = `bold ${fontSize}px "NotoSansJP", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(label, centerX, centerY)
