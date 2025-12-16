@@ -274,31 +274,34 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    // アイコンサイズと位置（より大きく）
-    const iconSize = Math.min(width * 0.35, height * 0.25, 250)
-    const iconY = centerY - iconSize / 2 - 80
+    // プレビュー完全再現: アイコン w-8 h-8 (32px) をスケール
+    // プレビューボタン高さ 90px, アイコン 32px (35.6%), gap-1.5 (6px)
+    const iconSize = height * 0.356  // ボタン高さの35.6%
+    const gap = height * 0.067       // ボタン高さの6.7% (6px/90px)
+    const iconY = centerY - iconSize / 2 - gap
 
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
-    // ラベル（アイコンの下、より大きなフォント）
+    // プレビュー完全再現: テキスト text-[11px] font-bold をスケール
+    // プレビューボタン高さ 90px, テキスト 11px (12.2%)
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.15, 120)
+    const fontSize = height * 0.122  // ボタン高さの12.2%
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillText(label, centerX, iconY + iconSize + 40)
+    ctx.fillText(label, centerX, iconY + iconSize + gap)
 
     // サブラベル
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
       const subFontSize = fontSize * 0.7
       ctx.font = `600 ${subFontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
-      ctx.fillText(subLabel, centerX, iconY + iconSize + 40 + fontSize + 15)
+      ctx.fillText(subLabel, centerX, iconY + iconSize + gap + fontSize + gap * 0.5)
     }
   } else {
-    // アイコンなし（テキストのみ）
+    // アイコンなし（テキストのみ）- プレビュー完全再現
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.18, height * 0.15, 100)
+    const fontSize = height * 0.122  // プレビューと同じ 11px/90px = 12.2%
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
