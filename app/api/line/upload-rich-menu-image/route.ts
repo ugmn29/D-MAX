@@ -87,11 +87,11 @@ export async function POST(request: NextRequest) {
  * 連携済みユーザー用リッチメニューを描画（6ボタン）
  */
 function drawRegisteredMenu(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const gap = 20
-  const leftColWidth = Math.floor(width / 3) - gap
-  const rightColWidth = Math.floor((width * 2) / 3) - gap
-  const rowHeight = Math.floor(height / 2) - gap
-  const leftCellHeight = Math.floor(height / 3) - gap
+  const gap = 8
+  const leftColWidth = Math.floor((width - gap * 3) / 3)
+  const rightColWidth = Math.floor(((width - gap * 3) * 2) / 3)
+  const rowHeight = Math.floor((height - gap * 3) / 2)
+  const leftCellHeight = Math.floor((height - gap * 4) / 3)
 
   // 左列 - 3つのボタン
   // 1. Webサイト（オレンジ）
@@ -135,7 +135,7 @@ function drawRegisteredMenu(ctx: CanvasRenderingContext2D, width: number, height
 
   // 右上 - 2つのボタン
   const rightStartX = leftColWidth + gap * 2
-  const rightCellWidth = Math.floor(rightColWidth / 2) - gap / 2
+  const rightCellWidth = Math.floor((rightColWidth - gap) / 2)
 
   // 4. QRコード（ブルー）
   drawButton(ctx, {
@@ -168,7 +168,7 @@ function drawRegisteredMenu(ctx: CanvasRenderingContext2D, width: number, height
   drawButton(ctx, {
     x: rightStartX,
     y: rowHeight + gap * 2,
-    width: rightColWidth,
+    width: rightColWidth + gap,
     height: rowHeight,
     label: '予約を取る',
     gradientFrom: '#FEFCE8',
@@ -182,8 +182,8 @@ function drawRegisteredMenu(ctx: CanvasRenderingContext2D, width: number, height
  * 未連携ユーザー用リッチメニューを描画（3ボタン）
  */
 function drawUnregisteredMenu(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const gap = 20
-  const cellWidth = Math.floor(width / 3) - gap * 1.33
+  const gap = 8
+  const cellWidth = Math.floor((width - gap * 4) / 3)
   const cellHeight = height - gap * 2
 
   // 1. 初回登録（ブルー）
@@ -201,7 +201,7 @@ function drawUnregisteredMenu(ctx: CanvasRenderingContext2D, width: number, heig
 
   // 2. Webサイト（オレンジ）
   drawButton(ctx, {
-    x: cellWidth + gap * 2,
+    x: gap * 2 + cellWidth,
     y: gap,
     width: cellWidth,
     height: cellHeight,
@@ -214,7 +214,7 @@ function drawUnregisteredMenu(ctx: CanvasRenderingContext2D, width: number, heig
 
   // 3. お問合せ（ピンク）
   drawButton(ctx, {
-    x: (cellWidth + gap) * 2 + gap,
+    x: gap * 3 + cellWidth * 2,
     y: gap,
     width: cellWidth,
     height: cellHeight,
@@ -277,11 +277,11 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
 
     // ラベル（アイコンの下）
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.1, height * 0.12, 80)
+    const fontSize = Math.min(width * 0.12, height * 0.15, 120)
     ctx.font = `bold ${fontSize}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillText(label, centerX, iconY + iconSize / 2 + 30)
+    ctx.fillText(label, centerX, iconY + iconSize / 2 + 40)
 
     // サブラベル
     if (subLabel) {
