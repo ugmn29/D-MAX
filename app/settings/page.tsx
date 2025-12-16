@@ -12974,6 +12974,10 @@ export default function SettingsPage() {
                           }
 
                           // 1. LINE APIにリッチメニューを作成
+                          const menuSize = richMenuSubTab === "registered"
+                            ? { width: 2500, height: 1686 }  // 連携済み: フルサイズ
+                            : { width: 2500, height: 843 };   // 未連携: 半分サイズ
+
                           const createResponse = await fetch("/api/line/create-rich-menu", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -12984,7 +12988,7 @@ export default function SettingsPage() {
                                 : "未連携ユーザー用リッチメニュー",
                               chatBarText: richMenuSubTab === "registered" ? "メニュー" : "はじめに",
                               areas: areas,
-                              size: { width: 2500, height: 1686 },
+                              size: menuSize,
                               selected: richMenuSubTab === "unregistered"
                             }),
                           });

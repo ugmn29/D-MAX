@@ -22,9 +22,10 @@ export async function POST(request: NextRequest) {
 
     const lineSettings = await getLineSettings(clinic_id)
 
-    // キャンバスを作成（リッチメニューの標準サイズ）
+    // キャンバスを作成（リッチメニューのサイズ）
+    // 未連携: 2500x843 (半分サイズ), 連携済み: 2500x1686 (フルサイズ)
     const width = 2500
-    const height = 1686
+    const height = menu_type === 'registered' ? 1686 : 843
     const canvas = createCanvas(width, height)
     const ctx = canvas.getContext('2d')
 
