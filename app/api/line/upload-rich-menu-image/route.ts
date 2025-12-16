@@ -274,16 +274,15 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    // プレビュー: h-[90px] w-8 h-8 gap-1.5 text-[11px] をスケーリング
-    // 実際のボタンサイズに合わせて比率計算
+    // LINEアプリで読めるサイズに大幅拡大
     const scale = height / 90  // プレビューボタン90pxを基準
 
-    const iconSize = 32 * scale        // w-8 h-8 = 32px
-    const gap = 6 * scale               // gap-1.5 = 6px
-    const fontSize = 11 * scale         // text-[11px]
+    const iconSize = 32 * scale * 1.2   // アイコン: 20%拡大
+    const gap = 6 * scale                // gap: 6px
+    const fontSize = 11 * scale * 3.5    // テキスト: 3.5倍（350px程度）
 
-    // flexbox justify-center を再現: アイコン+gap+テキストの合計高さを中央配置
-    const textHeight = fontSize * 1.2  // leading-tight 相当
+    // flexbox justify-center を再現
+    const textHeight = fontSize * 1.2
     const totalHeight = iconSize + gap + textHeight
     const startY = centerY - totalHeight / 2
 
@@ -291,8 +290,8 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     const iconY = startY + iconSize / 2
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
-    // テキスト描画
-    ctx.fillStyle = '#1F2937'  // text-gray-800
+    // テキスト描画 - 大きく見やすく
+    ctx.fillStyle = '#1F2937'
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
@@ -307,10 +306,10 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
       ctx.fillText(subLabel, centerX, textY + fontSize + gap * 0.5)
     }
   } else {
-    // アイコンなし（テキストのみ）
+    // アイコンなし（テキストのみ）- 大きく
     ctx.fillStyle = '#1F2937'
     const scale = height / 90
-    const fontSize = 11 * scale
+    const fontSize = 11 * scale * 3.5  // 3.5倍
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
