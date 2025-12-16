@@ -12948,7 +12948,10 @@ export default function SettingsPage() {
 
                               let actionUri = btn.url;
                               if (btn.action === "url") {
-                                if (!actionUri || actionUri === "" || actionUri === "/") {
+                                // 初回登録ボタンの場合はLIFF URLを使用
+                                if (btn.label === "初回登録" && notificationSettings.line.liff_id_initial_link) {
+                                  actionUri = `https://liff.line.me/${notificationSettings.line.liff_id_initial_link}`;
+                                } else if (!actionUri || actionUri === "" || actionUri === "/") {
                                   actionUri = clinicInfo.website_url || `${baseUrl}/`;
                                 } else if (actionUri.startsWith("/")) {
                                   actionUri = `${baseUrl}${actionUri}`;
