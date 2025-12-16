@@ -274,31 +274,32 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    const iconSize = Math.min(width * 0.3, height * 0.2, 200)
-    const iconY = centerY - iconSize / 2 - 80
+    // アイコンサイズと位置（プレビュー通り）
+    const iconSize = Math.min(width * 0.25, height * 0.18, 180)
+    const iconY = centerY - iconSize / 2 - 60
 
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
-    // ラベル（アイコンの下）
+    // ラベル（アイコンの下、プレビュー通りの位置）
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.13, 100)
-    ctx.font = `bold ${fontSize}px sans-serif`
+    const fontSize = Math.min(width * 0.11, 90)
+    ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillText(label, centerX, iconY + iconSize + 20)
+    ctx.fillText(label, centerX, iconY + iconSize + 30)
 
     // サブラベル
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
-      const subFontSize = fontSize * 0.7
-      ctx.font = `600 ${subFontSize}px sans-serif`
-      ctx.fillText(subLabel, centerX, iconY + iconSize + 20 + fontSize + 15)
+      const subFontSize = fontSize * 0.65
+      ctx.font = `600 ${subFontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
+      ctx.fillText(subLabel, centerX, iconY + iconSize + 30 + fontSize + 12)
     }
   } else {
     // アイコンなし（テキストのみ）
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.18, height * 0.15, 90)
-    ctx.font = `bold ${fontSize}px sans-serif`
+    const fontSize = Math.min(width * 0.15, height * 0.12, 85)
+    ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(label, centerX, centerY)
@@ -443,11 +444,14 @@ function drawIcon(ctx: CanvasRenderingContext2D, type: string, cx: number, cy: n
       break
 
     case 'user':
-      // ユーザーアイコン（初回登録）
+      // ユーザーアイコン（初回登録）- プレビュー完全再現
+      // 頭部（円）
       ctx.fillStyle = '#1F2937'
       ctx.beginPath()
       ctx.arc(50 * s, 35 * s, 15 * s, 0, Math.PI * 2)
       ctx.fill()
+
+      // 体部（下半分の楕円形状）
       ctx.beginPath()
       ctx.moveTo(25 * s, 75 * s)
       ctx.quadraticCurveTo(25 * s, 55 * s, 50 * s, 55 * s)
@@ -455,11 +459,14 @@ function drawIcon(ctx: CanvasRenderingContext2D, type: string, cx: number, cy: n
       ctx.lineTo(25 * s, 75 * s)
       ctx.closePath()
       ctx.fill()
-      // チェックマーク
+
+      // チェックマーク（緑の丸）
       ctx.fillStyle = '#10B981'
       ctx.beginPath()
       ctx.arc(65 * s, 65 * s, 12 * s, 0, Math.PI * 2)
       ctx.fill()
+
+      // チェックマーク（白いチェック）
       ctx.strokeStyle = 'white'
       ctx.lineWidth = 2.5 * s
       ctx.lineCap = 'round'
@@ -472,27 +479,35 @@ function drawIcon(ctx: CanvasRenderingContext2D, type: string, cx: number, cy: n
       break
 
     case 'globe':
-      // 地球アイコン（Webサイト）
+      // 地球アイコン（Webサイト）- プレビュー完全再現
       ctx.strokeStyle = '#1F2937'
       ctx.lineWidth = 3 * s
+      ctx.fillStyle = 'none'
+
+      // 外側の円
       ctx.beginPath()
       ctx.arc(50 * s, 50 * s, 35 * s, 0, Math.PI * 2)
       ctx.stroke()
+
       // 縦の楕円
       ctx.beginPath()
       ctx.ellipse(50 * s, 50 * s, 15 * s, 35 * s, 0, 0, Math.PI * 2)
       ctx.stroke()
-      // 横線
+
+      // 横線（赤道）
       ctx.beginPath()
       ctx.moveTo(15 * s, 50 * s)
       ctx.lineTo(85 * s, 50 * s)
       ctx.stroke()
-      // 上下の曲線
+
+      // 上の曲線
       ctx.lineWidth = 2 * s
       ctx.beginPath()
       ctx.moveTo(20 * s, 30 * s)
       ctx.quadraticCurveTo(50 * s, 35 * s, 80 * s, 30 * s)
       ctx.stroke()
+
+      // 下の曲線
       ctx.beginPath()
       ctx.moveTo(20 * s, 70 * s)
       ctx.quadraticCurveTo(50 * s, 65 * s, 80 * s, 70 * s)
@@ -500,18 +515,46 @@ function drawIcon(ctx: CanvasRenderingContext2D, type: string, cx: number, cy: n
       break
 
     case 'mail':
-      // メールアイコン（お問合せ）
+      // メールアイコン（お問合せ）- プレビュー完全再現
       ctx.strokeStyle = '#1F2937'
       ctx.lineWidth = 3 * s
-      roundRect(ctx, 20 * s, 30 * s, 60 * s, 45 * s, 5 * s)
-      ctx.stroke()
-      // 封筒の折り目
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
+      ctx.fillStyle = 'none'
+
+      // 封筒の外枠（角丸四角形）
+      ctx.beginPath()
+      const rectX = 20 * s
+      const rectY = 30 * s
+      const rectW = 60 * s
+      const rectH = 45 * s
+      const radius = 5 * s
+      ctx.moveTo(rectX + radius, rectY)
+      ctx.lineTo(rectX + rectW - radius, rectY)
+      ctx.quadraticCurveTo(rectX + rectW, rectY, rectX + rectW, rectY + radius)
+      ctx.lineTo(rectX + rectW, rectY + rectH - radius)
+      ctx.quadraticCurveTo(rectX + rectW, rectY + rectH, rectX + rectW - radius, rectY + rectH)
+      ctx.lineTo(rectX + radius, rectY + rectH)
+      ctx.quadraticCurveTo(rectX, rectY + rectH, rectX, rectY + rectH - radius)
+      ctx.lineTo(rectX, rectY + radius)
+      ctx.quadraticCurveTo(rectX, rectY, rectX + radius, rectY)
+      ctx.stroke()
+
+      // 封筒の折り目（V字）
       ctx.beginPath()
       ctx.moveTo(20 * s, 35 * s)
       ctx.lineTo(50 * s, 55 * s)
       ctx.lineTo(80 * s, 35 * s)
+      ctx.stroke()
+
+      // 左右の縦線
+      ctx.beginPath()
+      ctx.moveTo(20 * s, 35 * s)
+      ctx.lineTo(20 * s, 75 * s)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(80 * s, 35 * s)
+      ctx.lineTo(80 * s, 75 * s)
       ctx.stroke()
       break
   }
