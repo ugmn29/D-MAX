@@ -269,39 +269,48 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   roundRect(ctx, x, y, width, height, radius)
   ctx.stroke()
 
-  // アイコンとテキストの配置
+  // アイコンとテキストの配置（プレビューのflexbox完全再現）
   const centerX = x + width / 2
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    // 実際のLINEアプリで見やすいサイズに調整
-    // プレビュー: ボタン高さ90px, アイコン32px, テキスト11px
-    // 実際: ボタン高さ~822px → アイコンとテキストを大きく
-    const iconSize = height * 0.28     // アイコン: ボタン高さの28%
-    const gap = height * 0.04          // gap: ボタン高さの4%
-    const iconY = centerY - iconSize / 2 - gap - height * 0.05
+    // プレビュー: h-[90px] w-8 h-8 gap-1.5 text-[11px] をスケーリング
+    // 実際のボタンサイズに合わせて比率計算
+    const scale = height / 90  // プレビューボタン90pxを基準
 
+    const iconSize = 32 * scale        // w-8 h-8 = 32px
+    const gap = 6 * scale               // gap-1.5 = 6px
+    const fontSize = 11 * scale         // text-[11px]
+
+    // flexbox justify-center を再現: アイコン+gap+テキストの合計高さを中央配置
+    const textHeight = fontSize * 1.2  // leading-tight 相当
+    const totalHeight = iconSize + gap + textHeight
+    const startY = centerY - totalHeight / 2
+
+    // アイコン描画
+    const iconY = startY + iconSize / 2
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
-    // テキスト: 大きく見やすく（プレビューの3倍）
-    ctx.fillStyle = '#1F2937'
-    const fontSize = height * 0.15     // ボタン高さの15% (約120px)
+    // テキスト描画
+    ctx.fillStyle = '#1F2937'  // text-gray-800
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillText(label, centerX, iconY + iconSize + gap)
+    const textY = startY + iconSize + gap
+    ctx.fillText(label, centerX, textY)
 
     // サブラベル
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
       const subFontSize = fontSize * 0.7
       ctx.font = `600 ${subFontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
-      ctx.fillText(subLabel, centerX, iconY + iconSize + gap + fontSize + gap * 0.5)
+      ctx.fillText(subLabel, centerX, textY + fontSize + gap * 0.5)
     }
   } else {
-    // アイコンなし（テキストのみ）- 見やすいサイズ
+    // アイコンなし（テキストのみ）
     ctx.fillStyle = '#1F2937'
-    const fontSize = height * 0.15  // ボタン高さの15%
+    const scale = height / 90
+    const fontSize = 11 * scale
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
