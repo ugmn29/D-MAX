@@ -185,12 +185,15 @@ function drawRegisteredMenu(ctx: CanvasRenderingContext2D, width: number, height
 function drawUnregisteredMenu(ctx: CanvasRenderingContext2D, width: number, height: number) {
   const gap = 8
   const cellWidth = Math.floor((width - gap * 4) / 3)
-  const cellHeight = height - gap * 2
+  const cellHeight = cellWidth  // 正方形にする（高さ = 幅）
+
+  // 背景の中央に配置するためのY座標を計算
+  const startY = Math.floor((height - cellHeight) / 2)
 
   // 1. 初回登録（ブルー）
   drawButton(ctx, {
     x: gap,
-    y: gap,
+    y: startY,
     width: cellWidth,
     height: cellHeight,
     label: '初回登録',
@@ -203,7 +206,7 @@ function drawUnregisteredMenu(ctx: CanvasRenderingContext2D, width: number, heig
   // 2. Webサイト（オレンジ）
   drawButton(ctx, {
     x: gap * 2 + cellWidth,
-    y: gap,
+    y: startY,
     width: cellWidth,
     height: cellHeight,
     label: 'Webサイト',
@@ -216,7 +219,7 @@ function drawUnregisteredMenu(ctx: CanvasRenderingContext2D, width: number, heig
   // 3. お問合せ（ピンク）
   drawButton(ctx, {
     x: gap * 3 + cellWidth * 2,
-    y: gap,
+    y: startY,
     width: cellWidth,
     height: cellHeight,
     label: 'お問合せ',
