@@ -11038,18 +11038,27 @@ export default function SettingsPage() {
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
                           </svg>
-                          LIFF ID / LINEミニアプリID
+                          LIFF ID / LINEミニアプリID 設定
                         </h4>
                         <p className="text-xs text-blue-800 mb-4">
-                          LINE Developers Console で作成した5つのLIFF（またはLINEミニアプリ）のIDを入力してください。<br/>
-                          設定後は <code className="bg-blue-100 px-1 rounded">.env.local</code> ファイルへの手動設定は不要になります。
+                          LINE Developers Console で5つのLIFFアプリを作成し、各LIFF IDを入力してください。<br/>
+                          <strong>エンドポイントURL</strong>は下記の値をコピーしてLINE Developersに設定してください。
                         </p>
 
-                        <div className="grid grid-cols-1 gap-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              初回連携 LIFF ID
-                            </label>
+                        {/* LIFF設定一覧テーブル */}
+                        <div className="space-y-4">
+                          {/* 初回連携 */}
+                          <div className="bg-white p-3 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-gray-700">
+                                ① 初回連携（Initial Link）
+                              </label>
+                              {notificationSettings.line.liff_id_initial_link ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">設定済み</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">未設定</span>
+                              )}
+                            </div>
                             <input
                               type="text"
                               value={notificationSettings.line.liff_id_initial_link}
@@ -11062,18 +11071,38 @@ export default function SettingsPage() {
                                   },
                                 })
                               }
-                              placeholder="1234567890-abcdefgh"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                              placeholder="LIFF IDを入力（例: 2008448369-xxxxxxxx）"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm mb-2"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              環境変数: NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
-                            </p>
+                            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs">
+                              <span className="text-gray-500 whitespace-nowrap">エンドポイントURL:</span>
+                              <code className="flex-1 text-blue-600 break-all">{typeof window !== 'undefined' ? `${window.location.origin}/liff/initial-link` : '/liff/initial-link'}</code>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/liff/initial-link`);
+                                  showNotification("コピーしました", "success");
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="コピー"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              QRコード LIFF ID
-                            </label>
+                          {/* QRコード */}
+                          <div className="bg-white p-3 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-gray-700">
+                                ② QRコード表示
+                              </label>
+                              {notificationSettings.line.liff_id_qr_code ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">設定済み</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">未設定</span>
+                              )}
+                            </div>
                             <input
                               type="text"
                               value={notificationSettings.line.liff_id_qr_code}
@@ -11086,18 +11115,38 @@ export default function SettingsPage() {
                                   },
                                 })
                               }
-                              placeholder="1234567890-xxxxxxxx"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                              placeholder="LIFF IDを入力"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm mb-2"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              環境変数: NEXT_PUBLIC_LIFF_ID_QR_CODE
-                            </p>
+                            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs">
+                              <span className="text-gray-500 whitespace-nowrap">エンドポイントURL:</span>
+                              <code className="flex-1 text-blue-600 break-all">{typeof window !== 'undefined' ? `${window.location.origin}/liff/qr-code` : '/liff/qr-code'}</code>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/liff/qr-code`);
+                                  showNotification("コピーしました", "success");
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="コピー"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              家族登録 LIFF ID
-                            </label>
+                          {/* 家族登録 */}
+                          <div className="bg-white p-3 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-gray-700">
+                                ③ 家族登録
+                              </label>
+                              {notificationSettings.line.liff_id_family_register ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">設定済み</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">未設定</span>
+                              )}
+                            </div>
                             <input
                               type="text"
                               value={notificationSettings.line.liff_id_family_register}
@@ -11110,18 +11159,38 @@ export default function SettingsPage() {
                                   },
                                 })
                               }
-                              placeholder="1234567890-yyyyyyyy"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                              placeholder="LIFF IDを入力"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm mb-2"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              環境変数: NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
-                            </p>
+                            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs">
+                              <span className="text-gray-500 whitespace-nowrap">エンドポイントURL:</span>
+                              <code className="flex-1 text-blue-600 break-all">{typeof window !== 'undefined' ? `${window.location.origin}/liff/family-register` : '/liff/family-register'}</code>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/liff/family-register`);
+                                  showNotification("コピーしました", "success");
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="コピー"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              予約確認 LIFF ID
-                            </label>
+                          {/* 予約確認 */}
+                          <div className="bg-white p-3 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-gray-700">
+                                ④ 予約確認
+                              </label>
+                              {notificationSettings.line.liff_id_appointments ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">設定済み</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">未設定</span>
+                              )}
+                            </div>
                             <input
                               type="text"
                               value={notificationSettings.line.liff_id_appointments}
@@ -11134,18 +11203,38 @@ export default function SettingsPage() {
                                   },
                                 })
                               }
-                              placeholder="1234567890-zzzzzzzz"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                              placeholder="LIFF IDを入力"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm mb-2"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              環境変数: NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
-                            </p>
+                            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs">
+                              <span className="text-gray-500 whitespace-nowrap">エンドポイントURL:</span>
+                              <code className="flex-1 text-blue-600 break-all">{typeof window !== 'undefined' ? `${window.location.origin}/liff/appointments` : '/liff/appointments'}</code>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/liff/appointments`);
+                                  showNotification("コピーしました", "success");
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="コピー"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Web予約 LIFF ID
-                            </label>
+                          {/* Web予約 */}
+                          <div className="bg-white p-3 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-gray-700">
+                                ⑤ Web予約
+                              </label>
+                              {notificationSettings.line.liff_id_web_booking ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">設定済み</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">未設定</span>
+                              )}
+                            </div>
                             <input
                               type="text"
                               value={notificationSettings.line.liff_id_web_booking}
@@ -11158,24 +11247,36 @@ export default function SettingsPage() {
                                   },
                                 })
                               }
-                              placeholder="1234567890-wwwwwwww"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                              placeholder="LIFF IDを入力"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm mb-2"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              環境変数: NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
-                            </p>
+                            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs">
+                              <span className="text-gray-500 whitespace-nowrap">エンドポイントURL:</span>
+                              <code className="flex-1 text-blue-600 break-all">{typeof window !== 'undefined' ? `${window.location.origin}/liff/web-booking` : '/liff/web-booking'}</code>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/liff/web-booking`);
+                                  showNotification("コピーしました", "success");
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="コピー"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="mt-4 p-3 bg-white border border-blue-200 rounded-lg">
-                          <p className="text-xs text-blue-900 font-medium mb-2">
-                            💡 設定のヒント
-                          </p>
-                          <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
-                            <li>LINE Developers Console の「LIFF」または「LINEミニアプリ」タブで作成</li>
-                            <li>各LIFFアプリ作成後に表示されるIDをコピーして貼り付け</li>
-                            <li>保存後、サーバーを再起動すると設定が反映されます</li>
-                          </ul>
+                        {/* 設定手順ガイド */}
+                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-xs font-medium text-yellow-800 mb-2">📋 LINE Developers Console での設定手順</p>
+                          <ol className="text-xs text-yellow-700 space-y-1 list-decimal list-inside">
+                            <li>LINE Developers Console にログイン</li>
+                            <li>対象のMessaging APIチャネル → 「LIFF」タブ</li>
+                            <li>「追加」をクリック → サイズ「Full」、上記のエンドポイントURLを設定</li>
+                            <li>作成後のLIFF IDをここに入力して保存</li>
+                          </ol>
                         </div>
                       </div>
                     </div>
