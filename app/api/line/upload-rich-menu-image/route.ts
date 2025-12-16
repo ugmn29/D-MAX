@@ -270,30 +270,30 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    const iconSize = Math.min(width * 0.25, height * 0.35, 280)
-    const iconY = centerY - height * 0.15
+    const iconSize = Math.min(width * 0.3, height * 0.2, 200)
+    const iconY = centerY - iconSize / 2 - 80
 
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
     // ラベル（アイコンの下）
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.12, height * 0.15, 120)
+    const fontSize = Math.min(width * 0.13, 100)
     ctx.font = `bold ${fontSize}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillText(label, centerX, iconY + iconSize / 2 + 40)
+    ctx.fillText(label, centerX, iconY + iconSize + 20)
 
     // サブラベル
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
-      const subFontSize = fontSize * 0.65
+      const subFontSize = fontSize * 0.7
       ctx.font = `600 ${subFontSize}px sans-serif`
-      ctx.fillText(subLabel, centerX, iconY + iconSize / 2 + 30 + fontSize + 10)
+      ctx.fillText(subLabel, centerX, iconY + iconSize + 20 + fontSize + 15)
     }
   } else {
     // アイコンなし（テキストのみ）
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.15, height * 0.2, 70)
+    const fontSize = Math.min(width * 0.18, height * 0.15, 90)
     ctx.font = `bold ${fontSize}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
