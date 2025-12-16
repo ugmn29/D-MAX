@@ -274,12 +274,12 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    // アイコンとテキストを表示
+    // アイコンとテキストを適切なサイズで表示
     const scale = height / 90  // 90pxベース
 
-    const iconSize = 32 * scale * 2     // アイコン2倍
-    const gap = 6 * scale * 2            // ギャップ2倍
-    const fontSize = 11 * scale * 8      // テキスト8倍（約730px）
+    const iconSize = 32 * scale * 1.5    // アイコン1.5倍（適度なサイズ）
+    const gap = 6 * scale * 1.5           // ギャップ1.5倍
+    const fontSize = 11 * scale * 4       // テキスト4倍（約360px、読みやすく収まるサイズ）
 
     // 縦方向中央配置
     const textHeight = fontSize * 1.2
@@ -290,7 +290,7 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     const iconY = startY + iconSize / 2
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
-    // テキスト描画 - シンプルなフォント指定
+    // テキスト描画
     ctx.fillStyle = '#1F2937'
     ctx.font = `bold ${fontSize}px sans-serif`
     ctx.textAlign = 'center'
@@ -309,7 +309,7 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     // アイコンなし（テキストのみ）
     ctx.fillStyle = '#1F2937'
     const scale = height / 90
-    const fontSize = 11 * scale * 8  // 8倍
+    const fontSize = 11 * scale * 4  // 4倍
     ctx.font = `bold ${fontSize}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
