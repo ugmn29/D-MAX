@@ -274,14 +274,14 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    // LINEアプリで読めるサイズに大幅拡大
-    const scale = height / 90  // プレビューボタン90pxを基準
+    // アイコンとテキストを表示
+    const scale = height / 90  // 90pxベース
 
-    const iconSize = 32 * scale * 1.2   // アイコン: 20%拡大
-    const gap = 6 * scale                // gap: 6px
-    const fontSize = 11 * scale * 3.5    // テキスト: 3.5倍（350px程度）
+    const iconSize = 32 * scale * 2     // アイコン2倍
+    const gap = 6 * scale * 2            // ギャップ2倍
+    const fontSize = 11 * scale * 8      // テキスト8倍（約730px）
 
-    // flexbox justify-center を再現
+    // 縦方向中央配置
     const textHeight = fontSize * 1.2
     const totalHeight = iconSize + gap + textHeight
     const startY = centerY - totalHeight / 2
@@ -290,9 +290,9 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     const iconY = startY + iconSize / 2
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
-    // テキスト描画 - 大きく見やすく
+    // テキスト描画 - シンプルなフォント指定
     ctx.fillStyle = '#1F2937'
-    ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
+    ctx.font = `bold ${fontSize}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     const textY = startY + iconSize + gap
@@ -302,15 +302,15 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
       const subFontSize = fontSize * 0.7
-      ctx.font = `600 ${subFontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
+      ctx.font = `600 ${subFontSize}px sans-serif`
       ctx.fillText(subLabel, centerX, textY + fontSize + gap * 0.5)
     }
   } else {
-    // アイコンなし（テキストのみ）- 大きく
+    // アイコンなし（テキストのみ）
     ctx.fillStyle = '#1F2937'
     const scale = height / 90
-    const fontSize = 11 * scale * 3.5  // 3.5倍
-    ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
+    const fontSize = 11 * scale * 8  // 8倍
+    ctx.font = `bold ${fontSize}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(label, centerX, centerY)
