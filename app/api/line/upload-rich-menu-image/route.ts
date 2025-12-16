@@ -299,7 +299,7 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     // ボタン内に収まるようにサイズを調整
     const iconSize = 32 * scale * 0.8     // アイコン0.8倍
     const gap = 6 * scale * 0.8            // ギャップ0.8倍
-    const fontSize = 11 * scale * 2.2      // テキスト2.2倍（約200px、ボタン内に収まるサイズ）
+    const fontSize = 11 * scale * 1.5      // テキスト1.5倍（小さめ）
 
     // 縦方向中央配置
     const textHeight = fontSize * 1.2
@@ -312,7 +312,7 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
 
     // テキスト描画
     ctx.fillStyle = '#1F2937'
-    ctx.font = `bold ${fontSize}px "NotoSansJP", sans-serif`
+    ctx.font = `900 ${fontSize}px "NotoSansJP", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     const textY = startY + iconSize + gap
@@ -322,15 +322,15 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
       const subFontSize = fontSize * 0.7
-      ctx.font = `600 ${subFontSize}px "NotoSansJP", sans-serif`
+      ctx.font = `700 ${subFontSize}px "NotoSansJP", sans-serif`
       ctx.fillText(subLabel, centerX, textY + fontSize + gap * 0.5)
     }
   } else {
     // アイコンなし（テキストのみ）
     ctx.fillStyle = '#1F2937'
     const scale = height / 90
-    const fontSize = 11 * scale * 2.2  // 2.2倍
-    ctx.font = `bold ${fontSize}px "NotoSansJP", sans-serif`
+    const fontSize = 11 * scale * 1.5  // 1.5倍（小さめ）
+    ctx.font = `900 ${fontSize}px "NotoSansJP", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(label, centerX, centerY)
