@@ -127,17 +127,34 @@ export async function saveNotificationSettings(
       // Service Role Keyを使用してRLSをバイパス
       const adminClient = supabaseAdmin || supabase
 
+      // LIFF IDも含めて保存
+      const lineSettings: Record<string, any> = {
+        channel_access_token: settings.line.channel_access_token,
+        channel_secret: settings.line.channel_secret,
+        channel_id: settings.line.channel_id || undefined,
+        webhook_url: settings.line.webhook_url || 'https://dmax-mu.vercel.app/api/line/webhook'
+      }
+
+      // LIFF IDを追加（存在する場合）
+      const lineAny = settings.line as any
+      if (lineAny.liff_id_initial_link) lineSettings.liff_id_initial_link = lineAny.liff_id_initial_link
+      if (lineAny.liff_id_qr_code) lineSettings.liff_id_qr_code = lineAny.liff_id_qr_code
+      if (lineAny.liff_id_family_register) lineSettings.liff_id_family_register = lineAny.liff_id_family_register
+      if (lineAny.liff_id_appointments) lineSettings.liff_id_appointments = lineAny.liff_id_appointments
+      if (lineAny.liff_id_web_booking) lineSettings.liff_id_web_booking = lineAny.liff_id_web_booking
+
+      console.log('📊 保存するLINE設定:', {
+        ...lineSettings,
+        channel_access_token: lineSettings.channel_access_token ? '***設定済み***' : undefined,
+        channel_secret: lineSettings.channel_secret ? '***設定済み***' : undefined
+      })
+
       const { error: lineError } = await adminClient
         .from('clinic_settings')
         .upsert({
           clinic_id: clinicId,
           setting_key: 'line',
-          setting_value: {
-            channel_access_token: settings.line.channel_access_token,
-            channel_secret: settings.line.channel_secret,
-            channel_id: settings.line.channel_id || undefined,
-            webhook_url: settings.line.webhook_url || 'https://d-max-lemon.vercel.app/api/line/webhook'
-          }
+          setting_value: lineSettings
         }, {
           onConflict: 'clinic_id,setting_key'
         })
@@ -146,7 +163,7 @@ export async function saveNotificationSettings(
         console.error('⚠️ LINE基本設定の同期に失敗:', lineError)
         // エラーでも通知設定は保存されているので継続
       } else {
-        console.log('✅ LINE基本設定を同期しました')
+        console.log('✅ LINE基本設定を同期しました（LIFF ID含む）')
       }
     }
   } catch (error) {
