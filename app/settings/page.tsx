@@ -3266,6 +3266,13 @@ export default function SettingsPage() {
           hasSecret: !!notificationSettings.line.channel_secret,
           channelId: notificationSettings.line.channel_id
         });
+        console.log("📊 LIFF ID設定:", {
+          initial_link: notificationSettings.line.liff_id_initial_link,
+          qr_code: notificationSettings.line.liff_id_qr_code,
+          family_register: notificationSettings.line.liff_id_family_register,
+          appointments: notificationSettings.line.liff_id_appointments,
+          web_booking: notificationSettings.line.liff_id_web_booking
+        });
         // 通知設定はnotificationSettings変数から保存
         const response = await fetch("/api/notification-settings", {
           method: "POST",
@@ -11081,7 +11088,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(`${window.location.origin}/liff/initial-link`);
-                                  showNotification("コピーしました", "success");
+                                  showAlert("コピーしました", "success");
                                 }}
                                 className="text-blue-600 hover:text-blue-800 p-1"
                                 title="コピー"
@@ -11125,7 +11132,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(`${window.location.origin}/liff/qr-code`);
-                                  showNotification("コピーしました", "success");
+                                  showAlert("コピーしました", "success");
                                 }}
                                 className="text-blue-600 hover:text-blue-800 p-1"
                                 title="コピー"
@@ -11169,7 +11176,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(`${window.location.origin}/liff/family-register`);
-                                  showNotification("コピーしました", "success");
+                                  showAlert("コピーしました", "success");
                                 }}
                                 className="text-blue-600 hover:text-blue-800 p-1"
                                 title="コピー"
@@ -11213,7 +11220,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(`${window.location.origin}/liff/appointments`);
-                                  showNotification("コピーしました", "success");
+                                  showAlert("コピーしました", "success");
                                 }}
                                 className="text-blue-600 hover:text-blue-800 p-1"
                                 title="コピー"
@@ -11257,7 +11264,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(`${window.location.origin}/liff/web-booking`);
-                                  showNotification("コピーしました", "success");
+                                  showAlert("コピーしました", "success");
                                 }}
                                 className="text-blue-600 hover:text-blue-800 p-1"
                                 title="コピー"

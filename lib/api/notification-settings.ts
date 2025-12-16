@@ -26,6 +26,11 @@ export interface NotificationSettings {
     channel_secret: string
     channel_access_token: string
     webhook_url: string
+    liff_id_initial_link?: string
+    liff_id_qr_code?: string
+    liff_id_family_register?: string
+    liff_id_appointments?: string
+    liff_id_web_booking?: string
   }
 }
 
@@ -65,7 +70,12 @@ export async function getNotificationSettings(clinicId: string): Promise<Notific
           channel_id: '',
           channel_secret: '',
           channel_access_token: '',
-          webhook_url: ''
+          webhook_url: '',
+          liff_id_initial_link: '',
+          liff_id_qr_code: '',
+          liff_id_family_register: '',
+          liff_id_appointments: '',
+          liff_id_web_booking: ''
         }
       }
     }
@@ -136,12 +146,11 @@ export async function saveNotificationSettings(
       }
 
       // LIFF IDを追加（存在する場合）
-      const lineAny = settings.line as any
-      if (lineAny.liff_id_initial_link) lineSettings.liff_id_initial_link = lineAny.liff_id_initial_link
-      if (lineAny.liff_id_qr_code) lineSettings.liff_id_qr_code = lineAny.liff_id_qr_code
-      if (lineAny.liff_id_family_register) lineSettings.liff_id_family_register = lineAny.liff_id_family_register
-      if (lineAny.liff_id_appointments) lineSettings.liff_id_appointments = lineAny.liff_id_appointments
-      if (lineAny.liff_id_web_booking) lineSettings.liff_id_web_booking = lineAny.liff_id_web_booking
+      if (settings.line.liff_id_initial_link) lineSettings.liff_id_initial_link = settings.line.liff_id_initial_link
+      if (settings.line.liff_id_qr_code) lineSettings.liff_id_qr_code = settings.line.liff_id_qr_code
+      if (settings.line.liff_id_family_register) lineSettings.liff_id_family_register = settings.line.liff_id_family_register
+      if (settings.line.liff_id_appointments) lineSettings.liff_id_appointments = settings.line.liff_id_appointments
+      if (settings.line.liff_id_web_booking) lineSettings.liff_id_web_booking = settings.line.liff_id_web_booking
 
       console.log('📊 保存するLINE設定:', {
         ...lineSettings,
