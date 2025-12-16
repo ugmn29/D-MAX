@@ -12916,7 +12916,22 @@ export default function SettingsPage() {
                               }
 
                               let actionUri = btn.url;
-                              if (btn.action === "url") {
+                              let actionType: "uri" | "message" = btn.action === "message" ? "message" : "uri";
+
+                              // 特定のボタンはLIFF URLを使用
+                              if (btn.label === "QRコード" && notificationSettings.line.liff_id_qr_code) {
+                                actionUri = `https://liff.line.me/${notificationSettings.line.liff_id_qr_code}`;
+                                actionType = "uri";
+                              } else if (btn.label === "予約確認" && notificationSettings.line.liff_id_appointments) {
+                                actionUri = `https://liff.line.me/${notificationSettings.line.liff_id_appointments}`;
+                                actionType = "uri";
+                              } else if (btn.label === "家族登録" && notificationSettings.line.liff_id_family_register) {
+                                actionUri = `https://liff.line.me/${notificationSettings.line.liff_id_family_register}`;
+                                actionType = "uri";
+                              } else if (btn.label === "予約を取る" && notificationSettings.line.liff_id_web_booking) {
+                                actionUri = `https://liff.line.me/${notificationSettings.line.liff_id_web_booking}`;
+                                actionType = "uri";
+                              } else if (btn.action === "url") {
                                 if (!actionUri || actionUri === "" || actionUri === "/") {
                                   actionUri = clinicInfo.website_url || `${baseUrl}/`;
                                 } else if (actionUri.startsWith("/")) {
@@ -12927,8 +12942,8 @@ export default function SettingsPage() {
                               return {
                                 bounds,
                                 action: {
-                                  type: btn.action === "message" ? "message" : "uri",
-                                  ...(btn.action === "message"
+                                  type: actionType,
+                                  ...(actionType === "message"
                                     ? { text: btn.url || "お問い合わせ" }
                                     : { uri: actionUri }
                                   )
