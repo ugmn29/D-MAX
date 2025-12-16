@@ -274,31 +274,31 @@ function drawButton(ctx: CanvasRenderingContext2D, config: ButtonConfig) {
   const centerY = y + height / 2
 
   if (iconType !== 'none') {
-    // アイコンサイズと位置（プレビュー通り）
-    const iconSize = Math.min(width * 0.25, height * 0.18, 180)
-    const iconY = centerY - iconSize / 2 - 60
+    // アイコンサイズと位置（より大きく）
+    const iconSize = Math.min(width * 0.35, height * 0.25, 250)
+    const iconY = centerY - iconSize / 2 - 80
 
     drawIcon(ctx, iconType, centerX, iconY, iconSize)
 
-    // ラベル（アイコンの下、プレビュー通りの位置）
+    // ラベル（アイコンの下、より大きなフォント）
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.11, 90)
+    const fontSize = Math.min(width * 0.15, 120)
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillText(label, centerX, iconY + iconSize + 30)
+    ctx.fillText(label, centerX, iconY + iconSize + 40)
 
     // サブラベル
     if (subLabel) {
       ctx.fillStyle = '#6B7280'
-      const subFontSize = fontSize * 0.65
+      const subFontSize = fontSize * 0.7
       ctx.font = `600 ${subFontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
-      ctx.fillText(subLabel, centerX, iconY + iconSize + 30 + fontSize + 12)
+      ctx.fillText(subLabel, centerX, iconY + iconSize + 40 + fontSize + 15)
     }
   } else {
     // アイコンなし（テキストのみ）
     ctx.fillStyle = '#1F2937'
-    const fontSize = Math.min(width * 0.15, height * 0.12, 85)
+    const fontSize = Math.min(width * 0.18, height * 0.15, 100)
     ctx.font = `bold ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "游ゴシック", "Yu Gothic", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
