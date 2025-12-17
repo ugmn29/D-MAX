@@ -12,7 +12,7 @@ import { formatDateForDB } from '@/lib/utils/date'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
-import { getWeeklySlots } from '@/lib/api/web-booking'
+import { getWeeklySlots, getWeeklySlotsForReschedule } from '@/lib/api/web-booking'
 import { authenticateReturningPatient, getPatientById } from '@/lib/api/patients'
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { validateWebBookingToken, markTokenAsUsed } from '@/lib/api/web-booking-tokens'
@@ -532,15 +532,35 @@ function WebBookingPageInner() {
 
   // 週間空き枠を取得
   const loadWeeklySlots = async () => {
-    if (!bookingData.selectedMenu) return
+    // 予約変更モードの場合は元のメニューIDがなくても所要時間で空き枠取得
+    const isRescheduleWithOriginalData = isRescheduleMode && originalAppointmentData.duration
+
+    if (!bookingData.selectedMenu && !isRescheduleWithOriginalData) return
 
     try {
-      const slots = await getWeeklySlots(
-        DEMO_CLINIC_ID,
-        bookingData.selectedMenu,
-        bookingData.isNewPatient,
-        weekStartDate
-      )
+      let slots
+
+      if (isRescheduleWithOriginalData) {
+        // 予約変更モード：Web予約メニュー設定不要の空き枠取得
+        console.log('予約変更モード: 専用空き枠取得を使用', {
+          duration: originalAppointmentData.duration,
+          staffId: originalAppointmentData.staff_id
+        })
+        slots = await getWeeklySlotsForReschedule(
+          DEMO_CLINIC_ID,
+          originalAppointmentData.duration || 30,
+          originalAppointmentData.staff_id || null,
+          weekStartDate
+        )
+      } else {
+        // 通常モード
+        slots = await getWeeklySlots(
+          DEMO_CLINIC_ID,
+          bookingData.selectedMenu,
+          bookingData.isNewPatient,
+          weekStartDate
+        )
+      }
       setAvailableSlots(slots)
     } catch (error) {
       console.error('空き枠取得エラー:', error)
@@ -550,10 +570,11 @@ function WebBookingPageInner() {
 
   // 診療メニューや週が変更されたら空き枠を再取得
   useEffect(() => {
-    if (bookingData.selectedMenu) {
+    const isRescheduleWithOriginalData = isRescheduleMode && originalAppointmentData.duration
+    if (bookingData.selectedMenu || isRescheduleWithOriginalData) {
       loadWeeklySlots()
     }
-  }, [bookingData.selectedMenu, bookingData.isNewPatient, weekStartDate])
+  }, [bookingData.selectedMenu, bookingData.isNewPatient, weekStartDate, isRescheduleMode, originalAppointmentData.duration])
 
   // 全時間スロットを生成（診療時間設定から）
   useEffect(() => {

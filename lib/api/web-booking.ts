@@ -302,3 +302,176 @@ export async function getWeeklySlots(
   const endDate = addDays(startDate, 6)
   return getAvailableSlots(clinicId, menuId, isNewPatient, startDate, endDate)
 }
+
+/**
+ * 予約変更モード用の空き枠を取得（Web予約メニュー設定不要）
+ * 元の予約の所要時間に基づいて空き枠を返す
+ */
+export async function getAvailableSlotsForReschedule(
+  clinicId: string,
+  duration: number,
+  staffId: string | null,
+  startDate: Date,
+  endDate: Date
+) {
+  try {
+    // 設定を取得
+    const settings = await getClinicSettings(clinicId)
+    const timeSlotMinutes = settings.time_slot_minutes || 15
+
+    // 診療時間と休憩時間を取得
+    let businessHours = settings.business_hours
+    let breakTimes = settings.break_times
+
+    if (!businessHours || Object.keys(businessHours).length === 0) {
+      const { getBusinessHours, getBreakTimes } = await import('./clinic')
+      businessHours = await getBusinessHours(clinicId)
+      breakTimes = await getBreakTimes(clinicId)
+    }
+
+    // 既存の予約を取得（キャンセルされた予約を除外）
+    const allAppointments = await getAppointments(
+      clinicId,
+      format(startDate, 'yyyy-MM-dd'),
+      format(endDate, 'yyyy-MM-dd')
+    )
+    const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
+
+    // スタッフ情報を取得
+    const allStaff = await getStaff(clinicId)
+
+    // 日付ごとに空き枠を計算
+    const slots = []
+    let currentDate = new Date(startDate)
+
+    while (currentDate <= endDate) {
+      const dayOfWeek = format(currentDate, 'EEEE').toLowerCase()
+      const dateString = format(currentDate, 'yyyy-MM-dd')
+
+      // 診療時間を取得
+      const dayBusinessHours = businessHours[dayOfWeek]
+
+      if (!dayBusinessHours || !dayBusinessHours.isOpen || !dayBusinessHours.timeSlots) {
+        currentDate = addDays(currentDate, 1)
+        continue
+      }
+
+      // その日のスタッフシフトを取得
+      let staffShifts = []
+      try {
+        staffShifts = await getStaffShiftsByDate(clinicId, dateString)
+      } catch (error) {
+        console.error(`予約変更空枠取得: ${dateString}のシフト取得エラー`, error)
+      }
+
+      // 出勤しているスタッフのIDを抽出
+      const workingStaffIds = staffShifts
+        .filter(shift => !shift.is_holiday && shift.shift_pattern_id !== null)
+        .map(shift => shift.staff_id)
+
+      // 休憩時間を取得
+      const dayBreakTimes = Array.isArray(breakTimes?.[dayOfWeek]) ? breakTimes[dayOfWeek] : []
+
+      // 各診療時間枠について
+      for (const timeSlot of dayBusinessHours.timeSlots) {
+        const startHour = parseInt(timeSlot.start.split(':')[0])
+        const startMinute = parseInt(timeSlot.start.split(':')[1])
+        const endHour = parseInt(timeSlot.end.split(':')[0])
+        const endMinute = parseInt(timeSlot.end.split(':')[1])
+
+        let currentTimeMinutes = startHour * 60 + startMinute
+        const endTimeMinutes = endHour * 60 + endMinute
+
+        while (currentTimeMinutes + duration <= endTimeMinutes) {
+          const hour = Math.floor(currentTimeMinutes / 60)
+          const minute = currentTimeMinutes % 60
+          const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+
+          // 休憩時間かチェック
+          const isBreakTime = dayBreakTimes.some((breakTime: any) => {
+            const breakStart = parseInt(breakTime.start.split(':')[0]) * 60 + parseInt(breakTime.start.split(':')[1])
+            const breakEnd = parseInt(breakTime.end.split(':')[0]) * 60 + parseInt(breakTime.end.split(':')[1])
+            return currentTimeMinutes >= breakStart && currentTimeMinutes < breakEnd
+          })
+
+          if (isBreakTime) {
+            slots.push({
+              date: dateString,
+              time: timeString,
+              available: false,
+              availableStaff: []
+            })
+          } else {
+            // 担当者指定がある場合はその担当者のみチェック
+            // 指定がない場合は時間枠のみチェック
+            let isAvailable = true
+            const availableStaffList: any[] = []
+
+            if (staffId) {
+              // 担当者出勤チェック
+              if (!workingStaffIds.includes(staffId)) {
+                isAvailable = false
+              } else {
+                // 担当者の予約重複チェック
+                const slotEnd = currentTimeMinutes + duration
+                const hasConflict = existingAppointments.some(apt => {
+                  if (apt.appointment_date !== dateString) return false
+                  if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
+
+                  const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
+                  const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+
+                  return !(slotEnd <= aptStart || currentTimeMinutes >= aptEnd)
+                })
+
+                if (hasConflict) {
+                  isAvailable = false
+                } else {
+                  const staff = allStaff.find(s => s.id === staffId)
+                  if (staff) {
+                    availableStaffList.push({
+                      id: staff.id,
+                      name: staff.name
+                    })
+                  }
+                }
+              }
+            } else {
+              // 担当者指定なし：単純に診療時間内かどうかのみチェック
+              isAvailable = true
+            }
+
+            slots.push({
+              date: dateString,
+              time: timeString,
+              available: isAvailable,
+              availableStaff: availableStaffList
+            })
+          }
+
+          currentTimeMinutes += timeSlotMinutes
+        }
+      }
+
+      currentDate = addDays(currentDate, 1)
+    }
+
+    return slots
+  } catch (error) {
+    console.error('予約変更用空き枠取得エラー:', error)
+    throw error
+  }
+}
+
+/**
+ * 予約変更モード用の1週間分の空き枠を取得
+ */
+export async function getWeeklySlotsForReschedule(
+  clinicId: string,
+  duration: number,
+  staffId: string | null,
+  startDate: Date
+) {
+  const endDate = addDays(startDate, 6)
+  return getAvailableSlotsForReschedule(clinicId, duration, staffId, startDate, endDate)
+}
