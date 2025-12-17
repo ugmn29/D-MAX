@@ -13000,28 +13000,28 @@ export default function SettingsPage() {
                             const rowHeight = 1686 / 2;  // 2行
                             const leftCellHeight = 1686 / 3;  // 左列は3段
 
-                            areas = currentButtons.map((btn, index) => {
-                              let bounds;
-
-                              if (index === 0) {
-                                // Webサイト - 左上 (1/3)
-                                bounds = { x: 0, y: 0, width: leftColWidth, height: leftCellHeight };
-                              } else if (index === 1) {
-                                // 家族登録 - 左中 (1/3)
-                                bounds = { x: 0, y: leftCellHeight, width: leftColWidth, height: leftCellHeight };
-                              } else if (index === 2) {
-                                // お問合せ - 左下 (1/3)
-                                bounds = { x: 0, y: leftCellHeight * 2, width: leftColWidth, height: leftCellHeight };
-                              } else if (index === 3) {
-                                // QRコード - 右上左
-                                bounds = { x: leftColWidth, y: 0, width: rightColWidth / 2, height: rowHeight };
-                              } else if (index === 4) {
-                                // 予約確認 - 右上右
-                                bounds = { x: leftColWidth + (rightColWidth / 2), y: 0, width: rightColWidth / 2, height: rowHeight };
-                              } else if (index === 5) {
-                                // 予約を取る - 右下全体 (2マス分)
-                                bounds = { x: leftColWidth, y: rowHeight, width: rightColWidth, height: rowHeight };
+                            // ボタンのラベルから位置を決定するマッピング
+                            const getBoundsForLabel = (label: string) => {
+                              switch (label) {
+                                case "Webサイト":
+                                  return { x: 0, y: 0, width: leftColWidth, height: leftCellHeight };
+                                case "家族登録":
+                                  return { x: 0, y: leftCellHeight, width: leftColWidth, height: leftCellHeight };
+                                case "お問合せ":
+                                  return { x: 0, y: leftCellHeight * 2, width: leftColWidth, height: leftCellHeight };
+                                case "QRコード":
+                                  return { x: leftColWidth, y: 0, width: rightColWidth / 2, height: rowHeight };
+                                case "予約確認":
+                                  return { x: leftColWidth + (rightColWidth / 2), y: 0, width: rightColWidth / 2, height: rowHeight };
+                                case "予約を取る":
+                                  return { x: leftColWidth, y: rowHeight, width: rightColWidth, height: rowHeight };
+                                default:
+                                  return { x: 0, y: 0, width: leftColWidth, height: leftCellHeight };
                               }
+                            };
+
+                            areas = currentButtons.map((btn) => {
+                              const bounds = getBoundsForLabel(btn.label);
 
                               let actionUri = btn.url;
                               let actionType: "uri" | "message" = btn.action === "message" ? "message" : "uri";
