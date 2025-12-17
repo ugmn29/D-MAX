@@ -141,14 +141,20 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
     loadAppointments()
   }, [patientId])
 
-  // 新規予約ボタンのハンドラ
+  // 新規予約ボタンのハンドラ（コピー機能と同じ動作）
   const handleNewAppointment = async () => {
     try {
       // 患者情報を取得
       const patient = await getPatientById(DEMO_CLINIC_ID, patientId)
       console.log('新規予約: 患者情報を取得', patient)
 
+      if (!patient) {
+        alert('患者情報が見つかりません')
+        return
+      }
+
       // 患者情報のみの仮予約オブジェクトを作成（メニューは空）
+      // 仮登録・本登録に関わらず、患者情報をコピーして新規予約を作成
       const templateAppointment = {
         patient_id: patient.id,
         patient: {
@@ -158,7 +164,8 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
           last_name_kana: patient.last_name_kana,
           first_name_kana: patient.first_name_kana,
           phone: patient.phone,
-          email: patient.email
+          email: patient.email,
+          is_registered: patient.is_registered // 仮登録・本登録の状態も保持
         },
         // メニューは空
         menu1_id: null,
@@ -175,11 +182,11 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
         memo: ''
       }
 
-      // localStorageに保存（コピー機能と同じ）
+      // localStorageに保存（予約編集モーダルのコピー機能と完全に同じ処理）
       localStorage.setItem('copiedAppointment', JSON.stringify(templateAppointment))
       localStorage.setItem('isPasteMode', 'true')
 
-      console.log('新規予約: ペーストモードを起動してカレンダーに遷移', templateAppointment)
+      console.log('新規予約: コピー機能と同じ動作でペーストモードを起動してカレンダーに遷移', templateAppointment)
 
       // カレンダーページに遷移
       router.push('/')
