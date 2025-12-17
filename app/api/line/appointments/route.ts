@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
         appointments_by_patient: [],
         total_count: 0,
         patient_count: 0,
+        clinic_phone: clinicPhone,
         message: 'LINE連携されている患者がいません'
       })
     }
