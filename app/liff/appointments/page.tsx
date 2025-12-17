@@ -300,11 +300,13 @@ export default function AppointmentsPage() {
                 LINE ID: {lineUserId || '取得中...'}
               </p>
               {debugInfo && (
-                <div className="mt-4 p-3 bg-gray-100 rounded text-left text-xs">
+                <div className="mt-4 p-3 bg-gray-100 rounded text-left text-xs overflow-auto max-h-60">
                   <p className="font-bold mb-1">デバッグ情報:</p>
+                  <p>今日の日付: {debugInfo.today_date}</p>
                   <p>連携患者ID: {debugInfo.linkage_patient_ids?.join(', ') || 'なし'}</p>
                   <p>予約件数(raw): {debugInfo.raw_appointments_count}</p>
-                  <p>連携詳細: {JSON.stringify(debugInfo.linkages_with_patients)}</p>
+                  <p className="mt-2 font-bold">全未来予約の患者ID:</p>
+                  <p className="break-all">{debugInfo.all_future_appointment_patient_ids?.join(', ') || 'なし'}</p>
                 </div>
               )}
             </div>

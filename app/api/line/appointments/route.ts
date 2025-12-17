@@ -85,14 +85,29 @@ export async function GET(request: NextRequest) {
     // 予約を取得（今日以降の予約のみ）- JOINなしで
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
 
-    console.log('📅 予約取得開始:', { patientIds, date: today.toISOString().split('T')[0] })
+    console.log('📅 予約取得開始:', { patientIds, date: todayStr })
+
+    // まず全ての未来予約を取得（デバッグ用）
+    const { data: allFutureAppointments } = await supabase
+      .from('appointments')
+      .select('id, patient_id, appointment_date')
+      .gte('appointment_date', todayStr)
+      .limit(20)
+
+    console.log('📅 全未来予約:', allFutureAppointments?.map(a => ({
+      patient_id: a.patient_id,
+      patient_id_type: typeof a.patient_id,
+      date: a.appointment_date
+    })))
+    console.log('📅 連携患者ID:', patientIds.map(id => ({ id, type: typeof id })))
 
     const { data: appointments, error: appointmentError } = await supabase
       .from('appointments')
       .select('*')
       .in('patient_id', patientIds)
-      .gte('appointment_date', today.toISOString().split('T')[0])
+      .gte('appointment_date', todayStr)
       .order('appointment_date', { ascending: true })
       .order('appointment_time', { ascending: true })
 
@@ -190,7 +205,10 @@ export async function GET(request: NextRequest) {
         linkages_with_patients: linkagesWithPatients.map(l => ({
           patient_id: l.patient_id,
           has_patient_info: !!l.patients
-        }))
+        })),
+        // 全未来予約のpatient_id一覧（比較用）
+        all_future_appointment_patient_ids: allFutureAppointments?.map(a => a.patient_id) || [],
+        today_date: todayStr
       }
     })
 
