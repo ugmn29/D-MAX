@@ -37,6 +37,7 @@ export default function QRCodePage() {
   const [liffReady, setLiffReady] = useState(false)
   const [lineUserId, setLineUserId] = useState<string | null>(null)
   const [patients, setPatients] = useState<Patient[]>([])
+  const [patientsLoading, setPatientsLoading] = useState(true) // 患者データ読み込み中フラグ
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null)
   const [qrData, setQrData] = useState<QRData | null>(null)
@@ -129,6 +130,7 @@ export default function QRCodePage() {
 
   // 連携患者一覧を読み込み
   const loadPatients = async (userId: string) => {
+    setPatientsLoading(true)
     try {
       console.log('🔍 患者一覧取得開始:', userId)
       const response = await fetch(`/api/line/link-patient?line_user_id=${userId}`)
@@ -156,6 +158,8 @@ export default function QRCodePage() {
     } catch (err) {
       console.error('患者一覧読み込みエラー:', err)
       setError('患者情報の読み込み中にエラーが発生しました')
+    } finally {
+      setPatientsLoading(false)
     }
   }
 
@@ -199,8 +203,8 @@ export default function QRCodePage() {
     }
   }
 
-  // LIFF読み込み中
-  if (!liffReady) {
+  // LIFF読み込み中 または 患者データ読み込み中
+  if (!liffReady || patientsLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
