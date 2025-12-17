@@ -309,44 +309,59 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 連携患者一覧を取得
+    // 連携データを取得
     const { data: linkages, error } = await supabase
       .from('line_patient_linkages')
-      .select(`
-        *,
-        patients (
-          id,
-          patient_number,
-          last_name,
-          first_name,
-          last_name_kana,
-          first_name_kana,
-          birth_date,
-          gender,
-          phone,
-          email
-        )
-      `)
+      .select('*')
       .eq('line_user_id', line_user_id)
       .order('is_primary', { ascending: false })
       .order('linked_at', { ascending: false })
 
-    console.log('📊 クエリ結果:', {
+    console.log('📊 連携データ取得結果:', {
       linkages_count: linkages?.length || 0,
       error: error?.message || null,
       line_user_id
     })
 
     if (error) {
-      console.error('❌ 連携患者取得エラー:', error)
+      console.error('❌ 連携データ取得エラー:', error)
       return NextResponse.json(
-        { error: '連携患者の取得に失敗しました' },
+        { error: '連携患者の取得に失敗しました', details: error.message },
         { status: 500 }
       )
     }
 
-    console.log('✅ 連携患者取得成功:', linkages?.length || 0, '件')
-    return NextResponse.json({ linkages })
+    // 連携がない場合は空配列を返す
+    if (!linkages || linkages.length === 0) {
+      console.log('ℹ️ 連携データなし')
+      return NextResponse.json({ linkages: [] })
+    }
+
+    // 各連携の患者情報を取得
+    const linkagesWithPatients = await Promise.all(
+      linkages.map(async (linkage) => {
+        const { data: patient, error: patientError } = await supabase
+          .from('patients')
+          .select('id, patient_number, last_name, first_name, last_name_kana, first_name_kana, birth_date, gender, phone, email')
+          .eq('id', linkage.patient_id)
+          .single()
+
+        if (patientError) {
+          console.warn('⚠️ 患者情報取得エラー:', {
+            patient_id: linkage.patient_id,
+            error: patientError.message
+          })
+        }
+
+        return {
+          ...linkage,
+          patients: patient || null
+        }
+      })
+    )
+
+    console.log('✅ 連携患者取得成功:', linkagesWithPatients.length, '件')
+    return NextResponse.json({ linkages: linkagesWithPatients })
 
   } catch (error) {
     console.error('連携患者取得エラー:', error)
