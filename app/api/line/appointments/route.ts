@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
     const supabase = supabaseAdmin
 
     if (!supabase) {
-      console.error('❌ supabaseAdmin未初期化')
+      console.error('❌ supabaseAdmin未初期化 - SUPABASE_SERVICE_ROLE_KEY が設定されていない可能性があります')
       return NextResponse.json(
-        { error: 'サーバー設定エラー' },
+        { error: 'サーバー設定エラー', details: 'supabaseAdmin未初期化 (SUPABASE_SERVICE_ROLE_KEY未設定)' },
         { status: 500 }
       )
     }
@@ -214,8 +214,14 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('予約取得API エラー:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
     return NextResponse.json(
-      { error: '予約情報の取得中にエラーが発生しました' },
+      {
+        error: '予約情報の取得中にエラーが発生しました',
+        details: errorMessage,
+        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
+      },
       { status: 500 }
     )
   }
