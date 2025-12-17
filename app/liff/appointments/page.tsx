@@ -183,7 +183,9 @@ export default function AppointmentsPage() {
           }
         }
       } else {
-        setError(data.error || '予約情報の取得に失敗しました')
+        // エラー時もデバッグ情報があれば設定
+        setDebugInfo(data.debug || { error_details: data.details, error_code: data.code })
+        setError(`${data.error || '予約情報の取得に失敗しました'}${data.details ? ` (${data.details})` : ''}`)
       }
     } catch (err) {
       console.error('予約読み込みエラー:', err)
