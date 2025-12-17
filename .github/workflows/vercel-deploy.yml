@@ -11,4 +11,15 @@ jobs:
     steps:
       - name: Trigger Vercel Deployment
         run: |
-          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_7Zh9NIVjz82QhHmCuk1n8yWgtp34/ApuZKSukWb"
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.vercel.com/v1/integrations/deploy/prj_7Zh9NIVjz82QhHmCuk1n8yWgtp34/ApuZKSukWb")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "Deployment triggered successfully"
+            exit 0
+          else
+            echo "Failed to trigger deployment"
+            exit 1
+          fi
