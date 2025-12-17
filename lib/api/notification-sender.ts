@@ -186,12 +186,11 @@ export async function sendNotification(
       if (!settings.line.enabled || !settings.line.channel_access_token) {
         failureReason = 'LINE設定が無効です'
       } else {
-        // LINE User IDを取得
+        // LINE User IDを取得（line_patient_linkagesテーブルから）
         const { data: lineLink } = await client
-          .from('line_user_links')
+          .from('line_patient_linkages')
           .select('line_user_id')
           .eq('patient_id', schedule.patient_id)
-          .eq('is_primary', true)
           .single()
 
         if (lineLink) {

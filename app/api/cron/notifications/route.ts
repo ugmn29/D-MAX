@@ -23,24 +23,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // デモクリニックIDで実行（実際は全クリニック分ループ）
-    const DEMO_CLINIC_ID = '00000000-0000-0000-0000-000000000000'
+    // 実際のクリニックID（マルチテナント対応時は全クリニック分ループ）
+    const CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
     // 1. スケジュールされた通知を送信
-    const pendingResult = await processPendingNotifications(DEMO_CLINIC_ID)
+    const pendingResult = await processPendingNotifications(CLINIC_ID)
 
     // 2. 自動リマインド候補を処理（1日1回実行想定）
     let autoRemindersCreated = 0
     const currentHour = new Date().getHours()
     if (currentHour === 9) {
-      // 毎日午前9時に実行
-      autoRemindersCreated = await processAutoReminders(DEMO_CLINIC_ID)
+      // 毎日午前9時に実行（JST）
+      autoRemindersCreated = await processAutoReminders(CLINIC_ID)
     }
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      clinic_id: DEMO_CLINIC_ID,
+      clinic_id: CLINIC_ID,
       results: {
         pending_notifications: pendingResult,
         auto_reminders_created: autoRemindersCreated
