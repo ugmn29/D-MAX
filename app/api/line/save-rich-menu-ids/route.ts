@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { Client } from '@line/bot-sdk'
 
 /**
  * POST /api/line/save-rich-menu-ids
- * リッチメニューIDをデータベースに保存
+ * リッチメニューIDをデータベースに保存し、既存の連携済みユーザーに新しいリッチメニューを割り当て
  */
 export async function POST(request: NextRequest) {
   try {
@@ -92,9 +93,60 @@ export async function POST(request: NextRequest) {
     console.log('✅ リッチメニューID保存成功')
     console.log('📊 保存されたデータ:', upsertData)
 
+    // 連携済みユーザーに新しいリッチメニューを割り当て
+    let reassignedCount = 0
+    if (registered_menu_id) {
+      try {
+        console.log('🔄 既存連携ユーザーにリッチメニューを再割り当て中...')
+
+        // LINE設定を取得
+        const { data: lineSettings } = await supabase
+          .from('clinic_settings')
+          .select('setting_value')
+          .eq('clinic_id', clinic_id)
+          .eq('setting_key', 'line')
+          .single()
+
+        const channelAccessToken = lineSettings?.setting_value?.channel_access_token
+
+        if (channelAccessToken) {
+          // LINE Botクライアント初期化
+          const lineClient = new Client({ channelAccessToken })
+
+          // 連携済みユーザーを取得
+          const { data: linkages } = await supabase
+            .from('line_patient_linkages')
+            .select('line_user_id')
+            .eq('clinic_id', clinic_id)
+
+          if (linkages && linkages.length > 0) {
+            console.log(`📋 ${linkages.length}人の連携済みユーザーを更新中...`)
+
+            // 各ユーザーに新しいリッチメニューを割り当て
+            for (const linkage of linkages) {
+              try {
+                await lineClient.linkRichMenuToUser(linkage.line_user_id, registered_menu_id)
+                reassignedCount++
+              } catch (linkError) {
+                console.warn(`⚠️ ユーザー ${linkage.line_user_id} への割り当て失敗:`, linkError)
+              }
+            }
+
+            console.log(`✅ ${reassignedCount}/${linkages.length}人のユーザーを更新しました`)
+          }
+        } else {
+          console.warn('⚠️ LINE Channel Access Tokenが見つからないため、ユーザー更新をスキップ')
+        }
+      } catch (reassignError) {
+        console.error('⚠️ リッチメニュー再割り当てエラー:', reassignError)
+        // エラーでもメニューID保存は成功しているので続行
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'リッチメニューIDを保存しました'
+      message: 'リッチメニューIDを保存しました',
+      reassignedUsers: reassignedCount
     })
 
   } catch (error) {
