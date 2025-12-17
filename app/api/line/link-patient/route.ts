@@ -284,10 +284,13 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 GET /api/line/link-patient - 開始')
+
     // Service Role Keyを使用してRLSをバイパス
     const supabase = supabaseAdmin
 
     if (!supabase) {
+      console.error('❌ supabaseAdmin未初期化')
       return NextResponse.json(
         { error: 'サーバー設定エラー' },
         { status: 500 }
@@ -296,6 +299,8 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams
     const line_user_id = searchParams.get('line_user_id')
+
+    console.log('📊 リクエストパラメータ:', { line_user_id })
 
     if (!line_user_id) {
       return NextResponse.json(
@@ -326,14 +331,21 @@ export async function GET(request: NextRequest) {
       .order('is_primary', { ascending: false })
       .order('linked_at', { ascending: false })
 
+    console.log('📊 クエリ結果:', {
+      linkages_count: linkages?.length || 0,
+      error: error?.message || null,
+      line_user_id
+    })
+
     if (error) {
-      console.error('連携患者取得エラー:', error)
+      console.error('❌ 連携患者取得エラー:', error)
       return NextResponse.json(
         { error: '連携患者の取得に失敗しました' },
         { status: 500 }
       )
     }
 
+    console.log('✅ 連携患者取得成功:', linkages?.length || 0, '件')
     return NextResponse.json({ linkages })
 
   } catch (error) {

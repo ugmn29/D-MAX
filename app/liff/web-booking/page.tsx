@@ -205,6 +205,9 @@ export default function WebBookingLiffPage() {
               </div>
               <h2 className="text-xl font-bold text-gray-900">エラー</h2>
               <p className="text-gray-600 text-sm">{error}</p>
+              <p className="text-xs text-gray-400 mt-2">
+                LINE ID: {lineUserId || '取得中...'}
+              </p>
               <Button
                 onClick={() => {
                   if (window.liff) {

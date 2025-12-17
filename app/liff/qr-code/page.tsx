@@ -130,14 +130,18 @@ export default function QRCodePage() {
   // 連携患者一覧を読み込み
   const loadPatients = async (userId: string) => {
     try {
+      console.log('🔍 患者一覧取得開始:', userId)
       const response = await fetch(`/api/line/link-patient?line_user_id=${userId}`)
-      if (response.ok) {
-        const data = await response.json()
+      const data = await response.json()
+      console.log('📊 API応答:', { ok: response.ok, data })
+
+      if (response.ok && data.linkages) {
         const patientList = data.linkages.map((linkage: any) => ({
           id: linkage.patient_id,
-          name: `${linkage.patients.last_name} ${linkage.patients.first_name}`,
-          patient_number: linkage.patients.patient_number
+          name: `${linkage.patients?.last_name || ''} ${linkage.patients?.first_name || ''}`,
+          patient_number: linkage.patients?.patient_number || 0
         }))
+        console.log('👥 患者リスト:', patientList)
         setPatients(patientList)
 
         // 1人だけの場合は自動選択
@@ -145,9 +149,13 @@ export default function QRCodePage() {
           setSelectedPatientId(patientList[0].id)
           await loadQRCode(patientList[0].id)
         }
+      } else {
+        console.error('❌ 患者取得失敗:', data)
+        setError(data.error || '患者情報の取得に失敗しました')
       }
     } catch (err) {
       console.error('患者一覧読み込みエラー:', err)
+      setError('患者情報の読み込み中にエラーが発生しました')
     }
   }
 
@@ -220,6 +228,14 @@ export default function QRCodePage() {
                 まだ患者登録が完了していません。<br />
                 リッチメニューの「初回登録」から<br />
                 連携を完了してください。
+              </p>
+              {error && (
+                <p className="text-xs text-red-500 mt-2">
+                  エラー詳細: {error}
+                </p>
+              )}
+              <p className="text-xs text-gray-400 mt-2">
+                LINE ID: {lineUserId || '取得中...'}
               </p>
             </div>
           </CardContent>

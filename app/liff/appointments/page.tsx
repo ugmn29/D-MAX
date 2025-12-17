@@ -285,6 +285,14 @@ export default function AppointmentsPage() {
               <p className="text-gray-600 text-sm">
                 現在、予約は登録されていません
               </p>
+              {error && (
+                <p className="text-xs text-red-500 mt-2">
+                  エラー詳細: {error}
+                </p>
+              )}
+              <p className="text-xs text-gray-400 mt-2">
+                LINE ID: {lineUserId || '取得中...'}
+              </p>
             </div>
           </CardContent>
         </Card>
