@@ -19,7 +19,8 @@ import {
   X,
   CheckCircle2,
   Users,
-  RefreshCw
+  RefreshCw,
+  Phone
 } from 'lucide-react'
 import {
   Dialog,
@@ -101,6 +102,9 @@ export default function AppointmentsPage() {
   // 予約変更関連
   const [showChangeDialog, setShowChangeDialog] = useState(false)
   const [changing, setChanging] = useState(false)
+
+  // クリニック電話番号
+  const [clinicPhone, setClinicPhone] = useState<string | null>(null)
 
   // LIFF初期化
   useEffect(() => {
@@ -191,6 +195,7 @@ export default function AppointmentsPage() {
       if (response.ok) {
         setPatientAppointments(data.appointments_by_patient || [])
         setDebugInfo(data.debug || null)
+        setClinicPhone(data.clinic_phone || null)
 
         if (data.appointments_by_patient.length === 0) {
           // 連携患者がいるが予約がない場合と、連携患者自体がいない場合を区別
@@ -554,9 +559,20 @@ export default function AppointmentsPage() {
                           !currentPatientData.web_booking_settings.can_cancel ||
                           !currentPatientData.web_booking_settings.can_reschedule
                         ) && (
-                          <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                            {currentPatientData.web_booking_settings.cancel_block_reason ||
-                             currentPatientData.web_booking_settings.reschedule_block_reason}
+                          <div className="text-xs text-amber-600 bg-amber-50 p-3 rounded space-y-2">
+                            <p>
+                              {currentPatientData.web_booking_settings.cancel_block_reason ||
+                               currentPatientData.web_booking_settings.reschedule_block_reason}
+                            </p>
+                            {clinicPhone && (
+                              <a
+                                href={`tel:${clinicPhone}`}
+                                className="flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                              >
+                                <Phone className="w-4 h-4" />
+                                {clinicPhone} に電話する
+                              </a>
+                            )}
                           </div>
                         )}
 

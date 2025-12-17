@@ -85,6 +85,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // クリニック情報を取得（電話番号）
+    const { data: clinic } = await supabase
+      .from('clinics')
+      .select('phone')
+      .eq('id', DEMO_CLINIC_ID)
+      .single()
+
+    const clinicPhone = clinic?.phone || null
+
     // LINE連携患者を取得（JOINなしで）
     console.log('📊 連携データ取得開始...')
     const { data: linkages, error: linkageError } = await supabase
@@ -305,6 +314,7 @@ export async function GET(request: NextRequest) {
       appointments_by_patient: appointmentsByPatient,
       total_count: formattedAppointments.length,
       patient_count: linkagesWithPatients.length,
+      clinic_phone: clinicPhone,
       // デバッグ情報
       debug: {
         linkage_patient_ids: patientIds,
