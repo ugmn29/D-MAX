@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       .in('patient_id', patientIds)
       .gte('appointment_date', todayStr)
       .order('appointment_date', { ascending: true })
-      .order('appointment_time', { ascending: true })
+      .order('start_time', { ascending: true })
 
     console.log('📅 予約取得完了:', {
       count: appointments?.length || 0,
@@ -146,6 +146,14 @@ export async function GET(request: NextRequest) {
       const patient = linkedPatient?.patients
       const staff = apt.staff_id ? staffMap[apt.staff_id] : null
 
+      // start_timeとend_timeからdurationを計算（分）
+      let duration = 30 // デフォルト
+      if (apt.start_time && apt.end_time) {
+        const [startH, startM] = apt.start_time.split(':').map(Number)
+        const [endH, endM] = apt.end_time.split(':').map(Number)
+        duration = (endH * 60 + endM) - (startH * 60 + startM)
+      }
+
       return {
         id: apt.id,
         patient: patient ? {
@@ -158,16 +166,16 @@ export async function GET(request: NextRequest) {
           patient_number: 0
         },
         appointment_date: apt.appointment_date,
-        appointment_time: apt.appointment_time,
-        duration: apt.duration,
+        appointment_time: apt.start_time, // start_timeを使用
+        duration: duration,
         status: apt.status,
-        treatment_type: apt.treatment_type,
-        notes: apt.notes,
+        treatment_type: apt.menu1_id || apt.menu2_id ? '診療予約' : null, // menu_idから推定
+        notes: apt.memo,
         staff: staff ? {
           id: staff.id,
           name: `${staff.last_name} ${staff.first_name}`
         } : null,
-        cancellation_reason: apt.cancellation_reason,
+        cancellation_reason: apt.cancel_reason_id ? 'キャンセル' : null,
         cancelled_at: apt.cancelled_at
       }
     })
@@ -250,7 +258,7 @@ export async function PATCH(request: NextRequest) {
     // 予約情報を取得
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
-      .select('id, patient_id, appointment_date, appointment_time, status')
+      .select('id, patient_id, appointment_date, start_time, status, memo')
       .eq('id', appointment_id)
       .single()
 
@@ -261,8 +269,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // 既にキャンセル済みか確認
-    if (appointment.status === 'cancelled') {
+    // 既にキャンセル済みか確認（statusがキャンセル系の値かチェック）
+    const cancelledStatuses = ['cancelled', 'キャンセル', 'キャンセル（様々）']
+    if (cancelledStatuses.includes(appointment.status)) {
       return NextResponse.json(
         { error: 'この予約は既にキャンセルされています' },
         { status: 400 }
@@ -270,7 +279,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 過去の予約かチェック
-    const appointmentDateTime = new Date(`${appointment.appointment_date}T${appointment.appointment_time}`)
+    const appointmentDateTime = new Date(`${appointment.appointment_date}T${appointment.start_time}`)
     const now = new Date()
 
     if (appointmentDateTime < now) {
@@ -295,12 +304,18 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // 予約をキャンセル
+    // 予約をキャンセル（memo にキャンセル理由を追記）
+    const existingMemo = appointment.memo || ''
+    const cancelNote = cancellation_reason
+      ? `[LINE経由キャンセル] ${cancellation_reason}`
+      : '[LINE経由キャンセル]'
+    const newMemo = existingMemo ? `${existingMemo}\n${cancelNote}` : cancelNote
+
     const { data: updatedAppointment, error: updateError } = await supabase
       .from('appointments')
       .update({
-        status: 'cancelled',
-        cancellation_reason: cancellation_reason || 'LINE経由でキャンセル',
+        status: 'キャンセル', // enum値に合わせる
+        memo: newMemo,
         cancelled_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -311,7 +326,7 @@ export async function PATCH(request: NextRequest) {
     if (updateError) {
       console.error('予約キャンセルエラー:', updateError)
       return NextResponse.json(
-        { error: '予約のキャンセルに失敗しました' },
+        { error: '予約のキャンセルに失敗しました', details: updateError.message },
         { status: 500 }
       )
     }
@@ -321,7 +336,6 @@ export async function PATCH(request: NextRequest) {
       appointment: {
         id: updatedAppointment.id,
         status: updatedAppointment.status,
-        cancellation_reason: updatedAppointment.cancellation_reason,
         cancelled_at: updatedAppointment.cancelled_at
       },
       message: '予約をキャンセルしました'
