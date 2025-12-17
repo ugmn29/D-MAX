@@ -36,64 +36,71 @@ export default function InitialLinkPage() {
   // 生の招待コード入力値（フォーマットなし）
   const [rawInvitationCode, setRawInvitationCode] = useState('')
 
-  // LIFF SDKをロード
-  useEffect(() => {
-    // LIFF SDKスクリプトを動的に追加
-    const script = document.createElement('script')
-    script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js'
-    script.async = true
-    document.head.appendChild(script)
-
-    return () => {
-      // クリーンアップ
-      document.head.removeChild(script)
-    }
-  }, [])
-
-  // LIFF初期化
+  // LIFF初期化（最適化版）
   useEffect(() => {
     const initializeLiff = async () => {
       try {
-        // LIFF SDKが読み込まれるまで待機（最大10秒でタイムアウト）
-        const checkLiff = () => {
-          return new Promise((resolve, reject) => {
-            let attempts = 0
-            const maxAttempts = 100 // 10秒 (100ms * 100)
-
-            const check = () => {
-              attempts++
-
-              if (typeof window !== 'undefined' && window.liff) {
-                resolve(true)
-              } else if (attempts >= maxAttempts) {
-                reject(new Error('LIFF SDKの読み込みがタイムアウトしました'))
-              } else {
-                setTimeout(check, 100)
-              }
-            }
-            check()
-          })
-        }
-
-        await checkLiff()
-
-        // APIからLIFF IDを取得
-        let liffId: string | null = null
-        try {
-          const response = await fetch('/api/liff-settings')
-          if (response.ok) {
-            const data = await response.json()
-            liffId = data.initial_link
+        // LIFF SDKスクリプトを動的に追加（並列で開始）
+        const scriptPromise = new Promise<void>((resolve) => {
+          // 既に読み込まれている場合はスキップ
+          if (typeof window !== 'undefined' && window.liff) {
+            resolve()
+            return
           }
-        } catch (e) {
-          console.warn('API LIFF ID取得エラー:', e)
-        }
 
-        // フォールバック: 環境変数
-        if (!liffId) {
-          liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK || null
-        }
+          const script = document.createElement('script')
+          script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js'
+          script.async = true
+          script.onload = () => resolve()
+          script.onerror = () => resolve() // エラーでも続行
+          document.head.appendChild(script)
+        })
 
+        // LIFF ID取得（並列実行）
+        const liffIdPromise = (async () => {
+          // 環境変数を先にチェック
+          const envLiffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
+          if (envLiffId) return envLiffId
+
+          try {
+            const response = await fetch('/api/liff-settings')
+            if (response.ok) {
+              const data = await response.json()
+              return data.initial_link || null
+            }
+          } catch (e) {
+            console.warn('API LIFF ID取得エラー:', e)
+          }
+          return null
+        })()
+
+        // 並列実行を待機
+        const [, liffIdResult] = await Promise.all([scriptPromise, liffIdPromise])
+
+        // LIFF SDK読み込み待機（50msごとにチェック、5秒でタイムアウト）
+        await new Promise<void>((resolve, reject) => {
+          if (typeof window !== 'undefined' && window.liff) {
+            resolve()
+            return
+          }
+
+          let attempts = 0
+          const maxAttempts = 100 // 5秒 (50ms * 100)
+
+          const check = () => {
+            attempts++
+            if (typeof window !== 'undefined' && window.liff) {
+              resolve()
+            } else if (attempts >= maxAttempts) {
+              reject(new Error('LIFF SDKの読み込みがタイムアウトしました'))
+            } else {
+              setTimeout(check, 50)
+            }
+          }
+          check()
+        })
+
+        const liffId = liffIdResult
         if (!liffId) {
           setError('LIFF IDが設定されていません')
           setLiffReady(false)

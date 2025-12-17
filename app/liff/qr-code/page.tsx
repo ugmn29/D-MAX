@@ -44,56 +44,58 @@ export default function QRCodePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // LIFF初期化
+  // LIFF初期化（最適化版）
   useEffect(() => {
-    const waitForLiffSdk = (): Promise<void> => {
-      return new Promise((resolve) => {
-        if (typeof window !== 'undefined' && window.liff) {
-          resolve()
-        } else {
-          const checkLiff = setInterval(() => {
-            if (typeof window !== 'undefined' && window.liff) {
-              clearInterval(checkLiff)
-              resolve()
-            }
-          }, 100)
-          // 10秒でタイムアウト
-          setTimeout(() => {
-            clearInterval(checkLiff)
-            resolve()
-          }, 10000)
-        }
-      })
-    }
-
     const initializeLiff = async () => {
       try {
-        await waitForLiffSdk()
+        // LIFF SDK待機とLIFF ID取得を並列実行
+        const [, liffIdResult] = await Promise.all([
+          // LIFF SDK待機（50msごとにチェック、5秒でタイムアウト）
+          new Promise<void>((resolve) => {
+            if (typeof window !== 'undefined' && window.liff) {
+              resolve()
+            } else {
+              const checkLiff = setInterval(() => {
+                if (typeof window !== 'undefined' && window.liff) {
+                  clearInterval(checkLiff)
+                  resolve()
+                }
+              }, 50)
+              setTimeout(() => {
+                clearInterval(checkLiff)
+                resolve()
+              }, 5000)
+            }
+          }),
+          // LIFF ID取得（並列実行）
+          (async () => {
+            // 環境変数を先にチェック（API呼び出し不要の場合スキップ）
+            const envLiffId = process.env.NEXT_PUBLIC_LIFF_ID_QR_CODE
+            if (envLiffId) return envLiffId
+
+            try {
+              const response = await fetch('/api/liff-settings')
+              if (response.ok) {
+                const data = await response.json()
+                return data.qr_code || null
+              }
+            } catch (e) {
+              console.warn('API LIFF ID取得エラー:', e)
+            }
+            return null
+          })()
+        ])
 
         if (typeof window === 'undefined' || !window.liff) {
           setError('LIFF SDKの読み込みに失敗しました')
+          setPatientsLoading(false)
           return
         }
 
-        // APIからLIFF IDを取得
-        let liffId: string | null = null
-        try {
-          const response = await fetch('/api/liff-settings')
-          if (response.ok) {
-            const data = await response.json()
-            liffId = data.qr_code
-          }
-        } catch (e) {
-          console.warn('API LIFF ID取得エラー:', e)
-        }
-
-        // フォールバック: 環境変数
-        if (!liffId) {
-          liffId = process.env.NEXT_PUBLIC_LIFF_ID_QR_CODE || null
-        }
-
+        const liffId = liffIdResult
         if (!liffId) {
           setError('LIFF IDが設定されていません')
+          setPatientsLoading(false)
           return
         }
 
@@ -103,13 +105,15 @@ export default function QRCodePage() {
           const profile = await window.liff.getProfile()
           setLineUserId(profile.userId)
           setLiffReady(true)
-          await loadPatients(profile.userId)
+          // loadPatientsは別途非同期で実行（setLiffReadyの後）
+          loadPatients(profile.userId)
         } else {
           window.liff.login()
         }
       } catch (err) {
         console.error('LIFF初期化エラー:', err)
         setError('初期化に失敗しました')
+        setPatientsLoading(false)
       }
     }
 
