@@ -39,40 +39,66 @@ export default function WebBookingLiffPage() {
 
   // LIFF初期化
   useEffect(() => {
+    const waitForLiffSdk = (): Promise<void> => {
+      return new Promise((resolve) => {
+        if (typeof window !== 'undefined' && window.liff) {
+          resolve()
+        } else {
+          const checkLiff = setInterval(() => {
+            if (typeof window !== 'undefined' && window.liff) {
+              clearInterval(checkLiff)
+              resolve()
+            }
+          }, 100)
+          // 10秒でタイムアウト
+          setTimeout(() => {
+            clearInterval(checkLiff)
+            resolve()
+          }, 10000)
+        }
+      })
+    }
+
     const initializeLiff = async () => {
       try {
-        if (typeof window !== 'undefined' && window.liff) {
-          let liffId = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+        await waitForLiffSdk()
 
-          // localStorageから設定画面の値を取得
-          try {
-            const savedSettings = localStorage.getItem('notificationSettings')
-            if (savedSettings) {
-              const settings = JSON.parse(savedSettings)
-              if (settings.line?.liff_id_web_booking) {
-                liffId = settings.line.liff_id_web_booking
-              }
+        if (typeof window === 'undefined' || !window.liff) {
+          setError('LIFF SDKの読み込みに失敗しました')
+          setLoading(false)
+          return
+        }
+
+        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+
+        // localStorageから設定画面の値を取得
+        try {
+          const savedSettings = localStorage.getItem('notificationSettings')
+          if (savedSettings) {
+            const settings = JSON.parse(savedSettings)
+            if (settings.line?.liff_id_web_booking) {
+              liffId = settings.line.liff_id_web_booking
             }
-          } catch (e) {
-            console.warn('localStorage読み込みエラー:', e)
           }
+        } catch (e) {
+          console.warn('localStorage読み込みエラー:', e)
+        }
 
-          if (!liffId) {
-            setError('LIFF IDが設定されていません')
-            setLoading(false)
-            return
-          }
+        if (!liffId) {
+          setError('LIFF IDが設定されていません')
+          setLoading(false)
+          return
+        }
 
-          await window.liff.init({ liffId })
+        await window.liff.init({ liffId })
 
-          if (window.liff.isLoggedIn()) {
-            const profile = await window.liff.getProfile()
-            setLineUserId(profile.userId)
-            setLiffReady(true)
-            await loadPatients(profile.userId)
-          } else {
-            window.liff.login()
-          }
+        if (window.liff.isLoggedIn()) {
+          const profile = await window.liff.getProfile()
+          setLineUserId(profile.userId)
+          setLiffReady(true)
+          await loadPatients(profile.userId)
+        } else {
+          window.liff.login()
         }
       } catch (err) {
         console.error('LIFF初期化エラー:', err)
