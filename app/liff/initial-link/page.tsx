@@ -77,18 +77,20 @@ export default function InitialLinkPage() {
           return
         }
 
-        // LIFF ID取得
-        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
-        if (!liffId) {
-          try {
-            const response = await fetch('/api/liff-settings')
-            if (response.ok) {
-              const data = await response.json()
-              liffId = data.initial_link || null
-            }
-          } catch (e) {
-            console.warn('API LIFF ID取得エラー:', e)
+        // LIFF ID取得（APIを優先、環境変数はフォールバック）
+        let liffId: string | null = null
+        try {
+          const response = await fetch('/api/liff-settings')
+          if (response.ok) {
+            const data = await response.json()
+            liffId = data.initial_link || null
           }
+        } catch (e) {
+          console.warn('API LIFF ID取得エラー:', e)
+        }
+        // APIから取得できなかった場合のみ環境変数を使用
+        if (!liffId) {
+          liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK || null
         }
 
         if (!liffId) {
