@@ -124,8 +124,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // スタッフ情報を取得
-    const staffIds = [...new Set((appointments || []).map(a => a.staff_id).filter(Boolean))]
+    // スタッフ情報を取得（staff1_id を使用）
+    const staffIds = [...new Set((appointments || []).map(a => a.staff1_id).filter(Boolean))]
     let staffMap: Record<string, any> = {}
     if (staffIds.length > 0) {
       const { data: staffList } = await supabase
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
       // 患者情報はlinkagesWithPatientsから取得
       const linkedPatient = linkagesWithPatients.find(l => l.patient_id === apt.patient_id)
       const patient = linkedPatient?.patients
-      const staff = apt.staff_id ? staffMap[apt.staff_id] : null
+      const staff = apt.staff1_id ? staffMap[apt.staff1_id] : null
 
       // start_timeとend_timeからdurationを計算（分）
       let duration = 30 // デフォルト
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
         // 予約変更用に元の診療メニューと担当者IDを保持
         menu1_id: apt.menu1_id || null,
         menu2_id: apt.menu2_id || null,
-        staff_id: apt.staff_id || null
+        staff_id: apt.staff1_id || null
       }
     })
 
