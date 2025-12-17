@@ -153,9 +153,10 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
         return
       }
 
-      // 患者情報のみの仮予約オブジェクトを作成（メニューは空）
+      // 患者情報のみの仮予約オブジェクトを作成（既存のコピー機能と同じ形式）
       // 仮登録・本登録に関わらず、患者情報をコピーして新規予約を作成
       const templateAppointment = {
+        clinic_id: DEMO_CLINIC_ID,    // clinic_idを追加
         patient_id: patient.id,
         patient: {
           id: patient.id,
@@ -174,12 +175,15 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
         staff1_id: null,
         staff2_id: null,
         staff3_id: null,
+        unit_id: null,
         // その他の必要なフィールド
         appointment_date: '',
         start_time: '',
         end_time: '',
-        status: '予約',
-        memo: ''
+        status: '未来院',            // 正しいステータス値に変更
+        memo: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
 
       // localStorageに保存（予約編集モーダルのコピー機能と完全に同じ処理）
