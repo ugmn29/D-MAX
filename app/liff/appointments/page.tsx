@@ -61,6 +61,16 @@ interface Appointment {
   staff_id?: string | null
 }
 
+interface WebBookingSettings {
+  can_cancel: boolean
+  can_reschedule: boolean
+  cancel_block_reason: string | null
+  reschedule_block_reason: string | null
+  cancel_count_this_month: number
+  cancel_limit: number | null
+  cancel_deadline_hours: number | null
+}
+
 interface PatientAppointments {
   patient: {
     id: string
@@ -69,6 +79,7 @@ interface PatientAppointments {
   }
   appointments: Appointment[]
   count: number
+  web_booking_settings?: WebBookingSettings
 }
 
 export default function AppointmentsPage() {
@@ -538,31 +549,69 @@ export default function AppointmentsPage() {
                     {/* 変更・キャンセルボタン（キャンセル済みでなければ表示） */}
                     {!isCancelled && (
                       <div className="pt-2 border-t space-y-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => {
-                            // 予約変更：現在の予約をキャンセルしてWeb予約ページへ
-                            setSelectedAppointment(appointment)
-                            setShowChangeDialog(true)
-                          }}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          予約を変更する
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => {
-                            setSelectedAppointment(appointment)
-                            setShowCancelDialog(true)
-                          }}
-                        >
-                          <CalendarX className="w-4 h-4 mr-2" />
-                          この予約をキャンセル
-                        </Button>
+                        {/* Web予約設定の制限情報を表示 */}
+                        {currentPatientData?.web_booking_settings && (
+                          !currentPatientData.web_booking_settings.can_cancel ||
+                          !currentPatientData.web_booking_settings.can_reschedule
+                        ) && (
+                          <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                            {currentPatientData.web_booking_settings.cancel_block_reason ||
+                             currentPatientData.web_booking_settings.reschedule_block_reason}
+                          </div>
+                        )}
+
+                        {/* 予約変更ボタン */}
+                        {currentPatientData?.web_booking_settings?.can_reschedule !== false ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => {
+                              // 予約変更：現在の予約をキャンセルしてWeb予約ページへ
+                              setSelectedAppointment(appointment)
+                              setShowChangeDialog(true)
+                            }}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            予約を変更する
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-gray-400 cursor-not-allowed"
+                            disabled
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            予約変更不可（お電話ください）
+                          </Button>
+                        )}
+
+                        {/* キャンセルボタン */}
+                        {currentPatientData?.web_booking_settings?.can_cancel !== false ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              setSelectedAppointment(appointment)
+                              setShowCancelDialog(true)
+                            }}
+                          >
+                            <CalendarX className="w-4 h-4 mr-2" />
+                            この予約をキャンセル
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-gray-400 cursor-not-allowed"
+                            disabled
+                          >
+                            <CalendarX className="w-4 h-4 mr-2" />
+                            キャンセル不可（お電話ください）
+                          </Button>
+                        )}
                       </div>
                     )}
                   </CardContent>

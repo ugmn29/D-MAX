@@ -4,9 +4,62 @@ import { supabaseAdmin } from '@/lib/supabase'
 /**
  * LINE予約管理API
  *
- * GET: LINE連携患者の予約一覧を取得
- * PATCH: 予約をキャンセル
+ * GET: LINE連携患者の予約一覧を取得（Web予約設定も含む）
+ * PATCH: 予約をキャンセル（Web予約設定のチェック付き）
  */
+
+// デモクリニックID（本番環境では動的に取得する）
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+
+/**
+ * 患者のWeb予約設定を取得
+ */
+async function getPatientWebBookingSettings(patientId: string, clinicId: string) {
+  const supabase = supabaseAdmin
+  if (!supabase) return null
+
+  const { data, error } = await supabase
+    .from('patient_web_booking_settings')
+    .select('*')
+    .eq('patient_id', patientId)
+    .eq('clinic_id', clinicId)
+    .single()
+
+  if (error) {
+    // テーブルが存在しない場合やレコードがない場合はnullを返す
+    return null
+  }
+
+  return data
+}
+
+/**
+ * 患者のキャンセル履歴数を取得（過去30日間）
+ */
+async function getPatientCancelCount(patientId: string, clinicId: string): Promise<number> {
+  const supabase = supabaseAdmin
+  if (!supabase) return 0
+
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+
+  const { count, error } = await supabase
+    .from('appointments')
+    .select('*', { count: 'exact', head: true })
+    .eq('patient_id', patientId)
+    .eq('status', 'キャンセル')
+    .gte('cancelled_at', thirtyDaysAgoStr)
+    .not('memo', 'is', null)
+    .like('memo', '%LINE経由キャンセル%')
+
+  if (error) {
+    console.error('キャンセル数取得エラー:', error)
+    return 0
+  }
+
+  return count || 0
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -184,25 +237,67 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // 患者ごとにグループ化
-    const appointmentsByPatient = linkagesWithPatients
-      .filter(linkage => linkage.patients) // 患者情報がある連携のみ
-      .map(linkage => {
-        const patient = linkage.patients as any
-        const patientAppointments = formattedAppointments.filter(
-          apt => apt.patient.id === patient.id
-        )
+    // 患者ごとにグループ化（Web予約設定も取得）
+    const appointmentsByPatient = await Promise.all(
+      linkagesWithPatients
+        .filter(linkage => linkage.patients) // 患者情報がある連携のみ
+        .map(async (linkage) => {
+          const patient = linkage.patients as any
+          const patientAppointments = formattedAppointments.filter(
+            apt => apt.patient.id === patient.id
+          )
 
-        return {
-          patient: {
-            id: patient.id,
-            name: `${patient.last_name} ${patient.first_name}`,
-            patient_number: patient.patient_number
-          },
-          appointments: patientAppointments,
-          count: patientAppointments.length
-        }
-      })
+          // 患者のWeb予約設定を取得
+          const webBookingSettings = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+          const cancelCount = await getPatientCancelCount(patient.id, DEMO_CLINIC_ID)
+
+          // キャンセル可否を判定
+          let canCancel = true
+          let canReschedule = true
+          let cancelBlockReason: string | null = null
+          let rescheduleBlockReason: string | null = null
+
+          if (webBookingSettings) {
+            // Webキャンセルが無効の場合
+            if (!webBookingSettings.web_cancel_enabled) {
+              canCancel = false
+              cancelBlockReason = 'Webキャンセルが無効になっています'
+            }
+            // Web予約変更が無効の場合
+            if (!webBookingSettings.web_reschedule_enabled) {
+              canReschedule = false
+              rescheduleBlockReason = 'Web予約変更が無効になっています'
+            }
+            // キャンセル回数制限を超えている場合
+            if (webBookingSettings.web_cancel_limit && cancelCount >= webBookingSettings.web_cancel_limit) {
+              canCancel = false
+              canReschedule = false
+              cancelBlockReason = `キャンセル回数上限（${webBookingSettings.web_cancel_limit}回/月）に達しています`
+              rescheduleBlockReason = `キャンセル回数上限（${webBookingSettings.web_cancel_limit}回/月）に達しています`
+            }
+          }
+
+          return {
+            patient: {
+              id: patient.id,
+              name: `${patient.last_name} ${patient.first_name}`,
+              patient_number: patient.patient_number
+            },
+            appointments: patientAppointments,
+            count: patientAppointments.length,
+            // Web予約設定
+            web_booking_settings: {
+              can_cancel: canCancel,
+              can_reschedule: canReschedule,
+              cancel_block_reason: cancelBlockReason,
+              reschedule_block_reason: rescheduleBlockReason,
+              cancel_count_this_month: cancelCount,
+              cancel_limit: webBookingSettings?.web_cancel_limit || null,
+              cancel_deadline_hours: webBookingSettings?.cancel_deadline_hours || null
+            }
+          }
+        })
+    )
 
     console.log('✅ 予約取得成功:', { patients: appointmentsByPatient.length, appointments: formattedAppointments.length })
 
@@ -306,6 +401,41 @@ export async function PATCH(request: NextRequest) {
         { error: 'この予約をキャンセルする権限がありません' },
         { status: 403 }
       )
+    }
+
+    // 患者のWeb予約設定をチェック
+    const webBookingSettings = await getPatientWebBookingSettings(appointment.patient_id, DEMO_CLINIC_ID)
+
+    if (webBookingSettings) {
+      // Webキャンセルが無効の場合
+      if (!webBookingSettings.web_cancel_enabled) {
+        return NextResponse.json(
+          { error: 'この患者さんはWebキャンセルが無効になっています。お電話でご連絡ください。' },
+          { status: 403 }
+        )
+      }
+
+      // キャンセル回数制限をチェック
+      if (webBookingSettings.web_cancel_limit) {
+        const cancelCount = await getPatientCancelCount(appointment.patient_id, DEMO_CLINIC_ID)
+        if (cancelCount >= webBookingSettings.web_cancel_limit) {
+          return NextResponse.json(
+            { error: `キャンセル回数の上限（${webBookingSettings.web_cancel_limit}回/月）に達しています。お電話でご連絡ください。` },
+            { status: 403 }
+          )
+        }
+      }
+
+      // キャンセル期限をチェック
+      if (webBookingSettings.cancel_deadline_hours) {
+        const hoursUntilAppointment = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+        if (hoursUntilAppointment < webBookingSettings.cancel_deadline_hours) {
+          return NextResponse.json(
+            { error: `予約の${webBookingSettings.cancel_deadline_hours}時間前を過ぎているため、Webキャンセルできません。お電話でご連絡ください。` },
+            { status: 403 }
+          )
+        }
+      }
     }
 
     // 予約をキャンセル（memo にキャンセル理由を追記）

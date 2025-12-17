@@ -14,6 +14,7 @@ import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
 import { getWeeklySlots, getWeeklySlotsForReschedule } from '@/lib/api/web-booking'
 import { authenticateReturningPatient, getPatientById } from '@/lib/api/patients'
+import { getPatientWebBookingSettings } from '@/lib/api/patient-web-booking-settings'
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { validateWebBookingToken, markTokenAsUsed } from '@/lib/api/web-booking-tokens'
 import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight, Phone } from 'lucide-react'
@@ -356,6 +357,19 @@ function WebBookingPageInner() {
 
           console.log('LINE Web予約: 患者情報取得成功', patient)
 
+          // Web予約設定をチェック（予約変更モードでは reschedule_enabled をチェック）
+          const webBookingSettings = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+          if (webBookingSettings) {
+            if (reschedule === 'true' && !webBookingSettings.web_reschedule_enabled) {
+              setTokenError('この患者様はWeb予約変更が制限されています。お電話でご連絡ください。')
+              return
+            }
+            if (reschedule !== 'true' && !webBookingSettings.web_booking_enabled) {
+              setTokenError('この患者様はWeb予約が制限されています。お電話でご予約ください。')
+              return
+            }
+          }
+
           // 認証データをセット（再診患者として扱う）
           const patientBirthDate = patient.date_of_birth || ''
           const [bYear, bMonth, bDay] = patientBirthDate ? patientBirthDate.split('-') : ['', '', '']
@@ -491,6 +505,13 @@ function WebBookingPageInner() {
         }
 
         console.log('トークンベースWeb予約: 患者情報取得成功', patient)
+
+        // Web予約設定をチェック
+        const webBookingSettings = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+        if (webBookingSettings && !webBookingSettings.web_booking_enabled) {
+          setTokenError('この患者様はWeb予約が制限されています。お電話でご予約ください。')
+          return
+        }
 
         // トークンデータを保存
         setTokenData(validatedToken)
@@ -697,6 +718,14 @@ function WebBookingPageInner() {
       })
 
       if (patient) {
+        // Web予約設定をチェック
+        const webBookingSettings = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+        if (webBookingSettings && !webBookingSettings.web_booking_enabled) {
+          // Web予約が許可されていない
+          setAuthError('この患者様はWeb予約が制限されています。お電話でご予約ください。')
+          return
+        }
+
         // 認証成功
         setIsAuthenticated(true)
         setAuthenticatedPatient(patient)
