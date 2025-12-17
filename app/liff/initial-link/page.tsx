@@ -48,54 +48,47 @@ export default function InitialLinkPage() {
           document.head.appendChild(script)
         }
 
-        // LIFF SDK読み込み待機（50msごとにチェック、10秒でタイムアウト）
-        const liffLoaded = await new Promise<boolean>((resolve) => {
-          if (typeof window !== 'undefined' && window.liff) {
-            resolve(true)
-            return
-          }
-
-          let attempts = 0
-          const maxAttempts = 200 // 10秒 (50ms * 200)
-
-          const check = () => {
-            attempts++
+        // LIFF SDK待機とAPI呼び出しを並列実行（高速化）
+        const [liffLoaded, liffIdFromApi] = await Promise.all([
+          // LIFF SDK読み込み待機（50msごとにチェック、10秒でタイムアウト）
+          new Promise<boolean>((resolve) => {
             if (typeof window !== 'undefined' && window.liff) {
               resolve(true)
-            } else if (attempts >= maxAttempts) {
-              resolve(false)
-            } else {
-              setTimeout(check, 50)
+              return
             }
-          }
-          check()
-        })
+            let attempts = 0
+            const maxAttempts = 200 // 10秒 (50ms * 200)
+            const check = () => {
+              attempts++
+              if (typeof window !== 'undefined' && window.liff) {
+                resolve(true)
+              } else if (attempts >= maxAttempts) {
+                resolve(false)
+              } else {
+                setTimeout(check, 50)
+              }
+            }
+            check()
+          }),
+          // LIFF ID取得（APIから）
+          fetch('/api/liff-settings')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => data?.initial_link || null)
+            .catch(() => null)
+        ])
 
         if (!liffLoaded) {
           setError('LIFF SDKの読み込みに失敗しました')
-          setLiffReady(true) // エラー画面を表示するためにtrueにする
+          setLiffReady(true)
           return
         }
 
-        // LIFF ID取得（APIを優先、環境変数はフォールバック）
-        let liffId: string | null = null
-        try {
-          const response = await fetch('/api/liff-settings')
-          if (response.ok) {
-            const data = await response.json()
-            liffId = data.initial_link || null
-          }
-        } catch (e) {
-          console.warn('API LIFF ID取得エラー:', e)
-        }
         // APIから取得できなかった場合のみ環境変数を使用
-        if (!liffId) {
-          liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK || null
-        }
+        const liffId = liffIdFromApi || process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK || null
 
         if (!liffId) {
           setError('LIFF IDが設定されていません')
-          setLiffReady(true) // エラー画面を表示するためにtrueにする
+          setLiffReady(true)
           return
         }
 
@@ -111,7 +104,7 @@ export default function InitialLinkPage() {
       } catch (err: any) {
         console.error('LIFF初期化エラー:', err)
         setError(`初期化失敗: ${err.message || 'Unknown error'}`)
-        setLiffReady(true) // エラー画面を表示するためにtrueにする
+        setLiffReady(true)
       }
     }
 

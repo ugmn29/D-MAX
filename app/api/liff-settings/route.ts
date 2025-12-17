@@ -1,12 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 
+// メモリキャッシュ（5分間有効）
+let cachedLiffIds: any = null
+let cacheExpiry: number = 0
+const CACHE_TTL = 5 * 60 * 1000 // 5分
+
 /**
  * GET /api/liff-settings
  * LIFF IDをデータベースから取得（認証不要・公開API）
+ * キャッシュ対応で高速化
  */
 export async function GET(request: NextRequest) {
   try {
+    // メモリキャッシュをチェック
+    const now = Date.now()
+    if (cachedLiffIds && now < cacheExpiry) {
+      return NextResponse.json(cachedLiffIds, {
+        headers: {
+          'Cache-Control': 'public, max-age=300, s-maxage=300',
+          'X-Cache': 'HIT'
+        }
+      })
+    }
+
     // デフォルトのclinic_id
     const clinicId = '11111111-1111-1111-1111-111111111111'
 
@@ -17,29 +34,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // line設定からLIFF IDを取得
-    const { data: lineSettings, error: lineError } = await supabaseAdmin
+    // 1回のクエリで両方の設定を取得（最適化）
+    const { data: settings, error } = await supabaseAdmin
       .from('clinic_settings')
-      .select('setting_value')
+      .select('setting_key, setting_value')
       .eq('clinic_id', clinicId)
-      .eq('setting_key', 'line')
-      .single()
+      .in('setting_key', ['line', 'notification_settings'])
 
-    if (lineError && lineError.code !== 'PGRST116') {
-      console.error('LIFF設定取得エラー:', lineError)
+    if (error) {
+      console.error('LIFF設定取得エラー:', error)
     }
 
-    // notification_settings からも取得を試みる
-    const { data: notificationSettings, error: notifError } = await supabaseAdmin
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinicId)
-      .eq('setting_key', 'notification_settings')
-      .single()
-
-    if (notifError && notifError.code !== 'PGRST116') {
-      console.error('notification_settings取得エラー:', notifError)
-    }
+    // 設定を分類
+    const lineSettings = settings?.find(s => s.setting_key === 'line')
+    const notificationSettings = settings?.find(s => s.setting_key === 'notification_settings')
 
     // line設定 または notification_settings.line からLIFF IDを取得
     const lineConfig = lineSettings?.setting_value || {}
@@ -54,7 +62,16 @@ export async function GET(request: NextRequest) {
       web_booking: lineConfig.liff_id_web_booking || notifLineConfig.liff_id_web_booking || null,
     }
 
-    return NextResponse.json(liffIds)
+    // キャッシュを更新
+    cachedLiffIds = liffIds
+    cacheExpiry = now + CACHE_TTL
+
+    return NextResponse.json(liffIds, {
+      headers: {
+        'Cache-Control': 'public, max-age=300, s-maxage=300',
+        'X-Cache': 'MISS'
+      }
+    })
 
   } catch (error) {
     console.error('LIFF設定取得エラー:', error)
