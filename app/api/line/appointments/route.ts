@@ -182,7 +182,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       appointments_by_patient: appointmentsByPatient,
       total_count: formattedAppointments.length,
-      patient_count: linkagesWithPatients.length
+      patient_count: linkagesWithPatients.length,
+      // デバッグ情報
+      debug: {
+        linkage_patient_ids: patientIds,
+        raw_appointments_count: appointments?.length || 0,
+        linkages_with_patients: linkagesWithPatients.map(l => ({
+          patient_id: l.patient_id,
+          has_patient_info: !!l.patients
+        }))
+      }
     })
 
   } catch (error) {

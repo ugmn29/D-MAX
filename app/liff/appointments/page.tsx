@@ -73,6 +73,7 @@ export default function AppointmentsPage() {
   const [selectedPatientIndex, setSelectedPatientIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   // キャンセル関連
   const [showCancelDialog, setShowCancelDialog] = useState(false)
@@ -169,6 +170,7 @@ export default function AppointmentsPage() {
 
       if (response.ok) {
         setPatientAppointments(data.appointments_by_patient || [])
+        setDebugInfo(data.debug || null)
 
         if (data.appointments_by_patient.length === 0) {
           // 連携患者がいるが予約がない場合と、連携患者自体がいない場合を区別
@@ -297,6 +299,14 @@ export default function AppointmentsPage() {
               <p className="text-xs text-gray-400 mt-2">
                 LINE ID: {lineUserId || '取得中...'}
               </p>
+              {debugInfo && (
+                <div className="mt-4 p-3 bg-gray-100 rounded text-left text-xs">
+                  <p className="font-bold mb-1">デバッグ情報:</p>
+                  <p>連携患者ID: {debugInfo.linkage_patient_ids?.join(', ') || 'なし'}</p>
+                  <p>予約件数(raw): {debugInfo.raw_appointments_count}</p>
+                  <p>連携詳細: {JSON.stringify(debugInfo.linkages_with_patients)}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
