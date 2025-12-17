@@ -8,7 +8,7 @@ import QRCode from 'qrcode'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = supabaseAdmin
@@ -21,7 +21,7 @@ export async function GET(
       )
     }
 
-    const patientId = params.id
+    const { id: patientId } = await params
     console.log('🔍 QRコード取得:', patientId)
     const searchParams = request.nextUrl.searchParams
     const format = searchParams.get('format') || 'data-url' // data-url | svg | terminal
@@ -155,7 +155,7 @@ export async function GET(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = supabaseAdmin
@@ -167,7 +167,7 @@ export async function DELETE(
       )
     }
 
-    const patientId = params.id
+    const { id: patientId } = await params
 
     const { error } = await supabase
       .from('patient_qr_codes')

@@ -33,17 +33,23 @@ export async function GET(request: NextRequest) {
     }
 
     // LINE連携患者を取得（JOINなしで）
+    console.log('📊 連携データ取得開始...')
     const { data: linkages, error: linkageError } = await supabase
       .from('line_patient_linkages')
       .select('*')
       .eq('line_user_id', line_user_id)
 
-    console.log('📊 連携データ:', { count: linkages?.length || 0, error: linkageError?.message })
+    console.log('📊 連携データ取得完了:', {
+      count: linkages?.length || 0,
+      linkages: linkages,
+      error: linkageError?.message,
+      errorCode: linkageError?.code
+    })
 
     if (linkageError) {
       console.error('連携情報取得エラー:', linkageError)
       return NextResponse.json(
-        { error: '連携情報の取得に失敗しました', details: linkageError.message },
+        { error: '連携情報の取得に失敗しました', details: linkageError.message, code: linkageError.code },
         { status: 500 }
       )
     }
@@ -76,59 +82,65 @@ export async function GET(request: NextRequest) {
     // 連携患者のIDリストを取得
     const patientIds = linkages.map(l => l.patient_id)
 
-    // 予約を取得（今日以降の予約のみ）
+    // 予約を取得（今日以降の予約のみ）- JOINなしで
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
+    console.log('📅 予約取得開始:', { patientIds, date: today.toISOString().split('T')[0] })
+
     const { data: appointments, error: appointmentError } = await supabase
       .from('appointments')
-      .select(`
-        id,
-        patient_id,
-        appointment_date,
-        appointment_time,
-        duration,
-        status,
-        treatment_type,
-        notes,
-        cancellation_reason,
-        cancelled_at,
-        patients (
-          id,
-          patient_number,
-          last_name,
-          first_name
-        ),
-        staff:staff_id (
-          id,
-          last_name,
-          first_name
-        )
-      `)
+      .select('*')
       .in('patient_id', patientIds)
       .gte('appointment_date', today.toISOString().split('T')[0])
       .order('appointment_date', { ascending: true })
       .order('appointment_time', { ascending: true })
 
+    console.log('📅 予約取得完了:', {
+      count: appointments?.length || 0,
+      error: appointmentError?.message
+    })
+
     if (appointmentError) {
       console.error('予約取得エラー:', appointmentError)
       return NextResponse.json(
-        { error: '予約情報の取得に失敗しました' },
+        { error: '予約情報の取得に失敗しました', details: appointmentError.message },
         { status: 500 }
       )
     }
 
+    // スタッフ情報を取得
+    const staffIds = [...new Set((appointments || []).map(a => a.staff_id).filter(Boolean))]
+    let staffMap: Record<string, any> = {}
+    if (staffIds.length > 0) {
+      const { data: staffList } = await supabase
+        .from('staff')
+        .select('id, last_name, first_name')
+        .in('id', staffIds)
+
+      staffMap = (staffList || []).reduce((acc, s) => {
+        acc[s.id] = s
+        return acc
+      }, {} as Record<string, any>)
+    }
+
     // 予約データを整形
     const formattedAppointments = (appointments || []).map(apt => {
-      const patient = apt.patients as any
-      const staff = apt.staff as any
+      // 患者情報はlinkagesWithPatientsから取得
+      const linkedPatient = linkagesWithPatients.find(l => l.patient_id === apt.patient_id)
+      const patient = linkedPatient?.patients
+      const staff = apt.staff_id ? staffMap[apt.staff_id] : null
 
       return {
         id: apt.id,
-        patient: {
+        patient: patient ? {
           id: patient.id,
           name: `${patient.last_name} ${patient.first_name}`,
           patient_number: patient.patient_number
+        } : {
+          id: apt.patient_id,
+          name: '不明',
+          patient_number: 0
         },
         appointment_date: apt.appointment_date,
         appointment_time: apt.appointment_time,

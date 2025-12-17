@@ -324,8 +324,8 @@ function WebBookingPageInner() {
 
           console.log('LINE Web予約: 患者情報読み込み開始', { patientId, patientNumber })
 
-          // 患者情報を取得
-          const patient = await getPatientById(patientId)
+          // 患者情報を取得（DEMO_CLINIC_IDを使用）
+          const patient = await getPatientById(DEMO_CLINIC_ID, patientId)
           if (!patient) {
             setTokenError('患者情報が見つかりません。')
             return
