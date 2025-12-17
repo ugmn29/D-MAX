@@ -86,19 +86,21 @@ export default function FamilyRegisterPage() {
           return
         }
 
-        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
-
-        // localStorageから設定画面の値を取得
+        // APIからLIFF IDを取得
+        let liffId: string | null = null
         try {
-          const savedSettings = localStorage.getItem('notificationSettings')
-          if (savedSettings) {
-            const settings = JSON.parse(savedSettings)
-            if (settings.line?.liff_id_family_register) {
-              liffId = settings.line.liff_id_family_register
-            }
+          const response = await fetch('/api/liff-settings')
+          if (response.ok) {
+            const data = await response.json()
+            liffId = data.family_register
           }
         } catch (e) {
-          console.warn('localStorage読み込みエラー:', e)
+          console.warn('API LIFF ID取得エラー:', e)
+        }
+
+        // フォールバック: 環境変数
+        if (!liffId) {
+          liffId = process.env.NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER || null
         }
 
         if (!liffId) {

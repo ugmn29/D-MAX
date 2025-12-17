@@ -74,19 +74,21 @@ export default function QRCodePage() {
           return
         }
 
-        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_QR_CODE
-
-        // localStorageから設定画面の値を取得
+        // APIからLIFF IDを取得
+        let liffId: string | null = null
         try {
-          const savedSettings = localStorage.getItem('notificationSettings')
-          if (savedSettings) {
-            const settings = JSON.parse(savedSettings)
-            if (settings.line?.liff_id_qr_code) {
-              liffId = settings.line.liff_id_qr_code
-            }
+          const response = await fetch('/api/liff-settings')
+          if (response.ok) {
+            const data = await response.json()
+            liffId = data.qr_code
           }
         } catch (e) {
-          console.warn('localStorage読み込みエラー:', e)
+          console.warn('API LIFF ID取得エラー:', e)
+        }
+
+        // フォールバック: 環境変数
+        if (!liffId) {
+          liffId = process.env.NEXT_PUBLIC_LIFF_ID_QR_CODE || null
         }
 
         if (!liffId) {

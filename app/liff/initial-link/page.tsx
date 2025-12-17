@@ -77,20 +77,21 @@ export default function InitialLinkPage() {
 
         await checkLiff()
 
-        // LIFF IDを取得（設定画面の値 > 環境変数の順で優先）
-        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
-
-        // localStorageから設定画面の値を取得
+        // APIからLIFF IDを取得
+        let liffId: string | null = null
         try {
-          const savedSettings = localStorage.getItem('notificationSettings')
-          if (savedSettings) {
-            const settings = JSON.parse(savedSettings)
-            if (settings.line?.liff_id_initial_link) {
-              liffId = settings.line.liff_id_initial_link
-            }
+          const response = await fetch('/api/liff-settings')
+          if (response.ok) {
+            const data = await response.json()
+            liffId = data.initial_link
           }
         } catch (e) {
-          console.error('localStorage読み込みエラー:', e)
+          console.warn('API LIFF ID取得エラー:', e)
+        }
+
+        // フォールバック: 環境変数
+        if (!liffId) {
+          liffId = process.env.NEXT_PUBLIC_LIFF_ID_INITIAL_LINK || null
         }
 
         if (!liffId) {

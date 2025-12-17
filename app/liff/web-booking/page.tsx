@@ -69,19 +69,21 @@ export default function WebBookingLiffPage() {
           return
         }
 
-        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
-
-        // localStorageから設定画面の値を取得
+        // APIからLIFF IDを取得
+        let liffId: string | null = null
         try {
-          const savedSettings = localStorage.getItem('notificationSettings')
-          if (savedSettings) {
-            const settings = JSON.parse(savedSettings)
-            if (settings.line?.liff_id_web_booking) {
-              liffId = settings.line.liff_id_web_booking
-            }
+          const response = await fetch('/api/liff-settings')
+          if (response.ok) {
+            const data = await response.json()
+            liffId = data.web_booking
           }
         } catch (e) {
-          console.warn('localStorage読み込みエラー:', e)
+          console.warn('API LIFF ID取得エラー:', e)
+        }
+
+        // フォールバック: 環境変数
+        if (!liffId) {
+          liffId = process.env.NEXT_PUBLIC_LIFF_ID_WEB_BOOKING || null
         }
 
         if (!liffId) {
