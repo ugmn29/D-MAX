@@ -319,8 +319,10 @@ export default function AppointmentsPage() {
   }
 
   const currentPatientData = patientAppointments[selectedPatientIndex]
-  const activeAppointments = currentPatientData.appointments.filter(
-    apt => apt.status !== 'cancelled' && apt.status !== 'completed'
+  // キャンセル済みは表示、完了済み（遅刻等）は非表示
+  const hiddenStatuses = ['completed', '終了', '会計', '来院']
+  const displayAppointments = currentPatientData.appointments.filter(
+    apt => !hiddenStatuses.includes(apt.status)
   )
 
   return (
@@ -387,7 +389,7 @@ export default function AppointmentsPage() {
 
         {/* 予約一覧 */}
         <div className="space-y-4">
-          {activeAppointments.length === 0 ? (
+          {displayAppointments.length === 0 ? (
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center py-8">
@@ -397,75 +399,83 @@ export default function AppointmentsPage() {
               </CardContent>
             </Card>
           ) : (
-            activeAppointments.map((appointment) => (
-              <Card key={appointment.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                        <span className="font-semibold text-gray-900">
-                          {formatDate(appointment.appointment_date)}
-                        </span>
+            displayAppointments.map((appointment) => {
+              // キャンセル済みかどうか判定
+              const isCancelled = ['cancelled', 'キャンセル', 'キャンセル（様々）'].includes(appointment.status)
+
+              return (
+                <Card
+                  key={appointment.id}
+                  className={`hover:shadow-md transition-shadow ${isCancelled ? 'opacity-60 bg-gray-50' : ''}`}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Calendar className={`w-4 h-4 ${isCancelled ? 'text-gray-400' : 'text-blue-600'}`} />
+                          <span className={`font-semibold ${isCancelled ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                            {formatDate(appointment.appointment_date)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Clock className="w-4 h-4" />
+                          <span className={isCancelled ? 'line-through' : ''}>{formatTime(appointment.appointment_time)}</span>
+                          <span className="text-sm text-gray-500">
+                            ({appointment.duration}分)
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Clock className="w-4 h-4" />
-                        <span>{formatTime(appointment.appointment_time)}</span>
-                        <span className="text-sm text-gray-500">
-                          ({appointment.duration}分)
-                        </span>
+                      <div>{getStatusBadge(appointment.status)}</div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-3">
+                    {/* 治療内容 */}
+                    {appointment.treatment_type && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <span className="text-gray-500 min-w-[60px]">治療内容:</span>
+                        <span className="text-gray-900">{appointment.treatment_type}</span>
                       </div>
-                    </div>
-                    <div>{getStatusBadge(appointment.status)}</div>
-                  </div>
-                </CardHeader>
+                    )}
 
-                <CardContent className="space-y-3">
-                  {/* 治療内容 */}
-                  {appointment.treatment_type && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <span className="text-gray-500 min-w-[60px]">治療内容:</span>
-                      <span className="text-gray-900">{appointment.treatment_type}</span>
-                    </div>
-                  )}
+                    {/* 担当医 */}
+                    {appointment.staff && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <User className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <span className="text-gray-500 min-w-[60px]">担当医:</span>
+                        <span className="text-gray-900">{appointment.staff.name}</span>
+                      </div>
+                    )}
 
-                  {/* 担当医 */}
-                  {appointment.staff && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <User className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <span className="text-gray-500 min-w-[60px]">担当医:</span>
-                      <span className="text-gray-900">{appointment.staff.name}</span>
-                    </div>
-                  )}
+                    {/* 備考 */}
+                    {appointment.notes && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <span className="text-gray-500 min-w-[60px]">備考:</span>
+                        <span className="text-gray-700">{appointment.notes}</span>
+                      </div>
+                    )}
 
-                  {/* 備考 */}
-                  {appointment.notes && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <span className="text-gray-500 min-w-[60px]">備考:</span>
-                      <span className="text-gray-700">{appointment.notes}</span>
-                    </div>
-                  )}
-
-                  {/* キャンセルボタン */}
-                  {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
-                    <div className="pt-2 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => {
-                          setSelectedAppointment(appointment)
-                          setShowCancelDialog(true)
-                        }}
-                      >
-                        <CalendarX className="w-4 h-4 mr-2" />
-                        この予約をキャンセル
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))
+                    {/* キャンセルボタン（キャンセル済みでなければ表示） */}
+                    {!isCancelled && (
+                      <div className="pt-2 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            setSelectedAppointment(appointment)
+                            setShowCancelDialog(true)
+                          }}
+                        >
+                          <CalendarX className="w-4 h-4 mr-2" />
+                          この予約をキャンセル
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })
           )}
         </div>
 
