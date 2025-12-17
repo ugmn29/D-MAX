@@ -14,6 +14,25 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
+    // 既存のテンプレートをチェック（重複防止）
+    const { data: existingTemplates, error: existingError } = await supabase
+      .from("notification_templates")
+      .select("notification_type, name")
+      .eq("clinic_id", clinic_id);
+
+    if (existingError) {
+      console.error("既存テンプレート確認エラー:", existingError);
+      return NextResponse.json(
+        { error: "Failed to check existing templates" },
+        { status: 500 }
+      );
+    }
+
+    // 既存のnotification_type + nameの組み合わせを取得（重複防止）
+    const existingKeys = new Set(
+      existingTemplates?.map(t => `${t.notification_type}:${t.name}`) || []
+    );
+
     // システムテンプレートを取得
     const { data: systemTemplates, error: fetchError } = await supabase
       .from("system_notification_templates")
@@ -36,16 +55,36 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`${systemTemplates.length}件のシステムテンプレートを取得しました`);
+    console.log(`既存のテンプレート数: ${existingTemplates?.length || 0}件`);
 
-    // システムテンプレートをクリニック固有のテンプレートとしてコピー
-    const clinicTemplates = systemTemplates.map((template) => ({
+    // 重複しないテンプレートのみをフィルタリング
+    const newTemplates = systemTemplates.filter(
+      template => !existingKeys.has(`${template.notification_type}:${template.name}`)
+    );
+
+    if (newTemplates.length === 0) {
+      console.log("すべてのテンプレートが既に存在します");
+      return NextResponse.json({
+        success: true,
+        message: "すべてのテンプレートが既に存在します",
+        templates: [],
+        skipped: systemTemplates.length
+      });
+    }
+
+    // 新しいテンプレートのみをクリニック固有のテンプレートとしてコピー
+    const clinicTemplates = newTemplates.map((template) => ({
       clinic_id,
       name: template.name,
       notification_type: template.notification_type,
-      message_template: template.line_message || template.message_template, // LINE用メッセージを優先
+      message_template: template.line_message || template.message_template,
+      line_message: template.line_message,
+      email_subject: template.email_subject,
+      email_message: template.email_message,
+      sms_message: template.sms_message,
       default_timing_value: template.default_timing_value || 3,
       default_timing_unit: template.default_timing_unit || 'days',
-      template_id: template.id, // システムテンプレートIDへの参照
+      template_id: template.id,
     }));
 
     // 一括挿入
@@ -62,12 +101,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`${insertedTemplates?.length}件のテンプレートを初期化しました`);
+    const skippedCount = systemTemplates.length - newTemplates.length;
+    console.log(`${insertedTemplates?.length}件のテンプレートを初期化しました（${skippedCount}件はスキップ）`);
 
     return NextResponse.json({
       success: true,
       message: `${insertedTemplates?.length}件のテンプレートを初期化しました`,
       templates: insertedTemplates,
+      skipped: skippedCount
     });
   } catch (error) {
     console.error("テンプレート初期化エラー:", error);

@@ -411,9 +411,27 @@ export default function AppointmentsPage() {
   const currentPatientData = patientAppointments[selectedPatientIndex]
   // キャンセル済みは表示、完了済み（遅刻等）は非表示
   const hiddenStatuses = ['completed', '終了', '会計', '来院']
-  const displayAppointments = currentPatientData.appointments.filter(
-    apt => !hiddenStatuses.includes(apt.status)
-  )
+  const cancelledStatuses = ['cancelled', 'キャンセル', 'キャンセル（様々）']
+
+  // 予約をソート: 有効な予約を日付順で上に、キャンセル済みを下に
+  const displayAppointments = currentPatientData.appointments
+    .filter(apt => !hiddenStatuses.includes(apt.status))
+    .sort((a, b) => {
+      const aIsCancelled = cancelledStatuses.includes(a.status)
+      const bIsCancelled = cancelledStatuses.includes(b.status)
+
+      // キャンセル済みでない予約を上に
+      if (aIsCancelled !== bIsCancelled) {
+        return aIsCancelled ? 1 : -1
+      }
+
+      // 同じステータス同士なら日付順
+      const dateCompare = a.appointment_date.localeCompare(b.appointment_date)
+      if (dateCompare !== 0) return dateCompare
+
+      // 同じ日付なら時間順
+      return a.appointment_time.localeCompare(b.appointment_time)
+    })
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-20">

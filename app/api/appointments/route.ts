@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAppointments, createAppointment, updateAppointment, deleteAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
+import {
+  createAppointmentReminderNotification,
+  createAppointmentChangeNotification,
+  cancelAppointmentNotifications,
+  handleAppointmentConfirmed,
+  createAppointmentConfirmationNotification
+} from '@/lib/api/appointment-notifications'
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,6 +37,23 @@ export async function POST(request: NextRequest) {
     }
 
     const appointment = await createAppointment(clinicId, appointmentData)
+
+    // 予約リマインド通知をスケジュール
+    if (appointment.patient_id && appointment.start_time) {
+      try {
+        await createAppointmentReminderNotification(
+          appointment.id,
+          appointment.patient_id,
+          clinicId,
+          appointment.start_time
+        )
+        console.log('✅ 予約リマインド通知をスケジュールしました')
+      } catch (notificationError) {
+        console.error('⚠️ 予約リマインド通知のスケジュールに失敗:', notificationError)
+        // 通知エラーは予約作成の成功を妨げない
+      }
+    }
+
     return NextResponse.json(appointment)
   } catch (error) {
     console.error('予約作成エラー:', error)
@@ -40,13 +64,66 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { appointmentId, ...appointmentData } = body
+    const { appointmentId, oldStartTime, ...appointmentData } = body
 
     if (!appointmentId) {
       return NextResponse.json({ error: 'appointmentId is required' }, { status: 400 })
     }
 
     const appointment = await updateAppointment(appointmentId, appointmentData)
+
+    // 日時が変更された場合は変更通知を送信
+    if (oldStartTime && appointment.start_time && oldStartTime !== appointment.start_time) {
+      try {
+        // 古い通知をキャンセル
+        await cancelAppointmentNotifications(appointmentId)
+
+        // 予約変更通知を作成
+        if (appointment.patient_id && appointment.clinic_id) {
+          await createAppointmentChangeNotification(
+            appointmentId,
+            appointment.patient_id,
+            appointment.clinic_id,
+            oldStartTime,
+            appointment.start_time
+          )
+          console.log('✅ 予約変更通知を作成しました')
+
+          // 新しいリマインド通知をスケジュール
+          await createAppointmentReminderNotification(
+            appointmentId,
+            appointment.patient_id,
+            appointment.clinic_id,
+            appointment.start_time
+          )
+          console.log('✅ 新しいリマインド通知をスケジュールしました')
+        }
+      } catch (notificationError) {
+        console.error('⚠️ 予約変更通知の処理に失敗:', notificationError)
+      }
+    }
+
+    // ステータスが確定に変更された場合
+    if (appointmentData.status === 'confirmed' && appointment.patient_id && appointment.clinic_id) {
+      try {
+        await handleAppointmentConfirmed(appointment.patient_id, appointment.clinic_id)
+        console.log('✅ 予約確定処理完了（自動リマインドをキャンセル）')
+
+        // 予約確定通知を送信
+        if (appointment.start_time) {
+          await createAppointmentConfirmationNotification(
+            appointmentId,
+            appointment.patient_id,
+            appointment.clinic_id,
+            appointment.start_time
+          )
+          console.log('✅ 予約確定通知を作成しました')
+        }
+      } catch (notificationError) {
+        console.error('⚠️ 予約確定通知の処理に失敗:', notificationError)
+      }
+    }
+
     return NextResponse.json(appointment)
   } catch (error) {
     console.error('予約更新エラー:', error)
@@ -61,6 +138,14 @@ export async function DELETE(request: NextRequest) {
 
     if (!appointmentId) {
       return NextResponse.json({ error: 'appointmentId is required' }, { status: 400 })
+    }
+
+    // 予約に紐づく通知をキャンセル
+    try {
+      await cancelAppointmentNotifications(appointmentId)
+      console.log('✅ 予約に紐づく通知をキャンセルしました')
+    } catch (notificationError) {
+      console.error('⚠️ 通知キャンセルに失敗:', notificationError)
     }
 
     await deleteAppointment(appointmentId)

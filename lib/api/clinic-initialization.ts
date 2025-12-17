@@ -198,6 +198,14 @@ export async function initializeClinicStaffPositions(
   const client = getSupabaseClient()
 
   try {
+    // 既存のスタッフ役職をチェック（重複防止）
+    const { data: existingPositions } = await client
+      .from('staff_positions')
+      .select('name')
+      .eq('clinic_id', clinicId)
+
+    const existingNames = new Set(existingPositions?.map(p => p.name) || [])
+
     // Get all active system templates
     const { data: templates, error: templatesError } = await client
       .from('system_staff_positions')
@@ -212,8 +220,15 @@ export async function initializeClinicStaffPositions(
 
     console.log(`Found ${templates.length} staff position templates to copy`)
 
-    const errors: string[] = []
-    const newPositions = templates.map(template => ({
+    // 重複しないものだけフィルタリング
+    const newTemplates = templates.filter(t => !existingNames.has(t.name))
+
+    if (newTemplates.length === 0) {
+      console.log('すべてのスタッフ役職が既に存在します')
+      return { success: true, count: 0, errors: [] }
+    }
+
+    const newPositions = newTemplates.map(template => ({
       clinic_id: clinicId,
       template_id: template.id,
       name: template.name,
@@ -229,8 +244,8 @@ export async function initializeClinicStaffPositions(
       return { success: false, count: 0, errors: ['スタッフ役職の作成に失敗しました'] }
     }
 
-    console.log(`✓ Copied ${templates.length} staff positions`)
-    return { success: true, count: templates.length, errors: [] }
+    console.log(`✓ Copied ${newTemplates.length} staff positions (${templates.length - newTemplates.length} skipped)`)
+    return { success: true, count: newTemplates.length, errors: [] }
   } catch (error) {
     console.error('Unexpected error initializing staff positions:', error)
     return { success: false, count: 0, errors: ['予期しないエラーが発生しました'] }
@@ -246,6 +261,14 @@ export async function initializeClinicCancelReasons(
   const client = getSupabaseClient()
 
   try {
+    // 既存のキャンセル理由をチェック（重複防止）
+    const { data: existingReasons } = await client
+      .from('cancel_reasons')
+      .select('name')
+      .eq('clinic_id', clinicId)
+
+    const existingNames = new Set(existingReasons?.map(r => r.name) || [])
+
     // Get all active system templates
     const { data: templates, error: templatesError } = await client
       .from('system_cancel_reasons')
@@ -260,8 +283,15 @@ export async function initializeClinicCancelReasons(
 
     console.log(`Found ${templates.length} cancel reason templates to copy`)
 
-    const errors: string[] = []
-    const newReasons = templates.map(template => ({
+    // 重複しないものだけフィルタリング
+    const newTemplates = templates.filter(t => !existingNames.has(t.name))
+
+    if (newTemplates.length === 0) {
+      console.log('すべてのキャンセル理由が既に存在します')
+      return { success: true, count: 0, errors: [] }
+    }
+
+    const newReasons = newTemplates.map(template => ({
       clinic_id: clinicId,
       template_id: template.id,
       name: template.name,
@@ -279,8 +309,8 @@ export async function initializeClinicCancelReasons(
       return { success: false, count: 0, errors: ['キャンセル理由の作成に失敗しました'] }
     }
 
-    console.log(`✓ Copied ${templates.length} cancel reasons`)
-    return { success: true, count: templates.length, errors: [] }
+    console.log(`✓ Copied ${newTemplates.length} cancel reasons (${templates.length - newTemplates.length} skipped)`)
+    return { success: true, count: newTemplates.length, errors: [] }
   } catch (error) {
     console.error('Unexpected error initializing cancel reasons:', error)
     return { success: false, count: 0, errors: ['予期しないエラーが発生しました'] }
@@ -296,6 +326,16 @@ export async function initializeClinicNotificationTemplates(
   const client = getSupabaseClient()
 
   try {
+    // 既存の通知テンプレートをチェック（重複防止）
+    const { data: existingTemplates } = await client
+      .from('notification_templates')
+      .select('notification_type, name')
+      .eq('clinic_id', clinicId)
+
+    const existingKeys = new Set(
+      existingTemplates?.map(t => `${t.notification_type}:${t.name}`) || []
+    )
+
     // Get all active system templates
     const { data: templates, error: templatesError } = await client
       .from('system_notification_templates')
@@ -310,8 +350,17 @@ export async function initializeClinicNotificationTemplates(
 
     console.log(`Found ${templates.length} notification templates to copy`)
 
-    const errors: string[] = []
-    const newTemplates = templates.map(template => ({
+    // 重複しないものだけフィルタリング
+    const filteredTemplates = templates.filter(
+      t => !existingKeys.has(`${t.notification_type}:${t.name}`)
+    )
+
+    if (filteredTemplates.length === 0) {
+      console.log('すべての通知テンプレートが既に存在します')
+      return { success: true, count: 0, errors: [] }
+    }
+
+    const newTemplates = filteredTemplates.map(template => ({
       clinic_id: clinicId,
       template_id: template.id,
       name: template.name,
@@ -334,8 +383,8 @@ export async function initializeClinicNotificationTemplates(
       return { success: false, count: 0, errors: ['通知テンプレートの作成に失敗しました'] }
     }
 
-    console.log(`✓ Copied ${templates.length} notification templates`)
-    return { success: true, count: templates.length, errors: [] }
+    console.log(`✓ Copied ${filteredTemplates.length} notification templates (${templates.length - filteredTemplates.length} skipped)`)
+    return { success: true, count: filteredTemplates.length, errors: [] }
   } catch (error) {
     console.error('Unexpected error initializing notification templates:', error)
     return { success: false, count: 0, errors: ['予期しないエラーが発生しました'] }
