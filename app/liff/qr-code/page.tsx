@@ -104,9 +104,10 @@ export default function QRCodePage() {
         } else {
           window.liff.login()
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('LIFF初期化エラー:', err)
-        setError('初期化に失敗しました')
+        const errorMessage = err?.message || err?.toString() || '不明なエラー'
+        setError(`初期化に失敗しました: ${errorMessage}`)
         setLiffReady(true) // エラー画面を表示するためにtrueにする
         setPatientsLoading(false)
       }
