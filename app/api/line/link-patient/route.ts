@@ -254,6 +254,76 @@ export async function POST(request: NextRequest) {
       // リッチメニューエラーは無視（後で手動切り替え可能）
     }
 
+    // LINE連携完了通知を送信
+    try {
+      console.log('📨 LINE連携完了通知送信開始')
+
+      // クリニック情報を取得
+      const { data: clinic } = await supabase
+        .from('clinics')
+        .select('name')
+        .eq('id', patient.clinic_id)
+        .single()
+
+      // 通知テンプレートを取得（line_linkage_completeタイプ）
+      const { data: template } = await supabase
+        .from('notification_templates')
+        .select('line_message')
+        .eq('clinic_id', patient.clinic_id)
+        .eq('notification_type', 'line_linkage_complete')
+        .single()
+
+      // LINE設定を取得
+      const { data: lineSettings } = await supabase
+        .from('clinic_settings')
+        .select('setting_value')
+        .eq('clinic_id', patient.clinic_id)
+        .eq('setting_key', 'line')
+        .single()
+
+      const channelAccessToken = lineSettings?.setting_value?.channel_access_token
+
+      if (channelAccessToken) {
+        // テンプレートのメッセージを使用（変数を置換）
+        let message = template?.line_message || `${patient.last_name} ${patient.first_name}様\n\nLINE連携が完了しました！\n\nこれからは、LINEから予約確認やリマインドを受け取ることができます。\n\n下のメニューからご利用ください。`
+
+        // 変数を置換
+        message = message
+          .replace(/{patient_name}/g, `${patient.last_name} ${patient.first_name}`)
+          .replace(/{clinic_name}/g, clinic?.name || 'クリニック')
+
+        // LINEメッセージを送信
+        const lineResponse = await fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${channelAccessToken}`
+          },
+          body: JSON.stringify({
+            to: line_user_id,
+            messages: [
+              {
+                type: 'text',
+                text: message
+              }
+            ]
+          })
+        })
+
+        if (lineResponse.ok) {
+          console.log('✅ LINE連携完了通知送信成功')
+        } else {
+          const errorBody = await lineResponse.text()
+          console.error('❌ LINE連携完了通知送信失敗:', errorBody)
+        }
+      } else {
+        console.log('⚠️ LINE Channel Access Tokenが設定されていないため通知をスキップ')
+      }
+    } catch (notificationError) {
+      console.error('❌ LINE連携完了通知送信例外:', notificationError)
+      // 通知エラーは無視（連携自体は成功しているため）
+    }
+
     // 成功レスポンス
     return NextResponse.json({
       success: true,
