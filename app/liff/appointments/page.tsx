@@ -165,11 +165,20 @@ export default function AppointmentsPage() {
       const response = await fetch(`/api/line/appointments?line_user_id=${userId}`)
       const data = await response.json()
 
+      console.log('📅 予約API応答:', data)
+
       if (response.ok) {
         setPatientAppointments(data.appointments_by_patient || [])
 
         if (data.appointments_by_patient.length === 0) {
-          setError('予約がありません')
+          // 連携患者がいるが予約がない場合と、連携患者自体がいない場合を区別
+          if (data.patient_count === 0) {
+            setError('LINE連携されている患者がいません')
+          } else if (data.total_count === 0) {
+            setError(`${data.patient_count}名の連携患者がいますが、今日以降の予約はありません`)
+          } else {
+            setError('予約がありません')
+          }
         }
       } else {
         setError(data.error || '予約情報の取得に失敗しました')
@@ -283,13 +292,8 @@ export default function AppointmentsPage() {
               </div>
               <h2 className="text-xl font-bold text-gray-900">予約がありません</h2>
               <p className="text-gray-600 text-sm">
-                現在、予約は登録されていません
+                {error || '現在、予約は登録されていません'}
               </p>
-              {error && (
-                <p className="text-xs text-red-500 mt-2">
-                  エラー詳細: {error}
-                </p>
-              )}
               <p className="text-xs text-gray-400 mt-2">
                 LINE ID: {lineUserId || '取得中...'}
               </p>
