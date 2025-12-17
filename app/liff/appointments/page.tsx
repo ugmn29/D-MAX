@@ -570,7 +570,7 @@ export default function AppointmentsPage() {
                                 className="flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                               >
                                 <Phone className="w-4 h-4" />
-                                {clinicPhone} に電話する
+                                医院に電話する
                               </a>
                             )}
                           </div>
