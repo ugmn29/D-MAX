@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { Database } from '@/types/database'
+import { supabaseAdmin } from '@/lib/supabase'
 import QRCode from 'qrcode'
 
 /**
@@ -13,8 +11,18 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      console.error('❌ supabaseAdmin未初期化')
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
+
     const patientId = params.id
+    console.log('🔍 QRコード取得:', patientId)
     const searchParams = request.nextUrl.searchParams
     const format = searchParams.get('format') || 'data-url' // data-url | svg | terminal
 
@@ -150,7 +158,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    const supabase = supabaseAdmin
+
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'サーバー設定エラー' },
+        { status: 500 }
+      )
+    }
+
     const patientId = params.id
 
     const { error } = await supabase
