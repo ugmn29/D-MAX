@@ -18,7 +18,8 @@ import {
   ChevronRight,
   X,
   CheckCircle2,
-  Users
+  Users,
+  RefreshCw
 } from 'lucide-react'
 import {
   Dialog,
@@ -81,6 +82,10 @@ export default function AppointmentsPage() {
   const [cancellationReason, setCancellationReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [cancelSuccess, setCancelSuccess] = useState(false)
+
+  // 予約変更関連
+  const [showChangeDialog, setShowChangeDialog] = useState(false)
+  const [changing, setChanging] = useState(false)
 
   // LIFF初期化
   useEffect(() => {
@@ -234,6 +239,57 @@ export default function AppointmentsPage() {
       setError('キャンセル処理中にエラーが発生しました')
     } finally {
       setCancelling(false)
+    }
+  }
+
+  // 予約変更（キャンセル後にWeb予約ページへ遷移）
+  const handleChangeAppointment = async () => {
+    if (!lineUserId || !selectedAppointment) return
+
+    setChanging(true)
+    setError(null)
+
+    try {
+      // まず現在の予約をキャンセル
+      const response = await fetch('/api/line/appointments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointment_id: selectedAppointment.id,
+          line_user_id: lineUserId,
+          cancellation_reason: '予約変更のためキャンセル'
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // キャンセル成功 → Web予約ページへ遷移
+        // 患者情報を取得してURLパラメータに含める
+        const patient = selectedAppointment.patient
+
+        // LIFF IDを取得してWeb予約ページへ
+        const bookingUrl = `/web-booking?from_line=true&patient_id=${patient.id}&patient_number=${patient.patient_number}&reschedule=true`
+
+        // LIFFブラウザで外部URLを開く
+        if (window.liff && window.liff.isInClient()) {
+          window.liff.openWindow({
+            url: window.location.origin + bookingUrl,
+            external: false
+          })
+        } else {
+          window.location.href = bookingUrl
+        }
+      } else {
+        setError(data.error || '予約の変更に失敗しました')
+        setShowChangeDialog(false)
+      }
+    } catch (err) {
+      console.error('予約変更エラー:', err)
+      setError('予約変更処理中にエラーが発生しました')
+      setShowChangeDialog(false)
+    } finally {
+      setChanging(false)
     }
   }
 
@@ -455,9 +511,22 @@ export default function AppointmentsPage() {
                       </div>
                     )}
 
-                    {/* キャンセルボタン（キャンセル済みでなければ表示） */}
+                    {/* 変更・キャンセルボタン（キャンセル済みでなければ表示） */}
                     {!isCancelled && (
-                      <div className="pt-2 border-t">
+                      <div className="pt-2 border-t space-y-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => {
+                            // 予約変更：現在の予約をキャンセルしてWeb予約ページへ
+                            setSelectedAppointment(appointment)
+                            setShowChangeDialog(true)
+                          }}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          予約を変更する
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -588,6 +657,74 @@ export default function AppointmentsPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 予約変更確認ダイアログ */}
+      <Dialog open={showChangeDialog} onOpenChange={setShowChangeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-blue-600" />
+              予約の変更
+            </DialogTitle>
+            <DialogDescription>
+              現在の予約をキャンセルして、新しい日時で予約し直します。
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAppointment && (
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                <p className="text-xs text-gray-500 mb-1">現在の予約</p>
+                <div className="font-medium text-gray-900">
+                  {formatDate(selectedAppointment.appointment_date)} {formatTime(selectedAppointment.appointment_time)}
+                </div>
+                {selectedAppointment.treatment_type && (
+                  <div className="text-sm text-gray-600">
+                    {selectedAppointment.treatment_type}
+                  </div>
+                )}
+              </div>
+
+              <Alert className="bg-blue-50 border-blue-200">
+                <RefreshCw className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-xs text-blue-800">
+                  「変更する」をタップすると、現在の予約がキャンセルされ、予約画面に移動します。
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowChangeDialog(false)
+                setSelectedAppointment(null)
+              }}
+              disabled={changing}
+            >
+              戻る
+            </Button>
+            <Button
+              onClick={handleChangeAppointment}
+              disabled={changing}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {changing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  処理中...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  変更する
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
