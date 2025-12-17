@@ -55,6 +55,10 @@ interface Appointment {
   }
   cancellation_reason?: string
   cancelled_at?: string
+  // 予約変更用に元の診療メニューと担当者IDを保持
+  menu1_id?: string | null
+  menu2_id?: string | null
+  staff_id?: string | null
 }
 
 interface PatientAppointments {
@@ -268,8 +272,28 @@ export default function AppointmentsPage() {
         // 患者情報を取得してURLパラメータに含める
         const patient = selectedAppointment.patient
 
-        // LIFF IDを取得してWeb予約ページへ
-        const bookingUrl = `/web-booking?from_line=true&patient_id=${patient.id}&patient_number=${patient.patient_number}&reschedule=true`
+        // 予約変更用URLパラメータを構築（元の診療メニューと担当者を引き継ぐ）
+        const params = new URLSearchParams({
+          from_line: 'true',
+          patient_id: patient.id,
+          patient_number: String(patient.patient_number),
+          reschedule: 'true',
+          duration: String(selectedAppointment.duration)
+        })
+
+        // 元の診療メニューIDを追加（設定されている場合）
+        if (selectedAppointment.menu1_id) {
+          params.set('menu1_id', selectedAppointment.menu1_id)
+        }
+        if (selectedAppointment.menu2_id) {
+          params.set('menu2_id', selectedAppointment.menu2_id)
+        }
+        // 元の担当者IDを追加（設定されている場合）
+        if (selectedAppointment.staff_id) {
+          params.set('staff_id', selectedAppointment.staff_id)
+        }
+
+        const bookingUrl = `/web-booking?${params.toString()}`
 
         // LIFFブラウザで外部URLを開く
         if (window.liff && window.liff.isInClient()) {

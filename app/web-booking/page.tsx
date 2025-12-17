@@ -311,6 +311,14 @@ function WebBookingPageInner() {
   // 予約変更モードかどうか
   const isRescheduleMode = searchParams.get('reschedule') === 'true'
 
+  // 予約変更用の元の予約情報を保持するstate
+  const [originalAppointmentData, setOriginalAppointmentData] = useState<{
+    menu1_id?: string | null
+    menu2_id?: string | null
+    staff_id?: string | null
+    duration?: number
+  }>({})
+
   // LINEからのWeb予約処理
   useEffect(() => {
     const fromLine = searchParams.get('from_line')
@@ -319,6 +327,11 @@ function WebBookingPageInner() {
     const phone = searchParams.get('phone')
     const birthDate = searchParams.get('birth_date')
     const reschedule = searchParams.get('reschedule') // 予約変更モード
+    // 予約変更用: 元の予約情報
+    const originalMenu1Id = searchParams.get('menu1_id')
+    const originalMenu2Id = searchParams.get('menu2_id')
+    const originalStaffId = searchParams.get('staff_id')
+    const originalDuration = searchParams.get('duration')
 
     if (fromLine === 'true' && patientId && patientNumber) {
       const loadLinePatient = async () => {
@@ -327,6 +340,12 @@ function WebBookingPageInner() {
           setTokenError('')
 
           console.log('LINE Web予約: 患者情報読み込み開始', { patientId, patientNumber, reschedule })
+          console.log('LINE 予約変更モード: 元の予約情報', {
+            menu1_id: originalMenu1Id,
+            menu2_id: originalMenu2Id,
+            staff_id: originalStaffId,
+            duration: originalDuration
+          })
 
           // 患者情報を取得（DEMO_CLINIC_IDを使用）
           const patient = await getPatientById(DEMO_CLINIC_ID, patientId)
@@ -353,23 +372,52 @@ function WebBookingPageInner() {
           setAuthenticatedPatient(patient)
           setIsAuthenticated(true)
 
-          // 予約データを自動設定
-          setBookingData(prev => ({
-            ...prev,
-            isNewPatient: false,
-            patientName: `${patient.last_name} ${patient.first_name}`,
-            patientPhone: phone || patient.phone || '',
-            patientEmail: patient.email || ''
-          }))
-
-          // 予約変更モードの場合は日時選択（ステップ3）から、通常はメニュー選択（ステップ2）から開始
+          // 予約変更モードの場合: 元の予約情報を保持
           if (reschedule === 'true') {
-            // 予約変更：日時選択から開始（ステップ3）
-            // メニューは後で自動選択される
+            setOriginalAppointmentData({
+              menu1_id: originalMenu1Id,
+              menu2_id: originalMenu2Id,
+              staff_id: originalStaffId,
+              duration: originalDuration ? parseInt(originalDuration) : undefined
+            })
+
+            // 元の診療メニューを選択状態にする
+            if (originalMenu1Id) {
+              setBookingData(prev => ({
+                ...prev,
+                isNewPatient: false,
+                patientName: `${patient.last_name} ${patient.first_name}`,
+                patientPhone: phone || patient.phone || '',
+                patientEmail: patient.email || '',
+                selectedMenu: originalMenu1Id,
+                selectedStaff: originalStaffId || ''
+              }))
+            } else {
+              setBookingData(prev => ({
+                ...prev,
+                isNewPatient: false,
+                patientName: `${patient.last_name} ${patient.first_name}`,
+                patientPhone: phone || patient.phone || '',
+                patientEmail: patient.email || ''
+              }))
+            }
+
+            // 日時選択から開始（ステップ3）
             setCurrentStep(3)
-            console.log('LINE 予約変更モード: ステップ3（日時選択）から開始')
+            console.log('LINE 予約変更モード: ステップ3（日時選択）から開始', {
+              selectedMenu: originalMenu1Id,
+              selectedStaff: originalStaffId
+            })
           } else {
-            // 通常：メニュー選択から開始
+            // 通常モード: 予約データを自動設定
+            setBookingData(prev => ({
+              ...prev,
+              isNewPatient: false,
+              patientName: `${patient.last_name} ${patient.first_name}`,
+              patientPhone: phone || patient.phone || '',
+              patientEmail: patient.email || ''
+            }))
+            // メニュー選択から開始
             setCurrentStep(2)
           }
 
@@ -386,19 +434,28 @@ function WebBookingPageInner() {
     }
   }, [searchParams])
 
-  // 予約変更モード時、メニューがロードされたら最初のメニューを自動選択
+  // 予約変更モード時、元の診療メニューがなければフォールバックでwebBookingMenusから選択
   useEffect(() => {
-    if (isRescheduleMode && webBookingMenus.length > 0 && !bookingData.selectedMenu) {
-      // 再診用メニューを優先して選択
-      const returningPatientMenu = webBookingMenus.find(m => m.allow_returning !== false)
-      const defaultMenu = returningPatientMenu || webBookingMenus[0]
-      console.log('予約変更モード: デフォルトメニュー自動選択', defaultMenu)
-      setBookingData(prev => ({
-        ...prev,
-        selectedMenu: defaultMenu.treatment_menu_id // treatment_menu_idを使用
-      }))
+    if (isRescheduleMode && !bookingData.selectedMenu) {
+      // 元の予約にmenu1_idがある場合はそれを使用（すでにLINE読み込み時に設定済み）
+      if (originalAppointmentData.menu1_id) {
+        console.log('予約変更モード: 元の診療メニューを使用', originalAppointmentData.menu1_id)
+        // 既にセット済みなのでスキップ
+        return
+      }
+
+      // 元のメニューがない場合のみ、webBookingMenusからフォールバック選択
+      if (webBookingMenus.length > 0) {
+        const returningPatientMenu = webBookingMenus.find(m => m.allow_returning !== false)
+        const defaultMenu = returningPatientMenu || webBookingMenus[0]
+        console.log('予約変更モード: フォールバックでデフォルトメニュー自動選択', defaultMenu)
+        setBookingData(prev => ({
+          ...prev,
+          selectedMenu: defaultMenu.treatment_menu_id
+        }))
+      }
     }
-  }, [isRescheduleMode, webBookingMenus, bookingData.selectedMenu])
+  }, [isRescheduleMode, webBookingMenus, bookingData.selectedMenu, originalAppointmentData.menu1_id])
 
   // トークンベースWeb予約の処理
   useEffect(() => {
@@ -703,41 +760,48 @@ function WebBookingPageInner() {
   // 予約確定
   const handleConfirmBooking = async () => {
     try {
-      // 選択されたメニュー情報を取得（webBookingMenusから取得してsteps情報を含める）
+      // 予約変更モードかどうかで処理を分岐
+      const isRescheduleWithOriginalMenu = isRescheduleMode && originalAppointmentData.menu1_id
+
+      // 選択されたメニュー情報を取得
       const selectedWebBookingMenu = webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)
       const selectedMenuData = treatmentMenus.find(m => m.id === bookingData.selectedMenu)
 
-      if (!selectedMenuData || !selectedWebBookingMenu) {
-        console.error('メニュー情報が見つかりません', {
-          selectedMenuId: bookingData.selectedMenu,
-          webBookingMenus,
-          treatmentMenus
+      // 予約変更モードで元の診療メニューがある場合はWebBookingMenusのチェックをスキップ
+      if (!isRescheduleWithOriginalMenu) {
+        if (!selectedMenuData || !selectedWebBookingMenu) {
+          console.error('メニュー情報が見つかりません', {
+            selectedMenuId: bookingData.selectedMenu,
+            webBookingMenus,
+            treatmentMenus
+          })
+          alert('メニュー情報が見つかりません。')
+          return
+        }
+
+        console.log('Web予約: 選択されたメニュー', selectedMenuData)
+        console.log('Web予約: Web予約メニュー設定', selectedWebBookingMenu)
+        console.log('🔍 Web予約: selectedWebBookingMenuの全フィールド:', {
+          treatment_menu_id: selectedWebBookingMenu.treatment_menu_id,
+          display_order: selectedWebBookingMenu.display_order,
+          steps: selectedWebBookingMenu.steps,
+          stepsType: typeof selectedWebBookingMenu.steps,
+          stepsIsArray: Array.isArray(selectedWebBookingMenu.steps),
+          stepsLength: selectedWebBookingMenu.steps?.length,
+          allKeys: Object.keys(selectedWebBookingMenu)
         })
-        alert('メニュー情報が見つかりません。')
-        return
+      } else {
+        console.log('予約変更モード: 元の診療メニューを使用', {
+          menu1_id: originalAppointmentData.menu1_id,
+          menu2_id: originalAppointmentData.menu2_id,
+          staff_id: originalAppointmentData.staff_id,
+          duration: originalAppointmentData.duration
+        })
       }
 
-      console.log('Web予約: 選択されたメニュー', selectedMenuData)
-      console.log('Web予約: Web予約メニュー設定', selectedWebBookingMenu)
-      console.log('🔍 Web予約: selectedWebBookingMenuの全フィールド:', {
-        treatment_menu_id: selectedWebBookingMenu.treatment_menu_id,
-        display_order: selectedWebBookingMenu.display_order,
-        steps: selectedWebBookingMenu.steps,
-        stepsType: typeof selectedWebBookingMenu.steps,
-        stepsIsArray: Array.isArray(selectedWebBookingMenu.steps),
-        stepsLength: selectedWebBookingMenu.steps?.length,
-        allKeys: Object.keys(selectedWebBookingMenu)
-      })
-
-      // stepsから複数ステップの情報を取得
-      const steps = selectedWebBookingMenu.steps || []
+      // stepsから複数ステップの情報を取得（予約変更モードでは空）
+      const steps = isRescheduleWithOriginalMenu ? [] : (selectedWebBookingMenu?.steps || [])
       console.log('Web予約: ステップ情報', steps)
-      console.log('🔍 Web予約: steps詳細:', {
-        length: steps.length,
-        isEmpty: steps.length === 0,
-        firstStep: steps[0],
-        allSteps: steps
-      })
 
       // 既存予約を取得（キャンセル除外）
       const { getAppointments } = await import('@/lib/api/appointments')
@@ -745,10 +809,21 @@ function WebBookingPageInner() {
       const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
       console.log('Web予約: 既存予約データ', existingAppointments.length, '件')
 
+      // 所要時間を決定（予約変更モードでは元の予約の所要時間を優先）
+      let duration: number
+      if (isRescheduleWithOriginalMenu && originalAppointmentData.duration) {
+        duration = originalAppointmentData.duration
+      } else if (selectedWebBookingMenu?.duration) {
+        duration = selectedWebBookingMenu.duration
+      } else if (selectedMenuData?.duration_minutes) {
+        duration = selectedMenuData.duration_minutes
+      } else {
+        duration = 30 // デフォルト30分
+      }
+
       // 所要時間から終了時間を計算
       const [startHour, startMinute] = bookingData.selectedTime.split(':').map(Number)
       const startMinutes = startHour * 60 + startMinute
-      const duration = selectedWebBookingMenu.duration || selectedMenuData.duration_minutes || 30 // デフォルト30分
       const endMinutes = startMinutes + duration
       const endHour = Math.floor(endMinutes / 60)
       const endMinute = endMinutes % 60
@@ -783,65 +858,85 @@ function WebBookingPageInner() {
         patientId = newPatient.id
       }
 
-      // 複数ステップに対応した予約データを作成
+      // 予約データを作成
       const appointmentData: any = {
         patient_id: patientId,
         appointment_date: bookingData.selectedDate,
         start_time: bookingData.selectedTime,
         end_time: endTime,
         status: '未来院', // 初回ステータスを「未来院」に設定
-        memo: `Web予約${bookingData.isNewPatient ? '(初診)' : '(再診)'}${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`
+        memo: isRescheduleMode
+          ? `予約変更${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`
+          : `Web予約${bookingData.isNewPatient ? '(初診)' : '(再診)'}${bookingData.patientRequest ? `\n\nご要望・ご相談:\n${bookingData.patientRequest}` : ''}`
       }
 
-      // 診療メニュー1を必ず設定（選択されたメニュー）
-      appointmentData.menu1_id = bookingData.selectedMenu
-      if (bookingData.selectedStaff) {
-        appointmentData.staff1_id = bookingData.selectedStaff
-      }
-      console.log('Web予約: 診療メニュー1を設定', {
-        menu1_id: bookingData.selectedMenu,
-        staff1_id: bookingData.selectedStaff
-      })
+      // 予約変更モードの場合: 元の診療メニューと担当者を引き継ぐ
+      if (isRescheduleWithOriginalMenu) {
+        // 元の予約から診療メニューを引き継ぐ
+        appointmentData.menu1_id = originalAppointmentData.menu1_id
+        if (originalAppointmentData.staff_id) {
+          appointmentData.staff1_id = originalAppointmentData.staff_id
+        }
+        // menu2_idも元の予約から引き継ぐ
+        if (originalAppointmentData.menu2_id) {
+          appointmentData.menu2_id = originalAppointmentData.menu2_id
+        }
+        console.log('予約変更: 元の予約情報を引き継ぎ', {
+          menu1_id: appointmentData.menu1_id,
+          staff1_id: appointmentData.staff1_id,
+          menu2_id: appointmentData.menu2_id
+        })
+      } else {
+        // 通常のWeb予約: 診療メニュー1を設定
+        appointmentData.menu1_id = bookingData.selectedMenu
+        if (bookingData.selectedStaff) {
+          appointmentData.staff1_id = bookingData.selectedStaff
+        }
+        console.log('Web予約: 診療メニュー1を設定', {
+          menu1_id: bookingData.selectedMenu,
+          staff1_id: bookingData.selectedStaff
+        })
 
-      // stepsがある場合、診療メニュー2, 3を設定
-      if (steps.length > 0) {
-        // 各ステップごとに優先順位順に空いているスタッフを探す
-        for (let index = 0; index < steps.length && index < 2; index++) {
-          const step = steps[index]
-          const menuNumber = index + 2  // menu2, menu3なので+2
-          const stepMenuId = step.menu_id
+        // stepsがある場合、診療メニュー2, 3を設定
+        if (steps.length > 0) {
+          // 各ステップごとに優先順位順に空いているスタッフを探す
+          for (let index = 0; index < steps.length && index < 2; index++) {
+            const step = steps[index]
+            const menuNumber = index + 2  // menu2, menu3なので+2
+            const stepMenuId = step.menu_id
 
-          if (!stepMenuId) {
-            console.warn(`Web予約: ステップ${index}のmenu_idが未設定です`)
-            continue
-          }
+            if (!stepMenuId) {
+              console.warn(`Web予約: ステップ${index}のmenu_idが未設定です`)
+              continue
+            }
 
-          // メニューIDを設定
-          appointmentData[`menu${menuNumber}_id`] = stepMenuId
+            // メニューIDを設定
+            appointmentData[`menu${menuNumber}_id`] = stepMenuId
 
-          // 優先順位順に空いているスタッフを探す
-          if (step.staff_assignments && step.staff_assignments.length > 0) {
-            const availableStaff = findAvailableStaff(
-              step.staff_assignments,
-              bookingData.selectedDate,
-              bookingData.selectedTime,
-              duration,
-              existingAppointments
-            )
+            // 優先順位順に空いているスタッフを探す
+            if (step.staff_assignments && step.staff_assignments.length > 0) {
+              const availableStaff = findAvailableStaff(
+                step.staff_assignments,
+                bookingData.selectedDate,
+                bookingData.selectedTime,
+                duration,
+                existingAppointments
+              )
 
-            if (availableStaff) {
-              appointmentData[`staff${menuNumber}_id`] = availableStaff.staff_id
-              console.log(`Web予約: 診療メニュー${menuNumber}のスタッフを設定`, {
-                menu_id: stepMenuId,
-                staff_id: availableStaff.staff_id,
-                staff_name: staff.find(s => s.id === availableStaff.staff_id)?.name,
-                priority: availableStaff.priority
-              })
-            } else {
-              // 全員埋まっている場合
-              console.error(`Web予約: 診療メニュー${menuNumber}の全スタッフが予約済みです`)
-              alert(`診療メニュー${menuNumber}の全スタッフが予約済みです。別の時間をお選びください。`)
-              return
+              if (availableStaff) {
+                appointmentData[`staff${menuNumber}_id`] = availableStaff.staff_id
+                console.log(`Web予約: 診療メニュー${menuNumber}のスタッフを設定`, {
+                  menu_id: stepMenuId,
+                  staff_id: availableStaff.staff_id,
+                  staff_name: staff.find(s => s.id === availableStaff.staff_id)?.name,
+                  priority: availableStaff.priority
+                })
+              } else {
+                // 全員埋まっている場合
+                console.error(`Web予約: 診療メニュー${menuNumber}の全スタッフが予約済みです`)
+                alert(`診療メニュー${menuNumber}の全スタッフが予約済みです。別の時間をお選びください。`)
+                return
+              }
             }
           }
         }
@@ -1599,7 +1694,7 @@ function WebBookingPageInner() {
           {(bookingData.isNewPatient || isAuthenticated) && (
             <Card ref={confirmationSectionRef}>
               <CardHeader>
-                <CardTitle>予約内容確認</CardTitle>
+                <CardTitle>{isRescheduleMode ? '変更内容確認' : '予約内容確認'}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -1613,6 +1708,12 @@ function WebBookingPageInner() {
                     <span className="font-medium">診療メニュー:</span>
                     <span>
                       {(() => {
+                        // 予約変更モードで元の診療メニューがある場合
+                        if (isRescheduleMode && originalAppointmentData.menu1_id) {
+                          const menu = treatmentMenus.find(m => m.id === originalAppointmentData.menu1_id)
+                          return menu?.name || '（元の予約から引き継ぎ）'
+                        }
+                        // 通常モード
                         const menu = webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)
                         return menu?.display_name || menu?.treatment_menu_name || ''
                       })()}
@@ -1622,7 +1723,15 @@ function WebBookingPageInner() {
                     <Clock className="w-4 h-4 text-gray-500" />
                     <span className="font-medium">診療時間:</span>
                     <span>
-                      {webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)?.duration || ''}分
+                      {(() => {
+                        // 予約変更モードで元の所要時間がある場合
+                        if (isRescheduleMode && originalAppointmentData.duration) {
+                          return `${originalAppointmentData.duration}分`
+                        }
+                        // 通常モード
+                        const menu = webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)
+                        return menu?.duration ? `${menu.duration}分` : ''
+                      })()}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -1635,16 +1744,18 @@ function WebBookingPageInner() {
                     <span className="font-medium">電話番号:</span>
                     <span>{bookingData.patientPhone}</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-gray-500" />
-                    <span className="font-medium">診療種別:</span>
-                    <span>{bookingData.isNewPatient ? '初診' : '再診'}</span>
-                  </div>
+                  {!isRescheduleMode && (
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="w-4 h-4 text-gray-500" />
+                      <span className="font-medium">診療種別:</span>
+                      <span>{bookingData.isNewPatient ? '初診' : '再診'}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-center">
                   <Button onClick={handleConfirmBooking} size="lg" className="w-full max-w-xs">
-                    予約確定
+                    {isRescheduleMode ? '予約を変更する' : '予約確定'}
                   </Button>
                 </div>
               </CardContent>

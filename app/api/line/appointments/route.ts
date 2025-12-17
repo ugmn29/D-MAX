@@ -176,7 +176,11 @@ export async function GET(request: NextRequest) {
           name: `${staff.last_name} ${staff.first_name}`
         } : null,
         cancellation_reason: apt.cancel_reason_id ? 'キャンセル' : null,
-        cancelled_at: apt.cancelled_at
+        cancelled_at: apt.cancelled_at,
+        // 予約変更用に元の診療メニューと担当者IDを保持
+        menu1_id: apt.menu1_id || null,
+        menu2_id: apt.menu2_id || null,
+        staff_id: apt.staff_id || null
       }
     })
 
