@@ -106,57 +106,52 @@ export default function AppointmentsPage() {
   // クリニック電話番号
   const [clinicPhone, setClinicPhone] = useState<string | null>(null)
 
-  // LIFF初期化（最適化版）
+  // LIFF初期化
   useEffect(() => {
     const initializeLiff = async () => {
       try {
-        // LIFF SDK待機とLIFF ID取得を並列実行
-        const [, liffIdResult] = await Promise.all([
-          // LIFF SDK待機（50msごとにチェック、5秒でタイムアウト）
-          new Promise<void>((resolve) => {
+        // LIFF SDK待機（50msごとにチェック、10秒でタイムアウト）
+        const liffLoaded = await new Promise<boolean>((resolve) => {
+          if (typeof window !== 'undefined' && window.liff) {
+            resolve(true)
+            return
+          }
+          const checkLiff = setInterval(() => {
             if (typeof window !== 'undefined' && window.liff) {
-              resolve()
-            } else {
-              const checkLiff = setInterval(() => {
-                if (typeof window !== 'undefined' && window.liff) {
-                  clearInterval(checkLiff)
-                  resolve()
-                }
-              }, 50)
-              setTimeout(() => {
-                clearInterval(checkLiff)
-                resolve()
-              }, 5000)
+              clearInterval(checkLiff)
+              resolve(true)
             }
-          }),
-          // LIFF ID取得（並列実行）
-          (async () => {
-            // 環境変数を先にチェック
-            const envLiffId = process.env.NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
-            if (envLiffId) return envLiffId
+          }, 50)
+          setTimeout(() => {
+            clearInterval(checkLiff)
+            resolve(false)
+          }, 10000)
+        })
 
-            try {
-              const response = await fetch('/api/liff-settings')
-              if (response.ok) {
-                const data = await response.json()
-                return data.appointments || null
-              }
-            } catch (e) {
-              console.warn('API LIFF ID取得エラー:', e)
-            }
-            return null
-          })()
-        ])
-
-        if (typeof window === 'undefined' || !window.liff) {
+        if (!liffLoaded) {
           setError('LIFF SDKの読み込みに失敗しました')
+          setLiffReady(true) // エラー画面を表示するためにtrueにする
           setLoading(false)
           return
         }
 
-        const liffId = liffIdResult
+        // LIFF ID取得
+        let liffId = process.env.NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+        if (!liffId) {
+          try {
+            const response = await fetch('/api/liff-settings')
+            if (response.ok) {
+              const data = await response.json()
+              liffId = data.appointments || null
+            }
+          } catch (e) {
+            console.warn('API LIFF ID取得エラー:', e)
+          }
+        }
+
         if (!liffId) {
           setError('LIFF IDが設定されていません')
+          setLiffReady(true) // エラー画面を表示するためにtrueにする
           setLoading(false)
           return
         }
@@ -167,7 +162,6 @@ export default function AppointmentsPage() {
           const profile = await window.liff.getProfile()
           setLineUserId(profile.userId)
           setLiffReady(true)
-          // loadAppointmentsを非同期で実行
           loadAppointments(profile.userId)
         } else {
           window.liff.login()
@@ -175,6 +169,7 @@ export default function AppointmentsPage() {
       } catch (err) {
         console.error('LIFF初期化エラー:', err)
         setError('初期化に失敗しました')
+        setLiffReady(true) // エラー画面を表示するためにtrueにする
         setLoading(false)
       }
     }
