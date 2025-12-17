@@ -308,6 +308,9 @@ function WebBookingPageInner() {
     loadData()
   }, [])
 
+  // 予約変更モードかどうか
+  const isRescheduleMode = searchParams.get('reschedule') === 'true'
+
   // LINEからのWeb予約処理
   useEffect(() => {
     const fromLine = searchParams.get('from_line')
@@ -315,14 +318,15 @@ function WebBookingPageInner() {
     const patientNumber = searchParams.get('patient_number')
     const phone = searchParams.get('phone')
     const birthDate = searchParams.get('birth_date')
+    const reschedule = searchParams.get('reschedule') // 予約変更モード
 
-    if (fromLine === 'true' && patientId && patientNumber && phone && birthDate) {
+    if (fromLine === 'true' && patientId && patientNumber) {
       const loadLinePatient = async () => {
         try {
           setTokenLoading(true)
           setTokenError('')
 
-          console.log('LINE Web予約: 患者情報読み込み開始', { patientId, patientNumber })
+          console.log('LINE Web予約: 患者情報読み込み開始', { patientId, patientNumber, reschedule })
 
           // 患者情報を取得（DEMO_CLINIC_IDを使用）
           const patient = await getPatientById(DEMO_CLINIC_ID, patientId)
@@ -334,13 +338,15 @@ function WebBookingPageInner() {
           console.log('LINE Web予約: 患者情報取得成功', patient)
 
           // 認証データをセット（再診患者として扱う）
+          const patientBirthDate = patient.date_of_birth || ''
+          const [bYear, bMonth, bDay] = patientBirthDate ? patientBirthDate.split('-') : ['', '', '']
           setAuthData({
             patientNumber: patientNumber,
-            phone: phone,
+            phone: phone || patient.phone || '',
             email: patient.email || '',
-            birthYear: birthDate.split('-')[0],
-            birthMonth: birthDate.split('-')[1],
-            birthDay: birthDate.split('-')[2]
+            birthYear: birthDate ? birthDate.split('-')[0] : bYear,
+            birthMonth: birthDate ? birthDate.split('-')[1] : bMonth,
+            birthDay: birthDate ? birthDate.split('-')[2] : bDay
           })
 
           // 患者を認証済みとしてセット
@@ -352,12 +358,20 @@ function WebBookingPageInner() {
             ...prev,
             isNewPatient: false,
             patientName: `${patient.last_name} ${patient.first_name}`,
-            patientPhone: phone,
+            patientPhone: phone || patient.phone || '',
             patientEmail: patient.email || ''
           }))
 
-          // ステップを進める（メニュー選択から開始）
-          setCurrentStep(2)
+          // 予約変更モードの場合は日時選択（ステップ3）から、通常はメニュー選択（ステップ2）から開始
+          if (reschedule === 'true') {
+            // 予約変更：日時選択から開始（ステップ3）
+            // メニューは後で自動選択される
+            setCurrentStep(3)
+            console.log('LINE 予約変更モード: ステップ3（日時選択）から開始')
+          } else {
+            // 通常：メニュー選択から開始
+            setCurrentStep(2)
+          }
 
         } catch (error) {
           console.error('LINE Web予約エラー:', error)
@@ -371,6 +385,20 @@ function WebBookingPageInner() {
       return
     }
   }, [searchParams])
+
+  // 予約変更モード時、メニューがロードされたら最初のメニューを自動選択
+  useEffect(() => {
+    if (isRescheduleMode && webBookingMenus.length > 0 && !bookingData.selectedMenu) {
+      // 再診用メニューを優先して選択
+      const returningPatientMenu = webBookingMenus.find(m => m.allow_returning !== false)
+      const defaultMenu = returningPatientMenu || webBookingMenus[0]
+      console.log('予約変更モード: デフォルトメニュー自動選択', defaultMenu)
+      setBookingData(prev => ({
+        ...prev,
+        selectedMenu: defaultMenu.treatment_menu_id // treatment_menu_idを使用
+      }))
+    }
+  }, [isRescheduleMode, webBookingMenus, bookingData.selectedMenu])
 
   // トークンベースWeb予約の処理
   useEffect(() => {
@@ -1071,13 +1099,22 @@ function WebBookingPageInner() {
       <div className="max-w-4xl mx-auto px-4">
         {/* ヘッダー */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Web予約</h1>
-          <p className="text-gray-600">簡単にオンラインで予約できます</p>
+          {isRescheduleMode ? (
+            <>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">予約日時の変更</h1>
+              <p className="text-gray-600">新しい日時をお選びください</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Web予約</h1>
+              <p className="text-gray-600">簡単にオンラインで予約できます</p>
+            </>
+          )}
         </div>
 
         <div className="max-w-2xl mx-auto space-y-6">
-          {/* キャンセルポリシー表示 */}
-          {webSettings.showCancelPolicy && (
+          {/* キャンセルポリシー表示（予約変更モードでは非表示） */}
+          {webSettings.showCancelPolicy && !isRescheduleMode && (
             <Card>
               <CardHeader>
                 <CardTitle>医院からのメッセージ</CardTitle>
@@ -1092,8 +1129,8 @@ function WebBookingPageInner() {
             </Card>
           )}
 
-          {/* ステップ1: 初診/再診選択 */}
-          {webSettings.flow.initialSelection && (
+          {/* ステップ1: 初診/再診選択（予約変更モードでは非表示） */}
+          {webSettings.flow.initialSelection && !isRescheduleMode && (
             <Card>
               <CardHeader>
                 <CardTitle>初診/再診の選択</CardTitle>
@@ -1260,8 +1297,8 @@ function WebBookingPageInner() {
             </Card>
           )}
 
-          {/* ステップ2: 診療メニュー選択 */}
-          {(bookingData.isNewPatient || isAuthenticated) && (
+          {/* ステップ2: 診療メニュー選択（予約変更モードでは非表示） */}
+          {(bookingData.isNewPatient || isAuthenticated) && !isRescheduleMode && (
             <Card ref={menuSectionRef}>
               <CardHeader>
                 <CardTitle>診療メニューの選択</CardTitle>
