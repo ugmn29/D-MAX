@@ -85,14 +85,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // クリニック情報を取得（電話番号）
-    const { data: clinic } = await supabase
-      .from('clinics')
-      .select('phone')
-      .eq('id', DEMO_CLINIC_ID)
+    // クリニック情報を取得（電話番号）- clinic_settingsテーブルのclinic_infoから取得
+    let clinicPhone: string | null = null
+    const { data: clinicInfoSetting } = await supabase
+      .from('clinic_settings')
+      .select('setting_value')
+      .eq('clinic_id', DEMO_CLINIC_ID)
+      .eq('setting_key', 'clinic_info')
       .single()
 
-    const clinicPhone = clinic?.phone || null
+    if (clinicInfoSetting?.setting_value?.phone) {
+      clinicPhone = clinicInfoSetting.setting_value.phone
+    } else {
+      // フォールバック: clinicsテーブルからも確認
+      const { data: clinic } = await supabase
+        .from('clinics')
+        .select('phone')
+        .eq('id', DEMO_CLINIC_ID)
+        .single()
+      clinicPhone = clinic?.phone || null
+    }
 
     // LINE連携患者を取得（JOINなしで）
     console.log('📊 連携データ取得開始...')
