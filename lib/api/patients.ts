@@ -5,6 +5,33 @@ import { MOCK_MODE } from '@/lib/utils/mock-mode'
 // 患者API関数
 
 /**
+ * 全角数字を半角に変換
+ */
+function toHalfWidthNumber(str: string): string {
+  return str.replace(/[０-９]/g, (s) => {
+    return String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
+  })
+}
+
+/**
+ * ひらがなをカタカナに変換
+ */
+function hiraganaToKatakana(str: string): string {
+  return str.replace(/[\u3041-\u3096]/g, (s) => {
+    return String.fromCharCode(s.charCodeAt(0) + 0x60)
+  })
+}
+
+/**
+ * カタカナをひらがなに変換
+ */
+function katakanaToHiragana(str: string): string {
+  return str.replace(/[\u30A1-\u30F6]/g, (s) => {
+    return String.fromCharCode(s.charCodeAt(0) - 0x60)
+  })
+}
+
+/**
  * 全患者を取得
  */
 export async function getPatients(clinicId: string): Promise<Patient[]> {
@@ -107,23 +134,34 @@ export async function searchPatients(
 
   // クライアント側で検索フィルタリング
   const searchTerm = searchQuery.trim().toLowerCase()
-  const searchNumber = Number(searchTerm)
+  // 全角数字を半角に変換してから数値化
+  const normalizedTerm = toHalfWidthNumber(searchTerm)
+  const searchNumber = Number(normalizedTerm)
+  // ひらがな・カタカナ両方で検索できるように変換
+  const searchTermKatakana = hiraganaToKatakana(searchTerm)
+  const searchTermHiragana = katakanaToHiragana(searchTerm)
 
   return data.filter(patient => {
     // 姓名で検索
     if (patient.last_name?.toLowerCase().includes(searchTerm)) return true
     if (patient.first_name?.toLowerCase().includes(searchTerm)) return true
-    
-    // カナで検索
-    if (patient.last_name_kana?.toLowerCase().includes(searchTerm)) return true
-    if (patient.first_name_kana?.toLowerCase().includes(searchTerm)) return true
-    
-    // 電話番号で検索
-    if (patient.phone?.includes(searchTerm)) return true
-    
-    // 診察券番号で検索
+
+    // カナで検索（ひらがな・カタカナ両方に対応）
+    const lastNameKana = patient.last_name_kana?.toLowerCase() || ''
+    const firstNameKana = patient.first_name_kana?.toLowerCase() || ''
+    if (lastNameKana.includes(searchTerm)) return true
+    if (firstNameKana.includes(searchTerm)) return true
+    if (lastNameKana.includes(searchTermKatakana)) return true
+    if (firstNameKana.includes(searchTermKatakana)) return true
+    if (lastNameKana.includes(searchTermHiragana)) return true
+    if (firstNameKana.includes(searchTermHiragana)) return true
+
+    // 電話番号で検索（全角数字も対応）
+    if (patient.phone?.includes(normalizedTerm)) return true
+
+    // 診察券番号で検索（全角数字も対応）
     if (!isNaN(searchNumber) && patient.patient_number === searchNumber) return true
-    
+
     return false
   })
 }
