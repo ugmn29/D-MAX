@@ -191,6 +191,9 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const timeAxisRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
+  // 現在時刻の状態（今日の日付のみ表示）
+  const [currentTime, setCurrentTime] = useState(new Date())
+
   // スクロール同期のイベントハンドラー
   const handleTimeAxisScroll = () => {
     if (timeAxisRef.current && gridRef.current) {
@@ -203,6 +206,25 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       timeAxisRef.current.scrollTop = gridRef.current.scrollTop
     }
   }
+
+  // 現在時刻を1分ごとに更新
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 60000) // 1分ごと
+
+    return () => clearInterval(timer)
+  }, [])
+
+  // 今日かどうかを判定
+  const isToday = useMemo(() => {
+    const today = new Date()
+    return (
+      selectedDate.getFullYear() === today.getFullYear() &&
+      selectedDate.getMonth() === today.getMonth() &&
+      selectedDate.getDate() === today.getDate()
+    )
+  }, [selectedDate])
 
   // ドラッグ&ドロップのハンドラー
   const handleAppointmentMouseDown = (e: React.MouseEvent, appointment: Appointment, staffIndex: number) => {
@@ -1076,6 +1098,28 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     return slots
   }, [timeSlotMinutes, businessHours, selectedDate])
 
+  // 現在時刻の線の位置を計算（timeSlotsの範囲内のみ）
+  const currentTimeLinePosition = useMemo(() => {
+    if (!isToday || timeSlots.length === 0) return null
+
+    const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes()
+    const firstSlotMinutes = timeSlots[0].hour * 60 + timeSlots[0].minute
+    const lastSlot = timeSlots[timeSlots.length - 1]
+    const lastSlotMinutes = lastSlot.hour * 60 + lastSlot.minute
+
+    // 現在時刻がカレンダーの範囲外の場合は表示しない
+    if (currentMinutes < firstSlotMinutes || currentMinutes > lastSlotMinutes) {
+      return null
+    }
+
+    // 最初のスロットからの経過分数をピクセルに変換
+    const minutesFromStart = currentMinutes - firstSlotMinutes
+    const validTimeSlotMinutes = (typeof timeSlotMinutes === 'number' && timeSlotMinutes > 0) ? timeSlotMinutes : 15
+    const position = (minutesFromStart / validTimeSlotMinutes) * cellHeight
+
+    return position
+  }, [isToday, currentTime, timeSlots, timeSlotMinutes, cellHeight])
+
   // 時間文字列を分に変換する関数
   const timeToMinutes = (time: string): number => {
     const [hour, minute] = time.split(':').map(Number)
@@ -1793,7 +1837,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
 
         {/* タイムライングリッド */}
-        <div 
+        <div
           ref={gridRef}
           className="relative h-full overflow-y-auto scrollbar-hide"
           onScroll={handleGridScroll}
@@ -1807,6 +1851,22 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             handleResizeMouseUp(e)
           }}
         >
+          {/* 現在時刻の線（今日のみ表示） */}
+          {currentTimeLinePosition !== null && (
+            <div
+              className="absolute left-0 right-0 pointer-events-none"
+              style={{
+                top: `${currentTimeLinePosition}px`,
+                zIndex: 50
+              }}
+            >
+              <div
+                className="w-full h-0.5 bg-red-500"
+                style={{ opacity: 0.6 }}
+              />
+            </div>
+          )}
+
           {timeSlots.map((slot, index) => {
             const isHoliday = isHolidayDay()
             const isOutside = isHoliday ? false : isOutsideBusinessHours(slot.time)
