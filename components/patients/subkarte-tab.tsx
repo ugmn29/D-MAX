@@ -1199,49 +1199,53 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
             )}
           </div>
 
-          {/* 右側：ボタンエリア */}
-          <div className="flex flex-col space-y-2">
-            {/* 録音・スタッフ・送信ボタン */}
-            <div className="flex space-x-2">
-              <Button
-                onClick={() => setShowAudioRecordingModal(true)}
-                variant="outline"
-                size="sm"
-                title="録音"
-              >
-                <FileSignature className="w-4 h-4" />
-              </Button>
-              <Button
-                onClick={() => setShowHandwritingModal(true)}
-                variant="outline"
-                size="sm"
-                title="手書き"
-              >
-                <Pen className="w-4 h-4" />
-              </Button>
-              <Button
-                onClick={() => setShowStaffModal(true)}
-                variant="outline"
-                size="sm"
-                className={selectedStaff.length > 0 ? 'bg-blue-50 border-blue-300' : ''}
-                title={selectedStaff.length > 0 ? `選択中: ${getSelectedStaffNames()}` : 'スタッフ選択'}
-              >
-                <User className="w-4 h-4" />
-              </Button>
-              <Button
-                onClick={saveEntry}
-                size="sm"
-                disabled={
-                  selectedStaff.length === 0 ||
-                  (activeInputType === 'text' && (!richTextContent || richTextContent.trim() === '' || richTextContent === 'テキストを入力してください...' || richTextContent === '<div>テキストを入力してください...</div>')) ||
-                  (activeInputType === 'file' && uploadedFiles.length === 0) ||
-                  (activeInputType === 'audio' && recordingTime === 0)
-                }
-              >
-                <Save className="w-4 h-4 mr-1" />
-                送信
-              </Button>
-            </div>
+          {/* 右側：ボタンエリア（2x2グリッド） */}
+          <div className="grid grid-cols-2 gap-0.5">
+            {/* 上段左：手書き */}
+            <Button
+              onClick={() => setShowHandwritingModal(true)}
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              title="手書き"
+            >
+              <Pen className="w-4 h-4" />
+            </Button>
+            {/* 上段右：スタッフ */}
+            <Button
+              onClick={() => setShowStaffModal(true)}
+              variant="outline"
+              size="icon"
+              className={`h-7 w-7 ${selectedStaff.length > 0 ? 'bg-blue-50 border-blue-300' : ''}`}
+              title={selectedStaff.length > 0 ? `選択中: ${getSelectedStaffNames()}` : 'スタッフ選択'}
+            >
+              <User className="w-4 h-4" />
+            </Button>
+            {/* 下段左：録音 */}
+            <Button
+              onClick={() => setShowAudioRecordingModal(true)}
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              title="録音"
+            >
+              <Mic className="w-4 h-4" />
+            </Button>
+            {/* 下段右：送信 */}
+            <Button
+              onClick={saveEntry}
+              size="icon"
+              className="h-7 w-7"
+              disabled={
+                selectedStaff.length === 0 ||
+                (activeInputType === 'text' && (!richTextContent || richTextContent.trim() === '' || richTextContent === 'テキストを入力してください...' || richTextContent === '<div>テキストを入力してください...</div>')) ||
+                (activeInputType === 'file' && uploadedFiles.length === 0) ||
+                (activeInputType === 'audio' && recordingTime === 0)
+              }
+              title="送信"
+            >
+              <Save className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>
