@@ -307,43 +307,48 @@ export function BlockCreateModal({
           終了時間: <span className="font-medium">{calculateEndTime(startTime, duration)}</span>
         </div>
 
-        {/* スタッフ選択 */}
-        {workingStaff.length > 0 && (
-          <div>
-            <Label className="text-sm font-medium text-gray-700 mb-2 block">スタッフ</Label>
-            <Select value={selectedStaffId || 'none'} onValueChange={(v) => setSelectedStaffId(v === 'none' ? '' : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="スタッフを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">なし</SelectItem>
-                {workingStaff.map((ws) => (
-                  <SelectItem key={ws.staff.id} value={ws.staff.id}>
-                    {ws.staff.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* スタッフ・ユニット選択 */}
+        {(workingStaff.length > 0 || units.length > 0) && (
+          <div className="grid grid-cols-2 gap-4">
+            {/* スタッフ選択 */}
+            {workingStaff.length > 0 && (
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">スタッフ</Label>
+                <Select value={selectedStaffId || 'none'} onValueChange={(v) => setSelectedStaffId(v === 'none' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="スタッフを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">なし</SelectItem>
+                    {workingStaff.map((ws) => (
+                      <SelectItem key={ws.staff.id} value={ws.staff.id}>
+                        {ws.staff.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-        {/* ユニット選択 */}
-        {units.length > 0 && (
-          <div>
-            <Label className="text-sm font-medium text-gray-700 mb-2 block">ユニット</Label>
-            <Select value={selectedUnitId || 'none'} onValueChange={(v) => setSelectedUnitId(v === 'none' ? '' : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="ユニットを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">なし</SelectItem>
-                {units.map((unit) => (
-                  <SelectItem key={unit.id} value={unit.id}>
-                    {unit.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* ユニット選択 */}
+            {units.length > 0 && (
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">ユニット</Label>
+                <Select value={selectedUnitId || 'none'} onValueChange={(v) => setSelectedUnitId(v === 'none' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="ユニットを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">なし</SelectItem>
+                    {units.map((unit) => (
+                      <SelectItem key={unit.id} value={unit.id}>
+                        {unit.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         )}
 
