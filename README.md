@@ -115,4 +115,4 @@ D-MAX/
 
 - [Supabase Documentation](https://supabase.com/docs)
 - [Next.js Documentation](https://nextjs.org/docs)
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)<!-- deploy test Thu Dec 18 09:45:53 JST 2025 -->
