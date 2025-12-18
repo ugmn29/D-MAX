@@ -2652,12 +2652,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             )
           })}
 
-          {/* キャンセルされた予約のアイコンのみ表示 */}
+          {/* キャンセルされた予約のアイコンのみ表示（ブロックは除外） */}
           {appointmentBlocks.map((block, index) => {
             const isCancelled = block.appointment.status === 'キャンセル'
-            
-            // キャンセルされた予約のみアイコンを表示
-            if (!isCancelled) {
+            const isBlock = block.appointment.is_block
+
+            // キャンセルされた予約のみアイコンを表示（ブロックは×印を表示しない）
+            if (!isCancelled || isBlock) {
               return null
             }
             
