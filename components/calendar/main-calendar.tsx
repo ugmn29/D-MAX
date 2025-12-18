@@ -15,7 +15,7 @@ import { initializeMockData } from '@/lib/utils/mock-mode'
 import { timeToMinutes, minutesToTime } from '@/lib/utils/time-validation'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 import { startAutoStatusUpdateTimer } from '@/lib/utils/auto-status-update'
-import { getBlockColor } from '@/components/forms/block-create-modal'
+import { BlockCreateModal, getBlockColor } from '@/components/forms/block-create-modal'
 
 interface MainCalendarProps {
   clinicId: string
@@ -139,6 +139,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // キャンセル情報モーダル
   const [showCancelInfoModal, setShowCancelInfoModal] = useState(false)
   const [selectedCancelledAppointment, setSelectedCancelledAppointment] = useState<Appointment | null>(null)
+
+  // ブロック編集モーダル
+  const [showBlockEditModal, setShowBlockEditModal] = useState(false)
+  const [editingBlock, setEditingBlock] = useState<Appointment | null>(null)
 
   // ドラッグ量表示関連
   const [dragDelta, setDragDelta] = useState<{ x: number; y: number; timeSlots: number } | null>(null)
@@ -2418,9 +2422,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
                   // appointmentsステートから最新のデータを取得
                   const latestAppointment = appointments.find(apt => apt.id === block.appointment.id)
-                  setEditingAppointment(latestAppointment || block.appointment)
-                  setShowAppointmentModal(true)
-                  console.log('モーダル表示フラグ設定完了', latestAppointment || block.appointment)
+
+                  // ブロックの場合はブロック編集モーダルを開く
+                  if (isBlock) {
+                    setEditingBlock(latestAppointment || block.appointment)
+                    setShowBlockEditModal(true)
+                    console.log('ブロック編集モーダル表示', latestAppointment || block.appointment)
+                  } else {
+                    setEditingAppointment(latestAppointment || block.appointment)
+                    setShowAppointmentModal(true)
+                    console.log('予約モーダル表示フラグ設定完了', latestAppointment || block.appointment)
+                  }
                 }}
               >
                 {/* キャンセルされていない予約のみテキストを表示 */}
@@ -2929,6 +2941,72 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           } catch (error) {
             console.error('ブロック保存エラー:', error)
             alert('ブロックの保存に失敗しました')
+          }
+        }}
+      />
+
+      {/* ブロック編集モーダル */}
+      <BlockCreateModal
+        isOpen={showBlockEditModal}
+        onClose={() => {
+          setShowBlockEditModal(false)
+          setEditingBlock(null)
+        }}
+        clinicId={clinicId}
+        selectedDate={formatDateForDB(selectedDate)}
+        selectedTime={editingBlock?.start_time || '09:00'}
+        timeSlotMinutes={timeSlotMinutes}
+        workingStaff={workingStaff}
+        units={units}
+        editingBlock={editingBlock ? {
+          id: editingBlock.id,
+          start_time: editingBlock.start_time,
+          end_time: editingBlock.end_time,
+          block_color: (editingBlock as any).block_color,
+          block_text: (editingBlock as any).block_text,
+          staff1_id: editingBlock.staff1_id,
+          unit_id: editingBlock.unit_id
+        } : null}
+        onSave={async (blockData) => {
+          // 新規作成（ここでは使用しない）
+        }}
+        onUpdate={async (blockId, blockData) => {
+          try {
+            console.log('ブロック更新:', blockId, blockData)
+            await updateAppointment(blockId, blockData)
+            console.log('ブロック更新完了')
+
+            // モーダルを閉じる
+            setShowBlockEditModal(false)
+            setEditingBlock(null)
+
+            // 予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+          } catch (error) {
+            console.error('ブロック更新エラー:', error)
+            throw error
+          }
+        }}
+        onDelete={async (blockId) => {
+          try {
+            console.log('ブロック削除:', blockId)
+            // 削除はステータスを「キャンセル」に変更して論理削除
+            await updateAppointment(blockId, { status: 'キャンセル' })
+            console.log('ブロック削除完了')
+
+            // モーダルを閉じる
+            setShowBlockEditModal(false)
+            setEditingBlock(null)
+
+            // 予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+          } catch (error) {
+            console.error('ブロック削除エラー:', error)
+            throw error
           }
         }}
       />

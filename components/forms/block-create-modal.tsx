@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Modal } from '@/components/ui/modal'
-import { X, Square } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { Unit } from '@/lib/api/units'
 
 interface WorkingStaff {
@@ -17,6 +17,16 @@ interface WorkingStaff {
   }
   shift_pattern: any
   is_holiday: boolean
+}
+
+interface EditingBlock {
+  id: string
+  start_time: string
+  end_time: string
+  block_color?: string
+  block_text?: string
+  staff1_id?: string | null
+  unit_id?: string | null
 }
 
 interface BlockCreateModalProps {
@@ -31,6 +41,9 @@ interface BlockCreateModalProps {
   workingStaff?: WorkingStaff[]
   units?: Unit[]
   onSave: (blockData: any) => void
+  onUpdate?: (blockId: string, blockData: any) => void
+  onDelete?: (blockId: string) => void
+  editingBlock?: EditingBlock | null
 }
 
 // ブロックの色定義
@@ -53,9 +66,13 @@ export function BlockCreateModal({
   timeSlotMinutes = 15,
   workingStaff = [],
   units = [],
-  onSave
+  onSave,
+  onUpdate,
+  onDelete,
+  editingBlock
 }: BlockCreateModalProps) {
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // ブロックデータ
   const [selectedColor, setSelectedColor] = useState<string>('red')
@@ -69,29 +86,56 @@ export function BlockCreateModal({
   const [selectedStaffId, setSelectedStaffId] = useState<string>('')
   const [selectedUnitId, setSelectedUnitId] = useState<string>('')
 
+  // 編集モードかどうか
+  const isEditMode = !!editingBlock
+
+  // 所要時間を計算
+  const calculateDuration = (start: string, end: string): number => {
+    const [startHours, startMinutes] = start.split(':').map(Number)
+    const [endHours, endMinutes] = end.split(':').map(Number)
+    const startTotal = startHours * 60 + startMinutes
+    const endTotal = endHours * 60 + endMinutes
+    return endTotal - startTotal
+  }
+
   // モーダルが開かれたときに初期値を設定
   useEffect(() => {
     if (isOpen) {
-      setStartTime(selectedTime)
-      setSelectedColor('red')
-      setBlockText('')
-      setDuration(30)
+      if (editingBlock) {
+        // 編集モード: 既存データをセット
+        setStartTime(editingBlock.start_time)
+        setSelectedColor(editingBlock.block_color || 'red')
+        setBlockText(editingBlock.block_text || '')
+        setDuration(calculateDuration(editingBlock.start_time, editingBlock.end_time))
+        setSelectedStaffId(editingBlock.staff1_id || '')
+        setSelectedUnitId(editingBlock.unit_id || '')
+      } else {
+        // 新規作成モード
+        setStartTime(selectedTime)
+        setSelectedColor('red')
+        setBlockText('')
+        setDuration(30)
 
-      // スタッフの初期選択
-      if (selectedStaffIndex !== undefined && workingStaff[selectedStaffIndex]) {
-        setSelectedStaffId(workingStaff[selectedStaffIndex].staff.id)
-      } else if (workingStaff.length > 0) {
-        setSelectedStaffId(workingStaff[0].staff.id)
-      }
+        // スタッフの初期選択
+        if (selectedStaffIndex !== undefined && workingStaff[selectedStaffIndex]) {
+          setSelectedStaffId(workingStaff[selectedStaffIndex].staff.id)
+        } else if (workingStaff.length > 0) {
+          setSelectedStaffId(workingStaff[0].staff.id)
+        } else {
+          setSelectedStaffId('')
+        }
 
-      // ユニットの初期選択
-      if (selectedUnitIndex !== undefined && units[selectedUnitIndex]) {
-        setSelectedUnitId(units[selectedUnitIndex].id)
-      } else if (units.length > 0) {
-        setSelectedUnitId(units[0].id)
+        // ユニットの初期選択
+        if (selectedUnitIndex !== undefined && units[selectedUnitIndex]) {
+          setSelectedUnitId(units[selectedUnitIndex].id)
+        } else if (units.length > 0) {
+          setSelectedUnitId(units[0].id)
+        } else {
+          setSelectedUnitId('')
+        }
       }
     }
-  }, [isOpen, selectedTime, selectedStaffIndex, selectedUnitIndex, workingStaff, units])
+  }, [isOpen, selectedTime, selectedStaffIndex, selectedUnitIndex, workingStaff, units, editingBlock])
 
   // 終了時間を計算
   const calculateEndTime = (start: string, durationMinutes: number): string => {
@@ -123,13 +167,37 @@ export function BlockCreateModal({
         block_text: blockText
       }
 
-      await onSave(blockData)
+      if (isEditMode && editingBlock && onUpdate) {
+        // 編集モード: 更新
+        await onUpdate(editingBlock.id, blockData)
+      } else {
+        // 新規作成モード
+        await onSave(blockData)
+      }
       onClose()
     } catch (error) {
-      console.error('ブロック作成エラー:', error)
-      alert('ブロックの作成に失敗しました')
+      console.error('ブロック保存エラー:', error)
+      alert(isEditMode ? 'ブロックの更新に失敗しました' : 'ブロックの作成に失敗しました')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // 削除処理
+  const handleDelete = async () => {
+    if (!editingBlock || !onDelete) return
+
+    if (!confirm('このブロックを削除しますか？')) return
+
+    setDeleting(true)
+    try {
+      await onDelete(editingBlock.id)
+      onClose()
+    } catch (error) {
+      console.error('ブロック削除エラー:', error)
+      alert('ブロックの削除に失敗しました')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -154,7 +222,7 @@ export function BlockCreateModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="ブロック作成"
+      title={isEditMode ? "ブロック編集" : "ブロック作成"}
       size="md"
     >
       <div className="space-y-6">
@@ -248,6 +316,7 @@ export function BlockCreateModal({
                 <SelectValue placeholder="スタッフを選択" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">なし</SelectItem>
                 {workingStaff.map((ws) => (
                   <SelectItem key={ws.staff.id} value={ws.staff.id}>
                     {ws.staff.name}
@@ -267,6 +336,7 @@ export function BlockCreateModal({
                 <SelectValue placeholder="ユニットを選択" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">なし</SelectItem>
                 {units.map((unit) => (
                   <SelectItem key={unit.id} value={unit.id}>
                     {unit.name}
@@ -278,18 +348,34 @@ export function BlockCreateModal({
         )}
 
         {/* ボタン */}
-        <div className="flex justify-end space-x-3 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>
-            キャンセル
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            style={{ backgroundColor: BLOCK_COLORS.find(c => c.id === selectedColor)?.color }}
-            className="text-white"
-          >
-            {saving ? '作成中...' : 'ブロック作成'}
-          </Button>
+        <div className="flex justify-between pt-4 border-t">
+          {/* 削除ボタン（編集モードのみ） */}
+          <div>
+            {isEditMode && onDelete && (
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting || saving}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {deleting ? '削除中...' : '削除'}
+              </Button>
+            )}
+          </div>
+
+          <div className="flex space-x-3">
+            <Button variant="outline" onClick={onClose}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || deleting}
+              style={{ backgroundColor: BLOCK_COLORS.find(c => c.id === selectedColor)?.color }}
+              className="text-white"
+            >
+              {saving ? (isEditMode ? '更新中...' : '作成中...') : (isEditMode ? 'ブロック更新' : 'ブロック作成')}
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>
