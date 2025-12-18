@@ -1,5 +1,32 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { NextRequest, NextResponse } from 'next/server'
+import { DEFAULT_DOCUMENT_TEMPLATES } from '@/lib/data/default-document-templates'
+
+// デフォルトテンプレートを初期化
+async function initializeDefaultTemplates(supabase: ReturnType<typeof getSupabaseClient>) {
+  console.log('Initializing default document templates...')
+
+  const insertData = DEFAULT_DOCUMENT_TEMPLATES.map(template => ({
+    document_type: template.document_type,
+    template_key: template.template_key,
+    template_name: template.template_name,
+    template_data: template.template_data,
+    display_order: template.display_order,
+    is_active: true
+  }))
+
+  const { error } = await supabase
+    .from('document_templates')
+    .insert(insertData)
+
+  if (error) {
+    console.error('Error initializing default templates:', error)
+    return false
+  }
+
+  console.log(`✓ Initialized ${insertData.length} default document templates`)
+  return true
+}
 
 // GET - テンプレート一覧取得
 export async function GET(request: NextRequest) {
@@ -7,6 +34,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const documentType = searchParams.get('documentType')
     const supabase = getSupabaseClient()
+
+    // まず全件数をチェック（初期化が必要かどうか）
+    const { count: totalCount } = await supabase
+      .from('document_templates')
+      .select('*', { count: 'exact', head: true })
+
+    // テーブルが空の場合、デフォルトテンプレートを初期化
+    if (totalCount === 0) {
+      await initializeDefaultTemplates(supabase)
+    }
 
     let query = supabase
       .from('document_templates')
