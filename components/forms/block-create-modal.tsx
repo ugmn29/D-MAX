@@ -311,12 +311,12 @@ export function BlockCreateModal({
         {workingStaff.length > 0 && (
           <div>
             <Label className="text-sm font-medium text-gray-700 mb-2 block">スタッフ</Label>
-            <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+            <Select value={selectedStaffId || 'none'} onValueChange={(v) => setSelectedStaffId(v === 'none' ? '' : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="スタッフを選択" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">なし</SelectItem>
+                <SelectItem value="none">なし</SelectItem>
                 {workingStaff.map((ws) => (
                   <SelectItem key={ws.staff.id} value={ws.staff.id}>
                     {ws.staff.name}
@@ -331,12 +331,12 @@ export function BlockCreateModal({
         {units.length > 0 && (
           <div>
             <Label className="text-sm font-medium text-gray-700 mb-2 block">ユニット</Label>
-            <Select value={selectedUnitId} onValueChange={setSelectedUnitId}>
+            <Select value={selectedUnitId || 'none'} onValueChange={(v) => setSelectedUnitId(v === 'none' ? '' : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="ユニットを選択" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">なし</SelectItem>
+                <SelectItem value="none">なし</SelectItem>
                 {units.map((unit) => (
                   <SelectItem key={unit.id} value={unit.id}>
                     {unit.name}
