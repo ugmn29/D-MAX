@@ -2438,23 +2438,21 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 {/* キャンセルされていない予約のみテキストを表示 */}
                 {!isCancelled && (
                   <>
-                    {/* ブロックの場合は専用の表示 */}
+                    {/* ブロックの場合は専用の表示（通常予約と同じ配置） */}
                     {isBlock ? (
-                      <div className="h-full flex flex-col justify-center p-1">
-                        <div className="text-xs opacity-80">
+                      <>
+                        {/* 1段目: 時間 */}
+                        <div className="text-xs leading-tight" style={{ marginTop: '0px', marginBottom: '2px' }}>
                           {block.appointment.start_time} - {block.appointment.end_time}
                         </div>
-                        {block.appointment.block_text && (
-                          <div className="text-sm font-medium whitespace-pre-wrap overflow-hidden">
-                            {block.appointment.block_text}
-                          </div>
-                        )}
-                        {!block.appointment.block_text && (
-                          <div className="text-sm font-medium opacity-60">
-                            ブロック
-                          </div>
-                        )}
-                      </div>
+
+                        {/* 2段目: ブロックテキスト */}
+                        <div className="text-sm leading-tight flex items-center flex-wrap gap-1" style={{ lineHeight: '1.2', marginTop: '4px' }}>
+                          <span className="font-medium">
+                            {block.appointment.block_text || 'ブロック'}
+                          </span>
+                        </div>
+                      </>
                     ) : (
                     <>
                     {/* ステータス表示・進行ボタン（右上） */}
