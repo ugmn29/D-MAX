@@ -440,6 +440,9 @@ export type Database = {
           created_by?: string
           created_at: string
           updated_at: string
+          is_block?: boolean
+          block_color?: string
+          block_text?: string
         }
         Insert: {
           id?: string
@@ -460,6 +463,9 @@ export type Database = {
           created_by?: string
           created_at?: string
           updated_at?: string
+          is_block?: boolean
+          block_color?: string
+          block_text?: string
         }
         Update: {
           id?: string
@@ -480,6 +486,9 @@ export type Database = {
           created_by?: string
           created_at?: string
           updated_at?: string
+          is_block?: boolean
+          block_color?: string
+          block_text?: string
         }
       }
       appointment_logs: {

@@ -113,8 +113,13 @@ export async function getAvailableSlots(
       format(endDate, 'yyyy-MM-dd')
     )
     const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
+
+    // ブロック（is_block: true）を抽出
+    const blockAppointments = existingAppointments.filter(apt => (apt as any).is_block === true)
+
     console.log('空枠取得: 全予約データ', allAppointments.length, '件')
     console.log('空枠取得: 有効な予約データ（キャンセル除外後）', existingAppointments.length, '件')
+    console.log('空枠取得: ブロック', blockAppointments.length, '件')
     console.log('空枠取得: 予約詳細', existingAppointments.map(a => ({
       date: a.appointment_date,
       time: `${a.start_time}-${a.end_time}`,
@@ -193,8 +198,22 @@ export async function getAvailableSlots(
             return currentTimeMinutes >= breakStart && currentTimeMinutes < breakEnd
           })
 
-          // 休憩時間の場合は予約不可として追加
-          if (isBreakTime) {
+          // ブロックされた時間帯かチェック（スタッフに紐づいていないブロックのみ）
+          const slotEndForBlock = currentTimeMinutes + duration
+          const isBlockedTime = blockAppointments.some(block => {
+            if (block.appointment_date !== dateString) return false
+            // スタッフに紐づいていないブロックは時間帯全体を予約不可
+            if (block.staff1_id) return false
+
+            const blockStart = parseInt(block.start_time.split(':')[0]) * 60 + parseInt(block.start_time.split(':')[1])
+            const blockEnd = parseInt(block.end_time.split(':')[0]) * 60 + parseInt(block.end_time.split(':')[1])
+
+            // 重複チェック
+            return !(slotEndForBlock <= blockStart || currentTimeMinutes >= blockEnd)
+          })
+
+          // 休憩時間またはブロック時間の場合は予約不可として追加
+          if (isBreakTime || isBlockedTime) {
             slots.push({
               date: dateString,
               time: timeString,
@@ -337,6 +356,9 @@ export async function getAvailableSlotsForReschedule(
     )
     const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
 
+    // ブロック（is_block: true）を抽出
+    const blockAppointments = existingAppointments.filter(apt => (apt as any).is_block === true)
+
     // スタッフ情報を取得
     const allStaff = await getStaff(clinicId)
 
@@ -394,7 +416,21 @@ export async function getAvailableSlotsForReschedule(
             return currentTimeMinutes >= breakStart && currentTimeMinutes < breakEnd
           })
 
-          if (isBreakTime) {
+          // ブロックされた時間帯かチェック（スタッフに紐づいていないブロックのみ）
+          const slotEndForBlock = currentTimeMinutes + duration
+          const isBlockedTime = blockAppointments.some(block => {
+            if (block.appointment_date !== dateString) return false
+            // スタッフに紐づいていないブロックは時間帯全体を予約不可
+            if (block.staff1_id) return false
+
+            const blockStart = parseInt(block.start_time.split(':')[0]) * 60 + parseInt(block.start_time.split(':')[1])
+            const blockEnd = parseInt(block.end_time.split(':')[0]) * 60 + parseInt(block.end_time.split(':')[1])
+
+            // 重複チェック
+            return !(slotEndForBlock <= blockStart || currentTimeMinutes >= blockEnd)
+          })
+
+          if (isBreakTime || isBlockedTime) {
             slots.push({
               date: dateString,
               time: timeString,

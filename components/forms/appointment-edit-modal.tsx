@@ -29,9 +29,11 @@ import {
   Type,
   Highlighter,
   FileCode,
-  Info
+  Info,
+  Square
 } from 'lucide-react'
 import { getPatients, createPatient } from '@/lib/api/patients'
+import { BlockCreateModal } from '@/components/forms/block-create-modal'
 import { PatientForm } from '@/components/patients/patient-form'
 import { getTreatmentMenus } from '@/lib/api/treatment'
 import Link from 'next/link'
@@ -82,6 +84,7 @@ interface AppointmentEditModalProps {
   onCopyAppointment?: (appointment: any) => void
   onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
   onJumpToDate?: (date: string) => void // カレンダーの日付を変更するコールバック
+  onBlockSave?: (blockData: any) => void // ブロック作成コールバック
 }
 
 interface PatientSearchResult extends Patient {
@@ -105,12 +108,16 @@ export function AppointmentEditModal({
   onUpdate,
   onCopyAppointment,
   onAppointmentCancel,
-  onJumpToDate
+  onJumpToDate,
+  onBlockSave
 }: AppointmentEditModalProps) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [patientAppointments, setPatientAppointments] = useState<any[]>([])
-  
+
+  // ブロック作成モーダル
+  const [showBlockModal, setShowBlockModal] = useState(false)
+
   // タブ管理
   const [activeTab, setActiveTab] = useState<'appointment' | 'subkarte' | 'notifications'>('appointment')
 
@@ -2684,6 +2691,15 @@ export function AppointmentEditModal({
                     予約キャンセル
                   </Button>
                   <div className="flex space-x-2">
+                    {onBlockSave && !editingAppointment && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowBlockModal(true)}
+                      >
+                        <Square className="w-4 h-4 mr-1" />
+                        ブロック
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -3391,6 +3407,27 @@ export function AppointmentEditModal({
         }
       }}
     />
+
+    {/* ブロック作成モーダル */}
+    {onBlockSave && (
+      <BlockCreateModal
+        isOpen={showBlockModal}
+        onClose={() => setShowBlockModal(false)}
+        clinicId={clinicId}
+        selectedDate={selectedDate}
+        selectedTime={selectedTime}
+        selectedStaffIndex={selectedStaffIndex}
+        selectedUnitIndex={selectedUnitIndex}
+        timeSlotMinutes={timeSlotMinutes}
+        workingStaff={workingStaff}
+        units={units}
+        onSave={(blockData) => {
+          onBlockSave(blockData)
+          setShowBlockModal(false)
+          onClose()
+        }}
+      />
+    )}
   </>
   )
 }

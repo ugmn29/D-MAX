@@ -15,6 +15,7 @@ import { initializeMockData } from '@/lib/utils/mock-mode'
 import { timeToMinutes, minutesToTime } from '@/lib/utils/time-validation'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 import { startAutoStatusUpdateTimer } from '@/lib/utils/auto-status-update'
+import { getBlockColor } from '@/components/forms/block-create-modal'
 
 interface MainCalendarProps {
   clinicId: string
@@ -2191,7 +2192,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
               return null
             }
             
-            const menuColor = (block.appointment as any).menu1?.color || '#3B82F6'
+            // ブロックの場合はblock_colorを使用、通常予約はメニューの色を使用
+            const isBlock = block.appointment.is_block
+            const menuColor = isBlock
+              ? getBlockColor(block.appointment.block_color || 'red')
+              : ((block.appointment as any).menu1?.color || '#3B82F6')
             const patient = (block.appointment as any).patient
             
             
@@ -2421,18 +2426,37 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                 {/* キャンセルされていない予約のみテキストを表示 */}
                 {!isCancelled && (
                   <>
+                    {/* ブロックの場合は専用の表示 */}
+                    {isBlock ? (
+                      <div className="h-full flex flex-col justify-center p-1">
+                        <div className="text-xs opacity-80">
+                          {block.appointment.start_time} - {block.appointment.end_time}
+                        </div>
+                        {block.appointment.block_text && (
+                          <div className="text-sm font-medium whitespace-pre-wrap overflow-hidden">
+                            {block.appointment.block_text}
+                          </div>
+                        )}
+                        {!block.appointment.block_text && (
+                          <div className="text-sm font-medium opacity-60">
+                            ブロック
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                    <>
                     {/* ステータス表示・進行ボタン（右上） */}
                     {(() => {
                       const currentStatus = block.appointment.status
                       const nextStatus = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]?.nextStatus
                       console.log('予約ステータス:', currentStatus, '次のステータス:', nextStatus, '予約ID:', block.appointment.id)
-                      
+
                       // キャンセルされていない予約のみステータスボタンを表示
                       if (currentStatus && currentStatus !== 'キャンセル') {
                         const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]
                         const buttonColor = statusConfig?.color.split(' ')[0] || 'bg-gray-500'
                         const textColor = statusConfig?.color.split(' ')[1] || 'text-gray-800'
-                        
+
                         return (
                           <button
                             onClick={(e) => {
@@ -2452,10 +2476,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                           </button>
                         )
                       }
-                      
+
                       return null
                     })()}
-                    
+
                     {/* 1段目: 診療時間、診察券番号 */}
                     <div className="text-xs leading-tight" style={{ marginTop: '0px', marginBottom: '2px' }}>
                       {displayItems.includes('reservation_time') && (
@@ -2594,6 +2618,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
                         />
                       )}
                     </div>
+                    </>
+                    )}
                   </>
                 )}
 
@@ -2871,6 +2897,39 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           const newDate = new Date(date)
           onDateChange(newDate)
           console.log('カレンダーの日付を変更:', date)
+        }}
+        onBlockSave={async (blockData) => {
+          try {
+            console.log('ブロック保存:', blockData)
+            // ブロックを作成
+            const savedBlock = await createAppointment(clinicId, {
+              ...blockData,
+              appointment_date: formatDateForDB(selectedDate)
+            })
+            console.log('ブロック作成完了:', savedBlock)
+
+            // モーダルを閉じる
+            setShowAppointmentModal(false)
+            setEditingAppointment(null)
+
+            // 選択状態をリセット
+            setSelectedTimeSlots([])
+            setSelectionStart(null)
+            setSelectionEnd(null)
+            setSelectedCell(null)
+            setSelectedCells([])
+            setIsSelectingCells(false)
+            setSelectedStaffIndex(undefined)
+            setSelectedUnitIndex(undefined)
+
+            // 予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+          } catch (error) {
+            console.error('ブロック保存エラー:', error)
+            alert('ブロックの保存に失敗しました')
+          }
         }}
       />
     </div>
