@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Settings } from 'lucide-react'
 import { MainCalendar } from '@/components/calendar/main-calendar'
 import { SidebarCalendar } from '@/components/calendar/sidebar-calendar'
@@ -12,6 +13,7 @@ import { getClinicSettings } from '@/lib/api/clinic'
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function HomePage() {
+  const router = useRouter()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [mounted, setMounted] = useState(false)
   const [timeSlotMinutes, setTimeSlotMinutes] = useState<number | undefined>(undefined)
@@ -236,8 +238,8 @@ export default function HomePage() {
 
   // 患者選択ハンドラー
   const handlePatientSelect = (patient: Patient) => {
-    // 患者詳細ページに遷移するか、モーダルを開くなどの処理
-    console.log('患者選択:', patient)
+    // 患者詳細ページに遷移
+    router.push(`/patients/${patient.id}`)
   }
 
   // 日付クリック時の貼り付け処理
