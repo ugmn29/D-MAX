@@ -66,6 +66,15 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
+interface ExistingAppointment {
+  id: string
+  start_time: string
+  end_time: string
+  staff1_id?: string | null
+  is_block?: boolean
+  status?: string
+}
+
 interface AppointmentEditModalProps {
   isOpen: boolean
   onClose: () => void
@@ -78,6 +87,8 @@ interface AppointmentEditModalProps {
   timeSlotMinutes?: number
   workingStaff?: WorkingStaff[]
   units?: Unit[]
+  allStaff?: { id: string, name: string, position: string }[]  // 全スタッフリスト
+  appointments?: ExistingAppointment[]  // 既存の予約・ブロックリスト
   editingAppointment?: any
   onSave: (appointmentData: any) => void
   onUpdate?: (appointmentData: any) => void
@@ -85,6 +96,7 @@ interface AppointmentEditModalProps {
   onAppointmentCancel?: () => void // 予約キャンセル成功後のコールバック
   onJumpToDate?: (date: string) => void // カレンダーの日付を変更するコールバック
   onBlockSave?: (blockData: any) => void // ブロック作成コールバック
+  onBlockSaveMultiple?: (blockDataArray: any[]) => void // 複数ブロック作成コールバック
 }
 
 interface PatientSearchResult extends Patient {
@@ -103,13 +115,16 @@ export function AppointmentEditModal({
   timeSlotMinutes = 15,
   workingStaff = [],
   units = [],
+  allStaff = [],
+  appointments = [],
   editingAppointment,
   onSave,
   onUpdate,
   onCopyAppointment,
   onAppointmentCancel,
   onJumpToDate,
-  onBlockSave
+  onBlockSave,
+  onBlockSaveMultiple
 }: AppointmentEditModalProps) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1556,6 +1571,37 @@ export function AppointmentEditModal({
     setShowTemplateDropdown(false)
   }
 
+  // ブロックとの重複チェック
+  const checkBlockConflict = (startTime: string, endTime: string, staffId: string | null): string | null => {
+    // 担当者が設定されていない場合はチェックしない
+    if (!staffId) return null
+
+    const aptStart = timeToMinutes(startTime)
+    const aptEnd = timeToMinutes(endTime)
+
+    // 既存のブロックをフィルタリング（キャンセル以外のブロックのみ）
+    const activeBlocks = appointments.filter(apt =>
+      apt.is_block === true && apt.status !== 'キャンセル'
+    )
+
+    for (const block of activeBlocks) {
+      // 同じスタッフかどうかチェック
+      if (block.staff1_id !== staffId) continue
+
+      const blockStart = timeToMinutes(block.start_time)
+      const blockEnd = timeToMinutes(block.end_time)
+
+      // 時間の重複チェック（完全一致または重なりがある場合）
+      const hasOverlap = !(aptEnd <= blockStart || aptStart >= blockEnd)
+
+      if (hasOverlap) {
+        return `${block.start_time}〜${block.end_time}にブロックが設定されているため、この時間帯に予約を作成できません`
+      }
+    }
+
+    return null
+  }
+
   // 予約保存
   const handleSave = async () => {
     try {
@@ -1611,6 +1657,22 @@ export function AppointmentEditModal({
         unit_id: selectedUnit?.id || appointmentData.unit_id || null,
         memo: currentMemo,
         status: editingAppointment ? editingAppointment.status : '未来院'
+      }
+
+      // 新規予約の場合のみブロック重複チェックを実行
+      if (!editingAppointment) {
+        const staffIdToCheck = selectedStaff.length > 0 ? selectedStaff[0].id : appointmentData.staff1_id
+        const blockConflict = checkBlockConflict(
+          appointmentData.start_time,
+          appointmentData.end_time,
+          staffIdToCheck || null
+        )
+
+        if (blockConflict) {
+          alert(blockConflict)
+          setSaving(false)
+          return
+        }
       }
 
       // 時間検証を実行
@@ -3420,12 +3482,19 @@ export function AppointmentEditModal({
         selectedUnitIndex={selectedUnitIndex}
         timeSlotMinutes={timeSlotMinutes}
         workingStaff={workingStaff}
+        allStaff={allStaff}
         units={units}
+        appointments={appointments}
         onSave={(blockData) => {
           onBlockSave(blockData)
           setShowBlockModal(false)
           onClose()
         }}
+        onSaveMultiple={onBlockSaveMultiple ? (blockDataArray) => {
+          onBlockSaveMultiple(blockDataArray)
+          setShowBlockModal(false)
+          onClose()
+        } : undefined}
       />
     )}
   </>

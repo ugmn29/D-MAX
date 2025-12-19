@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Clock, User, Grid3X3, Users } from 'lucide-react'
 import { getAppointmentsByDate, createAppointment, updateAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
 import { getStaffShiftsByDate } from '@/lib/api/shifts'
+import { getStaff } from '@/lib/api/staff'
 import { getBusinessHours, getBreakTimes, getTimeSlotMinutes, getHolidays, getClinicSettings } from '@/lib/api/clinic'
 import { getIndividualHolidays } from '@/lib/api/individual-holidays'
 import { getUnits, getStaffUnitPriorities } from '@/lib/api/units'
@@ -69,11 +70,12 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     // 相対輝度を計算（WCAG方式）
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
 
-    // 輝度が0.3以下（かなり暗い色、黒系）なら白、それ以外は黒を返す
-    return luminance <= 0.3 ? 'white' : 'black'
+    // 輝度が0.2以下（黒に近い色）なら白、それ以外は黒を返す
+    return luminance <= 0.2 ? 'white' : 'black'
   }
 
   const [workingStaff, setWorkingStaff] = useState<WorkingStaff[]>([])
+  const [allStaff, setAllStaff] = useState<{id: string, name: string, position: string}[]>([])  // 全スタッフリスト
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [businessHours, setBusinessHours] = useState<BusinessHours>({})
   const [breakTimes, setBreakTimes] = useState<BreakTimes>({})
@@ -1252,14 +1254,15 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
         const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
         
-        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData, staffUnitPrioritiesData, individualHolidaysData] = await Promise.all([
+        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData, staffUnitPrioritiesData, individualHolidaysData, allStaffData] = await Promise.all([
           getAppointmentsByDate(clinicId, dateString),
           getBusinessHours(clinicId),
           getBreakTimes(clinicId),
           getHolidays(clinicId),
           getUnits(clinicId),
           getStaffUnitPriorities(clinicId),
-          getIndividualHolidays(clinicId, selectedDate.getFullYear(), selectedDate.getMonth() + 1)
+          getIndividualHolidays(clinicId, selectedDate.getFullYear(), selectedDate.getMonth() + 1),
+          getStaff(clinicId)
         ])
 
         console.log('取得した予約データ:', appointmentsData)
@@ -1279,6 +1282,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         setUnits(unitsData)
         setStaffUnitPriorities(staffUnitPrioritiesData)
         setIndividualHolidays(individualHolidaysData)
+        setAllStaff(allStaffData.map((s: any) => ({ id: s.id, name: s.name, position: s.position?.name || s.position || '' })))
         
         console.log('カレンダー: 取得した予約データ:', appointmentsData)
         console.log('カレンダー: 取得した休診日:', holidaysData)
@@ -2769,7 +2773,16 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         selectedUnitIndex={selectedUnitIndex}
         timeSlotMinutes={timeSlotMinutes}
         workingStaff={workingStaff}
+        allStaff={allStaff}
         units={units}
+        appointments={appointments.map(apt => ({
+          id: apt.id,
+          start_time: apt.start_time,
+          end_time: apt.end_time,
+          staff1_id: apt.staff1_id,
+          is_block: apt.is_block,
+          status: apt.status
+        }))}
         editingAppointment={editingAppointment}
         onUpdate={async (appointmentData) => {
           try {
@@ -2942,6 +2955,41 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             alert('ブロックの保存に失敗しました')
           }
         }}
+        onBlockSaveMultiple={async (blockDataArray) => {
+          try {
+            console.log('複数ブロック保存:', blockDataArray.length, '件')
+            // 複数ブロックを作成
+            for (const blockData of blockDataArray) {
+              await createAppointment(clinicId, {
+                ...blockData,
+                appointment_date: formatDateForDB(selectedDate)
+              })
+            }
+            console.log('複数ブロック作成完了')
+
+            // モーダルを閉じる
+            setShowAppointmentModal(false)
+            setEditingAppointment(null)
+
+            // 選択状態をリセット
+            setSelectedTimeSlots([])
+            setSelectionStart(null)
+            setSelectionEnd(null)
+            setSelectedCell(null)
+            setSelectedCells([])
+            setIsSelectingCells(false)
+            setSelectedStaffIndex(undefined)
+            setSelectedUnitIndex(undefined)
+
+            // 予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+          } catch (error) {
+            console.error('複数ブロック保存エラー:', error)
+            alert('複数ブロックの保存に失敗しました')
+          }
+        }}
       />
 
       {/* ブロック編集モーダル */}
@@ -2956,7 +3004,16 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
         selectedTime={editingBlock?.start_time || '09:00'}
         timeSlotMinutes={timeSlotMinutes}
         workingStaff={workingStaff}
+        allStaff={allStaff}
         units={units}
+        appointments={appointments.map(apt => ({
+          id: apt.id,
+          start_time: apt.start_time,
+          end_time: apt.end_time,
+          staff1_id: apt.staff1_id,
+          is_block: (apt as any).is_block,
+          status: apt.status
+        }))}
         editingBlock={editingBlock ? {
           id: editingBlock.id,
           start_time: editingBlock.start_time,
@@ -2967,7 +3024,49 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           unit_id: editingBlock.unit_id
         } : null}
         onSave={async (blockData) => {
-          // 新規作成（ここでは使用しない）
+          try {
+            console.log('ブロック新規作成:', blockData)
+            await createAppointment(clinicId, {
+              ...blockData,
+              appointment_date: formatDateForDB(selectedDate)
+            })
+
+            // モーダルを閉じる
+            setShowBlockEditModal(false)
+            setEditingBlock(null)
+
+            // 予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+          } catch (error) {
+            console.error('ブロック作成エラー:', error)
+            throw error
+          }
+        }}
+        onSaveMultiple={async (blockDataArray) => {
+          try {
+            console.log('複数ブロック作成:', blockDataArray.length, '件')
+            for (const blockData of blockDataArray) {
+              await createAppointment(clinicId, {
+                ...blockData,
+                appointment_date: formatDateForDB(selectedDate)
+              })
+            }
+            console.log('複数ブロック作成完了')
+
+            // モーダルを閉じる
+            setShowBlockEditModal(false)
+            setEditingBlock(null)
+
+            // 予約一覧を再読み込み
+            const dateString = formatDateForDB(selectedDate)
+            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+            setAppointments(updatedAppointments)
+          } catch (error) {
+            console.error('複数ブロック作成エラー:', error)
+            throw error
+          }
         }}
         onUpdate={async (blockId, blockData) => {
           try {
