@@ -1,15 +1,30 @@
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '@/types/database'
 
-// 環境変数の取得とフォールバック
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+// 環境切り替え: USE_PRODUCTION=true で本番環境に接続
+const useProduction = process.env.USE_PRODUCTION === 'true'
+
+// 環境変数の取得（自動切り替え）
+const supabaseUrl = useProduction
+  ? (process.env.NEXT_PUBLIC_SUPABASE_URL_PRODUCTION || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co')
+  : (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co')
+
+const supabaseAnonKey = useProduction
+  ? (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_PRODUCTION || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key')
+  : (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key')
+
+const supabaseServiceKey = useProduction
+  ? (process.env.SUPABASE_SERVICE_ROLE_KEY_PRODUCTION || process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // 環境変数が設定されていない場合の警告
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   console.warn('⚠️ Supabase環境変数が設定されていません。Vercelで環境変数を設定してください。')
 }
+
+// 接続先を表示
+console.log(`🔌 Supabase接続先: ${useProduction ? '本番環境' : 'ローカル環境'}`)
+console.log(`📍 URL: ${supabaseUrl}`)
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {

@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "supabase start && next dev",
+    "dev:production": "USE_PRODUCTION=true next dev -p 3001",
     "dev:db": "USE_DATABASE=true next dev",
     "dev:questionnaires": "USE_DATABASE_QUESTIONNAIRES=true next dev",
     "build": "next build",

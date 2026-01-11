@@ -44,7 +44,7 @@ const testSettings = {
     channel_id: '2008448348',
     channel_secret: 'test-secret',
     channel_access_token: 'test-token-1234567890',
-    webhook_url: 'https://d-max-lemon.vercel.app/api/line/webhook'
+    webhook_url: 'https://dmax-mu.vercel.app/api/line/webhook'
   }
 };
 
@@ -91,7 +91,7 @@ if (testSettings.line.enabled && testSettings.line.channel_access_token && testS
         channel_access_token: testSettings.line.channel_access_token,
         channel_secret: testSettings.line.channel_secret,
         channel_id: testSettings.line.channel_id || undefined,
-        webhook_url: testSettings.line.webhook_url || 'https://d-max-lemon.vercel.app/api/line/webhook'
+        webhook_url: testSettings.line.webhook_url || 'https://dmax-mu.vercel.app/api/line/webhook'
       }
     }, {
       onConflict: 'clinic_id,setting_key'

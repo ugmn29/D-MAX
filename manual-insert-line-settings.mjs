@@ -83,7 +83,7 @@ const { data: lineData, error: lineError } = await supabase
       channel_access_token: accessToken,
       channel_secret: channelSecret,
       channel_id: channelId || undefined,
-      webhook_url: 'https://d-max-lemon.vercel.app/api/line/webhook'
+      webhook_url: 'https://dmax-mu.vercel.app/api/line/webhook'
     }
   }, {
     onConflict: 'clinic_id,setting_key'
@@ -125,7 +125,7 @@ const { data: notifData, error: notifError } = await supabase
         channelId: channelId || '',
         channelSecret: channelSecret,
         accessToken: accessToken,
-        webhookUrl: 'https://d-max-lemon.vercel.app/api/line/webhook'
+        webhookUrl: 'https://dmax-mu.vercel.app/api/line/webhook'
       }
     }
   }, {

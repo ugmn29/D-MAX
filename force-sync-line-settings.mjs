@@ -55,7 +55,7 @@ if (existingNotif?.setting_value) {
             channel_access_token: line.accessToken,
             channel_secret: line.channelSecret,
             channel_id: line.channelId || undefined,
-            webhook_url: line.webhookUrl || 'https://d-max-lemon.vercel.app/api/line/webhook'
+            webhook_url: line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'
           }
         }, {
           onConflict: 'clinic_id,setting_key'
@@ -101,7 +101,7 @@ if (existingNotif?.setting_value) {
 } else {
   console.log('❌ notificationConnection設定が見つかりません\n');
   console.log('💡 通知タブでLINE設定を入力して保存してください:');
-  console.log('   1. https://d-max-lemon.vercel.app/settings にアクセス');
+  console.log('   1. https://dmax-mu.vercel.app/settings にアクセス');
   console.log('   2. 「通知」タブを開く');
   console.log('   3. 「LINE公式アカウント設定」で以下を入力:');
   console.log('      - LINE通知を有効にする（チェック）');

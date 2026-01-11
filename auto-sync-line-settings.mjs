@@ -38,7 +38,7 @@ if (!notifSettings || !notifSettings.setting_value?.line) {
   console.log('❌ notificationConnection にLINE設定が見つかりません');
   console.log('');
   console.log('💡 通知タブ（接続設定）でLINE設定を入力して保存してください:');
-  console.log('   1. https://d-max-lemon.vercel.app/settings にアクセス');
+  console.log('   1. https://dmax-mu.vercel.app/settings にアクセス');
   console.log('   2. 「通知」タブを開く');
   console.log('   3. 「LINE公式アカウント設定」セクションで以下を入力:');
   console.log('      - チャンネルID');
@@ -70,7 +70,7 @@ console.log('📊 取得した設定:');
 console.log(`  チャンネルID: ${line.channelId || '未設定'}`);
 console.log(`  チャンネルシークレット: ****`);
 console.log(`  アクセストークン: ${line.accessToken.substring(0, 20)}...`);
-console.log(`  Webhook URL: ${line.webhookUrl || 'https://d-max-lemon.vercel.app/api/line/webhook'}`);
+console.log(`  Webhook URL: ${line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'}`);
 
 console.log('\n💾 データベースに保存中...\n');
 
@@ -84,7 +84,7 @@ const { error: lineError } = await supabase
       channel_access_token: line.accessToken,
       channel_secret: line.channelSecret,
       channel_id: line.channelId || undefined,
-      webhook_url: line.webhookUrl || 'https://d-max-lemon.vercel.app/api/line/webhook'
+      webhook_url: line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'
     }
   }, {
     onConflict: 'clinic_id,setting_key'
