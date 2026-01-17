@@ -1,0 +1,2261 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Plus,
+  Trash2,
+  Edit,
+  Check,
+  X,
+  GripVertical,
+  Stethoscope,
+  UserCog,
+  Sparkles,
+  Target,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Split,
+  ChevronRight,
+  Clock,
+  CheckCircle2
+} from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  getTreatmentPlans,
+  createTreatmentPlan,
+  updateTreatmentPlan,
+  deleteTreatmentPlan,
+  completeTreatmentPlan,
+  type TreatmentPlan,
+  type CreateTreatmentPlanInput
+} from '@/lib/api/treatment-plans'
+import { getVisualExaminations } from '@/lib/api/visual-exams'
+import { getPeriodontalExams, type PeriodontalExam } from '@/lib/api/periodontal-exams'
+import { generateTreatmentPlansFromVisualExam, convertProposalToTreatmentPlan, type TreatmentPlanProposal } from '@/lib/utils/treatment-plan-generator'
+import { generateTreatmentPlansFromPeriodontalExam } from '@/lib/utils/periodontal-plan-generator'
+import { TreatmentPlanPreviewModal } from './treatment-plan-preview-modal'
+import { ToothSelectorModal } from './tooth-selector-modal'
+import { ToothSplitDialog } from './tooth-split-dialog'
+import { DentalChart } from './visual/dental-chart'
+import type { VisualToothData } from '@/lib/api/visual-exams'
+
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+
+// 永久歯と乳歯の歯番号
+const PERMANENT_TEETH = [
+  18, 17, 16, 15, 14, 13, 12, 11,
+  21, 22, 23, 24, 25, 26, 27, 28,
+  48, 47, 46, 45, 44, 43, 42, 41,
+  31, 32, 33, 34, 35, 36, 37, 38,
+]
+
+const DECIDUOUS_TEETH = [
+  55, 54, 53, 52, 51,
+  61, 62, 63, 64, 65,
+  85, 84, 83, 82, 81,
+  71, 72, 73, 74, 75,
+]
+
+const ALL_TEETH = [...PERMANENT_TEETH, ...DECIDUOUS_TEETH]
+
+// 全ての歯を健全状態で初期化
+const createEmptyToothData = (): Record<number, VisualToothData> => {
+  const map: Record<number, VisualToothData> = {}
+  ALL_TEETH.forEach(toothNumber => {
+    map[toothNumber] = {
+      tooth_number: toothNumber,
+      status: 'healthy',
+    }
+  })
+  return map
+}
+
+// 歯番号を歯科表記に変換する関数
+const formatToothNumber = (toothNumber: string): string => {
+  if (!toothNumber || toothNumber.trim() === '') return ''
+
+  // カンマやスペースで分割
+  const teeth = toothNumber.split(/[,、\s]+/).filter(t => t.trim())
+
+  // 各歯番号をPalmer記法に変換
+  const formattedTeeth = teeth.map(tooth => {
+    const trimmed = tooth.trim()
+    // 数字のみ抽出
+    const numbers = trimmed.match(/\d+/g)
+    if (!numbers || numbers.length === 0) return trimmed
+
+    // 最後の数字を取得（FDI表記: 2桁の場合、1桁目=象限、2桁目=歯番号）
+    const lastNumber = numbers[numbers.length - 1]
+    if (lastNumber.length < 2) return trimmed
+
+    const quadrant = lastNumber.charAt(0)
+    const toothNum = lastNumber.slice(-1)
+
+    // Palmer記法のUnicode記号で象限を表現
+    // ⏌ (U+23CC) = 右上 (1x) - 数字→記号
+    // ⎿ (U+23BF) = 左上 (2x) - 記号→数字
+    // ⎾ (U+23BE) = 左下 (3x) - 記号→数字
+    // ⏋ (U+23CB) = 右下 (4x) - 数字→記号
+    switch (quadrant) {
+      case '1': // 右上: 数字→記号（上向き）
+        return `${toothNum}⏌`
+      case '2': // 左上: 記号→数字（上向き）
+        return `⎿${toothNum}`
+      case '3': // 左下: 記号→数字（下向き）
+        return `⎾${toothNum}`
+      case '4': // 右下: 数字→記号（下向き）
+        return `${toothNum}⏋`
+      default:
+        return trimmed
+    }
+  })
+
+  return formattedTeeth.join(' ')
+}
+
+interface TreatmentPlanTabProps {
+  patientId: string
+}
+
+// 衛生士メニューの選択肢
+const HYGIENIST_MENU_OPTIONS = [
+  { value: 'TBI', label: 'TBI（ブラッシング指導）' },
+  { value: 'SRP', label: 'SRP（スケーリング・ルートプレーニング）' },
+  { value: 'PMT', label: 'PMT（メンテナンス）' },
+  { value: 'SPT', label: 'SPT（サポーティブペリオドンタルセラピー）' },
+  { value: 'P_JUBO', label: 'P重防（歯周病重症化予防治療）' },
+  { value: 'OTHER', label: 'その他' }
+]
+
+// 歯周病フェーズの選択肢
+const PERIODONTAL_PHASE_OPTIONS = [
+  { value: 'P_EXAM_1', label: 'P検査1（初診時）' },
+  { value: 'INITIAL', label: '初期治療（基本治療）' },
+  { value: 'P_EXAM_2', label: 'P検査2（再評価1）' },
+  { value: 'SURGERY', label: '歯周外科' },
+  { value: 'P_EXAM_3', label: 'P検査3（再評価2）' },
+  { value: 'MAINTENANCE', label: 'メンテナンス期' }
+]
+
+// 歯周治療フローチャートのフェーズ定義
+const PERIODONTAL_FLOW_PHASES = [
+  { id: 'P_EXAM_1', label: 'P検①', fullLabel: '歯周基本検査①' },
+  { id: 'INITIAL', label: '初期治療', fullLabel: 'Sc/Poli/TBI' },
+  { id: 'P_EXAM_2', label: 'P検②', fullLabel: '歯周基本検査②' },
+  { id: 'SRP', label: 'SRP', fullLabel: 'スケーリング・ルートプレーニング' },
+  { id: 'P_EXAM_3', label: 'P検③', fullLabel: '歯周基本検査③' },
+  { id: 'SURGERY', label: '外科', fullLabel: '歯周外科' },
+  { id: 'P_EXAM_4', label: 'P検④', fullLabel: '歯周基本検査④' },
+  { id: 'MAINTENANCE', label: 'SPT', fullLabel: 'サポーティブペリオドンタルセラピー' }
+] as const
+
+export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
+  const [plans, setPlans] = useState<TreatmentPlan[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<TreatmentPlan | null>(null)
+  const [formData, setFormData] = useState<CreateTreatmentPlanInput>({
+    treatment_content: '',
+    staff_type: 'doctor',
+    priority: 2
+  })
+
+  // 自動生成関連のstate
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [generatedProposals, setGeneratedProposals] = useState<TreatmentPlanProposal[]>([])
+  const [latestVisualExamDate, setLatestVisualExamDate] = useState<string | undefined>()
+  const [hasVisualExam, setHasVisualExam] = useState(false)
+  const [latestVisualToothData, setLatestVisualToothData] = useState<Record<number, VisualToothData>>({})
+
+  // P検査関連
+  const [hasPerioExam, setHasPerioExam] = useState(false)
+  const [perioExams, setPerioExams] = useState<PeriodontalExam[]>([])
+  const [selectedPerioExam, setSelectedPerioExam] = useState<string | undefined>()
+
+  // 歯選択モーダル
+  const [showToothSelector, setShowToothSelector] = useState(false)
+  const [selectedTeeth, setSelectedTeeth] = useState<number[]>([])
+
+  // 編集フォーム用の歯選択
+  const [editingSelectedTeeth, setEditingSelectedTeeth] = useState<Set<number>>(new Set())
+
+  // 新規追加フォーム用の歯選択
+  const [newFormSelectedTeeth, setNewFormSelectedTeeth] = useState<Set<number>>(new Set())
+
+  // 分割用のダイアログ（編集画面用）
+  const [splitDialogOpen, setSplitDialogOpen] = useState(false)
+  const [splitDialogInitialTooth, setSplitDialogInitialTooth] = useState<number | null>(null)
+  const [splitDialogAllTeeth, setSplitDialogAllTeeth] = useState<number[]>([])
+  const [splitDialogPlan, setSplitDialogPlan] = useState<TreatmentPlan | null>(null)
+
+  // 分割用のダイアログ（新規追加フォーム用）
+  const [newFormSplitDialogOpen, setNewFormSplitDialogOpen] = useState(false)
+  const [newFormSplitDialogInitialTooth, setNewFormSplitDialogInitialTooth] = useState<number | null>(null)
+
+  // ドラッグ&ドロップ
+  const [draggedPlan, setDraggedPlan] = useState<TreatmentPlan | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  // メモセクション
+  const [showMemoSection, setShowMemoSection] = useState(true)
+  const [showAddMemoForm, setShowAddMemoForm] = useState(false)
+  const [memoFormData, setMemoFormData] = useState<CreateTreatmentPlanInput>({
+    treatment_content: '',
+    staff_type: 'doctor',
+    priority: 3,
+    is_memo: true
+  })
+
+  // ドクター枠追加フォーム
+  const [showAddDoctorForm, setShowAddDoctorForm] = useState(false)
+  const [doctorFormData, setDoctorFormData] = useState<CreateTreatmentPlanInput>({
+    treatment_content: '',
+    staff_type: 'doctor',
+    priority: 3,
+    is_memo: false
+  })
+
+  // 衛生士枠追加フォーム
+  const [showAddHygienistForm, setShowAddHygienistForm] = useState(false)
+  const [hygienistFormData, setHygienistFormData] = useState<CreateTreatmentPlanInput>({
+    treatment_content: '',
+    staff_type: 'hygienist',
+    priority: 3,
+    is_memo: false
+  })
+
+  // タブ切り替え用
+  const [activeStaffTab, setActiveStaffTab] = useState<'doctor' | 'hygienist'>('doctor')
+
+  // フローチャートで選択されたフェーズ（衛生士）
+  const [selectedPerioPhase, setSelectedPerioPhase] = useState<string | null>(null)
+
+  // 治療計画を読み込み
+  useEffect(() => {
+    loadPlans()
+    checkVisualExams()
+    checkPerioExams()
+  }, [patientId])
+
+  const loadPlans = async () => {
+    try {
+      setLoading(true)
+      const data = await getTreatmentPlans(DEMO_CLINIC_ID, patientId)
+      setPlans(data)
+    } catch (error) {
+      console.error('治療計画読み込みエラー:', error)
+      alert('治療計画の読み込みに失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // フェーズ完了ハンドラー（該当フェーズの全TODOを一括完了）
+  const handlePhaseToggle = async (phaseId: string, isCurrentlyCompleted: boolean) => {
+    try {
+      // 該当フェーズのTODOを取得
+      const phasePlans = plans.filter(p =>
+        p.staff_type === 'hygienist' &&
+        p.periodontal_phase === phaseId
+      )
+
+      if (phasePlans.length === 0) {
+        return
+      }
+
+      // チェックON: 全て完了、チェックOFF: 全て未完了
+      const newStatus = isCurrentlyCompleted ? 'planned' : 'completed'
+      const timestamp = isCurrentlyCompleted ? null : new Date().toISOString()
+
+      // 全TODOを一括更新
+      await Promise.all(
+        phasePlans.map(plan =>
+          updateTreatmentPlan(plan.id!, {
+            status: newStatus,
+            completed_at: timestamp,
+          })
+        )
+      )
+
+      // リロード
+      await loadPlans()
+    } catch (error) {
+      console.error('フェーズ完了エラー:', error)
+      alert('フェーズの完了処理に失敗しました')
+    }
+  }
+
+  // 視診データの存在確認
+  const checkVisualExams = async () => {
+    try {
+      const visualExams = await getVisualExaminations(patientId)
+      if (visualExams && visualExams.length > 0) {
+        setHasVisualExam(true)
+        // 最新の視診データの日付を保存
+        setLatestVisualExamDate(visualExams[0].examination_date)
+
+        // 最新の視診データの歯データをマップに変換
+        const latestExam = visualExams[0]
+        if (latestExam.tooth_data) {
+          const toothDataMap: Record<number, VisualToothData> = {}
+          latestExam.tooth_data.forEach(tooth => {
+            toothDataMap[tooth.tooth_number] = tooth
+          })
+          setLatestVisualToothData(toothDataMap)
+        }
+      }
+    } catch (error) {
+      console.error('視診データ確認エラー:', error)
+    }
+  }
+
+  // 視診データから治療計画を自動生成
+  const handleGenerateFromVisualExam = async () => {
+    try {
+      const visualExams = await getVisualExaminations(patientId)
+      console.log('視診データ:', visualExams)
+
+      if (!visualExams || visualExams.length === 0) {
+        alert('視診データが見つかりません')
+        return
+      }
+
+      // 最新の視診データから生成
+      const latestExam = visualExams[0]
+      console.log('最新の視診データ:', latestExam)
+      console.log('歯データ:', latestExam.tooth_data)
+
+      const proposals = generateTreatmentPlansFromVisualExam(latestExam)
+      console.log('生成された提案:', proposals)
+
+      if (proposals.length === 0) {
+        alert('治療が必要な所見が見つかりませんでした')
+        return
+      }
+
+      setGeneratedProposals(proposals)
+      setLatestVisualExamDate(latestExam.examination_date)
+      setShowPreviewModal(true)
+    } catch (error) {
+      console.error('自動生成エラー:', error)
+      alert('治療計画の自動生成に失敗しました')
+    }
+  }
+
+  // プレビューから一括登録
+  const handleConfirmGeneration = async (
+    confirmedProposals: TreatmentPlanProposal[],
+    restorationChoices: Record<number, string>
+  ) => {
+    try {
+      let sortOrder = plans.length
+
+      for (let i = 0; i < confirmedProposals.length; i++) {
+        const proposal = confirmedProposals[i]
+        const restorationChoice = restorationChoices[i]
+
+        const plansToCreate = convertProposalToTreatmentPlan(
+          proposal,
+          DEMO_CLINIC_ID,
+          patientId,
+          sortOrder,
+          restorationChoice
+        )
+
+        for (const plan of plansToCreate) {
+          await createTreatmentPlan(DEMO_CLINIC_ID, patientId, plan)
+          sortOrder++
+        }
+      }
+
+      setShowPreviewModal(false)
+      await loadPlans()
+      alert('治療計画を一括登録しました')
+    } catch (error) {
+      console.error('一括登録エラー:', error)
+      alert('治療計画の登録に失敗しました')
+    }
+  }
+
+  // 歯選択モーダルから確定
+  const handleToothSelect = (teeth: number[]) => {
+    setSelectedTeeth(teeth)
+    const toothNumberStr = teeth.join(', ')
+
+    // 新規追加フォームに反映
+    setFormData(prev => ({
+      ...prev,
+      tooth_number: toothNumberStr
+    }))
+
+    // 編集フォームに反映（編集中の場合）
+    if (editingPlan) {
+      setEditingPlan(prev => ({
+        ...prev!,
+        tooth_number: toothNumberStr
+      }))
+    }
+
+    setShowToothSelector(false)
+  }
+
+  // P検査データの存在確認
+  const checkPerioExams = async () => {
+    try {
+      const exams = await getPeriodontalExams(patientId)
+      if (exams && exams.length > 0) {
+        setHasPerioExam(true)
+        setPerioExams(exams)
+        // P検査2または P検査3のみフィルタ
+        const relevantExams = exams.filter(
+          e => e.examination_phase === 'P_EXAM_2' || e.examination_phase === 'P_EXAM_3'
+        )
+        if (relevantExams.length > 0) {
+          setSelectedPerioExam(relevantExams[0].id)
+        }
+      }
+    } catch (error) {
+      console.error('P検査データ確認エラー:', error)
+    }
+  }
+
+  // P検査データから治療計画を自動生成
+  const handleGenerateFromPerioExam = async () => {
+    try {
+      if (!selectedPerioExam) {
+        alert('P検査を選択してください')
+        return
+      }
+
+      const exam = perioExams.find(e => e.id === selectedPerioExam)
+      if (!exam) {
+        alert('選択されたP検査が見つかりません')
+        return
+      }
+
+      const proposals = generateTreatmentPlansFromPeriodontalExam(exam)
+
+      if (proposals.length === 0) {
+        alert('治療が必要な所見が見つかりませんでした')
+        return
+      }
+
+      // 既存の提案に追加
+      setGeneratedProposals(prev => [...prev, ...proposals])
+      setShowPreviewModal(true)
+    } catch (error) {
+      console.error('P検査から自動生成エラー:', error)
+      alert('治療計画の自動生成に失敗しました')
+    }
+  }
+
+  // ドラッグ開始
+  const handleDragStart = (e: React.DragEvent, plan: TreatmentPlan) => {
+    setDraggedPlan(plan)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  // ドラッグオーバー
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverIndex(index)
+  }
+
+  // ドラッグ終了
+  const handleDragEnd = () => {
+    setDraggedPlan(null)
+    setDragOverIndex(null)
+  }
+
+  // ドロップ
+  const handleDrop = async (e: React.DragEvent, targetPlan: TreatmentPlan, targetIndex: number) => {
+    e.preventDefault()
+
+    if (!draggedPlan || draggedPlan.id === targetPlan.id) {
+      setDraggedPlan(null)
+      setDragOverIndex(null)
+      return
+    }
+
+    // 同じスタッフタイプ内でのみ並び替え可能
+    if (draggedPlan.staff_type !== targetPlan.staff_type) {
+      alert('ドクター枠と衛生士枠をまたいだ並び替えはできません')
+      setDraggedPlan(null)
+      setDragOverIndex(null)
+      return
+    }
+
+    // 同じスタッフタイプの計画を取得
+    const samStaffPlans = plans.filter(p => p.staff_type === draggedPlan.staff_type)
+    const draggedIndex = samStaffPlans.findIndex(p => p.id === draggedPlan.id)
+
+    // 並び替え
+    const newPlans = [...samStaffPlans]
+    newPlans.splice(draggedIndex, 1)
+    newPlans.splice(targetIndex, 0, draggedPlan)
+
+    // sort_orderを更新
+    const updates = newPlans.map((plan, index) => ({
+      id: plan.id,
+      sort_order: index,
+    }))
+
+    try {
+      // 各計画のsort_orderを更新
+      for (const update of updates) {
+        await updateTreatmentPlan(DEMO_CLINIC_ID, update.id, {
+          sort_order: update.sort_order,
+        })
+      }
+
+      // リロード
+      await loadPlans()
+    } catch (error) {
+      console.error('並び替えエラー:', error)
+      alert('並び替えに失敗しました')
+    }
+
+    setDraggedPlan(null)
+    setDragOverIndex(null)
+  }
+
+  // 治療計画とメモを分離
+  const treatmentPlans = plans.filter(p => !p.is_memo)
+  const memoPlans = plans.filter(p => p.is_memo)
+
+  // ドクター枠と衛生士枠で分類（メモを除外）
+  const doctorPlans = treatmentPlans.filter(p => p.staff_type === 'doctor')
+  const hygienistPlans = treatmentPlans.filter(p => p.staff_type === 'hygienist')
+
+  // 新規追加
+  const handleAdd = async () => {
+    // 治療内容、歯番号、メモのいずれかが入力されていればOK
+    if (!formData.treatment_content?.trim() && !formData.tooth_number?.trim() && !formData.memo?.trim()) {
+      alert('治療内容、歯番号、またはメモのいずれかを入力してください')
+      return
+    }
+
+    try {
+      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, formData)
+      await loadPlans()
+      { setShowAddForm(false); setNewFormSelectedTeeth(new Set()) }
+      setFormData({
+        treatment_content: '',
+        staff_type: 'doctor',
+        priority: 2
+      })
+    } catch (error) {
+      console.error('治療計画追加エラー:', error)
+      alert('治療計画の追加に失敗しました')
+    }
+  }
+
+  // 編集
+  const handleEdit = async (plan: TreatmentPlan) => {
+    setEditingPlan(plan)
+    // 既存の歯番号を選択状態に設定
+    if (plan.tooth_number) {
+      const teeth = plan.tooth_number.split(/[,、\s]+/).map(t => parseInt(t.trim())).filter(n => !isNaN(n))
+      setEditingSelectedTeeth(new Set(teeth))
+    } else {
+      setEditingSelectedTeeth(new Set())
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingPlan) return
+
+    try {
+      await updateTreatmentPlan(DEMO_CLINIC_ID, editingPlan.id, {
+        treatment_content: editingPlan.treatment_content,
+        tooth_number: editingPlan.tooth_number,
+        priority: editingPlan.priority,
+        hygienist_menu_type: editingPlan.hygienist_menu_type,
+        periodontal_phase: editingPlan.periodontal_phase,
+        memo: editingPlan.memo,
+        is_memo: editingPlan.is_memo
+      })
+      await loadPlans()
+      { setEditingPlan(null); setEditingSelectedTeeth(new Set()) }
+    } catch (error) {
+      console.error('治療計画更新エラー:', error)
+      alert('治療計画の更新に失敗しました')
+    }
+  }
+
+  // 削除
+  const handleDelete = async (planId: string) => {
+    if (!confirm('この治療計画を削除しますか？')) return
+
+    try {
+      await deleteTreatmentPlan(DEMO_CLINIC_ID, planId)
+      await loadPlans()
+    } catch (error) {
+      console.error('治療計画削除エラー:', error)
+      alert('治療計画の削除に失敗しました')
+    }
+  }
+
+  // 完了
+  const handleComplete = async (planId: string) => {
+    try {
+      await completeTreatmentPlan(DEMO_CLINIC_ID, planId)
+      await loadPlans()
+    } catch (error) {
+      console.error('治療計画完了エラー:', error)
+      alert('治療計画の完了処理に失敗しました')
+    }
+  }
+
+  // 完了を未完了に戻す
+  const handleUncomplete = async (planId: string) => {
+    try {
+      await updateTreatmentPlan(DEMO_CLINIC_ID, planId, {
+        status: 'planned',
+        completed_at: null
+      })
+      await loadPlans()
+    } catch (error) {
+      console.error('治療計画の未完了化エラー:', error)
+      alert('治療計画の未完了化に失敗しました')
+    }
+  }
+
+  // 分割モーダルを開く
+  // 編集画面：バッジクリックで分割ダイアログを開く
+  const handleOpenSplitDialog = (toothNumber: number) => {
+    if (!editingPlan) return
+
+    const allTeeth = Array.from(editingSelectedTeeth).sort((a, b) => a - b)
+    if (allTeeth.length < 2) {
+      alert('分割するには2本以上の歯が必要です')
+      return
+    }
+
+    setSplitDialogInitialTooth(toothNumber)
+    setSplitDialogAllTeeth(allTeeth)
+    setSplitDialogPlan(editingPlan)
+    setSplitDialogOpen(true)
+  }
+
+  // 編集画面：分割確定
+  const handleConfirmSplit = async (selectedTeeth: number[]) => {
+    if (!splitDialogPlan) return
+
+    try {
+      const remainingTeeth = splitDialogAllTeeth.filter(tooth => !selectedTeeth.includes(tooth))
+
+      // 現在の計画より後ろにある計画のsort_orderを1つずつ増やす
+      const plansToShift = plans.filter(p => p.sort_order > splitDialogPlan.sort_order)
+      for (const plan of plansToShift) {
+        await updateTreatmentPlan(DEMO_CLINIC_ID, plan.id, {
+          sort_order: plan.sort_order + 1
+        })
+      }
+
+      // 元の計画の対象歯を更新
+      await updateTreatmentPlan(DEMO_CLINIC_ID, splitDialogPlan.id, {
+        tooth_number: remainingTeeth.join(', ')
+      })
+
+      // 新しい計画を追加（元の計画の次に配置）
+      const newPlan = {
+        treatment_content: splitDialogPlan.treatment_content,
+        tooth_number: selectedTeeth.sort((a, b) => a - b).join(', '),
+        staff_type: splitDialogPlan.staff_type,
+        priority: splitDialogPlan.priority,
+        status: splitDialogPlan.status,
+        hygienist_menu_type: splitDialogPlan.hygienist_menu_type,
+        periodontal_phase: splitDialogPlan.periodontal_phase,
+        memo: splitDialogPlan.memo,
+        is_memo: splitDialogPlan.is_memo,
+        sort_order: splitDialogPlan.sort_order + 1
+      }
+
+      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, newPlan)
+
+      // ダイアログを閉じる
+      setSplitDialogOpen(false)
+      setSplitDialogPlan(null)
+      setSplitDialogInitialTooth(null)
+      setSplitDialogAllTeeth([])
+
+      // 編集モードを閉じる
+      setEditingPlan(null)
+      setEditingSelectedTeeth(new Set())
+
+      // 計画を再読み込み
+      await loadPlans()
+      alert('治療計画を分割しました')
+    } catch (error) {
+      console.error('治療計画分割エラー:', error)
+      alert('治療計画の分割に失敗しました')
+    }
+  }
+
+  // 新規追加フォーム：バッジクリックで分割ダイアログを開く
+  const handleNewFormOpenSplitDialog = (toothNumber: number) => {
+    const allTeeth = Array.from(newFormSelectedTeeth).sort((a, b) => a - b)
+    if (allTeeth.length < 2) {
+      alert('分割するには2本以上の歯が必要です')
+      return
+    }
+
+    setNewFormSplitDialogInitialTooth(toothNumber)
+    setNewFormSplitDialogOpen(true)
+  }
+
+  // 新規追加フォーム：分割確定（表示のみ更新）
+  const handleNewFormConfirmSplit = (selectedTeeth: number[]) => {
+    const remainingTeeth = Array.from(newFormSelectedTeeth).filter(tooth => !selectedTeeth.includes(tooth))
+    setNewFormSelectedTeeth(new Set(remainingTeeth))
+
+    // tooth_numberフィールドを更新
+    const toothNumbers = remainingTeeth.sort((a, b) => a - b)
+    setFormData({ ...formData, tooth_number: toothNumbers.join(', ') })
+
+    setNewFormSplitDialogOpen(false)
+    alert(`${selectedTeeth.join(', ')}番を分割対象として選択しました。保存時に別の計画として追加されます。`)
+  }
+
+  // 手動メモ追加
+  const handleAddMemo = async () => {
+    if (!memoFormData.treatment_content.trim()) {
+      alert('メモ内容を入力してください')
+      return
+    }
+
+    try {
+      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        ...memoFormData,
+        is_memo: true,
+        sort_order: plans.length
+      })
+      setMemoFormData({
+        treatment_content: '',
+        staff_type: 'doctor',
+        priority: 3,
+        is_memo: true
+      })
+      setShowAddMemoForm(false)
+      await loadPlans()
+    } catch (error) {
+      console.error('メモ追加エラー:', error)
+      alert('メモの追加に失敗しました')
+    }
+  }
+
+  // ドクター治療計画追加
+  const handleAddDoctorPlan = async () => {
+    // 治療内容、歯番号、メモのいずれかが入力されていればOK
+    if (!doctorFormData.treatment_content?.trim() && !doctorFormData.tooth_number?.trim() && !doctorFormData.memo?.trim()) {
+      alert('治療内容、歯番号、またはメモのいずれかを入力してください')
+      return
+    }
+
+    try {
+      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        ...doctorFormData,
+        staff_type: 'doctor',
+        is_memo: false,
+        sort_order: plans.length
+      })
+      setDoctorFormData({
+        treatment_content: '',
+        staff_type: 'doctor',
+        priority: 3,
+        is_memo: false
+      })
+      setShowAddDoctorForm(false)
+      await loadPlans()
+    } catch (error) {
+      console.error('ドクター治療計画追加エラー:', error)
+      alert('治療計画の追加に失敗しました')
+    }
+  }
+
+  // 衛生士治療計画追加
+  const handleAddHygienistPlan = async () => {
+    // 治療内容、歯番号、メモのいずれかが入力されていればOK
+    if (!hygienistFormData.treatment_content?.trim() && !hygienistFormData.tooth_number?.trim() && !hygienistFormData.memo?.trim()) {
+      alert('治療内容、歯番号、またはメモのいずれかを入力してください')
+      return
+    }
+
+    try {
+      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        ...hygienistFormData,
+        staff_type: 'hygienist',
+        is_memo: false,
+        sort_order: plans.length
+      })
+      setHygienistFormData({
+        treatment_content: '',
+        staff_type: 'hygienist',
+        priority: 3,
+        is_memo: false
+      })
+      setShowAddHygienistForm(false)
+      await loadPlans()
+    } catch (error) {
+      console.error('衛生士治療計画追加エラー:', error)
+      alert('治療計画の追加に失敗しました')
+    }
+  }
+
+  // 治療計画カードのレンダリング
+  const renderPlanCard = (plan: TreatmentPlan, index: number) => {
+    const isEditing = editingPlan?.id === plan.id
+    const isCompleted = plan.status === 'completed'
+    const isDragging = draggedPlan?.id === plan.id
+    const isDragOver = dragOverIndex === index
+
+    return (
+      <Card
+        key={plan.id}
+        className={`mb-3 transition-all ${isCompleted ? 'opacity-60' : ''} ${
+          isDragging ? 'opacity-30 scale-95' : ''
+        } ${isDragOver ? 'border-blue-500 border-2 shadow-lg' : ''}`}
+        draggable={!isEditing && !isCompleted}
+        onDragStart={(e) => handleDragStart(e, plan)}
+        onDragOver={(e) => handleDragOver(e, index)}
+        onDragEnd={handleDragEnd}
+        onDrop={(e) => handleDrop(e, plan, index)}
+      >
+        <CardContent className="p-2.5">
+          <div className="flex items-start justify-between gap-2">
+            {/* ドラッグハンドル */}
+            {!isEditing && !isCompleted && (
+              <div className="mr-3 cursor-move text-gray-400 hover:text-gray-600">
+                <GripVertical className="w-5 h-5" />
+              </div>
+            )}
+
+            <div className="flex-1">
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-[120px_1fr] gap-3">
+                    <div>
+                      <Label className="text-xs">種別</Label>
+                      <select
+                        value={editingPlan.is_memo ? 'memo' : 'treatment'}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, is_memo: e.target.value === 'memo' })}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="treatment">治療計画</option>
+                        <option value="memo">メモ・所見</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">治療内容</Label>
+                      <Input
+                        value={editingPlan.treatment_content}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, treatment_content: e.target.value })}
+                        placeholder="治療内容"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 歯式選択 */}
+                  <div>
+                    <Label className="text-xs mb-2 block">対象歯を選択（クリックで選択/解除）</Label>
+                    <div className="max-w-full overflow-x-auto">
+                      <DentalChart
+                        toothData={Object.keys(latestVisualToothData).length > 0 ? latestVisualToothData : createEmptyToothData()}
+                        selectedTeeth={editingSelectedTeeth}
+                        onToothClick={(toothNumber) => {
+                          const newSelected = new Set(editingSelectedTeeth)
+                          if (newSelected.has(toothNumber)) {
+                            newSelected.delete(toothNumber)
+                          } else {
+                            newSelected.add(toothNumber)
+                          }
+                          setEditingSelectedTeeth(newSelected)
+                          // 歯番号フィールドを更新
+                          const toothNumbers = Array.from(newSelected).sort((a, b) => a - b)
+                          setEditingPlan({ ...editingPlan, tooth_number: toothNumbers.join(', ') })
+                        }}
+                      />
+                    </div>
+                    {editingSelectedTeeth.size > 0 && (
+                      <div className="mt-2">
+                        <div className="text-xs text-gray-600 mb-1">選択中:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {Array.from(editingSelectedTeeth).sort((a, b) => a - b).map(toothNumber => (
+                            <button
+                              key={toothNumber}
+                              onClick={() => handleOpenSplitDialog(toothNumber)}
+                              className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded hover:bg-blue-200 cursor-pointer transition-colors"
+                            >
+                              {toothNumber}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {editingPlan.staff_type === 'hygienist' && (
+                    <div>
+                      <Label className="text-xs">衛生士メニュー</Label>
+                      <select
+                        value={editingPlan.hygienist_menu_type || ''}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, hygienist_menu_type: e.target.value as any })}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="">選択してください</option>
+                        {HYGIENIST_MENU_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <Label className="text-xs">メモ</Label>
+                    <Input
+                      value={editingPlan.memo || ''}
+                      onChange={(e) => setEditingPlan({ ...editingPlan, memo: e.target.value })}
+                      placeholder="メモを入力"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Button size="sm" onClick={handleSaveEdit}>
+                      <Check className="w-4 h-4 mr-1" />
+                      保存
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setEditingPlan(null); setEditingSelectedTeeth(new Set()) }}>
+                      <X className="w-4 h-4 mr-1" />
+                      キャンセル
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <h4 className="font-medium text-gray-900">
+                      {plan.tooth_number ? `${formatToothNumber(plan.tooth_number)} ` : ''}{plan.treatment_content}
+                    </h4>
+                    {isCompleted && (
+                      <span className="text-xs px-2 py-1 rounded bg-green-50 text-green-600">
+                        完了
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-sm text-gray-600 space-y-1">
+                    {plan.hygienist_menu_type && (
+                      <div>
+                        衛生士メニュー: {HYGIENIST_MENU_OPTIONS.find(o => o.value === plan.hygienist_menu_type)?.label}
+                      </div>
+                    )}
+                    {plan.periodontal_phase && (
+                      <div>
+                        フェーズ: {PERIODONTAL_PHASE_OPTIONS.find(o => o.value === plan.periodontal_phase)?.label}
+                      </div>
+                    )}
+                    {plan.memo && (
+                      <div className="text-gray-500 italic">メモ: {plan.memo}</div>
+                    )}
+                    {plan.implemented_date && (
+                      <div className="text-green-600">実施日: {plan.implemented_date}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!isEditing && (
+              <div className="flex gap-0">
+                {!isCompleted ? (
+                  <>
+                    <button
+                      onClick={() => handleEdit(plan)}
+                      className="h-5 w-5 min-w-[1.25rem] p-0 m-0 flex items-center justify-center hover:bg-gray-100 rounded-none transition-colors"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleComplete(plan.id)}
+                      className="h-5 w-5 min-w-[1.25rem] p-0 m-0 flex items-center justify-center text-green-600 hover:text-green-700 hover:bg-green-50 rounded-none transition-colors"
+                      title="完了にする"
+                    >
+                      <Check className="w-3 h-3" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleUncomplete(plan.id)}
+                    className="h-5 w-5 min-w-[1.25rem] p-0 m-0 flex items-center justify-center text-gray-600 hover:text-gray-700 bg-green-50 hover:bg-green-100 rounded-none transition-colors"
+                    title="未完了に戻す"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDelete(plan.id)}
+                  className="h-5 w-5 min-w-[1.25rem] p-0 m-0 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-none transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // メモカードのレンダリング
+  const renderMemoCard = (plan: TreatmentPlan, index: number) => {
+    const isEditing = editingPlan?.id === plan.id
+
+    return (
+      <Card key={plan.id} className="mb-2 bg-amber-50 border-amber-200">
+        <CardContent className="p-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              {isEditing ? (
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-xs">種別</Label>
+                    <select
+                      value={editingPlan.is_memo ? 'memo' : 'treatment'}
+                      onChange={(e) => setEditingPlan({ ...editingPlan, is_memo: e.target.value === 'memo' })}
+                      className="w-full p-2 border rounded text-sm"
+                    >
+                      <option value="treatment">治療計画</option>
+                      <option value="memo">メモ・所見</option>
+                    </select>
+                  </div>
+                  <Input
+                    value={editingPlan.treatment_content}
+                    onChange={(e) => setEditingPlan({ ...editingPlan, treatment_content: e.target.value })}
+                    placeholder="メモ内容"
+                    className="text-sm"
+                  />
+                  <div className="flex space-x-2">
+                    <Button size="sm" onClick={handleSaveEdit}>
+                      <Check className="w-4 h-4 mr-1" />
+                      保存
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setEditingPlan(null); setEditingSelectedTeeth(new Set()) }}>
+                      <X className="w-4 h-4 mr-1" />
+                      キャンセル
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-start space-x-2">
+                    <FileText className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-900">
+                        {plan.tooth_number ? `${formatToothNumber(plan.tooth_number)} ` : ''}{plan.treatment_content}
+                      </p>
+                      {plan.memo && (
+                        <div className="text-xs text-gray-500 italic mt-1">{plan.memo}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!isEditing && (
+              <div className="flex gap-0">
+                <button
+                  onClick={() => handleEdit(plan)}
+                  className="h-5 w-5 min-w-[1.25rem] p-0 m-0 flex items-center justify-center hover:bg-gray-100 rounded-none transition-colors"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => handleDelete(plan.id)}
+                  className="h-5 w-5 min-w-[1.25rem] p-0 m-0 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-none transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full overflow-y-auto bg-gray-50 p-6">
+      <div className="max-w-[1600px] mx-auto space-y-6">
+        {/* ヘッダー */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <h2 className="text-2xl font-bold text-gray-900">治療計画</h2>
+              {plans.length > 0 && (
+                <span className="text-sm text-gray-400">
+                  作成日: {new Date(plans[0].created_at).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              {hasVisualExam && (
+                <Button
+                  onClick={handleGenerateFromVisualExam}
+                  variant="outline"
+                  size="sm"
+                  className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-300 hover:border-purple-400 h-7 w-7 p-0"
+                  title="視診から自動生成"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                </Button>
+              )}
+              <Button
+                onClick={() => setShowAddForm(true)}
+                size="sm"
+                className="h-7 w-7 p-0"
+                title="新規追加"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* P検査から自動生成 */}
+          {hasPerioExam && perioExams.filter(e => e.examination_phase === 'P_EXAM_2' || e.examination_phase === 'P_EXAM_3').length > 0 && (
+            <Card className="bg-gradient-to-r from-green-50 to-teal-50 border-green-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3 flex-1">
+                    <Sparkles className="w-5 h-5 text-green-600" />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">P検査から治療計画を生成</div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        P検査のポケット深さから自動的にSRP・P重防・SPTの計画を作成できます
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <select
+                      value={selectedPerioExam || ''}
+                      onChange={(e) => setSelectedPerioExam(e.target.value)}
+                      className="p-2 border rounded text-sm"
+                    >
+                      <option value="">P検査を選択</option>
+                      {perioExams
+                        .filter(e => e.examination_phase === 'P_EXAM_2' || e.examination_phase === 'P_EXAM_3')
+                        .map(exam => (
+                          <option key={exam.id} value={exam.id}>
+                            {exam.examination_phase === 'P_EXAM_2' ? 'P検査2' : 'P検査3'} - {new Date(exam.examination_date).toLocaleDateString('ja-JP')}
+                          </option>
+                        ))}
+                    </select>
+                    <Button
+                      onClick={handleGenerateFromPerioExam}
+                      disabled={!selectedPerioExam}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      生成
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* 追加フォーム */}
+        {showAddForm && (
+          <Card>
+            <CardHeader>
+              <CardTitle>新しい治療計画を追加</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-[200px_1fr] gap-4">
+                <div>
+                  <Label>担当者区分</Label>
+                  <div className="flex space-x-4 mt-2">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={formData.staff_type === 'doctor'}
+                        onChange={() => setFormData({ ...formData, staff_type: 'doctor' })}
+                      />
+                      <Stethoscope className="w-5 h-5 text-blue-600" />
+                      <span>ドクター</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={formData.staff_type === 'hygienist'}
+                        onChange={() => setFormData({ ...formData, staff_type: 'hygienist' })}
+                      />
+                      <UserCog className="w-5 h-5 text-green-600" />
+                      <span>衛生士</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <Label>治療内容 *</Label>
+                  <Input
+                    value={formData.treatment_content}
+                    onChange={(e) => setFormData({ ...formData, treatment_content: e.target.value })}
+                    placeholder="例: CR充填、抜歯、TBIなど"
+                  />
+                </div>
+              </div>
+
+              {/* 歯式選択 */}
+              <div>
+                <Label className="mb-2 block">対象歯を選択（クリックで選択/解除）</Label>
+                <div className="max-w-full overflow-x-auto">
+                  <DentalChart
+                    toothData={Object.keys(latestVisualToothData).length > 0 ? latestVisualToothData : createEmptyToothData()}
+                    selectedTeeth={newFormSelectedTeeth}
+                    onToothClick={(toothNumber) => {
+                      const newSelected = new Set(newFormSelectedTeeth)
+                      if (newSelected.has(toothNumber)) {
+                        newSelected.delete(toothNumber)
+                      } else {
+                        newSelected.add(toothNumber)
+                      }
+                      setNewFormSelectedTeeth(newSelected)
+                      // 歯番号フィールドを更新
+                      const toothNumbers = Array.from(newSelected).sort((a, b) => a - b)
+                      setFormData({ ...formData, tooth_number: toothNumbers.join(', ') })
+                    }}
+                  />
+                </div>
+                {newFormSelectedTeeth.size > 0 && (
+                  <div className="mt-2">
+                    <div className="text-xs text-gray-600 mb-1">選択中:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(newFormSelectedTeeth).sort((a, b) => a - b).map(toothNumber => (
+                        <button
+                          key={toothNumber}
+                          onClick={() => handleNewFormOpenSplitDialog(toothNumber)}
+                          className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded hover:bg-blue-200 cursor-pointer transition-colors"
+                        >
+                          {toothNumber}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {formData.staff_type === 'hygienist' && (
+                <div>
+                  <Label>衛生士メニュー</Label>
+                  <select
+                    value={formData.hygienist_menu_type || ''}
+                    onChange={(e) => setFormData({ ...formData, hygienist_menu_type: e.target.value as any })}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">選択してください</option>
+                    {HYGIENIST_MENU_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <Label>歯周病フェーズ</Label>
+                <select
+                  value={formData.periodontal_phase || ''}
+                  onChange={(e) => setFormData({ ...formData, periodontal_phase: e.target.value as any })}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="">選択してください</option>
+                  {PERIODONTAL_PHASE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <Label>メモ</Label>
+                <Input
+                  value={formData.memo || ''}
+                  onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
+                  placeholder="メモを入力"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => { setShowAddForm(false); setNewFormSelectedTeeth(new Set()) }}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleAdd}>追加</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* タブ切り替え */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setActiveStaffTab('doctor')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded transition-colors ${
+              activeStaffTab === 'doctor'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Stethoscope className="w-4 h-4" />
+              <span>ドクター ({doctorPlans.length}件)</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveStaffTab('hygienist')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded transition-colors ${
+              activeStaffTab === 'hygienist'
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <UserCog className="w-4 h-4" />
+              <span>衛生士 ({hygienistPlans.length}件)</span>
+            </div>
+          </button>
+        </div>
+
+        {/* タブコンテンツとメモ欄 */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.5fr] gap-6">
+          {/* タブコンテンツ */}
+          <div>
+            {/* ドクタータブ */}
+            {activeStaffTab === 'doctor' && (
+              <div>
+
+            {/* ドクター追加フォーム */}
+            {showAddDoctorForm && (
+              <Card className="mb-3 bg-blue-50 border-blue-200">
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <Label className="text-sm">治療内容 *</Label>
+                    <Input
+                      value={doctorFormData.treatment_content}
+                      onChange={(e) => setDoctorFormData({ ...doctorFormData, treatment_content: e.target.value })}
+                      placeholder="例: 46番 Cr(メタル)"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-sm">対象歯（任意）</Label>
+                      <Input
+                        value={doctorFormData.tooth_number || ''}
+                        onChange={(e) => setDoctorFormData({ ...doctorFormData, tooth_number: e.target.value })}
+                        placeholder="例: 46"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm">メモ（任意）</Label>
+                    <Input
+                      value={doctorFormData.memo || ''}
+                      onChange={(e) => setDoctorFormData({ ...doctorFormData, memo: e.target.value })}
+                      placeholder="例: 保険適用"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button size="sm" onClick={handleAddDoctorPlan} className="bg-blue-600 hover:bg-blue-700">
+                      <Check className="w-4 h-4 mr-1" />
+                      追加
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setShowAddDoctorForm(false)
+                        setDoctorFormData({
+                          treatment_content: '',
+                          staff_type: 'doctor',
+                          priority: 3,
+                          is_memo: false
+                        })
+                      }}
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      キャンセル
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ドクター計画リスト */}
+            {doctorPlans.length === 0 ? (
+              <Card>
+                <CardContent className="p-6 text-center text-gray-500">
+                  ドクターの治療計画はまだ登録されていません
+                </CardContent>
+              </Card>
+            ) : (
+              <div>
+                {doctorPlans.map((plan, index) => renderPlanCard(plan, index))}
+              </div>
+            )}
+
+            {/* ドクター追加ボタン（右下配置） */}
+            <div className="flex justify-end mt-3">
+              <Button
+                onClick={() => setShowAddDoctorForm(!showAddDoctorForm)}
+                size="sm"
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                治療計画追加
+              </Button>
+            </div>
+              </div>
+            )}
+
+            {/* 衛生士タブ */}
+            {activeStaffTab === 'hygienist' && (
+              <div>
+                {/* 歯周治療フローチャート */}
+                <Card className="mb-4">
+                  <CardContent className="p-4">
+                    <div className="mb-3">
+                      <h4 className="text-sm font-semibold text-gray-700">歯周治療フロー</h4>
+                      <p className="text-xs text-gray-500 mt-1">フェーズをクリックして該当するTODOを表示</p>
+                    </div>
+
+                    {/* 縦型フローチャート */}
+                    <div className="flex flex-col items-center gap-2 max-w-md mx-auto">
+                      {/* P検① */}
+                      {(() => {
+                        const phase = PERIODONTAL_FLOW_PHASES[0] // P_EXAM_1
+                        const phasePlans = hygienistPlans.filter(p => p.periodontal_phase === phase.id)
+                        const completedCount = phasePlans.filter(p => p.status === 'completed').length
+                        const pendingCount = phasePlans.filter(p => p.status !== 'completed').length
+                        const totalCount = phasePlans.length
+                        const isCompleted = totalCount > 0 && completedCount === totalCount
+                        const isInProgress = pendingCount > 0
+                        const isSelected = selectedPerioPhase === phase.id
+
+                        return (
+                          <button
+                            onClick={() => totalCount > 0 && handlePhaseToggle(phase.id, isCompleted)}
+                            className={`
+                              w-full px-4 py-3 rounded-lg text-sm font-medium transition-all
+                              ${isCompleted
+                                ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                                : isInProgress
+                                  ? 'bg-blue-100 text-blue-700 border-2 border-blue-300 ring-2 ring-blue-200'
+                                  : 'bg-white text-gray-600 border-2 border-gray-200 hover:bg-gray-50'
+                              }
+                              ${isSelected ? 'ring-2 ring-offset-2' : ''}
+                            `}
+                          >
+                            <div className="flex items-center justify-center gap-2">
+                              {/* チェックボックス */}
+                              {totalCount > 0 && (
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={isCompleted}
+                                    onCheckedChange={() => handlePhaseToggle(phase.id, isCompleted)}
+                                  />
+                                </div>
+                              )}
+
+                              {isCompleted && <CheckCircle2 className="w-4 h-4" />}
+                              {isInProgress && !isCompleted && <Clock className="w-4 h-4" />}
+                              <div>
+                                <div className="font-semibold">{phase.label}</div>
+                                {totalCount > 0 && !isCompleted && (
+                                  <div className="text-xs mt-0.5">
+                                    <span className="text-blue-600">{pendingCount}件</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })()}
+
+                      {/* 下向き矢印 (P検①→初期治療) */}
+                      {(() => {
+                        const prevPhase = PERIODONTAL_FLOW_PHASES[0] // P_EXAM_1
+                        const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                        const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+                        const prevInProgress = prevPhasePlans.some(p => p.status !== 'completed')
+
+                        return (
+                          <ChevronDown className={`w-5 h-5 ${prevCompleted ? 'text-green-500' : prevInProgress ? 'text-blue-400' : 'text-gray-400'}`} />
+                        )
+                      })()}
+
+                      {/* 初期治療（横一列表示） */}
+                      {(() => {
+                        const phase = PERIODONTAL_FLOW_PHASES[1] // INITIAL
+                        const phasePlans = hygienistPlans.filter(p => p.periodontal_phase === phase.id)
+                        const completedCount = phasePlans.filter(p => p.status === 'completed').length
+                        const pendingCount = phasePlans.filter(p => p.status !== 'completed').length
+                        const totalCount = phasePlans.length
+                        const isCompleted = totalCount > 0 && completedCount === totalCount
+                        const isInProgress = pendingCount > 0
+                        const isSelected = selectedPerioPhase === phase.id
+
+                        return (
+                          <div className="w-full flex items-center gap-2">
+                            {/* チェックボックス */}
+                            {totalCount > 0 && (
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={isCompleted}
+                                  onCheckedChange={() => handlePhaseToggle(phase.id, isCompleted)}
+                                />
+                              </div>
+                            )}
+
+                            {/* フェーズボタン */}
+                            <button
+                              onClick={() => setSelectedPerioPhase(isSelected ? null : phase.id)}
+                              className={`
+                                flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all
+                                ${isCompleted
+                                  ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                                  : isInProgress
+                                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-300 ring-2 ring-blue-200'
+                                    : 'bg-white text-gray-600 border-2 border-gray-200 hover:bg-gray-50'
+                                }
+                                ${isSelected ? 'ring-2 ring-offset-2' : ''}
+                              `}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                {isCompleted && <CheckCircle2 className="w-4 h-4" />}
+                                {isInProgress && !isCompleted && <Clock className="w-4 h-4" />}
+                                <div>
+                                  <div className="font-semibold">{phase.label}</div>
+                                  {totalCount > 0 && !isCompleted && (
+                                    <div className="text-xs mt-0.5">
+                                      <span className="text-blue-600">{pendingCount}件</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        )
+                      })()}
+
+                      {/* 下向き矢印 (初期治療→P検②) */}
+                      {(() => {
+                        const prevPhase = PERIODONTAL_FLOW_PHASES[1] // INITIAL
+                        const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                        const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+                        const prevInProgress = prevPhasePlans.some(p => p.status !== 'completed')
+
+                        return (
+                          <ChevronDown className={`w-5 h-5 ${prevCompleted ? 'text-green-500' : prevInProgress ? 'text-blue-400' : 'text-gray-400'}`} />
+                        )
+                      })()}
+
+                      {/* P検② */}
+                      {(() => {
+                        const phase = PERIODONTAL_FLOW_PHASES[2] // P_EXAM_2
+                        const phasePlans = hygienistPlans.filter(p => p.periodontal_phase === phase.id)
+                        const completedCount = phasePlans.filter(p => p.status === 'completed').length
+                        const pendingCount = phasePlans.filter(p => p.status !== 'completed').length
+                        const totalCount = phasePlans.length
+                        const isCompleted = totalCount > 0 && completedCount === totalCount
+                        const isInProgress = pendingCount > 0
+                        const isSelected = selectedPerioPhase === phase.id
+
+                        return (
+                          <div className="w-full flex items-center gap-2">
+                            {/* チェックボックス */}
+                            {totalCount > 0 && (
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={isCompleted}
+                                  onCheckedChange={() => handlePhaseToggle(phase.id, isCompleted)}
+                                />
+                              </div>
+                            )}
+
+                            {/* フェーズボタン */}
+                            <button
+                              onClick={() => setSelectedPerioPhase(isSelected ? null : phase.id)}
+                              className={`
+                                flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all
+                                ${isCompleted
+                                  ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                                  : isInProgress
+                                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-300 ring-2 ring-blue-200'
+                                    : 'bg-white text-gray-600 border-2 border-gray-200 hover:bg-gray-50'
+                                }
+                                ${isSelected ? 'ring-2 ring-offset-2' : ''}
+                              `}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                {isCompleted && <CheckCircle2 className="w-4 h-4" />}
+                                {isInProgress && !isCompleted && <Clock className="w-4 h-4" />}
+                                <div>
+                                  <div className="font-semibold">{phase.label}</div>
+                                  {totalCount > 0 && !isCompleted && (
+                                    <div className="text-xs mt-0.5">
+                                      <span className="text-blue-600">{pendingCount}件</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        )
+                      })()}
+
+                      {/* 下向き矢印 (P検②→分岐点) */}
+                      {(() => {
+                        const prevPhase = PERIODONTAL_FLOW_PHASES[2] // P_EXAM_2
+                        const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                        const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+                        const prevInProgress = prevPhasePlans.some(p => p.status !== 'completed')
+
+                        return (
+                          <ChevronDown className={`w-5 h-5 ${prevCompleted ? 'text-green-500' : prevInProgress ? 'text-blue-400' : 'text-gray-400'}`} />
+                        )
+                      })()}
+
+                      {/* 分岐点 */}
+                      <div className="w-full px-4 py-2 bg-amber-50 border-2 border-amber-300 rounded-lg text-center">
+                        <div className="text-sm font-medium text-amber-800">4mm以上のポケットあり？</div>
+                      </div>
+
+                      {/* YES/NO分岐 */}
+                      <div className="w-full grid grid-cols-2 gap-4">
+                        {/* YES側: SRP → P検③ → 改善判定 → 外科 or SPT/P重防 */}
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded">YES</div>
+                          {/* 下向き矢印 (分岐点→SRP) */}
+                          {(() => {
+                            const prevPhase = PERIODONTAL_FLOW_PHASES[2] // P_EXAM_2
+                            const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                            const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+
+                            return (
+                              <ChevronDown className={`w-4 h-4 ${prevCompleted ? 'text-green-500' : 'text-gray-400'}`} />
+                            )
+                          })()}
+
+                          {/* SRP */}
+                          {(() => {
+                            const phase = PERIODONTAL_FLOW_PHASES[3] // SRP
+                            const phasePlans = hygienistPlans.filter(p => p.periodontal_phase === phase.id)
+                            const completedCount = phasePlans.filter(p => p.status === 'completed').length
+                            const pendingCount = phasePlans.filter(p => p.status !== 'completed').length
+                            const totalCount = phasePlans.length
+                            const isCompleted = totalCount > 0 && completedCount === totalCount
+                            const isInProgress = pendingCount > 0
+                            const isSelected = selectedPerioPhase === phase.id
+
+                            return (
+                              <div className="w-full flex items-start gap-1">
+                                {/* チェックボックス */}
+                                {totalCount > 0 && (
+                                  <div onClick={(e) => e.stopPropagation()} className="pt-1">
+                                    <Checkbox
+                                      checked={isCompleted}
+                                      onCheckedChange={() => handlePhaseToggle(phase.id, isCompleted)}
+                                    />
+                                  </div>
+                                )}
+
+                                {/* フェーズボタン */}
+                                <button
+                                  onClick={() => setSelectedPerioPhase(isSelected ? null : phase.id)}
+                                  className={`
+                                    flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all
+                                    ${isCompleted
+                                      ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                                      : isInProgress
+                                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-300 ring-2 ring-blue-200'
+                                        : 'bg-white text-gray-600 border-2 border-gray-200 hover:bg-gray-50'
+                                    }
+                                    ${isSelected ? 'ring-2 ring-offset-2' : ''}
+                                  `}
+                                >
+                                  <div className="flex flex-col items-center gap-1">
+                                    {isCompleted && <CheckCircle2 className="w-3 h-3" />}
+                                    {isInProgress && !isCompleted && <Clock className="w-3 h-3" />}
+                                    <div className="font-semibold">{phase.label}</div>
+                                    <div className="text-[10px] text-gray-500">{phase.fullLabel}</div>
+                                    {totalCount > 0 && !isCompleted && (
+                                      <div className="text-xs">
+                                        <span className="text-blue-600">{completedCount}/{totalCount}完了</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              </div>
+                            )
+                          })()}
+
+                          {/* 下向き矢印 (SRP→P検③) */}
+                          {(() => {
+                            const prevPhase = PERIODONTAL_FLOW_PHASES[3] // SRP
+                            const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                            const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+                            const prevInProgress = prevPhasePlans.some(p => p.status !== 'completed')
+
+                            return (
+                              <ChevronDown className={`w-4 h-4 ${prevCompleted ? 'text-green-500' : prevInProgress ? 'text-blue-400' : 'text-gray-400'}`} />
+                            )
+                          })()}
+
+                          {/* P検③ */}
+                          {(() => {
+                            const phase = PERIODONTAL_FLOW_PHASES[4] // P_EXAM_3
+                            const phasePlans = hygienistPlans.filter(p => p.periodontal_phase === phase.id)
+                            const completedCount = phasePlans.filter(p => p.status === 'completed').length
+                            const pendingCount = phasePlans.filter(p => p.status !== 'completed').length
+                            const totalCount = phasePlans.length
+                            const isCompleted = totalCount > 0 && completedCount === totalCount
+                            const isInProgress = pendingCount > 0
+                            const isSelected = selectedPerioPhase === phase.id
+
+                            return (
+                              <div className="w-full flex items-start gap-1">
+                                {/* チェックボックス */}
+                                {totalCount > 0 && (
+                                  <div onClick={(e) => e.stopPropagation()} className="pt-1">
+                                    <Checkbox
+                                      checked={isCompleted}
+                                      onCheckedChange={() => handlePhaseToggle(phase.id, isCompleted)}
+                                    />
+                                  </div>
+                                )}
+
+                                {/* フェーズボタン */}
+                                <button
+                                  onClick={() => setSelectedPerioPhase(isSelected ? null : phase.id)}
+                                  className={`
+                                    flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all
+                                    ${isCompleted
+                                      ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                                      : isInProgress
+                                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-300 ring-2 ring-blue-200'
+                                        : 'bg-white text-gray-600 border-2 border-gray-200 hover:bg-gray-50'
+                                    }
+                                    ${isSelected ? 'ring-2 ring-offset-2' : ''}
+                                  `}
+                                >
+                                  <div className="flex flex-col items-center gap-1">
+                                    {isCompleted && <CheckCircle2 className="w-3 h-3" />}
+                                    {isInProgress && !isCompleted && <Clock className="w-3 h-3" />}
+                                    <div className="font-semibold">{phase.label}</div>
+                                    <div className="text-[10px] text-gray-500">{phase.fullLabel}</div>
+                                    {totalCount > 0 && !isCompleted && (
+                                      <div className="text-xs">
+                                        <span className="text-blue-600">{pendingCount}件</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              </div>
+                            )
+                          })()}
+
+                          {/* 下向き矢印 (P検③→改善判定) */}
+                          {(() => {
+                            const prevPhase = PERIODONTAL_FLOW_PHASES[4] // P_EXAM_3
+                            const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                            const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+                            const prevInProgress = prevPhasePlans.some(p => p.status !== 'completed')
+
+                            return (
+                              <ChevronDown className={`w-4 h-4 ${prevCompleted ? 'text-green-500' : prevInProgress ? 'text-blue-400' : 'text-gray-400'}`} />
+                            )
+                          })()}
+
+                          {/* 改善判定 */}
+                          <div className="w-full px-2 py-1 bg-amber-50 border border-amber-300 rounded text-center">
+                            <div className="text-[10px] font-medium text-amber-800">改善十分？</div>
+                          </div>
+
+                          {/* YES/NO 2段階の分岐 */}
+                          <div className="w-full grid grid-cols-2 gap-2">
+                            {/* 改善十分 YES: SPT/P重防 */}
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="text-[9px] font-medium text-green-700 bg-green-50 px-1 py-0.5 rounded">YES</div>
+                              <div className="w-full px-1.5 py-1.5 bg-purple-50 border border-purple-300 rounded text-center">
+                                <div className="text-[9px] font-semibold text-purple-800">SPT</div>
+                                <div className="text-[9px] text-purple-600">P重防</div>
+                              </div>
+                            </div>
+
+                            {/* 改善不十分 NO: 歯周外科 */}
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="text-[9px] font-medium text-red-700 bg-red-50 px-1 py-0.5 rounded">NO</div>
+                              {(() => {
+                                const phase = PERIODONTAL_FLOW_PHASES[5] // SURGERY
+                                const phasePlans = hygienistPlans.filter(p => p.periodontal_phase === phase.id)
+                                const completedCount = phasePlans.filter(p => p.status === 'completed').length
+                                const pendingCount = phasePlans.filter(p => p.status !== 'completed').length
+                                const totalCount = phasePlans.length
+                                const isCompleted = totalCount > 0 && completedCount === totalCount
+                                const isInProgress = pendingCount > 0
+                                const isSelected = selectedPerioPhase === phase.id
+
+                                return (
+                                  <div className="w-full flex items-start gap-0.5">
+                                    {/* チェックボックス */}
+                                    {totalCount > 0 && (
+                                      <div onClick={(e) => e.stopPropagation()} className="pt-0.5" style={{transform: 'scale(0.8)'}}>
+                                        <Checkbox
+                                          checked={isCompleted}
+                                          onCheckedChange={() => handlePhaseToggle(phase.id, isCompleted)}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* フェーズボタン */}
+                                    <button
+                                      onClick={() => setSelectedPerioPhase(isSelected ? null : phase.id)}
+                                      className={`
+                                        flex-1 px-1.5 py-1.5 rounded text-[9px] font-medium transition-all
+                                        ${isCompleted
+                                          ? 'bg-green-100 text-green-700 border border-green-300'
+                                          : isInProgress
+                                            ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                        }
+                                        ${isSelected ? 'ring-1 ring-offset-1' : ''}
+                                      `}
+                                    >
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        {isCompleted && <CheckCircle2 className="w-2.5 h-2.5" />}
+                                        {isInProgress && !isCompleted && <Clock className="w-2.5 h-2.5" />}
+                                        <div className="font-semibold">{phase.label}</div>
+                                        {totalCount > 0 && !isCompleted && (
+                                          <div className="text-[8px]">
+                                            <span className="text-blue-600">{pendingCount}件</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </button>
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* 外科後のP検④とSPT/P重防 */}
+                          <div className="w-full flex flex-col items-center gap-1 mt-1">
+                            {/* 下向き矢印 (歯周外科→P検④) */}
+                            {(() => {
+                              const prevPhase = PERIODONTAL_FLOW_PHASES[5] // SURGERY
+                              const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                              const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+                              const prevInProgress = prevPhasePlans.some(p => p.status !== 'completed')
+
+                              return (
+                                <ChevronDown className={`w-3 h-3 ${prevCompleted ? 'text-green-500' : prevInProgress ? 'text-blue-400' : 'text-gray-400'}`} />
+                              )
+                            })()}
+
+                            {/* P検④ */}
+                            {(() => {
+                              const phase = PERIODONTAL_FLOW_PHASES[6] // P_EXAM_4
+                              const phasePlans = hygienistPlans.filter(p => p.periodontal_phase === phase.id)
+                              const completedCount = phasePlans.filter(p => p.status === 'completed').length
+                              const pendingCount = phasePlans.filter(p => p.status !== 'completed').length
+                              const totalCount = phasePlans.length
+                              const isCompleted = totalCount > 0 && completedCount === totalCount
+                              const isInProgress = pendingCount > 0
+                              const isSelected = selectedPerioPhase === phase.id
+
+                              return (
+                                <div className="w-full flex items-start gap-0.5">
+                                  {/* チェックボックス */}
+                                  {totalCount > 0 && (
+                                    <div onClick={(e) => e.stopPropagation()} className="pt-0.5" style={{transform: 'scale(0.85)'}}>
+                                      <Checkbox
+                                        checked={isCompleted}
+                                        onCheckedChange={() => handlePhaseToggle(phase.id, isCompleted)}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* フェーズボタン */}
+                                  <button
+                                    onClick={() => setSelectedPerioPhase(isSelected ? null : phase.id)}
+                                    className={`
+                                      flex-1 px-2 py-1.5 rounded text-[10px] font-medium transition-all
+                                      ${isCompleted
+                                        ? 'bg-green-100 text-green-700 border border-green-300'
+                                        : isInProgress
+                                          ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                      }
+                                      ${isSelected ? 'ring-1 ring-offset-1' : ''}
+                                    `}
+                                  >
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      {isCompleted && <CheckCircle2 className="w-3 h-3" />}
+                                      {isInProgress && !isCompleted && <Clock className="w-3 h-3" />}
+                                      <div className="font-semibold">{phase.label}</div>
+                                      <div className="text-[9px] text-gray-500">{phase.fullLabel}</div>
+                                      {totalCount > 0 && !isCompleted && (
+                                        <div className="text-[9px]">
+                                          <span className="text-blue-600">{pendingCount}件</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </button>
+                                </div>
+                              )
+                            })()}
+
+                            {/* 下向き矢印 (P検④→SPT/P重防) */}
+                            {(() => {
+                              const prevPhase = PERIODONTAL_FLOW_PHASES[6] // P_EXAM_4
+                              const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                              const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+                              const prevInProgress = prevPhasePlans.some(p => p.status !== 'completed')
+
+                              return (
+                                <ChevronDown className={`w-3 h-3 ${prevCompleted ? 'text-green-500' : prevInProgress ? 'text-blue-400' : 'text-gray-400'}`} />
+                              )
+                            })()}
+
+                            <div className="w-full px-1.5 py-1.5 bg-purple-50 border border-purple-300 rounded text-center">
+                              <div className="text-[9px] font-semibold text-purple-800">SPT / P重防</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* NO側: P重防(終了) */}
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-1 rounded">NO</div>
+                          {/* 下向き矢印 (分岐点→P重防) */}
+                          {(() => {
+                            const prevPhase = PERIODONTAL_FLOW_PHASES[2] // P_EXAM_2
+                            const prevPhasePlans = hygienistPlans.filter(p => p.periodontal_phase === prevPhase.id)
+                            const prevCompleted = prevPhasePlans.length > 0 && prevPhasePlans.every(p => p.status === 'completed')
+
+                            return (
+                              <ChevronDown className={`w-4 h-4 ${prevCompleted ? 'text-green-500' : 'text-gray-400'}`} />
+                            )
+                          })()}
+
+                          <div className="w-full px-3 py-2 bg-purple-50 border-2 border-purple-300 rounded-lg text-center">
+                            <div className="text-xs font-semibold text-purple-800">P重防</div>
+                            <div className="text-[10px] text-purple-600">歯周病管理</div>
+                            <div className="text-[9px] text-purple-500 mt-1">(終了)</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 選択されたフェーズのTODO表示 */}
+                {selectedPerioPhase && (
+                  <Card className="mb-4 bg-blue-50 border-blue-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-semibold text-blue-900">
+                          {PERIODONTAL_FLOW_PHASES.find(p => p.id === selectedPerioPhase)?.fullLabel}
+                        </h4>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedPerioPhase(null)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {hygienistPlans
+                          .filter(p => p.periodontal_phase === selectedPerioPhase)
+                          .map((plan, index) => renderPlanCard(plan, index))}
+                      </div>
+                      {hygienistPlans.filter(p => p.periodontal_phase === selectedPerioPhase).length === 0 && (
+                        <p className="text-sm text-gray-500 text-center py-2">このフェーズのTODOはありません</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+            {/* 衛生士追加フォーム */}
+            {showAddHygienistForm && (
+              <Card className="mb-3 bg-green-50 border-green-200">
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <Label className="text-sm">治療内容 *</Label>
+                    <Input
+                      value={hygienistFormData.treatment_content}
+                      onChange={(e) => setHygienistFormData({ ...hygienistFormData, treatment_content: e.target.value })}
+                      placeholder="例: P検査・SRP"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-sm">対象歯（任意）</Label>
+                      <Input
+                        value={hygienistFormData.tooth_number || ''}
+                        onChange={(e) => setHygienistFormData({ ...hygienistFormData, tooth_number: e.target.value })}
+                        placeholder="例: 全顎"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm">メモ（任意）</Label>
+                    <Input
+                      value={hygienistFormData.memo || ''}
+                      onChange={(e) => setHygienistFormData({ ...hygienistFormData, memo: e.target.value })}
+                      placeholder="例: 次回予約時実施"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button size="sm" onClick={handleAddHygienistPlan} className="bg-green-600 hover:bg-green-700">
+                      <Check className="w-4 h-4 mr-1" />
+                      追加
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setShowAddHygienistForm(false)
+                        setHygienistFormData({
+                          treatment_content: '',
+                          staff_type: 'hygienist',
+                          priority: 3,
+                          is_memo: false
+                        })
+                      }}
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      キャンセル
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 衛生士計画リスト */}
+            {hygienistPlans.length === 0 ? (
+              <Card>
+                <CardContent className="p-6 text-center text-gray-500">
+                  衛生士の治療計画はまだ登録されていません
+                </CardContent>
+              </Card>
+            ) : (
+              <div>
+                {hygienistPlans.map((plan, index) => renderPlanCard(plan, index))}
+              </div>
+            )}
+
+            {/* 衛生士追加ボタン（右下配置） */}
+            <div className="flex justify-end mt-3">
+              <Button
+                onClick={() => setShowAddHygienistForm(!showAddHygienistForm)}
+                size="sm"
+                variant="outline"
+                className="border-green-300 text-green-700 hover:bg-green-50"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                治療計画追加
+              </Button>
+            </div>
+              </div>
+            )}
+          </div>
+
+          {/* メモ・所見セクション */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-5 h-5 text-amber-600" />
+                <h3 className="text-lg font-semibold text-gray-900">メモ・所見</h3>
+                <span className="text-sm text-gray-500">({memoPlans.length}件)</span>
+              </div>
+              {memoPlans.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMemoSection(!showMemoSection)}
+                  className="text-gray-600 h-8 px-2"
+                >
+                  {showMemoSection ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </Button>
+              )}
+            </div>
+
+          {/* メモ追加フォーム */}
+          {showAddMemoForm && (
+            <Card className="mb-3 bg-amber-50 border-amber-200">
+              <CardContent className="p-4 space-y-3">
+                <div>
+                  <Label className="text-sm">メモ内容 *</Label>
+                  <Input
+                    value={memoFormData.treatment_content}
+                    onChange={(e) => setMemoFormData({ ...memoFormData, treatment_content: e.target.value })}
+                    placeholder="例: 46番欠損：経過観察（患者希望）"
+                    className="mt-1"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-sm">対象歯（任意）</Label>
+                    <Input
+                      value={memoFormData.tooth_number || ''}
+                      onChange={(e) => setMemoFormData({ ...memoFormData, tooth_number: e.target.value })}
+                      placeholder="例: 46"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm">メモ（任意）</Label>
+                    <Input
+                      value={memoFormData.memo || ''}
+                      onChange={(e) => setMemoFormData({ ...memoFormData, memo: e.target.value })}
+                      placeholder="例: 患者希望により"
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <Button size="sm" onClick={handleAddMemo} className="bg-amber-600 hover:bg-amber-700">
+                    <Check className="w-4 h-4 mr-1" />
+                    追加
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddMemoForm(false)
+                      setMemoFormData({
+                        treatment_content: '',
+                        staff_type: 'doctor',
+                        priority: 3,
+                        is_memo: true
+                      })
+                    }}
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    キャンセル
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* メモリスト */}
+          {showMemoSection && (
+            <>
+              {memoPlans.length === 0 ? (
+                <Card className="bg-amber-50 border-amber-200">
+                  <CardContent className="p-6 text-center text-gray-500">
+                    <FileText className="w-8 h-8 mx-auto mb-2 text-amber-400" />
+                    <p className="text-sm">メモ・所見はまだ登録されていません</p>
+                    <p className="text-xs mt-1">治療対象外の情報を記録できます</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div>
+                  {memoPlans.map((plan, index) => renderMemoCard(plan, index))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* メモ追加ボタン（右下配置） */}
+          <div className="flex justify-end mt-3">
+            <Button
+              onClick={() => setShowAddMemoForm(!showAddMemoForm)}
+              size="sm"
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              メモ追加
+            </Button>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 治療計画プレビューモーダル */}
+      <TreatmentPlanPreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        proposals={generatedProposals}
+        onConfirm={handleConfirmGeneration}
+        visualExamDate={latestVisualExamDate}
+      />
+
+      {/* 歯選択モーダル */}
+      <ToothSelectorModal
+        isOpen={showToothSelector}
+        onClose={() => setShowToothSelector(false)}
+        onSelect={handleToothSelect}
+        initialSelected={selectedTeeth}
+      />
+
+      {/* 編集画面用の分割ダイアログ */}
+      {splitDialogInitialTooth !== null && (
+        <ToothSplitDialog
+          isOpen={splitDialogOpen}
+          onClose={() => {
+            setSplitDialogOpen(false)
+            setSplitDialogInitialTooth(null)
+            setSplitDialogPlan(null)
+          }}
+          onConfirm={handleConfirmSplit}
+          allTeeth={splitDialogAllTeeth}
+          initialSelectedTooth={splitDialogInitialTooth}
+        />
+      )}
+
+      {/* 新規追加フォーム用の分割ダイアログ */}
+      {newFormSplitDialogInitialTooth !== null && (
+        <ToothSplitDialog
+          isOpen={newFormSplitDialogOpen}
+          onClose={() => {
+            setNewFormSplitDialogOpen(false)
+            setNewFormSplitDialogInitialTooth(null)
+          }}
+          onConfirm={handleNewFormConfirmSplit}
+          allTeeth={Array.from(newFormSelectedTeeth).sort((a, b) => a - b)}
+          initialSelectedTooth={newFormSplitDialogInitialTooth}
+        />
+      )}
+    </div>
+  )
+}

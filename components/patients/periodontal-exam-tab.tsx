@@ -15,6 +15,7 @@ import {
   updatePeriodontalExam,
   deletePeriodontalExam,
   MeasurementType,
+  ExaminationPhase,
   PeriodontalExam,
   PeriodontalToothData,
 } from '@/lib/api/periodontal-exams'
@@ -30,6 +31,9 @@ const ALL_TEETH = [
   18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28,
   48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
 ]
+
+// 親知らず（デフォルトで除外する歯）
+const WISDOM_TEETH = [18, 28, 38, 48]
 
 export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
   const [exams, setExams] = useState<PeriodontalExam[]>([])
@@ -60,7 +64,10 @@ export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
   const loadMissingTeeth = async () => {
     try {
       const missing = await getMissingTeeth(patientId)
-      setMissingTeeth(missing)
+      // 親知らずをデフォルトで欠損歯として追加
+      const combined = new Set(missing)
+      WISDOM_TEETH.forEach(tooth => combined.add(tooth))
+      setMissingTeeth(combined)
     } catch (err) {
       console.error('Failed to load missing teeth:', err)
     }
@@ -72,7 +79,7 @@ export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
   }, [patientId])
 
   // 新規検査を保存
-  const handleSaveExam = async (measurementType: MeasurementType, data: PeriodontalExamData) => {
+  const handleSaveExam = async (measurementType: MeasurementType, data: PeriodontalExamData, examinationPhase?: ExaminationPhase) => {
     try {
       const clinicId = getClinicId()
 
@@ -146,6 +153,7 @@ export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
         patient_id: patientId,
         clinic_id: clinicId,
         measurement_type: measurementType,
+        examination_phase: examinationPhase,
         tooth_data: toothDataList,
       })
 
@@ -329,6 +337,7 @@ export function PeriodontalExamTab({ patientId }: PeriodontalExamTabProps) {
         onClose={() => setIsCreateModalOpen(false)}
         onSave={handleSaveExam}
         missingTeeth={missingTeeth}
+        patientId={patientId}
       />
 
       {/* 詳細表示モーダル */}

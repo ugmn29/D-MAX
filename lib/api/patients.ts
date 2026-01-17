@@ -849,6 +849,65 @@ export async function updatePatientAutoReminderSettings(
 }
 
 /**
+ * 患者の治療計画メモを取得
+ */
+export async function getPatientTreatmentMemo(
+  clinicId: string,
+  patientId: string
+): Promise<string | null> {
+  // UUID形式でない場合はスキップ（ローカルストレージの仮IDの場合）
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!uuidRegex.test(patientId)) {
+    return null
+  }
+
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from('patients')
+    .select('treatment_memo')
+    .eq('clinic_id', clinicId)
+    .eq('id', patientId)
+    .single()
+
+  if (error) {
+    console.error('治療計画メモ取得エラー:', error, { clinicId, patientId })
+    return null
+  }
+
+  return data?.treatment_memo || null
+}
+
+/**
+ * 患者の治療計画メモを更新
+ */
+export async function updatePatientTreatmentMemo(
+  clinicId: string,
+  patientId: string,
+  memo: string | null
+): Promise<void> {
+  // UUID形式でない場合はスキップ（ローカルストレージの仮IDの場合）
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!uuidRegex.test(patientId)) {
+    return
+  }
+
+  const client = getSupabaseClient()
+  const { error } = await client
+    .from('patients')
+    .update({
+      treatment_memo: memo,
+      updated_at: new Date().toISOString()
+    })
+    .eq('clinic_id', clinicId)
+    .eq('id', patientId)
+
+  if (error) {
+    console.error('治療計画メモ更新エラー:', error, { clinicId, patientId })
+    throw new Error('治療計画メモの保存に失敗しました')
+  }
+}
+
+/**
  * 再診患者の認証
  * 診察券番号 OR 電話番号 OR メールアドレス（いずれか1つ） + 生年月日で認証
  */

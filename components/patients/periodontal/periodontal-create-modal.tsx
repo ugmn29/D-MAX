@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Modal } from '@/components/ui/modal'
-import { MeasurementType } from '@/lib/api/periodontal-exams'
+import { MeasurementType, ExaminationPhase } from '@/lib/api/periodontal-exams'
 import { PeriodontalMethodSelector } from './periodontal-method-selector'
 import { PeriodontalInputForm, PeriodontalExamData } from './periodontal-input-form'
 
@@ -11,9 +11,10 @@ type Step = 'select-method' | 'input'
 interface PeriodontalCreateModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (measurementType: MeasurementType, data: PeriodontalExamData) => void
+  onSave: (measurementType: MeasurementType, data: PeriodontalExamData, examinationPhase?: ExaminationPhase) => void
   initialData?: Partial<PeriodontalExamData>
   missingTeeth?: Set<number>
+  patientId?: string
 }
 
 export function PeriodontalCreateModal({
@@ -22,9 +23,11 @@ export function PeriodontalCreateModal({
   onSave,
   initialData,
   missingTeeth = new Set(),
+  patientId,
 }: PeriodontalCreateModalProps) {
   const [step, setStep] = useState<Step>('select-method')
   const [selectedMethod, setSelectedMethod] = useState<MeasurementType | null>(null)
+  const [selectedPhase, setSelectedPhase] = useState<ExaminationPhase | undefined>(undefined)
 
   // 測定方式選択
   const handleMethodSelect = (method: MeasurementType) => {
@@ -42,6 +45,7 @@ export function PeriodontalCreateModal({
     // ステップをリセット
     setStep('select-method')
     setSelectedMethod(null)
+    setSelectedPhase(undefined)
     onClose()
   }
 
@@ -49,11 +53,12 @@ export function PeriodontalCreateModal({
   const handleSave = (data: PeriodontalExamData) => {
     if (!selectedMethod) return
 
-    onSave(selectedMethod, data)
+    onSave(selectedMethod, data, selectedPhase)
 
     // ステップをリセット
     setStep('select-method')
     setSelectedMethod(null)
+    setSelectedPhase(undefined)
   }
 
   return (
@@ -77,6 +82,9 @@ export function PeriodontalCreateModal({
             onCancel={handleCancel}
             onChangeMethod={handleChangeMethod}
             missingTeeth={missingTeeth}
+            selectedPhase={selectedPhase}
+            onPhaseChange={setSelectedPhase}
+            patientId={patientId}
           />
         )
       )}

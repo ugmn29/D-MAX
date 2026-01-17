@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Modal } from '@/components/ui/modal'
+import { Textarea } from '@/components/ui/textarea'
 import { 
   Plus, 
   Trash2, 
@@ -30,6 +31,7 @@ import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaf
 import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, deletePatientNoteType } from '@/lib/api/patient-note-types'
 import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
 import { getMemoTemplates, createMemoTemplate, updateMemoTemplate, deleteMemoTemplate, MemoTemplate } from '@/lib/api/memo-templates'
+import { getMemoTodoTemplates, createMemoTodoTemplate, updateMemoTodoTemplate, deleteMemoTodoTemplate, MemoTodoTemplate, parseTemplateItems } from '@/lib/api/memo-todo-templates'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 import { initializeClinicStaffPositions, initializeClinicCancelReasons } from '@/lib/api/clinic-initialization'
 
@@ -103,6 +105,16 @@ export default function MasterSettingsPage() {
     is_active: true
   })
 
+  // メモTODOテンプレートの状態
+  const [memoTodoTemplates, setMemoTodoTemplates] = useState<MemoTodoTemplate[]>([])
+  const [showAddMemoTodoTemplate, setShowAddMemoTodoTemplate] = useState(false)
+  const [newMemoTodoTemplate, setNewMemoTodoTemplate] = useState({
+    name: '',
+    items: '',
+    sort_order: 0,
+    is_active: true
+  })
+
   // アイコンマスターの状態
   const [iconMaster, setIconMaster] = useState(PATIENT_ICONS)
   const [editingIconId, setEditingIconId] = useState<string | null>(null)
@@ -112,11 +124,12 @@ export default function MasterSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        const [positionsData, noteTypesData, cancelReasonsData, memoTemplatesData] = await Promise.all([
+        const [positionsData, noteTypesData, cancelReasonsData, memoTemplatesData, memoTodoTemplatesData] = await Promise.all([
           getStaffPositions(DEMO_CLINIC_ID),
           getPatientNoteTypes(DEMO_CLINIC_ID),
           getCancelReasons(DEMO_CLINIC_ID),
-          getMemoTemplates(DEMO_CLINIC_ID)
+          getMemoTemplates(DEMO_CLINIC_ID),
+          getMemoTodoTemplates(DEMO_CLINIC_ID)
         ])
 
         // スタッフ役職が空の場合、デフォルトデータを初期化
@@ -153,6 +166,7 @@ export default function MasterSettingsPage() {
 
         setPatientNoteTypes(noteTypesData)
         setMemoTemplates(memoTemplatesData)
+        setMemoTodoTemplates(memoTodoTemplatesData)
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
@@ -384,6 +398,76 @@ export default function MasterSettingsPage() {
     }
   }
 
+  // メモTODOテンプレート追加
+  const handleAddMemoTodoTemplate = async () => {
+    console.log('handleAddMemoTodoTemplate called with:', newMemoTodoTemplate)
+    try {
+      setSaving(true)
+      console.log('Calling createMemoTodoTemplate...')
+      await createMemoTodoTemplate({
+        clinic_id: DEMO_CLINIC_ID,
+        name: newMemoTodoTemplate.name,
+        items: newMemoTodoTemplate.items,
+        sort_order: newMemoTodoTemplate.sort_order,
+        is_active: newMemoTodoTemplate.is_active
+      })
+      console.log('createMemoTodoTemplate completed')
+
+      // データを再読み込み
+      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID)
+      setMemoTodoTemplates(data)
+
+      setNewMemoTodoTemplate({
+        name: '',
+        items: '',
+        sort_order: 0,
+        is_active: true
+      })
+      setShowAddMemoTodoTemplate(false)
+    } catch (error) {
+      console.error('メモTODOテンプレート追加エラー:', error)
+      alert('メモTODOテンプレートの追加に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // メモTODOテンプレート更新
+  const handleUpdateMemoTodoTemplate = async (templateId: string, updates: Partial<MemoTodoTemplate>) => {
+    try {
+      setSaving(true)
+      await updateMemoTodoTemplate(templateId, updates)
+
+      // データを再読み込み
+      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID)
+      setMemoTodoTemplates(data)
+    } catch (error) {
+      console.error('メモTODOテンプレート更新エラー:', error)
+      alert('メモTODOテンプレートの更新に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // メモTODOテンプレート削除
+  const handleDeleteMemoTodoTemplate = async (templateId: string) => {
+    if (!confirm('このメモTODOテンプレートを削除しますか？')) return
+
+    try {
+      setSaving(true)
+      await deleteMemoTodoTemplate(templateId)
+
+      // データを再読み込み
+      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID)
+      setMemoTodoTemplates(data)
+    } catch (error) {
+      console.error('メモTODOテンプレート削除エラー:', error)
+      alert('メモTODOテンプレートの削除に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -446,6 +530,16 @@ export default function MasterSettingsPage() {
             }`}
           >
             メモ
+          </button>
+          <button
+            onClick={() => setSelectedTab('memo-todo')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              selectedTab === 'memo-todo'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            メモTODO
           </button>
         </nav>
       </div>
@@ -1075,6 +1169,165 @@ export default function MasterSettingsPage() {
                   <Button
                     onClick={handleAddMemoTemplate}
                     disabled={saving || !newMemoTemplate.name.trim() || !newMemoTemplate.content.trim()}
+                  >
+                    {saving ? '追加中...' : '追加'}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </div>
+      )}
+
+      {/* メモTODOタブのコンテンツ */}
+      {selectedTab === 'memo-todo' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">メモTODOテンプレート</h3>
+              <p className="text-sm text-gray-500">サブカルテ・治療計画のメモTODOで使用するテンプレートを管理します</p>
+            </div>
+            <Button onClick={() => setShowAddMemoTodoTemplate(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              新規追加
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {memoTodoTemplates.map(template => {
+              const items = parseTemplateItems(template.items)
+              return (
+                <div key={template.id} className="flex items-start justify-between p-4 bg-white border border-gray-200 rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">{template.name}</div>
+                    <div className="mt-2 space-y-1">
+                      {items.map((item, index) => (
+                        <div key={index} className="flex items-center text-sm text-gray-600">
+                          <span className="w-4 h-4 mr-2 flex-shrink-0 rounded border border-gray-300"></span>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 text-sm text-gray-500">
+                      並び順: {template.sort_order} | ステータス: {template.is_active ? '有効' : '無効'}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={template.is_active}
+                      onChange={(e) => {
+                        handleUpdateMemoTodoTemplate(template.id, { is_active: e.target.checked })
+                      }}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() => {
+                        const newName = prompt('新しいテンプレート名を入力してください:', template.name)
+                        if (newName && newName.trim()) {
+                          const newItems = prompt('TODO項目を入力してください（1行に1項目）:', template.items)
+                          if (newItems !== null) {
+                            handleUpdateMemoTodoTemplate(template.id, {
+                              name: newName.trim(),
+                              items: newItems
+                            })
+                          }
+                        }
+                      }}
+                      className="p-1 text-gray-400 hover:text-blue-600"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMemoTodoTemplate(template.id)}
+                      className="p-1 text-gray-400 hover:text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+
+            {memoTodoTemplates.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">メモTODOテンプレートが登録されていません</p>
+                <Button
+                  onClick={() => setShowAddMemoTodoTemplate(true)}
+                  className="mt-2"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  最初のメモTODOテンプレートを追加
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* メモTODOテンプレート追加モーダル */}
+          {showAddMemoTodoTemplate && (
+            <Modal
+              isOpen={showAddMemoTodoTemplate}
+              onClose={() => setShowAddMemoTodoTemplate(false)}
+              title="新しいメモTODOテンプレートを追加"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="memo_todo_template_name">テンプレート名</Label>
+                  <Input
+                    id="memo_todo_template_name"
+                    value={newMemoTodoTemplate.name}
+                    onChange={(e) => setNewMemoTodoTemplate(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="例: 初診時TODO"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="memo_todo_template_items">TODO項目（1行に1項目）</Label>
+                  <Textarea
+                    id="memo_todo_template_items"
+                    value={newMemoTodoTemplate.items}
+                    onChange={(e) => setNewMemoTodoTemplate(prev => ({ ...prev, items: e.target.value }))}
+                    placeholder="例:&#10;問診票の確認&#10;アレルギーの確認&#10;既往歴の確認"
+                    className="min-h-[150px]"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">1行につき1つのTODO項目を入力してください</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="memo_todo_template_sort_order">並び順</Label>
+                  <Input
+                    id="memo_todo_template_sort_order"
+                    type="number"
+                    value={newMemoTodoTemplate.sort_order}
+                    onChange={(e) => setNewMemoTodoTemplate(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="memo_todo_template_active"
+                    checked={newMemoTodoTemplate.is_active}
+                    onCheckedChange={(checked) => setNewMemoTodoTemplate(prev => ({ ...prev, is_active: checked as boolean }))}
+                  />
+                  <Label htmlFor="memo_todo_template_active">有効</Label>
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddMemoTodoTemplate(false)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      console.log('追加ボタンがクリックされました')
+                      console.log('現在のnewMemoTodoTemplate:', newMemoTodoTemplate)
+                      console.log('saving:', saving)
+                      handleAddMemoTodoTemplate()
+                    }}
+                    disabled={saving || !newMemoTodoTemplate.name.trim() || !newMemoTodoTemplate.items.trim()}
                   >
                     {saving ? '追加中...' : '追加'}
                   </Button>

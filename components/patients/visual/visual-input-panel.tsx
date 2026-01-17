@@ -30,7 +30,7 @@ export function VisualInputPanel({ selectedTeeth, onApplyStatus, onClearSelectio
   return (
     <div className="bg-slate-100 rounded-lg p-4 border border-gray-300">
       <div className="grid grid-cols-6 gap-2">
-        {/* 左列：健全/欠損 */}
+        {/* 左列：健全/なし/欠損/未萌出/埋伏 */}
         <div className="flex flex-col gap-2">
           <div className="h-10" />
           <Button
@@ -40,16 +40,34 @@ export function VisualInputPanel({ selectedTeeth, onApplyStatus, onClearSelectio
           >
             健全
           </Button>
-          <div className="h-10" />
+          <Button
+            onClick={() => handleApply('none')}
+            disabled={!hasSelection}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-900 border border-gray-400 h-10 text-xs"
+          >
+            なし
+          </Button>
           <Button
             onClick={() => handleApply('missing')}
             disabled={!hasSelection}
-            className="bg-gray-300 hover:bg-gray-400 text-gray-900 border border-gray-400 h-10 text-xs"
+            className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 h-10 text-xs"
           >
             欠損
           </Button>
-          <div className="h-10" />
-          <div className="h-10" />
+          <Button
+            onClick={() => handleApply('unerupted')}
+            disabled={!hasSelection}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300 h-10 text-xs"
+          >
+            未萌出
+          </Button>
+          <Button
+            onClick={() => handleApply('impacted')}
+            disabled={!hasSelection}
+            className="bg-gray-300 hover:bg-gray-400 text-gray-900 border border-gray-400 h-10 text-xs"
+          >
+            埋伏
+          </Button>
         </div>
 
         {/* C列：空/CO/C1/C2/C3/C4 */}

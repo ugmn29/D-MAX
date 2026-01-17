@@ -34,6 +34,7 @@ import { VisualExamTab } from './visual/visual-exam-tab'
 import { PatientNotificationTab } from './patient-notification-tab'
 import { MedicalDocumentsTab } from './medical-documents-tab'
 import { EMRTab } from './emr-tab'
+import { TreatmentPlanTab } from './treatment-plan-tab'
 
 interface PatientDetailTabsProps {
   patientId: string
@@ -48,6 +49,7 @@ const tabs = [
   { id: 'visual', label: '視診', icon: Eye, available: true },
   { id: 'p-test', label: 'P検査', icon: Activity, available: true },
   { id: 'sub-chart', label: 'サブカルテ', icon: FileText, available: true },
+  { id: 'treatment-plan', label: '治療計画', icon: BarChart3, available: true },
   { id: 'training', label: 'トレーニング', icon: Target, available: true },
   { id: 'history', label: '診療履歴', icon: History, available: true },
   { id: 'appointments', label: '予約', icon: Calendar, available: true },
@@ -56,7 +58,6 @@ const tabs = [
   { id: 'insurance', label: '保険・公費', icon: Shield, available: true },
   { id: 'files', label: 'ファイル', icon: Folder, available: true },
   { id: 'medical-documents', label: '提供文書', icon: FileCheck, available: true },
-  { id: 'treatment-plan', label: '治療計画', icon: BarChart3, available: true },
   { id: 'access-history', label: 'アクセス履歴', icon: Search, available: true },
   { id: 'appointment-logs', label: '予約操作ログ', icon: FileClock, available: true }
 ]
@@ -76,7 +77,7 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
       case 'p-test':
         return <PeriodontalExamTab patientId={patientId} />
       case 'sub-chart':
-        return <SubKarteTab patientId={patientId} />
+        return <SubKarteTab key={`subkarte-${Date.now()}`} patientId={patientId} />
       case 'training':
         return <PatientTrainingTabs patientId={patientId} />
       case 'history':
@@ -95,7 +96,7 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
       case 'medical-documents':
         return <MedicalDocumentsTab patientId={patientId} clinicId={DEMO_CLINIC_ID} />
       case 'treatment-plan':
-        return <div className="p-6 text-center text-gray-500">治療計画機能（開発中）</div>
+        return <TreatmentPlanTab patientId={patientId} />
       case 'access-history':
         return <div className="p-6 text-center text-gray-500">アクセス履歴機能（開発中）</div>
       case 'appointment-logs':
@@ -210,15 +211,6 @@ function FilesTab({ patientId }: { patientId: string }) {
     <div className="space-y-6">
       <h3 className="text-lg font-semibold">ファイル</h3>
       <p className="text-gray-600">ファイルタブのコンテンツがここに表示されます</p>
-    </div>
-  )
-}
-
-function TreatmentPlanTab({ patientId }: { patientId: string }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">治療計画</h3>
-      <p className="text-gray-600">治療計画タブのコンテンツがここに表示されます</p>
     </div>
   )
 }

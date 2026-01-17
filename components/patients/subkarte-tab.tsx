@@ -10,6 +10,15 @@ import { Badge } from '@/components/ui/badge'
 import { HandwritingModal } from '@/components/ui/handwriting-modal'
 import { AudioRecordingModal } from '@/components/ui/audio-recording-modal'
 import { getStaff } from '@/lib/api/staff'
+import { getPatientTreatmentMemo, updatePatientTreatmentMemo } from '@/lib/api/patients'
+import { TreatmentPlanTodos } from './treatment-plan-todos'
+import { getActiveMemoTodoTemplates, parseTemplateItems, MemoTodoTemplate } from '@/lib/api/memo-todo-templates'
+import {
+  getPatientAlertNotes,
+  checkTodayConfirmation,
+  recordTodayConfirmation,
+  PatientAlertNote
+} from '@/lib/api/patient-alert-notes'
 import {
   FileText,
   Mic,
@@ -31,7 +40,12 @@ import {
   Edit,
   X,
   Highlighter,
-  User
+  User,
+  StickyNote,
+  ClipboardList,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle
 } from 'lucide-react'
 
 interface SubKarteEntry {
@@ -80,8 +94,33 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
   const [editMarkerColor, setEditMarkerColor] = useState<string | null>(null)
   const [editRichTextContent, setEditRichTextContent] = useState('')
   const [editActiveColorMode, setEditActiveColorMode] = useState<'text' | 'marker' | null>(null)
-  
+  // 治療計画メモ（自由記述 + TODOリスト）
+  interface MemoTodo {
+    id: string
+    text: string
+    completed: boolean
+  }
+  interface TreatmentMemoData {
+    freeText: string
+    todos: MemoTodo[]
+  }
+  const [treatmentMemoData, setTreatmentMemoData] = useState<TreatmentMemoData>({ freeText: '', todos: [] })
+  const [treatmentMemoSaving, setTreatmentMemoSaving] = useState(false)
+  const [newTodoText, setNewTodoText] = useState('')
+  const [showCompletedTodos, setShowCompletedTodos] = useState(false)
+  // メモTODOテンプレート
+  const [memoTodoTemplates, setMemoTodoTemplates] = useState<MemoTodoTemplate[]>([])
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
+  const [hoveredTemplateId, setHoveredTemplateId] = useState<string | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
+  const templateDropdownRef = useRef<HTMLDivElement>(null)
+  // 毎回表示（重要な注意事項）
+  const [alertNotes, setAlertNotes] = useState<PatientAlertNote[]>([])
+  const [showAlertModal, setShowAlertModal] = useState(false)
+  const [showAlertIcon, setShowAlertIcon] = useState(false)
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const treatmentMemoTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // 古い録音機能のrefは削除 - 新しいAudioRecordingModalを使用
 
   // ローカルストレージからデータを読み込み
@@ -108,6 +147,34 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
     }
 
     loadEntries()
+  }, [patientId])
+
+  // 毎回表示（重要な注意事項）の読み込みとモーダル表示
+  useEffect(() => {
+    const loadAlertNotes = async () => {
+      try {
+        const notes = await getPatientAlertNotes(patientId)
+        setAlertNotes(notes)
+
+        // 注意事項がある場合のみ、今日確認済みかチェック
+        if (notes.length > 0) {
+          const confirmed = await checkTodayConfirmation(patientId)
+          if (!confirmed) {
+            // まだ今日確認していない場合、モーダルを表示
+            setShowAlertModal(true)
+            setShowAlertIcon(false)
+          } else {
+            // 既に確認済みの場合、アイコンのみ表示
+            setShowAlertModal(false)
+            setShowAlertIcon(true)
+          }
+        }
+      } catch (error) {
+        console.error('注意事項の読み込みエラー:', error)
+      }
+    }
+
+    loadAlertNotes()
   }, [patientId])
 
   // スタッフデータの読み込み
@@ -139,6 +206,208 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
     
     loadStaff()
   }, [])
+
+  // メモTODOテンプレートの読み込み
+  useEffect(() => {
+    const loadMemoTodoTemplates = async () => {
+      try {
+        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+        console.log('SubKarteTab: Loading memo todo templates for clinic:', DEMO_CLINIC_ID)
+        // デバッグ: localStorageの生データを確認
+        const rawData = localStorage.getItem('memo_todo_templates')
+        console.log('SubKarteTab: Raw localStorage data:', rawData)
+        const templates = await getActiveMemoTodoTemplates(DEMO_CLINIC_ID)
+        console.log('SubKarteTab: Loaded templates:', templates)
+        setMemoTodoTemplates(templates)
+      } catch (error) {
+        console.error('メモTODOテンプレートの読み込みに失敗:', error)
+      }
+    }
+    loadMemoTodoTemplates()
+  }, [])
+
+  // テンプレートドロップダウンの外側クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (templateDropdownRef.current && !templateDropdownRef.current.contains(event.target as Node)) {
+        setShowTemplateDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // UUID形式かどうかを判定するヘルパー
+  const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+
+  // 治療計画メモの読み込み関数
+  const loadTreatmentMemo = async () => {
+    try {
+      let rawMemo: string | null = null
+      if (isUUID(patientId)) {
+        // UUID形式の場合はDBから読み込み
+        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+        rawMemo = await getPatientTreatmentMemo(DEMO_CLINIC_ID, patientId)
+      } else {
+        // UUID形式でない場合はローカルストレージから読み込み
+        rawMemo = localStorage.getItem(`treatment_memo_${patientId}`)
+      }
+
+      if (rawMemo) {
+        try {
+          // JSON形式でパースを試みる
+          const parsed = JSON.parse(rawMemo)
+          if (parsed && typeof parsed === 'object' && 'freeText' in parsed) {
+            setTreatmentMemoData(parsed as TreatmentMemoData)
+          } else {
+            // 旧形式（プレーンテキスト）の場合
+            setTreatmentMemoData({ freeText: rawMemo, todos: [] })
+          }
+        } catch {
+          // JSONパース失敗 = プレーンテキスト
+          setTreatmentMemoData({ freeText: rawMemo, todos: [] })
+        }
+      } else {
+        setTreatmentMemoData({ freeText: '', todos: [] })
+      }
+    } catch (error) {
+      console.error('治療計画メモの読み込みに失敗:', error)
+    }
+  }
+
+  // 治療計画メモの読み込み（マウント時と patientId 変更時）
+  useEffect(() => {
+    loadTreatmentMemo()
+  }, [patientId])
+
+  // ページがフォーカスを得た時に再読み込み（タブ切り替え対応）
+  useEffect(() => {
+    const handleFocus = () => {
+      loadTreatmentMemo()
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [patientId])
+
+  // 治療計画メモの自動保存（デバウンス）- JSON形式
+  const saveTreatmentMemoData = async (data: TreatmentMemoData) => {
+    const memoJson = JSON.stringify(data)
+    console.log('治療計画メモ保存開始:', memoJson, 'isUUID:', isUUID(patientId))
+    try {
+      setTreatmentMemoSaving(true)
+      if (isUUID(patientId)) {
+        // UUID形式の場合はDBに保存
+        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+        await updatePatientTreatmentMemo(DEMO_CLINIC_ID, patientId, memoJson || null)
+        console.log('DBに保存完了')
+      } else {
+        // UUID形式でない場合はローカルストレージに保存
+        if (memoJson) {
+          localStorage.setItem(`treatment_memo_${patientId}`, memoJson)
+        } else {
+          localStorage.removeItem(`treatment_memo_${patientId}`)
+        }
+        console.log('ローカルストレージに保存完了')
+      }
+    } catch (error) {
+      console.error('治療計画メモの保存に失敗:', error)
+    } finally {
+      setTreatmentMemoSaving(false)
+    }
+  }
+
+  // 注意事項モーダルの確認ボタン
+  const handleConfirmAlert = async () => {
+    try {
+      await recordTodayConfirmation(patientId)
+      setShowAlertModal(false)
+      setShowAlertIcon(true)
+    } catch (error) {
+      console.error('確認記録のエラー:', error)
+      alert('確認の記録に失敗しました')
+    }
+  }
+
+  // 自由記述の変更
+  const handleFreeTextChange = (value: string) => {
+    const newData = { ...treatmentMemoData, freeText: value }
+    setTreatmentMemoData(newData)
+
+    // 既存のタイムアウトをクリア
+    if (treatmentMemoTimeoutRef.current) {
+      clearTimeout(treatmentMemoTimeoutRef.current)
+    }
+
+    // 1秒後に保存
+    treatmentMemoTimeoutRef.current = setTimeout(() => {
+      saveTreatmentMemoData(newData)
+    }, 1000)
+  }
+
+  // TODO追加
+  const handleAddTodo = () => {
+    if (!newTodoText.trim()) return
+    const newTodo: MemoTodo = {
+      id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      text: newTodoText.trim(),
+      completed: false
+    }
+    const newData = {
+      ...treatmentMemoData,
+      todos: [...treatmentMemoData.todos, newTodo]
+    }
+    setTreatmentMemoData(newData)
+    setNewTodoText('')
+    saveTreatmentMemoData(newData)
+  }
+
+  // テンプレートからTODOを追加
+  const handleApplyTemplate = (template: MemoTodoTemplate) => {
+    const templateItems = parseTemplateItems(template.items)
+    const existingTexts = new Set(treatmentMemoData.todos.map(t => t.text))
+
+    // 重複しないものだけ追加
+    const newTodos = templateItems
+      .filter(text => !existingTexts.has(text))
+      .map(text => ({
+        id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        text,
+        completed: false
+      }))
+
+    if (newTodos.length > 0) {
+      const newData = {
+        ...treatmentMemoData,
+        todos: [...treatmentMemoData.todos, ...newTodos]
+      }
+      setTreatmentMemoData(newData)
+      saveTreatmentMemoData(newData)
+    }
+
+    setShowTemplateDropdown(false)
+  }
+
+  // TODOのチェック状態を切り替え
+  const handleToggleTodo = (todoId: string) => {
+    const newData = {
+      ...treatmentMemoData,
+      todos: treatmentMemoData.todos.map(todo =>
+        todo.id === todoId ? { ...todo, completed: !todo.completed } : todo
+      )
+    }
+    setTreatmentMemoData(newData)
+    saveTreatmentMemoData(newData)
+  }
+
+  // TODOを削除
+  const handleDeleteTodo = (todoId: string) => {
+    const newData = {
+      ...treatmentMemoData,
+      todos: treatmentMemoData.todos.filter(todo => todo.id !== todoId)
+    }
+    setTreatmentMemoData(newData)
+    saveTreatmentMemoData(newData)
+  }
 
   // デフォルトテキストの読み込み
   useEffect(() => {
@@ -1655,12 +1924,240 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
         </div>
       </div>
 
-      {/* 右側：記入エリア - 1/4 */}
-      <div className="w-1/4 border-l border-gray-200 pl-4 flex flex-col">
-        <div className="h-full flex flex-col">
-          
-          {/* 入力タイプ選択 */}
-          <div className="flex space-x-1 mb-4">
+      {/* 右側：記入エリア + TODO - 1/4 */}
+      <div className="w-1/4 border-l border-gray-200 pl-4 flex flex-col space-y-4">
+        {/* 治療計画TODO */}
+        <div className="flex-shrink-0">
+          <TreatmentPlanTodos patientId={patientId} />
+        </div>
+
+        {/* 治療計画メモ + TODO */}
+        <div className="flex-shrink-0">
+          <div className="relative border border-gray-200 rounded-md p-2 min-h-[120px] max-h-[180px] overflow-y-auto bg-white">
+            {treatmentMemoSaving && (
+              <span className="absolute top-1 right-2 text-xs text-gray-400 z-10">保存中...</span>
+            )}
+
+            {/* TODOリスト */}
+            {(() => {
+              const pendingTodos = treatmentMemoData.todos.filter(todo => !todo.completed)
+              const completedTodos = treatmentMemoData.todos.filter(todo => todo.completed)
+
+              return (
+                <>
+                  {/* 未完了TODO */}
+                  {pendingTodos.length > 0 && (
+                    <div className="mb-1 space-y-0.5">
+                      {pendingTodos.map(todo => (
+                        <div key={todo.id} className="flex items-center gap-1 group">
+                          <input
+                            type="checkbox"
+                            checked={todo.completed}
+                            onChange={() => handleToggleTodo(todo.id)}
+                            className="w-3 h-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                          />
+                          <span className={`flex-1 text-xs ${todo.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                            {todo.text}
+                          </span>
+                          <button
+                            onClick={() => handleDeleteTodo(todo.id)}
+                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 完了済みTODO（折りたたみ） */}
+                  {completedTodos.length > 0 && (
+                    <div className="mb-1">
+                      <button
+                        onClick={() => setShowCompletedTodos(!showCompletedTodos)}
+                        className="flex items-center gap-1 w-full px-1 py-0.5 text-xs text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                      >
+                        {showCompletedTodos ? (
+                          <ChevronDown className="w-3 h-3" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3" />
+                        )}
+                        <span>完了済み ({completedTodos.length}件)</span>
+                      </button>
+                      {showCompletedTodos && (
+                        <div className="mt-0.5 space-y-0.5 border-l-2 border-gray-200 pl-2 ml-2">
+                          {completedTodos.map(todo => (
+                            <div key={todo.id} className="flex items-center gap-1 group">
+                              <input
+                                type="checkbox"
+                                checked={todo.completed}
+                                onChange={() => handleToggleTodo(todo.id)}
+                                className="w-3 h-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                              />
+                              <span className="flex-1 text-xs line-through text-gray-400">
+                                {todo.text}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteTodo(todo.id)}
+                                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+
+            {/* TODO追加入力 */}
+            <div className="flex items-center gap-1 mb-1">
+              <input
+                type="text"
+                value={newTodoText}
+                onChange={(e) => setNewTodoText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                    e.preventDefault()
+                    handleAddTodo()
+                  }
+                }}
+                placeholder="TODO追加（Enter）"
+                className="flex-1 px-1 py-0.5 text-xs border border-gray-200 rounded bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+              {/* テンプレートボタン */}
+              <div ref={templateDropdownRef} className="relative">
+                <button
+                  onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                  className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title="テンプレートからTODOを追加"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                </button>
+                {showTemplateDropdown && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+                    <div className="py-1">
+                      {memoTodoTemplates.length > 0 ? (
+                        memoTodoTemplates.map(template => {
+                          const items = parseTemplateItems(template.items)
+                          return (
+                            <div key={template.id}>
+                              <button
+                                onClick={() => handleApplyTemplate(template)}
+                                onMouseEnter={(e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  setHoveredTemplateId(template.id)
+                                  setTooltipPosition({
+                                    x: rect.left - 10,
+                                    y: rect.top
+                                  })
+                                }}
+                                onMouseLeave={() => {
+                                  setHoveredTemplateId(null)
+                                  setTooltipPosition(null)
+                                }}
+                                className="w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                              >
+                                {template.name}
+                              </button>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="px-3 py-2 text-xs text-gray-500">
+                          テンプレート未登録
+                          <div className="mt-1 text-[10px] text-gray-400">設定 → マスタ → メモTODO</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 固定位置ツールチップ */}
+            {hoveredTemplateId && tooltipPosition && (
+              <div
+                className="fixed z-[1000] min-w-[120px] bg-white text-gray-700 text-xs rounded-md shadow-lg border border-gray-200 p-2 pointer-events-none"
+                style={{
+                  left: `${tooltipPosition.x}px`,
+                  top: `${tooltipPosition.y}px`,
+                  transform: 'translateX(-100%)'
+                }}
+              >
+                {memoTodoTemplates
+                  .filter(t => t.id === hoveredTemplateId)
+                  .map(template => {
+                    const items = parseTemplateItems(template.items)
+                    return items.map((item, idx) => (
+                      <div key={idx} className="flex items-center py-0.5">
+                        <span className="w-3 h-3 mr-1.5 flex-shrink-0 rounded border border-gray-300"></span>
+                        {item}
+                      </div>
+                    ))
+                  })}
+              </div>
+            )}
+
+            {/* 自由記述エリア */}
+            <Textarea
+              value={treatmentMemoData.freeText}
+              onChange={(e) => handleFreeTextChange(e.target.value)}
+              placeholder="患者の治療方針や注意事項を入力..."
+              className="text-xs min-h-[50px] max-h-[100px] resize-none border-0 p-0 focus:ring-0"
+            />
+          </div>
+        </div>
+
+        {/* 記入エリア + ツールバー */}
+        <div className="flex-1 flex gap-2">
+          {/* テキスト入力 */}
+          {activeInputType === 'text' && (
+            <div className="flex-1 flex flex-col">
+              <div
+                id="main-rich-text-editor"
+                contentEditable
+                className="flex-1 resize-none min-h-[200px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                style={{ 
+                  color: '#000000',
+                  backgroundColor: 'transparent',
+                  whiteSpace: 'pre-wrap'
+                }}
+                onInput={(e) => {
+                  const target = e.target as HTMLDivElement
+                  setRichTextContentState(target.innerHTML)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    // デフォルトの動作を使用
+                  }
+                }}
+                onKeyUp={(e) => {
+                  const target = e.target as HTMLDivElement
+                  setRichTextContentState(target.innerHTML)
+                }}
+                onFocus={(e) => {
+                  const target = e.target as HTMLDivElement
+                  if (target.innerHTML === 'テキストを入力してください...' || target.innerHTML === '<div>テキストを入力してください...</div>') {
+                    target.innerHTML = ''
+                  }
+                }}
+                onBlur={(e) => {
+                  const target = e.target as HTMLDivElement
+                  if (target.innerHTML === '' || target.innerHTML === '<div><br></div>') {
+                    target.innerHTML = 'テキストを入力してください...'
+                  }
+                }}
+                suppressContentEditableWarning={true}
+              />
+            </div>
+          )}
+
+          {/* ツールバー（テキスト入力の右側に縦配置） */}
+          <div className="flex flex-col gap-1 pt-1">
             {/* 文字色ボタン */}
             <button
               className={`w-5 h-5 rounded-full border-2 ${
@@ -1706,7 +2203,7 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
               }}
               title="緑文字"
             />
-            
+
             {/* マーカーボタン */}
             <button
               className={`p-1 rounded ${
@@ -1748,50 +2245,10 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
               <Upload className="w-3 h-3" />
             </button>
           </div>
+        </div>
 
-          {/* テキスト入力 */}
-          {activeInputType === 'text' && (
-            <div className="flex-1 flex flex-col">
-              <div
-                id="main-rich-text-editor"
-                contentEditable
-                className="flex-1 resize-none min-h-[200px] p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                style={{ 
-                  color: '#000000',
-                  backgroundColor: 'transparent',
-                  whiteSpace: 'pre-wrap'
-                }}
-                onInput={(e) => {
-                  const target = e.target as HTMLDivElement
-                  setRichTextContentState(target.innerHTML)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    // デフォルトの動作を使用
-                  }
-                }}
-                onKeyUp={(e) => {
-                  const target = e.target as HTMLDivElement
-                  setRichTextContentState(target.innerHTML)
-                }}
-                onFocus={(e) => {
-                  const target = e.target as HTMLDivElement
-                  if (target.innerHTML === 'テキストを入力してください...' || target.innerHTML === '<div>テキストを入力してください...</div>') {
-                    target.innerHTML = ''
-                  }
-                }}
-                onBlur={(e) => {
-                  const target = e.target as HTMLDivElement
-                  if (target.innerHTML === '' || target.innerHTML === '<div><br></div>') {
-                    target.innerHTML = 'テキストを入力してください...'
-                  }
-                }}
-                suppressContentEditableWarning={true}
-              />
-            </div>
-          )}
-
-          {/* 録音・スタッフ・送信ボタン */}
+        {/* 録音・スタッフ・送信ボタン */}
+        <div className="flex-shrink-0">
           <div className="mt-2 flex space-x-2">
             <Button
               onClick={() => setShowAudioRecordingModal(true)}
@@ -2067,6 +2524,56 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 重要な注意事項モーダル */}
+      {showAlertModal && alertNotes.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="w-8 h-8 text-orange-500" />
+              <h2 className="text-xl font-bold text-gray-900">重要な注意事項</h2>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {alertNotes.map((note) => (
+                <div
+                  key={note.id}
+                  className="flex items-start gap-2 p-3 bg-orange-50 border-2 border-orange-300 rounded-md"
+                >
+                  <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm font-medium text-gray-900">
+                    {note.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              onClick={handleConfirmAlert}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              確認しました
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 警告アイコン（確認後に右上に表示） */}
+      {showAlertIcon && alertNotes.length > 0 && (
+        <div className="fixed top-4 right-4 z-50">
+          <button
+            onClick={() => setShowAlertModal(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-lg shadow-lg hover:bg-orange-600 transition-colors"
+            title="重要な注意事項を確認"
+          >
+            <AlertTriangle className="w-5 h-5" />
+            <span className="text-sm font-medium">注意事項</span>
+            <span className="text-xs bg-white text-orange-500 rounded-full px-2 py-0.5 font-bold">
+              {alertNotes.length}
+            </span>
+          </button>
         </div>
       )}
     </div>

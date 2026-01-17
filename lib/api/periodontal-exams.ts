@@ -13,6 +13,8 @@ const createClient = (): SupabaseClient<Database> => {
   return supabase
 }
 
+export type ExaminationPhase = 'P_EXAM_1' | 'P_EXAM_2' | 'P_EXAM_3' | 'P_EXAM_4' | 'P_EXAM_5' | 'SPT' | 'OTHER'
+
 // 歯周検査データの型定義
 export interface PeriodontalExam {
   id: string
@@ -21,6 +23,7 @@ export interface PeriodontalExam {
   examination_date: string
   examiner_id?: string
   measurement_type: MeasurementType
+  examination_phase?: ExaminationPhase
   notes?: string
   created_at: string
   updated_at: string
@@ -74,6 +77,7 @@ export interface CreatePeriodontalExamInput {
   examination_date?: string
   examiner_id?: string
   measurement_type: MeasurementType
+  examination_phase?: ExaminationPhase
   notes?: string
   tooth_data: PeriodontalToothData[]
 }

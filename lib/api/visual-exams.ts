@@ -1,5 +1,13 @@
 // 型定義
-export type ToothStatus = 'healthy' | 'caries' | 'restoration' | 'missing' | 'extraction_required' | 'unerupted'
+export type ToothStatus =
+  | 'healthy'
+  | 'caries'
+  | 'restoration'
+  | 'missing'
+  | 'extraction_required'
+  | 'unerupted'
+  | 'none'
+  | 'impacted'
 export type CariesLevel = 'CO' | 'C1' | 'C2' | 'C3' | 'C4'
 export type RestorationType = 'inlay' | 'crown' | 'bridge'
 export type MaterialType = 'ceramic' | 'metal' | 'cad' | 'hr'

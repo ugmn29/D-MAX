@@ -6,9 +6,10 @@ interface DentalChartTableProps {
   toothData: Record<number, VisualToothData>
   selectedTeeth: Set<number>
   onToothClick: (toothNumber: number) => void
+  disabledTeeth?: Set<number>  // 選択不可の歯（グレーアウト表示）
 }
 
-export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: DentalChartTableProps) {
+export function DentalChartTable({ toothData, selectedTeeth, onToothClick, disabledTeeth = new Set() }: DentalChartTableProps) {
   // 永久歯
   const upperRightPermanent = [18, 17, 16, 15, 14, 13, 12, 11]
   const upperLeftPermanent = [21, 22, 23, 24, 25, 26, 27, 28]
@@ -20,6 +21,18 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
   const upperLeftDeciduous = [61, 62, 63, 64, 65]
   const lowerRightDeciduous = [85, 84, 83, 82, 81]
   const lowerLeftDeciduous = [71, 72, 73, 74, 75]
+
+  // 乳歯データの有無をチェック（status が 'none' 以外のデータがある場合のみ表示）
+  const allDeciduousTeeth = [
+    ...upperRightDeciduous,
+    ...upperLeftDeciduous,
+    ...lowerRightDeciduous,
+    ...lowerLeftDeciduous
+  ]
+  const hasDeciduousData = allDeciduousTeeth.some(toothNumber => {
+    const data = toothData[toothNumber]
+    return data && data.status !== 'none'
+  })
 
   // FDI歯番号を表示用文字列に変換
   const toothNumberToDisplay = (toothNumber: number): string => {
@@ -44,9 +57,11 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
     if (!data) return ''
 
     if (data.status === 'healthy') return '/'
+    if (data.status === 'none') return '-'
     if (data.status === 'missing') return '×'
     if (data.status === 'extraction_required') return '△'
     if (data.status === 'unerupted') return '▲'
+    if (data.status === 'impacted') return '◆'
 
     if (data.status === 'caries' && data.caries_level) {
       return data.caries_level
@@ -77,9 +92,11 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
     const data = toothData[toothNumber]
     if (!data || data.status === 'healthy') return 'bg-white'
 
+    if (data.status === 'none') return 'bg-gray-200'
     if (data.status === 'missing') return 'bg-white'
     if (data.status === 'extraction_required') return 'bg-yellow-200'
     if (data.status === 'unerupted') return 'bg-gray-100'
+    if (data.status === 'impacted') return 'bg-gray-300'
 
     if (data.status === 'caries') {
       const colors: Record<string, string> = {
@@ -107,6 +124,7 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
 
   const renderToothCell = (toothNumber: number) => {
     const isSelected = selectedTeeth.has(toothNumber)
+    const isDisabled = disabledTeeth.has(toothNumber)
     const bgColor = getCellBackground(toothNumber)
     const label = getToothLabel(toothNumber)
 
@@ -114,13 +132,16 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
       <td
         key={toothNumber}
         className={`
-          h-9 w-9 min-w-[2.25rem] max-w-[2.25rem] cursor-pointer text-center align-middle font-medium text-[11px]
+          h-7 w-7 min-w-[1.75rem] max-w-[1.75rem] text-center align-middle font-medium text-[9px]
           border border-gray-300
-          ${bgColor}
-          ${isSelected ? 'ring-2 ring-blue-500 ring-inset' : ''}
-          hover:opacity-80 transition-opacity
+          ${isDisabled
+            ? 'bg-gray-300 text-gray-400 cursor-not-allowed opacity-50'
+            : `${bgColor} cursor-pointer hover:opacity-80`
+          }
+          ${isSelected && !isDisabled ? 'ring-2 ring-blue-500 ring-inset' : ''}
+          transition-opacity
         `}
-        onClick={() => onToothClick(toothNumber)}
+        onClick={() => !isDisabled && onToothClick(toothNumber)}
       >
         {label}
       </td>
@@ -141,89 +162,97 @@ export function DentalChartTable({ toothData, selectedTeeth, onToothClick }: Den
           {/* 上顎 永久歯番表示行 */}
           <tr>
             {upperRightPermanent.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-1 text-[10px] text-center text-gray-600">
+              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-0.5 text-[8px] text-center text-gray-600">
                 {toothNumberToDisplay(toothNumber)}
               </td>
             ))}
-            <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-1 text-[10px] text-center w-1">
+            <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-0.5 text-[8px] text-center w-1">
             </td>
             {upperLeftPermanent.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-1 text-[10px] text-center text-gray-600">
+              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-0.5 text-[8px] text-center text-gray-600">
                 {toothNumberToDisplay(toothNumber)}
               </td>
             ))}
           </tr>
 
           {/* 上顎 乳歯番表示行 */}
-          <tr>
-            <td colSpan={3} className="bg-white px-0 py-0"></td>
-            {upperRightDeciduous.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-1 text-[10px] text-center text-blue-600 font-medium">
-                {toothNumberToDisplay(toothNumber)}
+          {hasDeciduousData && (
+            <tr>
+              <td colSpan={3} className="bg-white px-0 py-0"></td>
+              {upperRightDeciduous.map(toothNumber => (
+                <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-0.5 text-[8px] text-center text-blue-600 font-medium">
+                  {toothNumberToDisplay(toothNumber)}
+                </td>
+              ))}
+              <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-0.5 text-[8px] text-center w-1">
               </td>
-            ))}
-            <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-1 text-[10px] text-center w-1">
-            </td>
-            {upperLeftDeciduous.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-1 text-[10px] text-center text-blue-600 font-medium">
-                {toothNumberToDisplay(toothNumber)}
-              </td>
-            ))}
-            <td colSpan={3} className="bg-white px-0 py-0"></td>
-          </tr>
+              {upperLeftDeciduous.map(toothNumber => (
+                <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-0.5 text-[8px] text-center text-blue-600 font-medium">
+                  {toothNumberToDisplay(toothNumber)}
+                </td>
+              ))}
+              <td colSpan={3} className="bg-white px-0 py-0"></td>
+            </tr>
+          )}
 
           {/* 上顎 乳歯データ行 */}
-          <tr>
-            <td colSpan={3} className="bg-white"></td>
-            {upperRightDeciduous.map(renderToothCell)}
-            <td className="border-l border-r border-gray-400 bg-gray-100 w-1" />
-            {upperLeftDeciduous.map(renderToothCell)}
-            <td colSpan={3} className="bg-white"></td>
-          </tr>
+          {hasDeciduousData && (
+            <tr>
+              <td colSpan={3} className="bg-white"></td>
+              {upperRightDeciduous.map(renderToothCell)}
+              <td className="border-l border-r border-gray-400 bg-gray-100 w-1" />
+              {upperLeftDeciduous.map(renderToothCell)}
+              <td colSpan={3} className="bg-white"></td>
+            </tr>
+          )}
 
           {/* 区切り行 */}
           <tr>
-            <td colSpan={17} className="bg-gray-100 h-2"></td>
+            <td colSpan={17} className="bg-gray-100 h-1"></td>
           </tr>
 
           {/* 下顎 乳歯データ行 */}
-          <tr>
-            <td colSpan={3} className="bg-white"></td>
-            {lowerRightDeciduous.map(renderToothCell)}
-            <td className="border-l border-r border-gray-400 bg-gray-100 w-1" />
-            {lowerLeftDeciduous.map(renderToothCell)}
-            <td colSpan={3} className="bg-white"></td>
-          </tr>
+          {hasDeciduousData && (
+            <tr>
+              <td colSpan={3} className="bg-white"></td>
+              {lowerRightDeciduous.map(renderToothCell)}
+              <td className="border-l border-r border-gray-400 bg-gray-100 w-1" />
+              {lowerLeftDeciduous.map(renderToothCell)}
+              <td colSpan={3} className="bg-white"></td>
+            </tr>
+          )}
 
           {/* 下顎 乳歯番表示行 */}
-          <tr>
-            <td colSpan={3} className="bg-white px-0 py-0"></td>
-            {lowerRightDeciduous.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-1 text-[10px] text-center text-blue-600 font-medium">
-                {toothNumberToDisplay(toothNumber)}
+          {hasDeciduousData && (
+            <tr>
+              <td colSpan={3} className="bg-white px-0 py-0"></td>
+              {lowerRightDeciduous.map(toothNumber => (
+                <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-0.5 text-[8px] text-center text-blue-600 font-medium">
+                  {toothNumberToDisplay(toothNumber)}
+                </td>
+              ))}
+              <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-0.5 text-[8px] text-center w-1">
               </td>
-            ))}
-            <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-1 text-[10px] text-center w-1">
-            </td>
-            {lowerLeftDeciduous.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-1 text-[10px] text-center text-blue-600 font-medium">
-                {toothNumberToDisplay(toothNumber)}
-              </td>
-            ))}
-            <td colSpan={3} className="bg-white px-0 py-0"></td>
-          </tr>
+              {lowerLeftDeciduous.map(toothNumber => (
+                <td key={toothNumber} className="border border-gray-300 bg-blue-50 px-0.5 py-0.5 text-[8px] text-center text-blue-600 font-medium">
+                  {toothNumberToDisplay(toothNumber)}
+                </td>
+              ))}
+              <td colSpan={3} className="bg-white px-0 py-0"></td>
+            </tr>
+          )}
 
           {/* 下顎 永久歯番表示行 */}
           <tr>
             {lowerRightPermanent.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-1 text-[10px] text-center text-gray-600">
+              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-0.5 text-[8px] text-center text-gray-600">
                 {toothNumberToDisplay(toothNumber)}
               </td>
             ))}
-            <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-1 text-[10px] text-center w-1">
+            <td className="border-l border-r border-gray-400 bg-gray-100 px-0.5 py-0.5 text-[8px] text-center w-1">
             </td>
             {lowerLeftPermanent.map(toothNumber => (
-              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-1 text-[10px] text-center text-gray-600">
+              <td key={toothNumber} className="border border-gray-300 bg-gray-50 px-0.5 py-0.5 text-[8px] text-center text-gray-600">
                 {toothNumberToDisplay(toothNumber)}
               </td>
             ))}

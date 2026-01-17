@@ -89,8 +89,8 @@ export function VisualExamCreateModal({ isOpen, onClose, onSave, initialData, pa
       // 6〜15歳：乳歯と永久歯の両方が健全
       return 'healthy'
     } else {
-      // 15歳以上：永久歯のみ健全、乳歯は欠損
-      return isPermanent ? 'healthy' : 'missing'
+      // 15歳以上：永久歯のみ健全、乳歯は「なし」（正常に交換済み）
+      return isPermanent ? 'healthy' : 'none'
     }
   }
 

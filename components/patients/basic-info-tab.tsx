@@ -32,6 +32,7 @@ import {
   Search,
   Bell,
   Settings,
+  AlertTriangle,
 } from "lucide-react";
 import { calculateAge } from "@/lib/utils/date";
 import { Patient } from "@/types/database";
@@ -51,6 +52,11 @@ import {
 import { getPatientIcons, upsertPatientIcons } from "@/lib/api/patient-icons";
 import { LineLinkageSection } from "./line-linkage-section";
 import { PatientEditModal } from "@/components/forms/patient-edit-modal";
+import {
+  getPatientAlertNotes,
+  updatePatientAlertNotes,
+  PatientAlertNote,
+} from "@/lib/api/patient-alert-notes";
 
 interface BasicInfoTabProps {
   patientId: string;
@@ -121,6 +127,10 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
   // 選択されたアイコン
   const [selectedIconIds, setSelectedIconIds] = useState<string[]>([]);
+
+  // 毎回表示（重要な注意事項）
+  const [alertNotes, setAlertNotes] = useState<PatientAlertNote[]>([]);
+  const [newAlertNote, setNewAlertNote] = useState("");
 
   // アイコンを選択/解除してデータベースに保存する関数
   const toggleIcon = async (iconId: string) => {
@@ -707,6 +717,16 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       ) {
         setFamilyMembers((patientData as any).family_members);
       }
+
+      // 毎回表示（重要な注意事項）を読み込む
+      try {
+        const notes = await getPatientAlertNotes(patientId);
+        setAlertNotes(notes);
+        console.log("毎回表示の注意事項を読み込みました:", notes);
+      } catch (error) {
+        console.error("注意事項の読み込みエラー:", error);
+        setAlertNotes([]);
+      }
     } catch (error) {
       console.error("患者データの読み込みエラー:", error);
     } finally {
@@ -901,6 +921,38 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     searchPatients(value);
+  };
+
+  // 毎回表示（重要な注意事項）の管理
+  const handleAddAlertNote = async () => {
+    if (!newAlertNote.trim()) return;
+
+    const newNote: PatientAlertNote = {
+      id: `note_${Date.now()}`,
+      text: newAlertNote.trim(),
+      created_at: new Date().toISOString(),
+    };
+
+    const updatedNotes = [...alertNotes, newNote];
+    const success = await updatePatientAlertNotes(patientId, updatedNotes);
+
+    if (success) {
+      setAlertNotes(updatedNotes);
+      setNewAlertNote("");
+    } else {
+      alert("注意事項の追加に失敗しました");
+    }
+  };
+
+  const handleDeleteAlertNote = async (noteId: string) => {
+    const updatedNotes = alertNotes.filter((note) => note.id !== noteId);
+    const success = await updatePatientAlertNotes(patientId, updatedNotes);
+
+    if (success) {
+      setAlertNotes(updatedNotes);
+    } else {
+      alert("注意事項の削除に失敗しました");
+    }
   };
 
   const handleSave = async () => {
@@ -1746,6 +1798,65 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 毎回表示（重要な注意事項） */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <Label className="flex items-center text-base font-semibold mb-3">
+                <AlertTriangle className="w-5 h-5 mr-2 text-orange-500" />
+                毎回表示
+              </Label>
+              <p className="text-sm text-gray-600 mb-4">
+                サブカルテを開くたびに表示される重要な注意事項を登録できます。
+              </p>
+
+              {/* 既存の注意事項リスト */}
+              {alertNotes.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {alertNotes.map((note) => (
+                    <div
+                      key={note.id}
+                      className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-md"
+                    >
+                      <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 text-sm text-gray-800">
+                        {note.text}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteAlertNote(note.id)}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                        title="削除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 新規追加フォーム */}
+              <div className="flex gap-2">
+                <Input
+                  value={newAlertNote}
+                  onChange={(e) => setNewAlertNote(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      handleAddAlertNote();
+                    }
+                  }}
+                  placeholder="例: 麻酔アレルギーあり"
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleAddAlertNote}
+                  size="sm"
+                  disabled={!newAlertNote.trim()}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  追加
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -2,13 +2,18 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { MeasurementType } from '@/lib/api/periodontal-exams'
+import { MeasurementType, ExaminationPhase } from '@/lib/api/periodontal-exams'
 import { PeriodontalGrid } from './periodontal-grid'
 import { PeriodontalInputPanel } from './periodontal-input-panel'
+import { PeriodontalFlowCollapsible } from '../periodontal-flow-collapsible'
+import { getTreatmentPlans, type TreatmentPlan } from '@/lib/api/treatment-plans'
 
 // 歯番号（FDI表記）
 const UPPER_TEETH = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28]
 const LOWER_TEETH = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38]
+
+// 親知らず（デフォルトで除外する歯）
+const WISDOM_TEETH = new Set([18, 28, 38, 48])
 
 // 入力位置
 interface InputPosition {
@@ -33,7 +38,13 @@ interface PeriodontalInputFormProps {
   onCancel: () => void
   onChangeMethod: () => void
   missingTeeth?: Set<number>
+  selectedPhase?: ExaminationPhase
+  onPhaseChange?: (phase: ExaminationPhase | undefined) => void
+  patientId?: string
+  clinicId?: string
 }
+
+const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export function PeriodontalInputForm({
   measurementType,
@@ -42,6 +53,10 @@ export function PeriodontalInputForm({
   onCancel,
   onChangeMethod,
   missingTeeth: missingTeethFromVisual = new Set(),
+  selectedPhase,
+  onPhaseChange,
+  patientId,
+  clinicId,
 }: PeriodontalInputFormProps) {
   // 歯周検査データ
   const [ppdData, setPpdData] = useState<Record<string, number>>(initialData?.ppdData || {})
@@ -53,8 +68,35 @@ export function PeriodontalInputForm({
     // 視診データからの欠損歯と初期データを統合
     const combined = new Set(initialData?.missingTeeth || new Set())
     missingTeethFromVisual.forEach(tooth => combined.add(tooth))
+    // 親知らずをデフォルトで欠損歯として追加
+    WISDOM_TEETH.forEach(tooth => combined.add(tooth))
     return combined
   })
+
+  // 治療計画データ
+  const [treatmentPlans, setTreatmentPlans] = useState<TreatmentPlan[]>([])
+  const [loadingPlans, setLoadingPlans] = useState(false)
+
+  // 治療計画を読み込む
+  useEffect(() => {
+    if (patientId) {
+      loadTreatmentPlans()
+    }
+  }, [patientId])
+
+  const loadTreatmentPlans = async () => {
+    if (!patientId) return
+
+    try {
+      setLoadingPlans(true)
+      const plans = await getTreatmentPlans(clinicId || DEMO_CLINIC_ID, patientId)
+      setTreatmentPlans(plans)
+    } catch (error) {
+      console.error('治療計画の読み込みエラー:', error)
+    } finally {
+      setLoadingPlans(false)
+    }
+  }
 
   // プラークデータをトグル
   const togglePlaque = useCallback((toothNumber: number, area: 'top' | 'right' | 'bottom' | 'left') => {
@@ -477,6 +519,90 @@ export function PeriodontalInputForm({
 
   return (
     <div className="space-y-4 p-6">
+      {/* 検査フェーズ選択と衛生士治療フローを横並び */}
+      <div className="flex gap-3">
+        {/* 検査フェーズ選択 */}
+        {onPhaseChange && (
+          <div className="flex-1 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              検査フェーズ
+            </label>
+            <div className="grid grid-cols-3 gap-1">
+              <Button
+                type="button"
+                variant={selectedPhase === 'P_EXAM_1' ? 'default' : 'outline'}
+                onClick={() => onPhaseChange('P_EXAM_1')}
+                size="sm"
+                className="w-full text-xs px-1 py-1 h-7"
+              >
+                P検①
+              </Button>
+              <Button
+                type="button"
+                variant={selectedPhase === 'P_EXAM_2' ? 'default' : 'outline'}
+                onClick={() => onPhaseChange('P_EXAM_2')}
+                size="sm"
+                className="w-full text-xs px-1 py-1 h-7"
+              >
+                P検②
+              </Button>
+              <Button
+                type="button"
+                variant={selectedPhase === 'P_EXAM_3' ? 'default' : 'outline'}
+                onClick={() => onPhaseChange('P_EXAM_3')}
+                size="sm"
+                className="w-full text-xs px-1 py-1 h-7"
+              >
+                P検③
+              </Button>
+              <Button
+                type="button"
+                variant={selectedPhase === 'P_EXAM_4' ? 'default' : 'outline'}
+                onClick={() => onPhaseChange('P_EXAM_4')}
+                size="sm"
+                className="w-full text-xs px-1 py-1 h-7"
+              >
+                P検④
+              </Button>
+              <Button
+                type="button"
+                variant={selectedPhase === 'P_EXAM_5' ? 'default' : 'outline'}
+                onClick={() => onPhaseChange('P_EXAM_5')}
+                size="sm"
+                className="w-full text-xs px-1 py-1 h-7"
+              >
+                P検⑤
+              </Button>
+              <Button
+                type="button"
+                variant={!selectedPhase ? 'default' : 'outline'}
+                onClick={() => onPhaseChange(undefined)}
+                size="sm"
+                className="w-full text-xs px-1 py-1 h-7"
+              >
+                なし
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 衛生士治療フロー */}
+        {patientId && (
+          <div className="flex-1 bg-green-50 border border-green-200 rounded-lg px-3 py-2 max-w-xs">
+            <h3 className="text-xs font-semibold text-gray-700 mb-1">衛生士治療フロー</h3>
+            {loadingPlans ? (
+              <div className="flex items-center justify-center py-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+              </div>
+            ) : treatmentPlans.length > 0 ? (
+              <PeriodontalFlowCollapsible plans={treatmentPlans} />
+            ) : (
+              <p className="text-xs text-gray-500 text-center py-1">治療計画がありません</p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* 歯周検査グリッド */}
       <PeriodontalGrid
         measurementType={measurementType}
