@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label'
 import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target } from 'lucide-react'
 import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCancelAnalysis, getStaffCancelAnalysis, getTreatmentCancelAnalysis, getTreatmentMenuStatsByParent, CancelAnalysisData, TimeSlotCancelData, StaffCancelData, TreatmentCancelData, TreatmentMenuStats } from '@/lib/api/analytics'
 import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
-import WebBookingEffectTab from '@/components/analytics/WebBookingEffectTab'
+import StaffAnalyticsTab from '@/components/analytics/StaffAnalyticsTab'
+import IntegratedVisitAnalysisTab from '@/components/analytics/IntegratedVisitAnalysisTab'
 
 export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
@@ -160,9 +161,8 @@ export default function AnalyticsPage() {
             { id: 'basic', label: '基本分析', icon: BarChart3 },
             { id: 'sales', label: '売上分析', icon: DollarSign },
             { id: 'staff', label: 'スタッフ分析', icon: Users },
-            { id: 'visits', label: '来院分析', icon: Calendar },
+            { id: 'visits', label: '来院経路分析', icon: Calendar },
             { id: 'cancellation', label: 'キャンセル分析', icon: Activity },
-            { id: 'marketing', label: 'Web予約効果', icon: TrendingUp },
             { id: 'training', label: 'トレーニング', icon: Target }
           ].map((tab) => {
             const Icon = tab.icon
@@ -510,53 +510,8 @@ export default function AnalyticsPage() {
             </>
           )}
 
-          {activeTab === 'staff' && (
-            <>
-              {/* スタッフ生産性 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>スタッフ別生産性</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {analyticsData.staff_productivity.map((staff) => (
-                      <div key={staff.staff_id} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h3 className="font-medium">{staff.staff_name}</h3>
-                            <p className="text-sm text-gray-500">{staff.position_name}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-semibold">¥{staff.total_sales.toLocaleString()}</div>
-                            <div className="text-sm text-gray-500">総売上</div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <div className="text-gray-500">予約数</div>
-                            <div className="font-semibold">{staff.appointment_count}件</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500">時間あたり売上</div>
-                            <div className="font-semibold">¥{staff.sales_per_hour.toLocaleString()}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500">平均売上</div>
-                            <div className="font-semibold">¥{staff.average_sales_per_appointment.toLocaleString()}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500">評価スコア</div>
-                            <div className="font-semibold text-blue-600">
-                              {Math.round((staff.sales_per_hour / 15000) * 100)}点
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </>
+          {activeTab === 'staff' && analyticsData && (
+            <StaffAnalyticsTab staffData={analyticsData.staff_productivity} />
           )}
 
           {activeTab === 'cancellation' && (
@@ -770,14 +725,6 @@ export default function AnalyticsPage() {
             </>
           )}
 
-          {activeTab === 'marketing' && (
-            <WebBookingEffectTab
-              clinicId="11111111-1111-1111-1111-111111111111"
-              startDate={startDate}
-              endDate={endDate}
-            />
-          )}
-
           {activeTab === 'sales' && (
             <Card>
               <CardHeader>
@@ -796,20 +743,11 @@ export default function AnalyticsPage() {
           )}
 
           {activeTab === 'visits' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>来院分析</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">来院分析機能</h3>
-                  <p className="text-gray-500">
-                    来院パターン分析機能は開発中です。
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <IntegratedVisitAnalysisTab
+              clinicId="11111111-1111-1111-1111-111111111111"
+              startDate={startDate}
+              endDate={endDate}
+            />
           )}
         </>
       )}

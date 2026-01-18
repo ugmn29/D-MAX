@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { getAppointments } from '@/lib/api/appointments'
 import { getPatients } from '@/lib/api/patients'
+import { getStaff } from '@/lib/api/staff'
 import { MOCK_MODE } from '@/lib/utils/mock-mode'
 
 // 分析データの型定義
@@ -42,6 +43,29 @@ export interface StaffProductivityData {
   appointment_count: number
   sales_per_hour: number
   average_sales_per_appointment: number
+  // 新規フィールド
+  available_slots: number // 利用可能な時間枠数
+  booked_slots: number // 予約済み時間枠数
+  fill_rate: number // 埋め率（%）
+  treatment_breakdown: { // 治療内容別集計
+    menu_id: string
+    menu_name: string
+    count: number
+  }[]
+  daily_trends: { // 日別売上推移
+    date: string
+    sales: number
+    appointment_count: number
+  }[]
+  time_slot_stats: { // 時間帯別統計
+    hour: number
+    appointment_count: number
+  }[]
+  day_of_week_stats: { // 曜日別統計
+    day_of_week: number // 0=日曜, 1=月曜, ...
+    appointment_count: number
+  }[]
+  is_active: boolean // アクティブ状態
 }
 
 export interface TimeSlotAnalysisData {
@@ -598,91 +622,225 @@ async function getTreatmentSalesData(
   return result
 }
 
-// スタッフ生産性データを取得
+// スタッフ生産性データを取得（拡張版）
 async function getStaffProductivityData(
   clinicId: string,
   startDate: string,
   endDate: string
 ): Promise<StaffProductivityData[]> {
   const client = getSupabaseClient()
-  
-  // スタッフ情報を取得
-  const { data: staff, error: staffError } = await client
-    .from('staff')
-    .select(`
-      *,
-      position:staff_positions(name)
-    `)
-    .eq('clinic_id', clinicId)
 
-  if (staffError) {
-    console.error('スタッフ情報取得エラー:', staffError)
+  // スタッフ情報を取得（設定ページと同じAPI使用）
+  const staff = await getStaff(clinicId)
+
+  if (!staff || staff.length === 0) {
+    console.error('スタッフ情報が取得できません')
     return []
   }
 
-  // 実際の予約データを取得
-  const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+  // クリニック設定を取得（時間枠設定）
+  const { data: clinic } = await client
+    .from('clinics')
+    .select('time_slot_minutes')
+    .eq('id', clinicId)
+    .single()
+
+  const timeSlotMinutes = clinic?.time_slot_minutes || 15
+
+  // 全予約データを取得（キャンセルも含む）
+  const allAppointments = await getAppointments(clinicId, startDate, endDate)
+
   // 完了した予約のみを対象
-  const completedAppointments = appointments.filter(apt => 
+  const completedAppointments = allAppointments.filter(apt =>
     ['来院済み', '診療中', '会計', '終了'].includes(apt.status)
   )
 
+  // 日付範囲を計算
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+  // クリニックの営業時間を仮定（9:00-18:00 = 9時間）
+  const hoursPerDay = 9
+  const slotsPerHour = 60 / timeSlotMinutes
+  const totalSlotsPerDay = hoursPerDay * slotsPerHour
+
   // スタッフ別に集計
-  const staffStats = new Map<string, { 
-    name: string, 
-    position_name: string, 
-    appointments: any[] 
+  const staffStatsMap = new Map<string, {
+    staff: any
+    appointments: any[]
+    bookedSlots: Set<string> // date_time の組み合わせ
   }>()
 
-  // 各スタッフの初期化
-  staff?.forEach(s => {
-    staffStats.set(s.id, {
-      name: s.name,
-      position_name: s.position?.name || '不明',
-      appointments: []
+  // 各スタッフの初期化（getStaffは既にis_activeでフィルタ済み）
+  staff.forEach(s => {
+    staffStatsMap.set(s.id, {
+      staff: s,
+      appointments: [],
+      bookedSlots: new Set()
     })
   })
 
-  // 予約データからスタッフを集計
-  completedAppointments.forEach(apt => {
-    if (apt.staff1_id && staffStats.has(apt.staff1_id)) {
-      staffStats.get(apt.staff1_id)!.appointments.push(apt)
+  // 予約データからスタッフを集計（staff1, staff2, staff3）
+  allAppointments.forEach(apt => {
+    const dateTime = `${apt.date}_${apt.start_time}`
+
+    if (apt.staff1_id && staffStatsMap.has(apt.staff1_id)) {
+      const stats = staffStatsMap.get(apt.staff1_id)!
+      stats.bookedSlots.add(dateTime)
+      if (['来院済み', '診療中', '会計', '終了'].includes(apt.status)) {
+        stats.appointments.push(apt)
+      }
     }
-    if (apt.staff2_id && staffStats.has(apt.staff2_id)) {
-      staffStats.get(apt.staff2_id)!.appointments.push(apt)
+    if (apt.staff2_id && staffStatsMap.has(apt.staff2_id)) {
+      const stats = staffStatsMap.get(apt.staff2_id)!
+      stats.bookedSlots.add(dateTime)
+      if (['来院済み', '診療中', '会計', '終了'].includes(apt.status)) {
+        stats.appointments.push(apt)
+      }
     }
-    if (apt.staff3_id && staffStats.has(apt.staff3_id)) {
-      staffStats.get(apt.staff3_id)!.appointments.push(apt)
+    if (apt.staff3_id && staffStatsMap.has(apt.staff3_id)) {
+      const stats = staffStatsMap.get(apt.staff3_id)!
+      stats.bookedSlots.add(dateTime)
+      if (['来院済み', '診療中', '会計', '終了'].includes(apt.status)) {
+        stats.appointments.push(apt)
+      }
     }
   })
 
   // 結果を配列に変換
   const result: StaffProductivityData[] = []
-  
-  staffStats.forEach((stats, staffId) => {
+
+  staffStatsMap.forEach((stats, staffId) => {
     const appointmentCount = stats.appointments.length
-    if (appointmentCount > 0) {
-      const totalSales = appointmentCount * 35000 // 仮の平均売上
-      const salesPerHour = appointmentCount * 4375 // 仮の時間あたり売上（8時間勤務想定）
-      const averageSalesPerAppointment = totalSales / appointmentCount
-      
-      result.push({
-        staff_id: staffId,
-        staff_name: stats.name,
-        position_name: stats.position_name,
-        total_sales: totalSales,
-        appointment_count: appointmentCount,
-        sales_per_hour: salesPerHour,
-        average_sales_per_appointment: averageSalesPerAppointment
-      })
-    }
+    const bookedSlots = stats.bookedSlots.size
+    const availableSlots = totalSlotsPerDay * daysDiff
+    const fillRate = availableSlots > 0 ? (bookedSlots / availableSlots) * 100 : 0
+
+    // 売上計算（仮）
+    const totalSales = appointmentCount * 35000
+    const salesPerHour = appointmentCount > 0 ? totalSales / (daysDiff * hoursPerDay) : 0
+    const averageSalesPerAppointment = appointmentCount > 0 ? totalSales / appointmentCount : 0
+
+    // 治療内容別集計
+    const treatmentMap = new Map<string, { menu_id: string, menu_name: string, count: number }>()
+    stats.appointments.forEach(apt => {
+      if (apt.treatment_menus && Array.isArray(apt.treatment_menus)) {
+        apt.treatment_menus.forEach((menu: any) => {
+          const key = menu.id || menu.menu_id || 'unknown'
+          const name = menu.name || menu.menu_name || '不明'
+          if (treatmentMap.has(key)) {
+            treatmentMap.get(key)!.count++
+          } else {
+            treatmentMap.set(key, { menu_id: key, menu_name: name, count: 1 })
+          }
+        })
+      }
+    })
+    const treatment_breakdown = Array.from(treatmentMap.values())
+      .sort((a, b) => b.count - a.count)
+
+    // 日別売上推移
+    const dailyMap = new Map<string, { sales: number, count: number }>()
+    stats.appointments.forEach(apt => {
+      const date = apt.date
+      if (dailyMap.has(date)) {
+        dailyMap.get(date)!.sales += 35000 // 仮の売上
+        dailyMap.get(date)!.count++
+      } else {
+        dailyMap.set(date, { sales: 35000, count: 1 })
+      }
+    })
+    const daily_trends = Array.from(dailyMap.entries())
+      .map(([date, data]) => ({ date, sales: data.sales, appointment_count: data.count }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    // 時間帯別統計
+    const hourMap = new Map<number, number>()
+    stats.appointments.forEach(apt => {
+      const hour = parseInt(apt.start_time.split(':')[0])
+      hourMap.set(hour, (hourMap.get(hour) || 0) + 1)
+    })
+    const time_slot_stats = Array.from(hourMap.entries())
+      .map(([hour, count]) => ({ hour, appointment_count: count }))
+      .sort((a, b) => a.hour - b.hour)
+
+    // 曜日別統計
+    const dayOfWeekMap = new Map<number, number>()
+    stats.appointments.forEach(apt => {
+      const date = new Date(apt.date)
+      const dayOfWeek = date.getDay()
+      dayOfWeekMap.set(dayOfWeek, (dayOfWeekMap.get(dayOfWeek) || 0) + 1)
+    })
+    const day_of_week_stats = Array.from(dayOfWeekMap.entries())
+      .map(([day_of_week, count]) => ({ day_of_week, appointment_count: count }))
+      .sort((a, b) => a.day_of_week - b.day_of_week)
+
+    result.push({
+      staff_id: staffId,
+      staff_name: stats.staff.name,
+      position_name: (stats.staff as any).position?.name || '未設定',
+      total_sales: totalSales,
+      appointment_count: appointmentCount,
+      sales_per_hour: salesPerHour,
+      average_sales_per_appointment: averageSalesPerAppointment,
+      available_slots: availableSlots,
+      booked_slots: bookedSlots,
+      fill_rate: fillRate,
+      treatment_breakdown,
+      daily_trends,
+      time_slot_stats,
+      day_of_week_stats,
+      is_active: stats.staff.is_active !== false
+    })
   })
 
-  // 売上順でソート
-  result.sort((a, b) => b.total_sales - a.total_sales)
+  // 役職順でソート（役職のsort_orderを使用）
+  result.sort((a, b) => {
+    const staffA = staff.find(s => s.id === a.staff_id)
+    const staffB = staff.find(s => s.id === b.staff_id)
+    const sortOrderA = (staffA as any)?.position?.sort_order || 999
+    const sortOrderB = (staffB as any)?.position?.sort_order || 999
+    return sortOrderA - sortOrderB
+  })
 
   return result
+}
+
+// スタッフ全体の時間帯別統計を集計
+export function aggregateTimeSlotStats(staffData: StaffProductivityData[]): { hour: number, appointment_count: number }[] {
+  const hourMap = new Map<number, number>()
+
+  staffData.forEach(staff => {
+    staff.time_slot_stats.forEach(stat => {
+      hourMap.set(stat.hour, (hourMap.get(stat.hour) || 0) + stat.appointment_count)
+    })
+  })
+
+  return Array.from(hourMap.entries())
+    .map(([hour, count]) => ({ hour, appointment_count: count }))
+    .sort((a, b) => a.hour - b.hour)
+}
+
+// スタッフ全体の曜日別統計を集計
+export function aggregateDayOfWeekStats(staffData: StaffProductivityData[]): { day_of_week: number, appointment_count: number }[] {
+  const dayMap = new Map<number, number>()
+
+  staffData.forEach(staff => {
+    staff.day_of_week_stats.forEach(stat => {
+      dayMap.set(stat.day_of_week, (dayMap.get(stat.day_of_week) || 0) + stat.appointment_count)
+    })
+  })
+
+  return Array.from(dayMap.entries())
+    .map(([day_of_week, count]) => ({ day_of_week, appointment_count: count }))
+    .sort((a, b) => a.day_of_week - b.day_of_week)
+}
+
+// 曜日番号を日本語に変換
+export function getDayOfWeekName(dayOfWeek: number): string {
+  const days = ['日', '月', '火', '水', '木', '金', '土']
+  return days[dayOfWeek] || '不明'
 }
 
 // 時間帯別分析データを取得

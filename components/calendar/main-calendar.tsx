@@ -2208,8 +2208,17 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             const patient = (block.appointment as any).patient
             
             
-            const patientAge = patient?.birth_date ? 
-              new Date().getFullYear() - new Date(patient.birth_date).getFullYear() : null
+            const patientAge = patient?.birth_date ?
+              (() => {
+                const today = new Date()
+                const birthDate = new Date(patient.birth_date)
+                let age = today.getFullYear() - birthDate.getFullYear()
+                const monthDiff = today.getMonth() - birthDate.getMonth()
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                  age--
+                }
+                return age
+              })() : null
             
             return (
               <div

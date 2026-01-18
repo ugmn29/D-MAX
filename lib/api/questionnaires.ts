@@ -44,23 +44,8 @@ export interface QuestionnaireResponse {
  * 問診表一覧を取得
  */
 export async function getQuestionnaires(clinicId: string): Promise<Questionnaire[]> {
-  // MOCK_MODEの場合はlocalStorageから取得
-  if (MOCK_MODE) {
-    try {
-      const { getMockQuestionnaires, initializeMockData } = await import('@/lib/utils/mock-mode')
-
-      // モックデータの初期化
-      initializeMockData()
-
-      const questionnaires = getMockQuestionnaires()
-      return questionnaires.filter(q => q.clinic_id === clinicId)
-    } catch (mockError) {
-      console.error('MOCK_MODE問診表取得エラー:', mockError)
-      return []
-    }
-  }
-
-  // 本番モードではデータベースから取得
+  // 問診表は常にデータベースから取得（質問データが必要なため）
+  // MOCK_MODEでもlocalStorageには質問データが含まれないため、DBから取得する
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('questionnaires')

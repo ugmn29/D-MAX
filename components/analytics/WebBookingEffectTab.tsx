@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, Users, DollarSign, Target, MousePointerClick, Wallet, Settings, Link, QrCode, Download, Activity, Stethoscope } from 'lucide-react'
+import { TrendingUp, Users, DollarSign, Target, MousePointerClick, Wallet, Settings, Link, QrCode, Download, Activity, Stethoscope, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import AdSpendManager from './AdSpendManager'
 import TrackingTagsSettings from './TrackingTagsSettings'
@@ -11,6 +11,7 @@ import QRCodeGenerator from './QRCodeGenerator'
 import TabAnalysisTab from './TabAnalysisTab'
 import TabTrackingScriptGenerator from './TabTrackingScriptGenerator'
 import MenuBySourceTab from './MenuBySourceTab'
+import AdSourcesManager from './AdSourcesManager'
 import { exportToCSV, CSVColumn } from '@/lib/utils/export-csv'
 
 interface WebBookingEffectTabProps {
@@ -91,7 +92,7 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
     overall_cpa: number
   } | null>(null)
   const [activeSubTab, setActiveSubTab] = useState<'acquisition' | 'funnel' | 'ltv' | 'roi' | 'ad-spend' | 'tab-analysis' | 'menu-by-source' | 'settings'>('acquisition')
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'tag-settings' | 'tab-script' | 'client-url' | 'qr-code'>('tag-settings')
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'tag-settings' | 'tab-script' | 'client-url' | 'qr-code' | 'ad-sources'>('tag-settings')
   const [clinicSlug, setClinicSlug] = useState<string>('')
 
   // クリニックスラッグを取得
@@ -806,6 +807,17 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
                 <QrCode className="w-4 h-4 inline-block mr-2" />
                 QRコード生成
               </button>
+              <button
+                onClick={() => setActiveSettingsTab('ad-sources')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeSettingsTab === 'ad-sources'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Megaphone className="w-4 h-4 inline-block mr-2" />
+                広告媒体
+              </button>
             </nav>
           </div>
 
@@ -827,6 +839,11 @@ export default function WebBookingEffectTab({ clinicId, startDate, endDate }: We
           {/* QRコード生成 */}
           {activeSettingsTab === 'qr-code' && (
             <QRCodeGenerator clinicId={clinicId} clinicSlug={clinicSlug} />
+          )}
+
+          {/* 広告媒体管理 */}
+          {activeSettingsTab === 'ad-sources' && (
+            <AdSourcesManager clinicId={clinicId} />
           )}
         </div>
       )}

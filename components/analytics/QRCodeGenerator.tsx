@@ -1,20 +1,56 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { QrCode, Download, Copy, CheckCircle } from 'lucide-react'
+import { QrCode, Download, Copy, CheckCircle, Globe, Calendar, ExternalLink } from 'lucide-react'
 
 interface QRCodeGeneratorProps {
   clinicId: string
   clinicSlug?: string
 }
 
+// リンク先のプリセット
+const LINK_DESTINATIONS = [
+  {
+    id: 'hp_top',
+    label: 'ホームページ（トップ）',
+    description: 'HPを見てもらってから予約',
+    icon: Globe,
+    getUrl: (hpBaseUrl: string) => hpBaseUrl,
+  },
+  {
+    id: 'hp_booking',
+    label: 'ホームページ（予約ページ）',
+    description: 'HPの予約ページに直接飛ばす',
+    icon: Calendar,
+    getUrl: (hpBaseUrl: string) => `${hpBaseUrl}/booking`,
+  },
+  {
+    id: 'dmax_booking',
+    label: 'D-MAX予約システム',
+    description: 'D-MAXのWeb予約に直接飛ばす',
+    icon: Calendar,
+    getUrl: (_: string, dmaxBaseUrl: string, clinicSlug?: string) =>
+      clinicSlug ? `${dmaxBaseUrl}/clinic/${clinicSlug}/booking` : `${dmaxBaseUrl}/web-booking`,
+  },
+  {
+    id: 'custom',
+    label: 'カスタムURL',
+    description: '任意のURLを指定',
+    icon: ExternalLink,
+    getUrl: () => '',
+  },
+]
+
 export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGeneratorProps) {
+  const [destination, setDestination] = useState('hp_top')
+  const [hpBaseUrl, setHpBaseUrl] = useState('https://fuku-dental.com')
+  const [customUrl, setCustomUrl] = useState('')
   const [source, setSource] = useState('posting')
   const [medium, setMedium] = useState('offline')
   const [campaign, setCampaign] = useState('')
@@ -23,12 +59,27 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const baseURL = typeof window !== 'undefined' ? window.location.origin : 'https://dmax.com'
-  const bookingURL = clinicSlug
-    ? `${baseURL}/clinic/${clinicSlug}/booking`
-    : `${baseURL}/web-booking`
+  const dmaxBaseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://dmax.com'
+
+  // クリニック設定からHP URLを取得（将来的にはDBから取得）
+  useEffect(() => {
+    // TODO: クリニック設定からHP URLを取得
+    // 現状はデフォルト値を使用
+  }, [clinicId])
+
+  const getBaseUrl = () => {
+    if (destination === 'custom') {
+      return customUrl
+    }
+    const dest = LINK_DESTINATIONS.find(d => d.id === destination)
+    if (!dest) return ''
+    return dest.getUrl(hpBaseUrl, dmaxBaseUrl, clinicSlug)
+  }
 
   const generateTrackingURL = () => {
+    const baseUrl = getBaseUrl()
+    if (!baseUrl) return ''
+
     const params = new URLSearchParams()
     const finalSource = source === 'custom' ? customSource : source
 
@@ -36,7 +87,8 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
     if (medium) params.append('utm_medium', medium)
     if (campaign) params.append('utm_campaign', campaign)
 
-    return `${bookingURL}?${params.toString()}`
+    const paramString = params.toString()
+    return paramString ? `${baseUrl}?${paramString}` : baseUrl
   }
 
   const generateQRCode = async () => {
@@ -89,6 +141,56 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* リンク先選択 */}
+          <div>
+            <Label>リンク先 *</Label>
+            <Select value={destination} onValueChange={setDestination}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LINK_DESTINATIONS.map((dest) => (
+                  <SelectItem key={dest.id} value={dest.id}>
+                    <div className="flex items-center gap-2">
+                      <dest.icon className="w-4 h-4" />
+                      <span>{dest.label}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              {LINK_DESTINATIONS.find(d => d.id === destination)?.description}
+            </p>
+          </div>
+
+          {/* HP URL設定（HP系の場合のみ表示） */}
+          {(destination === 'hp_top' || destination === 'hp_booking') && (
+            <div>
+              <Label>ホームページURL</Label>
+              <Input
+                value={hpBaseUrl}
+                onChange={(e) => setHpBaseUrl(e.target.value)}
+                placeholder="https://example.com"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                クリニックのホームページURLを入力してください
+              </p>
+            </div>
+          )}
+
+          {/* カスタムURL入力（カスタムの場合のみ表示） */}
+          {destination === 'custom' && (
+            <div>
+              <Label>カスタムURL *</Label>
+              <Input
+                value={customUrl}
+                onChange={(e) => setCustomUrl(e.target.value)}
+                placeholder="https://example.com/landing"
+              />
+            </div>
+          )}
+
           {/* 流入元 (Source) */}
           <div>
             <Label htmlFor="source">流入元 (Source) *</Label>
@@ -166,7 +268,13 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
           {/* QRコード生成ボタン */}
           <Button
             onClick={generateQRCode}
-            disabled={loading || !source || (source === 'custom' && !customSource)}
+            disabled={
+              loading ||
+              !source ||
+              (source === 'custom' && !customSource) ||
+              (destination === 'custom' && !customUrl) ||
+              ((destination === 'hp_top' || destination === 'hp_booking') && !hpBaseUrl)
+            }
             className="w-full"
           >
             {loading ? 'QRコード生成中...' : 'QRコード生成'}
