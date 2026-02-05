@@ -187,8 +187,8 @@ const LINK_DESTINATIONS = [
   },
   {
     id: 'dmax_booking',
-    label: 'D-MAX予約システム',
-    description: 'D-MAXのWeb予約に直接飛ばす',
+    label: 'DAX予約システム',
+    description: 'DAXのWeb予約に直接飛ばす',
     icon: Calendar,
     getUrl: (_: string, dmaxBaseUrl: string, clinicSlug?: string) =>
       clinicSlug ? `${dmaxBaseUrl}/clinic/${clinicSlug}/booking` : `${dmaxBaseUrl}/web-booking`,

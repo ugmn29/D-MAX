@@ -216,7 +216,7 @@ export default function DataImportPage() {
             データ移行
           </h1>
           <p className="text-gray-600 mt-2">
-            他社予約システムからD-MAXへ患者データや予約履歴を移行します
+            他社予約システムからDAXへ患者データや予約履歴を移行します
           </p>
         </div>
       </div>
@@ -432,7 +432,7 @@ export default function DataImportPage() {
                     <div>
                       <div className="font-medium">新しい番号を自動採番</div>
                       <p className="text-sm text-gray-600">
-                        D-MAXで新しい患者番号を発行します。旧番号は参照用として保存されます。
+                        DAXで新しい患者番号を発行します。旧番号は参照用として保存されます。
                       </p>
                       <div className="mt-2">
                         <label className="text-sm">

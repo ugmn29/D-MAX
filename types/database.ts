@@ -1,4 +1,4 @@
-// D-MAX データベース型定義
+// DAX データベース型定義
 
 export type Database = {
   public: {

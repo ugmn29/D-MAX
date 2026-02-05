@@ -92,7 +92,7 @@ async function setCustomClaims(
 }
 
 async function main() {
-  console.log('=== D-MAX 医院＋管理者アカウント作成 ===\n')
+  console.log('=== DAX 医院＋管理者アカウント作成 ===\n')
 
   // 入力を収集
   const clinicName = await question('医院名: ')

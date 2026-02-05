@@ -133,7 +133,7 @@ export default function TabTrackingScriptGenerator({ clinicId }: TabTrackingScri
               <li>HPの予約ボタンをクリックする</li>
               <li>ブラウザのコンソール（F12 → Console）を開く</li>
               <li>「Tab tracking...」というログが表示されればOK</li>
-              <li>D-MAXの「分析 → Web予約効果 → タブ分析」で数時間後にデータが表示されます</li>
+              <li>DAXの「分析 → Web予約効果 → タブ分析」で数時間後にデータが表示されます</li>
             </ol>
           </div>
 

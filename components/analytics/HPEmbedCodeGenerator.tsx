@@ -157,7 +157,7 @@ export default function HPEmbedCodeGenerator({ clinicId, clinicSlug }: HPEmbedCo
   }
 
   const generateTrackingScript = () => {
-    return `<!-- D-MAX トラッキングスクリプト -->
+    return `<!-- DAX トラッキングスクリプト -->
 <script>
 (function() {
   var dmaxClinicId = '${clinicId}';

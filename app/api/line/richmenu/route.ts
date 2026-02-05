@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
           height: 843  // 1行分の高さ
         },
         selected: true,
-        name: 'D-MAX Clinic Rich Menu (Unregistered)',
+        name: 'DAX Clinic Rich Menu (Unregistered)',
         chatBarText: 'メニュー',
         areas: [
           // 初回登録 (左) - LIFF URL
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
           height: 1686
         },
         selected: true,
-        name: 'D-MAX Clinic Rich Menu (Registered)',
+        name: 'DAX Clinic Rich Menu (Registered)',
         chatBarText: 'メニュー',
         areas: [
           // Webサイト (左列・1段目) - 外部URL

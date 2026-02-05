@@ -75,7 +75,7 @@ export async function trackTabClick(
  */
 export function generateTabTrackingScript(clinicId: string): string {
   return `
-<!-- D-MAX タブクリックトラッキング -->
+<!-- DAX タブクリックトラッキング -->
 <script>
 (function() {
   // セッションID管理
@@ -141,7 +141,7 @@ export function generateTabTrackingScript(clinicId: string): string {
       ...deviceInfo,
     };
 
-    // D-MAX APIに送信
+    // DAX APIに送信
     fetch('https://dmax.com/api/tracking/tab-click', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

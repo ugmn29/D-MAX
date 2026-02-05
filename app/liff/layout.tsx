@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import Script from 'next/script'
 
 export const metadata: Metadata = {
-  title: 'LINE連携 - D-MAX',
+  title: 'LINE連携 - DAX',
   description: 'LINEとクリニックの連携',
 }
 

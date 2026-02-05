@@ -24,7 +24,7 @@ export function Header() {
           {/* ロゴ */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
-              <h1 className="text-2xl font-bold text-dmax-primary-dark">D-MAX</h1>
+              <h1 className="text-2xl font-bold text-dmax-primary-dark">DAX</h1>
               <span className="ml-2 text-sm text-gray-600 hidden sm:block">
                 歯科医院向け予約・サブカルテアプリ
               </span>

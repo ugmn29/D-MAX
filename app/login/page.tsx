@@ -59,7 +59,7 @@ function LoginForm() {
               <span className="text-white text-2xl font-bold">D</span>
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-800">D-MAX</CardTitle>
+          <CardTitle className="text-2xl font-bold text-gray-800">DAX</CardTitle>
           <p className="text-sm text-gray-500 mt-1">歯科医院管理システム</p>
         </CardHeader>
         <CardContent className="pt-4">
