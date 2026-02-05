@@ -9,8 +9,10 @@ import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCanc
 import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
 import StaffAnalyticsTab from '@/components/analytics/StaffAnalyticsTab'
 import IntegratedVisitAnalysisTab from '@/components/analytics/IntegratedVisitAnalysisTab'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function AnalyticsPage() {
+  const clinicId = useClinicId()
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [cancelAnalysisData, setCancelAnalysisData] = useState<CancelAnalysisData | null>(null)
   const [timeSlotCancelData, setTimeSlotCancelData] = useState<TimeSlotCancelData[]>([])
@@ -41,7 +43,6 @@ export default function AnalyticsPage() {
 
     try {
       setLoading(true)
-      const clinicId = '11111111-1111-1111-1111-111111111111'
 
       // 基本分析データを取得（比較タイプを渡す、期間は常に日別）
       const data = await getAnalyticsData(clinicId, startDate, endDate, 'daily', comparisonType)
@@ -82,8 +83,6 @@ export default function AnalyticsPage() {
 
   // メニュードリルダウン処理
   const handleMenuClick = async (menuId: string, menuName: string, level: number) => {
-    const clinicId = '11111111-1111-1111-1111-111111111111'
-
     // 次のレベルを計算
     const nextLevel = (level + 1) as 1 | 2 | 3
 
@@ -122,7 +121,6 @@ export default function AnalyticsPage() {
       const targetBreadcrumb = menuBreadcrumb[index]
       const newBreadcrumb = menuBreadcrumb.slice(0, index + 1)
 
-      const clinicId = '11111111-1111-1111-1111-111111111111'
       const nextLevel = (targetBreadcrumb.level + 1) as 1 | 2 | 3
 
       try {
@@ -744,7 +742,7 @@ export default function AnalyticsPage() {
 
           {activeTab === 'visits' && (
             <IntegratedVisitAnalysisTab
-              clinicId="11111111-1111-1111-1111-111111111111"
+              clinicId={clinicId}
               startDate={startDate}
               endDate={endDate}
             />

@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+supabase
+.env*
+*.md
+.github
+.vscode
+scripts
+google-cloud-key.json
+GOOGLE_CLOUD_POLICY_DEBUG.md
+VOICE_INPUT_PRODUCTION_SETUP.md
+VOICE_INPUT_SETUP.md

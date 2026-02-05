@@ -34,9 +34,7 @@ import { getMemoTemplates, createMemoTemplate, updateMemoTemplate, deleteMemoTem
 import { getMemoTodoTemplates, createMemoTodoTemplate, updateMemoTodoTemplate, deleteMemoTodoTemplate, MemoTodoTemplate, parseTemplateItems } from '@/lib/api/memo-todo-templates'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 import { initializeClinicStaffPositions, initializeClinicCancelReasons } from '@/lib/api/clinic-initialization'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface StaffPosition {
   id: string
@@ -62,6 +60,7 @@ interface CancelReason {
 }
 
 export default function MasterSettingsPage() {
+  const clinicId = useClinicId()
   const [selectedTab, setSelectedTab] = useState('icons')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -125,20 +124,20 @@ export default function MasterSettingsPage() {
       try {
         setLoading(true)
         const [positionsData, noteTypesData, cancelReasonsData, memoTemplatesData, memoTodoTemplatesData] = await Promise.all([
-          getStaffPositions(DEMO_CLINIC_ID),
-          getPatientNoteTypes(DEMO_CLINIC_ID),
-          getCancelReasons(DEMO_CLINIC_ID),
-          getMemoTemplates(DEMO_CLINIC_ID),
-          getMemoTodoTemplates(DEMO_CLINIC_ID)
+          getStaffPositions(clinicId),
+          getPatientNoteTypes(clinicId),
+          getCancelReasons(clinicId),
+          getMemoTemplates(clinicId),
+          getMemoTodoTemplates(clinicId)
         ])
 
         // スタッフ役職が空の場合、デフォルトデータを初期化
         if (positionsData.length === 0) {
           console.log('スタッフ役職が空です。デフォルトデータを初期化します...')
-          const initResult = await initializeClinicStaffPositions(DEMO_CLINIC_ID)
+          const initResult = await initializeClinicStaffPositions(clinicId)
           if (initResult.success) {
             console.log(`✓ ${initResult.count}件のスタッフ役職を初期化しました`)
-            const reloadedPositions = await getStaffPositions(DEMO_CLINIC_ID)
+            const reloadedPositions = await getStaffPositions(clinicId)
             setStaffPositions(reloadedPositions)
           } else {
             console.error('スタッフ役職の初期化に失敗:', initResult.errors)
@@ -151,10 +150,10 @@ export default function MasterSettingsPage() {
         // キャンセル理由が空の場合、デフォルトデータを初期化
         if (cancelReasonsData.length === 0) {
           console.log('キャンセル理由が空です。デフォルトデータを初期化します...')
-          const initResult = await initializeClinicCancelReasons(DEMO_CLINIC_ID)
+          const initResult = await initializeClinicCancelReasons(clinicId)
           if (initResult.success) {
             console.log(`✓ ${initResult.count}件のキャンセル理由を初期化しました`)
-            const reloadedReasons = await getCancelReasons(DEMO_CLINIC_ID)
+            const reloadedReasons = await getCancelReasons(clinicId)
             setCancelReasons(reloadedReasons)
           } else {
             console.error('キャンセル理由の初期化に失敗:', initResult.errors)
@@ -181,10 +180,10 @@ export default function MasterSettingsPage() {
   const handleAddPosition = async () => {
     try {
       setSaving(true)
-      await createStaffPosition(DEMO_CLINIC_ID, newPosition)
+      await createStaffPosition(clinicId, newPosition)
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
+      const data = await getStaffPositions(clinicId)
       setStaffPositions(data)
 
       setNewPosition({
@@ -206,10 +205,10 @@ export default function MasterSettingsPage() {
   const handleUpdatePosition = async (positionId: string, updates: Partial<StaffPosition>) => {
     try {
       setSaving(true)
-      await updateStaffPosition(DEMO_CLINIC_ID, positionId, updates)
+      await updateStaffPosition(clinicId, positionId, updates)
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
+      const data = await getStaffPositions(clinicId)
       setStaffPositions(data)
     } catch (error) {
       console.error('役職更新エラー:', error)
@@ -225,10 +224,10 @@ export default function MasterSettingsPage() {
     
     try {
       setSaving(true)
-      await deleteStaffPosition(DEMO_CLINIC_ID, positionId)
+      await deleteStaffPosition(clinicId, positionId)
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID)
+      const data = await getStaffPositions(clinicId)
       setStaffPositions(data)
     } catch (error) {
       console.error('役職削除エラー:', error)
@@ -242,10 +241,10 @@ export default function MasterSettingsPage() {
   const handleAddNoteType = async () => {
     try {
       setSaving(true)
-      await createPatientNoteType(DEMO_CLINIC_ID, newNoteType)
+      await createPatientNoteType(clinicId, newNoteType)
 
       // データを再読み込み
-      const data = await getPatientNoteTypes(DEMO_CLINIC_ID)
+      const data = await getPatientNoteTypes(clinicId)
       setPatientNoteTypes(data)
 
       setNewNoteType({
@@ -280,10 +279,10 @@ export default function MasterSettingsPage() {
   const handleAddCancelReason = async () => {
     try {
       setSaving(true)
-      await createCancelReason(DEMO_CLINIC_ID, newCancelReason)
+      await createCancelReason(clinicId, newCancelReason)
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      const data = await getCancelReasons(clinicId)
       setCancelReasons(data)
 
       setNewCancelReason({
@@ -308,7 +307,7 @@ export default function MasterSettingsPage() {
       await updateCancelReason(reasonId, updates)
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      const data = await getCancelReasons(clinicId)
       setCancelReasons(data)
     } catch (error) {
       console.error('キャンセル理由更新エラー:', error)
@@ -327,7 +326,7 @@ export default function MasterSettingsPage() {
       await deleteCancelReason(reasonId)
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID)
+      const data = await getCancelReasons(clinicId)
       setCancelReasons(data)
     } catch (error) {
       console.error('キャンセル理由削除エラー:', error)
@@ -341,10 +340,10 @@ export default function MasterSettingsPage() {
   const handleAddMemoTemplate = async () => {
     try {
       setSaving(true)
-      await createMemoTemplate(DEMO_CLINIC_ID, newMemoTemplate)
+      await createMemoTemplate(clinicId, newMemoTemplate)
 
       // データを再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID)
+      const data = await getMemoTemplates(clinicId)
       setMemoTemplates(data)
 
       setNewMemoTemplate({
@@ -366,10 +365,10 @@ export default function MasterSettingsPage() {
   const handleUpdateMemoTemplate = async (templateId: string, updates: Partial<MemoTemplate>) => {
     try {
       setSaving(true)
-      await updateMemoTemplate(DEMO_CLINIC_ID, templateId, updates)
+      await updateMemoTemplate(clinicId, templateId, updates)
 
       // データを再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID)
+      const data = await getMemoTemplates(clinicId)
       setMemoTemplates(data)
     } catch (error) {
       console.error('メモテンプレート更新エラー:', error)
@@ -385,10 +384,10 @@ export default function MasterSettingsPage() {
 
     try {
       setSaving(true)
-      await deleteMemoTemplate(DEMO_CLINIC_ID, templateId)
+      await deleteMemoTemplate(clinicId, templateId)
 
       // データを再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID)
+      const data = await getMemoTemplates(clinicId)
       setMemoTemplates(data)
     } catch (error) {
       console.error('メモテンプレート削除エラー:', error)
@@ -405,7 +404,7 @@ export default function MasterSettingsPage() {
       setSaving(true)
       console.log('Calling createMemoTodoTemplate...')
       await createMemoTodoTemplate({
-        clinic_id: DEMO_CLINIC_ID,
+        clinic_id: clinicId,
         name: newMemoTodoTemplate.name,
         items: newMemoTodoTemplate.items,
         sort_order: newMemoTodoTemplate.sort_order,
@@ -414,7 +413,7 @@ export default function MasterSettingsPage() {
       console.log('createMemoTodoTemplate completed')
 
       // データを再読み込み
-      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID)
+      const data = await getMemoTodoTemplates(clinicId)
       setMemoTodoTemplates(data)
 
       setNewMemoTodoTemplate({
@@ -439,7 +438,7 @@ export default function MasterSettingsPage() {
       await updateMemoTodoTemplate(templateId, updates)
 
       // データを再読み込み
-      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID)
+      const data = await getMemoTodoTemplates(clinicId)
       setMemoTodoTemplates(data)
     } catch (error) {
       console.error('メモTODOテンプレート更新エラー:', error)
@@ -458,7 +457,7 @@ export default function MasterSettingsPage() {
       await deleteMemoTodoTemplate(templateId)
 
       // データを再読み込み
-      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID)
+      const data = await getMemoTodoTemplates(clinicId)
       setMemoTodoTemplates(data)
     } catch (error) {
       console.error('メモTODOテンプレート削除エラー:', error)
@@ -792,9 +791,9 @@ export default function MasterSettingsPage() {
                     type="checkbox"
                     checked={noteType.is_active}
                     onChange={(e) => {
-                      updatePatientNoteType(DEMO_CLINIC_ID, noteType.id, { is_active: e.target.checked })
+                      updatePatientNoteType(clinicId, noteType.id, { is_active: e.target.checked })
                         .then(() => {
-                          const data = getPatientNoteTypes(DEMO_CLINIC_ID)
+                          const data = getPatientNoteTypes(clinicId)
                           data.then(d => setPatientNoteTypes(d))
                         })
                     }}
@@ -806,9 +805,9 @@ export default function MasterSettingsPage() {
                   <button 
                     onClick={() => {
                       if (confirm('このノートタイプを削除しますか？')) {
-                        deletePatientNoteType(DEMO_CLINIC_ID, noteType.id)
+                        deletePatientNoteType(clinicId, noteType.id)
                           .then(() => {
-                            const data = getPatientNoteTypes(DEMO_CLINIC_ID)
+                            const data = getPatientNoteTypes(clinicId)
                             data.then(d => setPatientNoteTypes(d))
                           })
                       }

@@ -27,8 +27,7 @@ import {
 import { PeriodontalFlowCollapsibleCompact, type SrpSelectionItem, type DeepPocketTooth } from './periodontal-flow-collapsible-compact'
 import { getPeriodontalExams, type PeriodontalExam } from '@/lib/api/periodontal-exams'
 import { getVisualExaminations } from '@/lib/api/visual-exams'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface TreatmentPlanTodosProps {
   patientId: string
@@ -43,6 +42,7 @@ export function TreatmentPlanTodos({
   subkarteId,
   onTodoComplete
 }: TreatmentPlanTodosProps) {
+  const clinicId = useClinicId()
   const [allTodos, setAllTodos] = useState<TreatmentPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<StaffTab>('doctor')
@@ -62,7 +62,7 @@ export function TreatmentPlanTodos({
   const loadTodos = async () => {
     try {
       setLoading(true)
-      const data = await getTreatmentPlans(DEMO_CLINIC_ID, patientId)
+      const data = await getTreatmentPlans(clinicId, patientId)
       setAllTodos(data)
     } catch (error) {
       console.error('TODO読み込みエラー:', error)
@@ -163,7 +163,7 @@ export function TreatmentPlanTodos({
     try {
       if (plan.status === 'completed') {
         // 完了済みを未完了に戻す
-        await updateTreatmentPlan(DEMO_CLINIC_ID, plan.id, {
+        await updateTreatmentPlan(clinicId, plan.id, {
           status: 'planned',
           completed_at: null,
           implemented_date: undefined
@@ -171,11 +171,11 @@ export function TreatmentPlanTodos({
       } else {
         // 完了にする
         const memo = memoInputs[plan.id] || undefined
-        await completeTreatmentPlan(DEMO_CLINIC_ID, plan.id, undefined, memo)
+        await completeTreatmentPlan(clinicId, plan.id, undefined, memo)
 
         if (subkarteId) {
           // サブカルテIDを紐づける
-          await updateTreatmentPlan(DEMO_CLINIC_ID, plan.id, {
+          await updateTreatmentPlan(clinicId, plan.id, {
             subkarte_id: subkarteId
           })
         }
@@ -211,7 +211,7 @@ export function TreatmentPlanTodos({
             ? `SRP（${selection.label.split(' ')[0]}）`
             : `SRP（${teethStr}番）`
 
-          await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+          await createTreatmentPlan(clinicId, patientId, {
             treatment_content: content,
             staff_type: 'hygienist',
             tooth_number: teethStr,
@@ -230,7 +230,7 @@ export function TreatmentPlanTodos({
             ? `歯周外科（${selection.label.split(' ')[0]}）`
             : `歯周外科（${teethStr}番）`
 
-          await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+          await createTreatmentPlan(clinicId, patientId, {
             treatment_content: content,
             staff_type: 'doctor',
             tooth_number: teethStr,
@@ -242,7 +242,7 @@ export function TreatmentPlanTodos({
       } else if (phaseId === 'P_HEAVY_PREVENTION') {
         // P重防: 全顎対象で1つのTODOを生成
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: 'P重防（歯周病重症化予防治療）',
           staff_type: 'hygienist',
           priority: 3,
@@ -253,7 +253,7 @@ export function TreatmentPlanTodos({
       } else if (phaseId === 'MAINTENANCE') {
         // SPT: 全顎対象で1つのTODOを生成
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: 'SPT（歯周病安定期治療）',
           staff_type: 'hygienist',
           priority: 3,
@@ -264,7 +264,7 @@ export function TreatmentPlanTodos({
       } else if (phaseId === 'P_EXAM_2') {
         // P検②: 歯周基本検査②のTODOを生成
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: '歯周基本検査②（再評価1）',
           staff_type: 'hygienist',
           priority: 2,
@@ -275,7 +275,7 @@ export function TreatmentPlanTodos({
       } else if (phaseId === 'P_EXAM_3') {
         // P検③: 歯周基本検査③のTODOを生成
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: '歯周基本検査③（再評価2）',
           staff_type: 'hygienist',
           priority: 2,
@@ -286,7 +286,7 @@ export function TreatmentPlanTodos({
       } else if (phaseId === 'P_EXAM_4') {
         // P検④: 歯周基本検査④のTODOを生成
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: '歯周基本検査④（再評価3）',
           staff_type: 'hygienist',
           priority: 2,
@@ -297,7 +297,7 @@ export function TreatmentPlanTodos({
       } else if (phaseId === 'P_EXAM_5') {
         // P検⑤: 歯周基本検査⑤のTODOを生成
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: '歯周基本検査⑤（再評価4）',
           staff_type: 'hygienist',
           priority: 2,
@@ -335,7 +335,7 @@ export function TreatmentPlanTodos({
       // 全TODOを一括更新
       await Promise.all(
         phasePlans.map(plan =>
-          updateTreatmentPlan(DEMO_CLINIC_ID, plan.id, {
+          updateTreatmentPlan(clinicId, plan.id, {
             status: newStatus,
             completed_at: timestamp,
           })
@@ -355,7 +355,7 @@ export function TreatmentPlanTodos({
       const memo = memoInputs[planId]
       if (!memo) return
 
-      await updateTreatmentPlan(DEMO_CLINIC_ID, planId, { memo })
+      await updateTreatmentPlan(clinicId, planId, { memo })
       await loadTodos()
       setExpandedTodo(null)
       setMemoInputs({ ...memoInputs, [planId]: '' })
@@ -473,13 +473,13 @@ export function TreatmentPlanTodos({
                   try {
                     if (isCompleted) {
                       // 完了済み→未完了に戻す
-                      await updateTreatmentPlan(DEMO_CLINIC_ID, planId, {
+                      await updateTreatmentPlan(clinicId, planId, {
                         status: 'planned',
                         completed_at: null
                       })
                     } else {
                       // 未完了→完了にする
-                      await updateTreatmentPlan(DEMO_CLINIC_ID, planId, {
+                      await updateTreatmentPlan(clinicId, planId, {
                         status: 'completed',
                         completed_at: new Date().toISOString()
                       })
@@ -492,7 +492,7 @@ export function TreatmentPlanTodos({
                 deepPocketTeeth={deepPocketTeeth}
                 missingTeeth={missingTeeth}
                 patientId={patientId}
-                clinicId={DEMO_CLINIC_ID}
+                clinicId={clinicId}
               />
             </div>
           )}

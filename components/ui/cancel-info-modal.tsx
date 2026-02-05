@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { X, Calendar, Clock, User, Phone, FileText, ExternalLink } from 'lucide-react'
 import { getCancelReasons } from '@/lib/api/cancel-reasons'
 import { getAppointments } from '@/lib/api/appointments'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface CancelInfoModalProps {
   isOpen: boolean
@@ -20,6 +21,7 @@ export function CancelInfoModal({
   appointment
 }: CancelInfoModalProps) {
   const router = useRouter()
+  const clinicId = useClinicId()
   const [cancelReason, setCancelReason] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [nextAppointment, setNextAppointment] = useState<any>(null)
@@ -36,7 +38,7 @@ export function CancelInfoModal({
   const loadCancelReason = async () => {
     try {
       setLoading(true)
-      const reasons = await getCancelReasons('11111111-1111-1111-1111-111111111111')
+      const reasons = await getCancelReasons(clinicId)
       const reason = reasons.find(r => r.id === appointment.cancel_reason_id)
       setCancelReason(reason)
     } catch (error) {
@@ -55,7 +57,7 @@ export function CancelInfoModal({
       const todayStr = today.toISOString().split('T')[0]
       const futureDateStr = futureDate.toISOString().split('T')[0]
 
-      const appointments = await getAppointments('11111111-1111-1111-1111-111111111111', todayStr, futureDateStr)
+      const appointments = await getAppointments(clinicId, todayStr, futureDateStr)
 
       // 現在の予約より未来で、キャンセルされていない予約を検索
       const futureAppointments = appointments.filter(apt =>

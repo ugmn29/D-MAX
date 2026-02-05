@@ -34,10 +34,10 @@ import {
   UpdateUnitData
 } from '@/lib/api/units'
 import { getStaff, Staff } from '@/lib/api/staff'
-
-const DEMO_CLINIC_ID = 'demo-clinic-1'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function UnitsSettingsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -67,8 +67,8 @@ export default function UnitsSettingsPage() {
     try {
       setLoading(true)
       const [unitsData, staffData] = await Promise.all([
-        getUnits(DEMO_CLINIC_ID),
-        getStaff(DEMO_CLINIC_ID)
+        getUnits(clinicId),
+        getStaff(clinicId)
       ])
       setUnits(unitsData)
       setStaff(staffData)
@@ -92,7 +92,7 @@ export default function UnitsSettingsPage() {
 
   const loadStaffUnitPriorities = async () => {
     try {
-      const priorities = await getStaffUnitPriorities(DEMO_CLINIC_ID, selectedStaff)
+      const priorities = await getStaffUnitPriorities(clinicId, selectedStaff)
       setStaffUnitPriorities(priorities)
     } catch (error) {
       console.error('スタッフユニット優先順位読み込みエラー:', error)
@@ -126,11 +126,11 @@ export default function UnitsSettingsPage() {
       
       if (editingUnit) {
         // 更新
-        const updatedUnit = await updateUnit(DEMO_CLINIC_ID, editingUnit.id, unitFormData)
+        const updatedUnit = await updateUnit(clinicId, editingUnit.id, unitFormData)
         setUnits(units.map(u => u.id === editingUnit.id ? updatedUnit : u))
       } else {
         // 新規作成
-        const newUnit = await createUnit(DEMO_CLINIC_ID, unitFormData)
+        const newUnit = await createUnit(clinicId, unitFormData)
         setUnits([...units, newUnit])
       }
       
@@ -148,7 +148,7 @@ export default function UnitsSettingsPage() {
     
     try {
       setSaving(true)
-      await deleteUnit(DEMO_CLINIC_ID, unit.id)
+      await deleteUnit(clinicId, unit.id)
       setUnits(units.filter(u => u.id !== unit.id))
     } catch (error) {
       console.error('ユニット削除エラー:', error)
@@ -166,7 +166,7 @@ export default function UnitsSettingsPage() {
   const handleAddPriority = async (unitId: string) => {
     try {
       const maxPriority = Math.max(0, ...staffUnitPriorities.map(p => p.priority_order))
-      await createStaffUnitPriority(DEMO_CLINIC_ID, {
+      await createStaffUnitPriority(clinicId, {
         staff_id: selectedStaff,
         unit_id: unitId,
         priority_order: maxPriority + 1,
@@ -181,7 +181,7 @@ export default function UnitsSettingsPage() {
 
   const handleDeletePriority = async (priorityId: string) => {
     try {
-      await deleteStaffUnitPriority(DEMO_CLINIC_ID, priorityId)
+      await deleteStaffUnitPriority(clinicId, priorityId)
       loadStaffUnitPriorities()
     } catch (error) {
       console.error('優先順位削除エラー:', error)
@@ -224,7 +224,7 @@ export default function UnitsSettingsPage() {
         priorityOrder: index + 1
       }))
       
-      await updateStaffUnitPriorities(DEMO_CLINIC_ID, selectedStaff, newPriorities)
+      await updateStaffUnitPriorities(clinicId, selectedStaff, newPriorities)
       loadStaffUnitPriorities()
     } catch (error) {
       console.error('優先順位更新エラー:', error)

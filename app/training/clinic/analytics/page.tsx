@@ -3,8 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface Stats {
   totalPatients: number
@@ -32,6 +31,7 @@ interface IssueStats {
 }
 
 export default function AnalyticsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'overview' | 'trainings' | 'evaluations' | 'timeline' | 'issues' | 'retention'>('overview')
   const [isLoading, setIsLoading] = useState(true)
@@ -58,7 +58,7 @@ export default function AnalyticsPage() {
       const { data: patients } = await supabase
         .from('patients')
         .select('id')
-        .eq('clinic_id', DEMO_CLINIC_ID)
+        .eq('clinic_id', clinicId)
         .eq('is_deleted', false)
 
       const { data: activeMenus } = await supabase

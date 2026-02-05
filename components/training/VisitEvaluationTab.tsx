@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface LipClosureTest {
   id: string
@@ -23,6 +22,7 @@ interface VisitEvaluationTabProps {
 }
 
 export default function VisitEvaluationTab({ patientId, patientName }: VisitEvaluationTabProps) {
+  const clinicId = useClinicId()
   const [tests, setTests] = useState<LipClosureTest[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -38,7 +38,7 @@ export default function VisitEvaluationTab({ patientId, patientName }: VisitEval
         .from('lip_closure_tests')
         .select('*')
         .eq('patient_id', patientId)
-        .eq('clinic_id', DEMO_CLINIC_ID)
+        .eq('clinic_id', clinicId)
         .order('test_date', { ascending: false })
 
       if (error) {
@@ -72,7 +72,7 @@ export default function VisitEvaluationTab({ patientId, patientName }: VisitEval
         .from('lip_closure_tests')
         .insert({
           patient_id: patientId,
-          clinic_id: DEMO_CLINIC_ID,
+          clinic_id: clinicId,
           test_date: new Date().toISOString(),
           measurement_value: value,
           notes: null,

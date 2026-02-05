@@ -5,11 +5,10 @@ import { MainCalendar } from '@/components/calendar/main-calendar'
 import { SidebarCalendar } from '@/components/calendar/sidebar-calendar'
 import { Patient } from '@/types/database'
 import { getClinicSettings } from '@/lib/api/clinic'
-
-// 仮のクリニックID（後で認証システムから取得）
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function DashboardPage() {
+  const clinicId = useClinicId()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [mounted, setMounted] = useState(false)
   const [timeSlotMinutes, setTimeSlotMinutes] = useState<number | undefined>(undefined)
@@ -31,7 +30,7 @@ export default function DashboardPage() {
   const loadSettings = async () => {
     try {
       console.log('ダッシュボード: 設定読み込み開始')
-      const settings = await getClinicSettings(DEMO_CLINIC_ID)
+      const settings = await getClinicSettings(clinicId)
       console.log('ダッシュボード: 取得した設定:', settings)
 
       // 数値に変換、設定がない場合はデフォルト値15
@@ -80,7 +79,7 @@ export default function DashboardPage() {
       {/* 左側: メインカレンダー */}
       <div className="flex-1">
         <MainCalendar
-          clinicId={DEMO_CLINIC_ID}
+          clinicId={clinicId}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           timeSlotMinutes={timeSlotMinutes ?? 15}
@@ -97,7 +96,7 @@ export default function DashboardPage() {
 
       {/* 右側: サイドバー */}
       <SidebarCalendar
-        clinicId={DEMO_CLINIC_ID}
+        clinicId={clinicId}
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         onPatientSelect={handlePatientSelect}

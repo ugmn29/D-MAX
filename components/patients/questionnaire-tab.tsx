@@ -26,6 +26,7 @@ import {
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { OralFunctionAssessmentPanel } from './oral-function-assessment-panel'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface QuestionnaireTabProps {
   patientId: string
@@ -51,6 +52,7 @@ const patientFieldLabels: { [key: string]: string } = {
 }
 
 export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
+  const clinicId = useClinicId()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -89,7 +91,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       // 連携済みと未連携の両方を取得
       const [linkedResponses, unlinkedResponses] = await Promise.all([
         getLinkedQuestionnaireResponses(patientId),
-        getUnlinkedQuestionnaireResponses('11111111-1111-1111-1111-111111111111')
+        getUnlinkedQuestionnaireResponses(clinicId)
       ])
 
       console.log('連携済み問診票:', linkedResponses.length, '件')
@@ -109,8 +111,7 @@ export function QuestionnaireTab({ patientId }: QuestionnaireTabProps) {
       console.log('問診票名一覧:', allResponses.map(r => r.questionnaire?.name).filter(Boolean))
 
       // 問診票の定義を取得（質問IDから質問文を取得するため）
-      // 仮のclinicIdを使用（実際の実装では適切なclinicIdを使用）
-      const questionnaires = await getQuestionnaires('11111111-1111-1111-1111-111111111111')
+      const questionnaires = await getQuestionnaires(clinicId)
       console.log('問診票定義の取得:', questionnaires.length, '件')
 
       // 問診票IDをキーとして質問のマップを作成

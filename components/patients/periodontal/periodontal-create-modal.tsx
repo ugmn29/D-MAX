@@ -66,7 +66,7 @@ export function PeriodontalCreateModal({
       isOpen={isOpen}
       onClose={handleCancel}
       size="large"
-      className="max-w-[90vw] max-h-[95vh]"
+      className="max-w-[95vw] h-[98vh]"
     >
       {step === 'select-method' ? (
         <PeriodontalMethodSelector

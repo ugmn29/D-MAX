@@ -8,13 +8,12 @@ import { ArrowLeft, FileText, Settings } from 'lucide-react'
 import { QuestionnaireForm } from '@/components/forms/questionnaire-form'
 import { QuestionnaireList } from '@/components/forms/questionnaire-list'
 import { QuestionnaireDetail } from '@/components/forms/questionnaire-detail'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 type PageMode = 'list' | 'form' | 'detail' | 'settings'
 
 export default function QuestionnaireSettingsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [mode, setMode] = useState<PageMode>('list')
   const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState<string | null>(null)
@@ -96,7 +95,7 @@ export default function QuestionnaireSettingsPage() {
           {mode === 'list' && (
             <div className="p-6">
               <QuestionnaireList
-                clinicId={DEMO_CLINIC_ID}
+                clinicId={clinicId}
                 onCreate={() => {
                   console.log('新しい問診票を作成')
                   setSelectedQuestionnaireId(null) // 編集モードをリセット
@@ -125,7 +124,7 @@ export default function QuestionnaireSettingsPage() {
               </div>
               
               <QuestionnaireForm
-                clinicId={DEMO_CLINIC_ID}
+                clinicId={clinicId}
                 questionnaireId={selectedQuestionnaireId || undefined}
                 onSave={handleQuestionnaireSave}
                 onCancel={handleQuestionnaireCancel}
@@ -137,7 +136,7 @@ export default function QuestionnaireSettingsPage() {
             <div className="p-6">
               <QuestionnaireDetail
                 questionnaireId={selectedQuestionnaireId}
-                clinicId={DEMO_CLINIC_ID}
+                clinicId={clinicId}
                 onEdit={handleEditQuestionnaire}
                 onBack={handleBackFromDetail}
               />

@@ -10,8 +10,7 @@ import TrainingProgressChart from '@/components/training/TrainingProgressChart'
 import PatientIssuesTab from '@/components/training/PatientIssuesTab'
 import VisitEvaluationTab from '@/components/training/VisitEvaluationTab'
 import { Dumbbell, TrendingUp, AlertTriangle, ClipboardCheck } from 'lucide-react'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface Training {
   id: string
@@ -52,6 +51,7 @@ interface TrainingRecord {
 }
 
 export default function PatientDetailPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const params = useParams()
   const patientId = params.patientId as string
@@ -98,7 +98,7 @@ export default function PatientDetailPage() {
   const loadData = async () => {
     try {
       // 患者情報を取得
-      const patientData = await getPatientById(DEMO_CLINIC_ID, patientId)
+      const patientData = await getPatientById(clinicId, patientId)
       setPatient(patientData)
 
       // UUID形式かチェック
@@ -342,7 +342,7 @@ export default function PatientDetailPage() {
         {/* トレーニング管理タブ */}
         {activeTab === 'training' && (
           <div className="bg-white rounded-xl shadow-sm p-4 h-full">
-            <TrainingFlowChart patientId={patientId} clinicId={DEMO_CLINIC_ID} />
+            <TrainingFlowChart patientId={patientId} clinicId={clinicId} />
           </div>
         )}
 

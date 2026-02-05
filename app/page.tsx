@@ -8,11 +8,10 @@ import { SidebarCalendar } from '@/components/calendar/sidebar-calendar'
 import { Button } from '@/components/ui/button'
 import { Patient } from '@/types/database'
 import { getClinicSettings } from '@/lib/api/clinic'
-
-// 仮のクリニックID（後で認証システムから取得）
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function HomePage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [mounted, setMounted] = useState(false)
@@ -177,7 +176,7 @@ export default function HomePage() {
   const loadSettings = async () => {
     try {
       console.log('メインページ: 設定読み込み開始')
-      const settings = await getClinicSettings(DEMO_CLINIC_ID)
+      const settings = await getClinicSettings(clinicId)
       console.log('メインページ: 取得した設定:', settings)
       console.log('メインページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
 
@@ -269,7 +268,7 @@ export default function HomePage() {
         
         <MainCalendar
           key={refreshKey}
-          clinicId={DEMO_CLINIC_ID}
+          clinicId={clinicId}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           timeSlotMinutes={timeSlotMinutes ?? 15}
@@ -289,7 +288,7 @@ export default function HomePage() {
 
         {/* 右側: サイドバー */}
         <SidebarCalendar
-          clinicId={DEMO_CLINIC_ID}
+          clinicId={clinicId}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           onPatientSelect={handlePatientSelect}

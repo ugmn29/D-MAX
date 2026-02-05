@@ -271,7 +271,7 @@ export function PeriodontalGrid({
   }
 
   return (
-    <div className="bg-white p-2 rounded-lg overflow-x-auto">
+    <div className="bg-white p-1 rounded-lg overflow-auto h-full">
       <table className="border-collapse table-fixed text-sm w-full">
         <colgroup>
           <col className="w-14" />

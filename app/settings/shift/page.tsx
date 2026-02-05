@@ -11,9 +11,7 @@ import { getStaff } from '@/lib/api/staff'
 import { getClinicSettings } from '@/lib/api/clinic'
 import { getShiftPatterns } from '@/lib/api/shift-patterns'
 import { formatDateForDB } from '@/lib/utils/date'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const MONTHS = [
@@ -29,6 +27,7 @@ const WORK_PATTERNS = [
 ]
 
 export default function ShiftSettingsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -56,10 +55,10 @@ export default function ShiftSettingsPage() {
         const month = currentMonth.getMonth() + 1
         
         const [shiftsData, staffData, settings, patternsData] = await Promise.all([
-          getStaffShifts(DEMO_CLINIC_ID, year, month),
-          getStaff(DEMO_CLINIC_ID),
-          getClinicSettings(DEMO_CLINIC_ID),
-          getShiftPatterns(DEMO_CLINIC_ID)
+          getStaffShifts(clinicId, year, month),
+          getStaff(clinicId),
+          getClinicSettings(clinicId),
+          getShiftPatterns(clinicId)
         ])
         
         setShifts(shiftsData)
@@ -102,12 +101,12 @@ export default function ShiftSettingsPage() {
   const handleAddShift = async () => {
     try {
       setSaving(true)
-      await upsertStaffShift(DEMO_CLINIC_ID, { ...newShift, clinic_id: DEMO_CLINIC_ID })
+      await upsertStaffShift(clinicId, { ...newShift, clinic_id: clinicId })
       
       // データを再読み込み
       const year = currentMonth.getFullYear()
       const month = currentMonth.getMonth() + 1
-      const data = await getStaffShifts(DEMO_CLINIC_ID, year, month)
+      const data = await getStaffShifts(clinicId, year, month)
       setShifts(data)
       
       setNewShift({

@@ -5,103 +5,65 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   User,
-  Eye,
-  Activity,
   FileText,
   Target,
-  History,
   Calendar,
-  ClipboardList,
-  Shield,
   Folder,
   BarChart3,
-  Search,
-  FileClock,
-  TrendingUp,
-  AlertCircle,
-  Bell,
-  FileCheck,
-  Stethoscope
+  Stethoscope,
+  Microscope
 } from 'lucide-react'
-import { BasicInfoTab } from './basic-info-tab'
-import { QuestionnaireTab } from './questionnaire-tab'
-import { AppointmentsTab } from './appointments-tab'
-import { AppointmentLogsTab } from './appointment-logs-tab'
 import { SubKarteTab } from './subkarte-tab'
 import PatientTrainingTabs from '@/components/training/PatientTrainingTabs'
-import { PeriodontalExamTab } from './periodontal-exam-tab'
-import { VisualExamTab } from './visual/visual-exam-tab'
-import { PatientNotificationTab } from './patient-notification-tab'
-import { MedicalDocumentsTab } from './medical-documents-tab'
+import { useClinicId } from '@/hooks/use-clinic-id'
 import { EMRTab } from './emr-tab'
 import { TreatmentPlanTab } from './treatment-plan-tab'
+import { ExaminationTab } from './examination-tab'
+import { PatientInfoTab } from './patient-info-tab'
+import { AppointmentsNotificationsTab } from './appointments-notifications-tab'
+import { FilesDocumentsTab } from './files-documents-tab'
 
 interface PatientDetailTabsProps {
   patientId: string
 }
 
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-
 // タブ定義
 const tabs = [
   { id: 'basic', label: '基本情報', icon: User, available: true },
   { id: 'emr', label: '電子カルテ', icon: Stethoscope, available: true },
-  { id: 'visual', label: '視診', icon: Eye, available: true },
-  { id: 'p-test', label: 'P検査', icon: Activity, available: true },
+  { id: 'examination', label: '検査', icon: Microscope, available: true },
   { id: 'sub-chart', label: 'サブカルテ', icon: FileText, available: true },
   { id: 'treatment-plan', label: '治療計画', icon: BarChart3, available: true },
   { id: 'training', label: 'トレーニング', icon: Target, available: true },
-  { id: 'history', label: '診療履歴', icon: History, available: true },
-  { id: 'appointments', label: '予約', icon: Calendar, available: true },
-  { id: 'notification', label: '通知', icon: Bell, available: true },
-  { id: 'questionnaire', label: '問診', icon: ClipboardList, available: true },
-  { id: 'insurance', label: '保険・公費', icon: Shield, available: true },
-  { id: 'files', label: 'ファイル', icon: Folder, available: true },
-  { id: 'medical-documents', label: '提供文書', icon: FileCheck, available: true },
-  { id: 'access-history', label: 'アクセス履歴', icon: Search, available: true },
-  { id: 'appointment-logs', label: '予約操作ログ', icon: FileClock, available: true }
+  { id: 'appointments-notifications', label: '予約・通知', icon: Calendar, available: true },
+  { id: 'files-documents', label: 'ファイル・文書', icon: Folder, available: true }
 ]
 
 export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
+  const clinicId = useClinicId()
   const [activeTab, setActiveTab] = useState('basic')
 
   const renderTabContent = () => {
     console.log('PatientDetailTabs: タブコンテンツをレンダリング', { activeTab, patientId })
     switch (activeTab) {
       case 'basic':
-        return <BasicInfoTab patientId={patientId} />
+        return <PatientInfoTab patientId={patientId} />
       case 'emr':
-        return <EMRTab patientId={patientId} clinicId={DEMO_CLINIC_ID} />
-      case 'visual':
-        return <VisualExamTab patientId={patientId} />
-      case 'p-test':
-        return <PeriodontalExamTab patientId={patientId} />
+        return <EMRTab patientId={patientId} clinicId={clinicId} />
+      case 'examination':
+        return <ExaminationTab patientId={patientId} />
       case 'sub-chart':
         return <SubKarteTab key={`subkarte-${Date.now()}`} patientId={patientId} />
       case 'training':
         return <PatientTrainingTabs patientId={patientId} />
-      case 'history':
-        return <div className="p-6 text-center text-gray-500">診療履歴機能（開発中）</div>
-      case 'appointments':
-        console.log('PatientDetailTabs: 予約タブをレンダリング', { patientId })
-        return <AppointmentsTab patientId={patientId} />
-      case 'notification':
-        return <PatientNotificationTab patientId={patientId} clinicId={DEMO_CLINIC_ID} />
-      case 'questionnaire':
-        return <QuestionnaireTab patientId={patientId} />
-      case 'insurance':
-        return <div className="p-6 text-center text-gray-500">保険・公費機能（開発中）</div>
-      case 'files':
-        return <div className="p-6 text-center text-gray-500">ファイル機能（開発中）</div>
-      case 'medical-documents':
-        return <MedicalDocumentsTab patientId={patientId} clinicId={DEMO_CLINIC_ID} />
+      case 'appointments-notifications':
+        console.log('PatientDetailTabs: 予約・通知タブをレンダリング', { patientId })
+        return <AppointmentsNotificationsTab patientId={patientId} />
+      case 'files-documents':
+        console.log('PatientDetailTabs: ファイル・文書タブをレンダリング', { patientId })
+        return <FilesDocumentsTab patientId={patientId} />
       case 'treatment-plan':
         return <TreatmentPlanTab patientId={patientId} />
-      case 'access-history':
-        return <div className="p-6 text-center text-gray-500">アクセス履歴機能（開発中）</div>
-      case 'appointment-logs':
-        console.log('PatientDetailTabs: AppointmentLogsTabをレンダリング', { patientId })
-        return <AppointmentLogsTab patientId={patientId} />
       default:
         return <div>タブコンテンツが見つかりません</div>
     }

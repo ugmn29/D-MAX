@@ -16,9 +16,7 @@ import {
   X,
   FileSpreadsheet
 } from "lucide-react"
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111"
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface CSVData {
   headers: string[]
@@ -28,6 +26,7 @@ interface CSVData {
 }
 
 export default function DataImportPage() {
+  const clinicId = useClinicId()
   const [activeTab, setActiveTab] = useState<'patients' | 'appointments' | 'history'>('patients')
   const [csvData, setCsvData] = useState<CSVData | null>(null)
   const [isDragging, setIsDragging] = useState(false)

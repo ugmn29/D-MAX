@@ -12,9 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { ArrowLeft } from 'lucide-react'
 import { getClinicSettings, setClinicSetting, updateClinicSettings } from '@/lib/api/clinic'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 const TIME_SLOT_OPTIONS = [
   { value: 10, label: '10分' },
@@ -40,6 +38,7 @@ const DISPLAY_ITEMS = [
 // キャンセル理由は動的に取得するため、固定配列を削除
 
 export default function CalendarSettingsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -93,7 +92,7 @@ export default function CalendarSettingsPage() {
       setSaving(true)
       
       // updateClinicSettingsを使用して一括保存
-      const result = await updateClinicSettings(DEMO_CLINIC_ID, {
+      const result = await updateClinicSettings(clinicId, {
         timeSlotMinutes,
         displayItems,
         cellHeight,
@@ -120,7 +119,7 @@ export default function CalendarSettingsPage() {
       
       // updateClinicSettingsを使用して一括保存
       console.log('設定ページ: updateClinicSettingsで一括保存中...')
-      const result = await updateClinicSettings(DEMO_CLINIC_ID, {
+      const result = await updateClinicSettings(clinicId, {
         timeSlotMinutes,
         displayItems,
         cellHeight,
@@ -162,7 +161,7 @@ export default function CalendarSettingsPage() {
       try {
         setLoading(true)
         console.log('設定ページ: データ読み込み開始')
-        const settings = await getClinicSettings(DEMO_CLINIC_ID)
+        const settings = await getClinicSettings(clinicId)
         console.log('設定ページ: 取得した設定:', settings)
         console.log('設定ページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
         console.log('設定ページ: display_items:', settings.display_items)

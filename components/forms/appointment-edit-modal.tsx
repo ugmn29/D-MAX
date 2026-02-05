@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { parseDBDate } from '@/lib/utils/date'
+import { parseDBDate, calculateAge } from '@/lib/utils/date'
 import {
   Search,
   UserPlus,
@@ -1954,7 +1954,7 @@ export function AppointmentEditModal({
                         >
                           <div className="font-medium text-sm">{patient.displayName}</div>
                           <div className="text-xs text-gray-500">
-                            {patient.phone} | {patient.birth_date ? `${new Date().getFullYear() - new Date(patient.birth_date).getFullYear()}歳` : '年齢不明'}
+                            {patient.phone} | {patient.birth_date ? `${calculateAge(patient.birth_date)}歳` : '年齢不明'}
                           </div>
                         </div>
                       ))}
@@ -2020,7 +2020,7 @@ export function AppointmentEditModal({
                           </div>
                         )}
                         <div className="bg-gray-100 px-2 py-1 rounded">
-                          年齢: {selectedPatient.birth_date ? `${new Date().getFullYear() - new Date(selectedPatient.birth_date).getFullYear()}歳` : '--歳'}
+                          年齢: {selectedPatient.birth_date ? `${calculateAge(selectedPatient.birth_date)}歳` : '--歳'}
                         </div>
                         <div className="bg-gray-100 px-2 py-1 rounded">
                           生年月日: {selectedPatient.birth_date ? selectedPatient.birth_date.replace(/-/g, '/') : '--'}

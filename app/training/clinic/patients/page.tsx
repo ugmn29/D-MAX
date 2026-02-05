@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Patient } from '@/types/database'
 import { getPatients } from '@/lib/api/patients'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function PatientsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [patients, setPatients] = useState<Patient[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -20,7 +20,7 @@ export default function PatientsPage() {
   const loadPatients = async () => {
     try {
       console.log('患者データ取得開始...')
-      const data = await getPatients(DEMO_CLINIC_ID)
+      const data = await getPatients(clinicId)
 
       console.log('取得した患者データ:', data)
       console.log('患者数:', data?.length || 0)

@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Save, Trash2, Type, Pen, Eraser, Highlighter, User } from 'lucide-react';
 import { Button } from './button';
 import { getStaff } from '@/lib/api/staff';
+import { useClinicId } from '@/hooks/use-clinic-id';
 
 interface HandwritingModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export function HandwritingModal({
   initialType = 'handwriting',
   editingEntryId
 }: HandwritingModalProps) {
+  const clinicId = useClinicId();
   const [activeTool, setActiveTool] = useState<'pen' | 'marker' | 'eraser' | 'text'>('pen');
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [penSize, setPenSize] = useState(3);
@@ -138,7 +140,7 @@ export function HandwritingModal({
   useEffect(() => {
     const fetchStaff = async () => {
       try {
-        const staffData = await getStaff('11111111-1111-1111-1111-111111111111');
+        const staffData = await getStaff(clinicId);
         setStaffList(staffData);
       } catch (error) {
         console.error('スタッフデータの取得に失敗しました:', error);

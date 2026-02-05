@@ -18,8 +18,7 @@ import { getStaff } from '@/lib/api/staff'
 import { Staff } from '@/types/database'
 import { startAutoStatusUpdateTimer } from '@/lib/utils/auto-status-update'
 import { SubKarteTab } from '@/components/patients/subkarte-tab'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 // ステータス定義
 const STATUS_CONFIG = {
@@ -35,6 +34,7 @@ const STATUS_CONFIG = {
 const STATUS_ORDER = ['未来院', '遅刻', '来院済み', '診療中', '会計', '終了', 'キャンセル']
 
 export default function PatientStatusPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedStaff, setSelectedStaff] = useState<string>('all')
@@ -53,7 +53,7 @@ export default function PatientStatusPage() {
   useEffect(() => {
     const cleanup = startAutoStatusUpdateTimer(
       () => appointments,
-      DEMO_CLINIC_ID,
+      clinicId,
       async () => {
         // ステータス更新後、予約データを再読み込み
         await loadData()
@@ -70,8 +70,8 @@ export default function PatientStatusPage() {
       const dateString = format(selectedDate, 'yyyy-MM-dd')
 
       const [appointmentsData, staffData] = await Promise.all([
-        getAppointments(DEMO_CLINIC_ID, dateString, dateString),
-        getStaff(DEMO_CLINIC_ID)
+        getAppointments(clinicId, dateString, dateString),
+        getStaff(clinicId)
       ])
 
       // キャンセルを含むすべての予約を表示
@@ -108,7 +108,7 @@ export default function PatientStatusPage() {
   // ステータス変更
   const handleStatusChange = async (appointmentId: string, newStatus: string) => {
     try {
-      await updateAppointmentStatus(DEMO_CLINIC_ID, appointmentId, newStatus)
+      await updateAppointmentStatus(clinicId, appointmentId, newStatus)
       await loadData()
     } catch (error) {
       console.error('ステータス変更エラー:', error)

@@ -163,9 +163,7 @@ import {
   CreateUnitData,
   UpdateUnitData,
 } from "@/lib/api/units";
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
+import { useClinicId } from '@/hooks/use-clinic-id';
 
 const WEEKDAYS = [
   { id: "monday", name: "月曜日" },
@@ -390,6 +388,7 @@ interface CSVData {
 }
 
 export default function SettingsPage() {
+  const clinicId = useClinicId();
   const router = useRouter();
   const pathname = usePathname();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
@@ -692,7 +691,7 @@ export default function SettingsPage() {
   // ユニット管理の関数
   const loadUnitsData = async () => {
     try {
-      const data = await getUnits(DEMO_CLINIC_ID);
+      const data = await getUnits(clinicId);
       setUnitsData(data);
     } catch (error) {
       console.error("ユニットデータ読み込みエラー:", error);
@@ -732,7 +731,7 @@ export default function SettingsPage() {
       // 新規作成（一時IDを使用）
       const newUnit = {
         id: `temp-unit-${Date.now()}`,
-        clinic_id: DEMO_CLINIC_ID,
+        clinic_id: clinicId,
         ...unitFormData,
         created_at: new Date().toISOString(),
       };
@@ -786,7 +785,7 @@ export default function SettingsPage() {
   // スタッフユニット優先順位の関数
   const loadStaffUnitPriorities = async () => {
     try {
-      const priorities = await getStaffUnitPriorities(DEMO_CLINIC_ID);
+      const priorities = await getStaffUnitPriorities(clinicId);
       setStaffUnitPriorities(priorities);
     } catch (error) {
       console.error("スタッフユニット優先順位読み込みエラー:", error);
@@ -806,13 +805,13 @@ export default function SettingsPage() {
       );
 
       console.log("Creating staff unit priority:", {
-        clinicId: DEMO_CLINIC_ID,
+        clinicId: clinicId,
         staff_id: staffId,
         unit_id: unitId,
         priority_order: maxPriority + 1,
       });
       
-      const result = await createStaffUnitPriority(DEMO_CLINIC_ID, {
+      const result = await createStaffUnitPriority(clinicId, {
         staff_id: staffId,
         unit_id: unitId,
         priority_order: maxPriority + 1,
@@ -829,7 +828,7 @@ export default function SettingsPage() {
 
   const handleDeletePriority = async (priorityId: string) => {
     try {
-      await deleteStaffUnitPriority(DEMO_CLINIC_ID, priorityId);
+      await deleteStaffUnitPriority(clinicId, priorityId);
       loadStaffUnitPriorities();
     } catch (error) {
       console.error("優先順位削除エラー:", error);
@@ -888,7 +887,7 @@ export default function SettingsPage() {
       
       // 各優先順位を個別に更新
       for (const priority of newPriorities) {
-        await updateStaffUnitPriority(DEMO_CLINIC_ID, priority.id, {
+        await updateStaffUnitPriority(clinicId, priority.id, {
           priority_order: priority.priority_order,
         });
       }
@@ -1371,7 +1370,7 @@ export default function SettingsPage() {
   const loadLinkStatusData = async () => {
     try {
       console.log('📋 連携状況データ取得開始（設定画面）')
-      const data = await getPatientLinkStatus(DEMO_CLINIC_ID);
+      const data = await getPatientLinkStatus(clinicId);
       console.log('📋 受信データ:', data)
       console.log('📋 未連携:', data.unlinkedPatients.length, '件')
       console.log('📋 連携済み:', data.linkedPatients.length, '件')
@@ -1437,7 +1436,7 @@ export default function SettingsPage() {
     const loadPatients = async () => {
       if (selectedCategory === "patient-list") {
         try {
-          const data = await getPatients(DEMO_CLINIC_ID);
+          const data = await getPatients(clinicId);
           setPatients(data);
           setFilteredPatients(data);
         } catch (error) {
@@ -1481,8 +1480,8 @@ export default function SettingsPage() {
       console.log("loadQuestionnaires実行 - selectedCategory:", selectedCategory);
       if (selectedCategory === "questionnaire") {
         try {
-          console.log("問診票取得開始 - DEMO_CLINIC_ID:", DEMO_CLINIC_ID);
-          const data = await getQuestionnaires(DEMO_CLINIC_ID);
+          console.log("問診票取得開始 - clinicId:", clinicId);
+          const data = await getQuestionnaires(clinicId);
           console.log("問診票取得完了 - データ:", data);
           console.log("問診票取得完了 - 件数:", data.length);
 
@@ -1523,9 +1522,9 @@ export default function SettingsPage() {
 
           // ユニットデータとスタッフデータを並行読み込み
           const [unitsResult, staffResult, prioritiesResult] = await Promise.all([
-            getUnits(DEMO_CLINIC_ID),
-            getStaff(DEMO_CLINIC_ID),
-            getStaffUnitPriorities(DEMO_CLINIC_ID)
+            getUnits(clinicId),
+            getStaff(clinicId),
+            getStaffUnitPriorities(clinicId)
           ]);
 
           console.log("ユニットデータ:", unitsResult);
@@ -1584,7 +1583,7 @@ export default function SettingsPage() {
       if (selectedCategory === "notification") {
         try {
           const response = await fetch(
-            `/api/notification-settings?clinic_id=${DEMO_CLINIC_ID}`,
+            `/api/notification-settings?clinic_id=${clinicId}`,
           );
           if (response.ok) {
             const settings = await response.json();
@@ -1618,7 +1617,7 @@ export default function SettingsPage() {
         // テンプレートの読み込み
         try {
           const templatesResponse = await fetch(
-            `/api/notification-templates?clinic_id=${DEMO_CLINIC_ID}`,
+            `/api/notification-templates?clinic_id=${clinicId}`,
           );
           if (templatesResponse.ok) {
             const templatesData = await templatesResponse.json();
@@ -1630,7 +1629,7 @@ export default function SettingsPage() {
                 const initResponse = await fetch('/api/notification-templates/init', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ clinic_id: DEMO_CLINIC_ID }),
+                  body: JSON.stringify({ clinic_id: clinicId }),
                 });
 
                 if (initResponse.ok) {
@@ -1639,7 +1638,7 @@ export default function SettingsPage() {
 
                   // 再度テンプレートを読み込み
                   const reloadResponse = await fetch(
-                    `/api/notification-templates?clinic_id=${DEMO_CLINIC_ID}`,
+                    `/api/notification-templates?clinic_id=${clinicId}`,
                   );
                   if (reloadResponse.ok) {
                     const reloadData = await reloadResponse.json();
@@ -1688,7 +1687,7 @@ export default function SettingsPage() {
         // 自動リマインドルールの読み込み
         try {
           const autoReminderResponse = await fetch(
-            `/api/auto-reminder-rules?clinic_id=${DEMO_CLINIC_ID}`,
+            `/api/auto-reminder-rules?clinic_id=${clinicId}`,
           );
           if (autoReminderResponse.ok) {
             const autoReminderData = await autoReminderResponse.json();
@@ -1716,7 +1715,7 @@ export default function SettingsPage() {
     const loadClinicSettings = async () => {
       try {
         console.log("クリニック設定読み込み開始");
-        const settings = await getClinicSettings(DEMO_CLINIC_ID);
+        const settings = await getClinicSettings(clinicId);
         console.log("読み込んだ設定:", settings);
 
         let loadedBusinessHours;
@@ -1816,14 +1815,14 @@ export default function SettingsPage() {
           );
           finalCellHeight = 40;
           // 自動修正した値を保存
-          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 40);
+          await setClinicSetting(clinicId, "cell_height", 40);
         } else if (currentTimeSlotMinutes === 30 && finalCellHeight < 60) {
           console.warn(
             `セル高さ（${finalCellHeight}px）が30分スロットに対して低すぎるため、60pxに自動調整します`,
           );
           finalCellHeight = 60;
           // 自動修正した値を保存
-          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 60);
+          await setClinicSetting(clinicId, "cell_height", 60);
         }
 
         setCellHeight(finalCellHeight);
@@ -1899,9 +1898,9 @@ export default function SettingsPage() {
     // スタッフデータの読み込み
     const loadStaff = async () => {
       try {
-        console.log("スタッフデータ読み込み開始:", DEMO_CLINIC_ID);
+        console.log("スタッフデータ読み込み開始:", clinicId);
         setStaffLoading(true);
-        const data = await getStaff(DEMO_CLINIC_ID);
+        const data = await getStaff(clinicId);
         console.log("読み込んだスタッフデータ:", data);
         setStaff(data);
       } catch (error) {
@@ -1918,20 +1917,20 @@ export default function SettingsPage() {
       try {
         const [positionsData, noteTypesData, cancelReasonsData, memoTemplatesData, memoTodoTemplatesData] =
           await Promise.all([
-          getStaffPositions(DEMO_CLINIC_ID),
-          getPatientNoteTypes(DEMO_CLINIC_ID),
-            getCancelReasons(DEMO_CLINIC_ID),
-            getMemoTemplates(DEMO_CLINIC_ID),
-            getMemoTodoTemplates(DEMO_CLINIC_ID),
+          getStaffPositions(clinicId),
+          getPatientNoteTypes(clinicId),
+            getCancelReasons(clinicId),
+            getMemoTemplates(clinicId),
+            getMemoTodoTemplates(clinicId),
           ]);
 
         // スタッフ役職が空の場合、デフォルトデータを初期化
         if (positionsData.length === 0) {
           console.log('スタッフ役職が空です。デフォルトデータを初期化します...');
-          const initResult = await initializeClinicStaffPositions(DEMO_CLINIC_ID);
+          const initResult = await initializeClinicStaffPositions(clinicId);
           if (initResult.success) {
             console.log(`✓ ${initResult.count}件のスタッフ役職を初期化しました`);
-            const reloadedPositions = await getStaffPositions(DEMO_CLINIC_ID);
+            const reloadedPositions = await getStaffPositions(clinicId);
             setStaffPositions(reloadedPositions);
           } else {
             console.error('スタッフ役職の初期化に失敗:', initResult.errors);
@@ -1944,10 +1943,10 @@ export default function SettingsPage() {
         // キャンセル理由が空の場合、デフォルトデータを初期化
         if (cancelReasonsData.length === 0) {
           console.log('キャンセル理由が空です。デフォルトデータを初期化します...');
-          const initResult = await initializeClinicCancelReasons(DEMO_CLINIC_ID);
+          const initResult = await initializeClinicCancelReasons(clinicId);
           if (initResult.success) {
             console.log(`✓ ${initResult.count}件のキャンセル理由を初期化しました`);
-            const reloadedReasons = await getCancelReasons(DEMO_CLINIC_ID);
+            const reloadedReasons = await getCancelReasons(clinicId);
             setCancelReasons(reloadedReasons);
           } else {
             console.error('キャンセル理由の初期化に失敗:', initResult.errors);
@@ -1976,8 +1975,8 @@ export default function SettingsPage() {
       }
 
       try {
-        console.log("メニュー読み込み開始:", DEMO_CLINIC_ID);
-        const data = await getTreatmentMenus(DEMO_CLINIC_ID);
+        console.log("メニュー読み込み開始:", clinicId);
+        const data = await getTreatmentMenus(clinicId);
         console.log("読み込んだメニューデータ:", data);
         setTreatmentMenus(data);
         treatmentMenusLoadedRef.current = true; // 読み込み完了フラグを立てる
@@ -2218,7 +2217,7 @@ export default function SettingsPage() {
         console.log("設定ページ: 数値変換後の値:", numericTimeSlotMinutes);
 
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "time_slot_minutes",
           numericTimeSlotMinutes,
         );
@@ -2229,14 +2228,14 @@ export default function SettingsPage() {
         if (numericTimeSlotMinutes === 15 && cellHeight < 40) {
           recommendedCellHeight = 40;
           setCellHeight(40);
-          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 40);
+          await setClinicSetting(clinicId, "cell_height", 40);
           console.log(
             "設定ページ: セルの高さを15分スロットに合わせて40pxに自動調整しました",
           );
         } else if (numericTimeSlotMinutes === 30 && cellHeight < 60) {
           recommendedCellHeight = 60;
           setCellHeight(60);
-          await setClinicSetting(DEMO_CLINIC_ID, "cell_height", 60);
+          await setClinicSetting(clinicId, "cell_height", 60);
           console.log(
             "設定ページ: セルの高さを30分スロットに合わせて60pxに自動調整しました",
           );
@@ -2938,7 +2937,7 @@ export default function SettingsPage() {
         booking_menus: menus,
       };
 
-      await setClinicSetting(DEMO_CLINIC_ID, "web_reservation", settingsToSave);
+      await setClinicSetting(clinicId, "web_reservation", settingsToSave);
       console.log("Web予約メニュー保存完了");
     } catch (error) {
       console.error("Web予約メニュー保存エラー:", error);
@@ -2959,10 +2958,10 @@ export default function SettingsPage() {
       };
       
       console.log("保存データ:", settingsToSave);
-      await setClinicSetting(DEMO_CLINIC_ID, "web_reservation", settingsToSave);
+      await setClinicSetting(clinicId, "web_reservation", settingsToSave);
       
       // 保存後にデータを再読み込み
-      const reloadedSettings = await getClinicSettings(DEMO_CLINIC_ID);
+      const reloadedSettings = await getClinicSettings(clinicId);
       console.log("再読み込みした設定:", reloadedSettings);
 
       if (reloadedSettings.web_reservation) {
@@ -3055,7 +3054,7 @@ export default function SettingsPage() {
       }
 
       console.log("保存データ:", settings);
-      console.log("クリニックID:", DEMO_CLINIC_ID);
+      console.log("クリニックID:", clinicId);
       console.log("現在の timeSlotMinutes:", timeSlotMinutes);
       console.log("現在の holidays:", holidays);
       console.log("現在の businessHours:", businessHours);
@@ -3065,55 +3064,55 @@ export default function SettingsPage() {
         console.log("=== クリニック設定を保存中 ===");
         // クリニック設定は個別に保存
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "clinic_info",
           settings.clinicInfo,
         );
         console.log("✓ clinic_info保存完了");
 
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "business_hours",
           settings.businessHours,
         );
         console.log("✓ business_hours保存完了");
 
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "break_times",
           settings.breakTimes,
         );
         console.log("✓ break_times保存完了");
 
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "time_slot_minutes",
           settings.timeSlotMinutes,
         );
         console.log("✓ time_slot_minutes保存完了");
 
-        await setClinicSetting(DEMO_CLINIC_ID, "holidays", settings.holidays);
+        await setClinicSetting(clinicId, "holidays", settings.holidays);
         console.log("✓ holidays保存完了:", settings.holidays);
         console.log("クリニック設定をclinic_settingsテーブルに保存しました");
       } else if (selectedCategory === "calendar") {
         console.log("=== カレンダー設定を保存中 ===");
         // カレンダー設定を個別に保存
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "time_slot_minutes",
           settings.timeSlotMinutes,
         );
         console.log("✓ time_slot_minutes保存完了");
 
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "display_items",
           settings.displayItems,
         );
         console.log("✓ display_items保存完了");
 
         await setClinicSetting(
-          DEMO_CLINIC_ID,
+          clinicId,
           "cell_height",
           settings.cellHeight,
         );
@@ -3127,25 +3126,25 @@ export default function SettingsPage() {
           if (menu._deleted) {
             // 削除フラグが立っているメニューを削除
             if (!menu.id.startsWith('temp-')) {
-              await deleteTreatmentMenu(DEMO_CLINIC_ID, menu.id);
+              await deleteTreatmentMenu(clinicId, menu.id);
               console.log(`✓ メニュー削除: ${menu.name}`);
             }
           } else if (menu.id.startsWith('temp-')) {
             // 一時IDのメニューを新規作成
             const { id, _deleted, ...menuData } = menu;
-            const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData);
+            const result = await createTreatmentMenu(clinicId, menuData);
             console.log(`✓ メニュー作成: ${menu.name}`, result);
           } else {
             // 既存メニューを更新
             const { id, _deleted, ...menuData } = menu;
-            await updateTreatmentMenu(DEMO_CLINIC_ID, menu.id, menuData);
+            await updateTreatmentMenu(clinicId, menu.id, menuData);
             console.log(`✓ メニュー更新: ${menu.name}`);
           }
         }
 
         // 保存後にデータを再読み込み
         treatmentMenusLoadedRef.current = false; // フラグをリセットして再読み込み可能に
-        const reloadedMenus = await getTreatmentMenus(DEMO_CLINIC_ID);
+        const reloadedMenus = await getTreatmentMenus(clinicId);
         treatmentMenusLoadedRef.current = true; // 再度フラグを立てる
 
         setTreatmentMenus(reloadedMenus);
@@ -3177,25 +3176,25 @@ export default function SettingsPage() {
           if (unit._deleted) {
             // 削除フラグが立っているユニットを削除
             if (!unit.id.startsWith('temp-')) {
-              await deleteUnit(DEMO_CLINIC_ID, unit.id);
+              await deleteUnit(clinicId, unit.id);
               console.log(`✓ ユニット削除: ${unit.name}`);
             }
           } else if (unit.id.startsWith('temp-')) {
             // 一時IDのユニットを新規作成
             const { id, _deleted, ...unitData } = unit;
-            const result = await createUnit(DEMO_CLINIC_ID, unitData);
+            const result = await createUnit(clinicId, unitData);
             console.log(`✓ ユニット作成: ${unit.name}`, result);
           } else {
             // 既存ユニットを更新
             const { id, _deleted, clinic_id, created_at, ...unitData } = unit;
-            await updateUnit(DEMO_CLINIC_ID, unit.id, unitData);
+            await updateUnit(clinicId, unit.id, unitData);
             console.log(`✓ ユニット更新: ${unit.name}`);
           }
         }
 
         // 保存後にデータを再読み込み（UIに反映するため）
-        const reloadedUnits = await getUnits(DEMO_CLINIC_ID);
-        const reloadedPriorities = await getStaffUnitPriorities(DEMO_CLINIC_ID);
+        const reloadedUnits = await getUnits(clinicId);
+        const reloadedPriorities = await getStaffUnitPriorities(clinicId);
 
         setUnitsData(reloadedUnits);
         setStaffUnitPriorities(reloadedPriorities);
@@ -3228,25 +3227,25 @@ export default function SettingsPage() {
           if (member._deleted) {
             // 削除フラグが立っているスタッフを削除
             if (!member.id.startsWith('temp-')) {
-              await deleteStaff(DEMO_CLINIC_ID, member.id);
+              await deleteStaff(clinicId, member.id);
               console.log(`✓ スタッフ削除: ${member.name}`);
             }
           } else if (member.id.startsWith('temp-')) {
             // 一時IDのスタッフを新規作成
             const { id, _deleted, position, created_at, ...memberData } = member;
-            const result = await createStaff(DEMO_CLINIC_ID, memberData);
+            const result = await createStaff(clinicId, memberData);
             console.log(`✓ スタッフ作成: ${member.name}`, result);
           } else {
             // 既存スタッフを更新
             const { id, _deleted, position, clinic_id, created_at, updated_at, ...memberData } = member;
-            await updateStaff(DEMO_CLINIC_ID, member.id, memberData);
+            await updateStaff(clinicId, member.id, memberData);
             console.log(`✓ スタッフ更新: ${member.name}`);
           }
         }
 
         // 保存後にデータを再読み込み
-        const reloadedStaff = await getStaff(DEMO_CLINIC_ID);
-        const reloadedPriorities = await getStaffUnitPriorities(DEMO_CLINIC_ID);
+        const reloadedStaff = await getStaff(clinicId);
+        const reloadedPriorities = await getStaffUnitPriorities(clinicId);
 
         setStaff(reloadedStaff);
         setStaffUnitPriorities(reloadedPriorities);
@@ -3298,7 +3297,7 @@ export default function SettingsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            clinic_id: DEMO_CLINIC_ID,
+            clinic_id: clinicId,
             settings: notificationSettings,
           }),
         });
@@ -3313,7 +3312,7 @@ export default function SettingsPage() {
       } else if (selectedCategory === "subkarte") {
         console.log("=== サブカルテ設定を保存中 ===");
         // サブカルテ設定を保存
-        await setClinicSetting(DEMO_CLINIC_ID, "subkarte_settings", {
+        await setClinicSetting(clinicId, "subkarte_settings", {
           defaultTexts: defaultTexts,
         });
         console.log("✓ サブカルテ設定保存完了");
@@ -3835,10 +3834,10 @@ export default function SettingsPage() {
   const handleAddPosition = async () => {
     try {
       setSaving(true);
-      await createStaffPosition(DEMO_CLINIC_ID, newPosition);
+      await createStaffPosition(clinicId, newPosition);
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID);
+      const data = await getStaffPositions(clinicId);
       setStaffPositions(data);
 
       setNewPosition({
@@ -3860,10 +3859,10 @@ export default function SettingsPage() {
   const handleUpdatePosition = async (positionId: string, updates: any) => {
     try {
       setSaving(true);
-      await updateStaffPosition(DEMO_CLINIC_ID, positionId, updates);
+      await updateStaffPosition(clinicId, positionId, updates);
 
       // データを再読み込み
-      const data = await getStaffPositions(DEMO_CLINIC_ID);
+      const data = await getStaffPositions(clinicId);
       setStaffPositions(data);
     } catch (error) {
       console.error("役職更新エラー:", error);
@@ -3877,10 +3876,10 @@ export default function SettingsPage() {
     showConfirm("この役職を削除しますか？", async () => {
       try {
         setSaving(true);
-        await deleteStaffPosition(DEMO_CLINIC_ID, positionId);
+        await deleteStaffPosition(clinicId, positionId);
 
         // データを再読み込み
-        const data = await getStaffPositions(DEMO_CLINIC_ID);
+        const data = await getStaffPositions(clinicId);
         setStaffPositions(data);
       } catch (error) {
         console.error("役職削除エラー:", error);
@@ -3894,10 +3893,10 @@ export default function SettingsPage() {
   const handleAddNoteType = async () => {
     try {
       setSaving(true);
-      await createPatientNoteType(DEMO_CLINIC_ID, newNoteType);
+      await createPatientNoteType(clinicId, newNoteType);
 
       // データを再読み込み
-      const data = await getPatientNoteTypes(DEMO_CLINIC_ID);
+      const data = await getPatientNoteTypes(clinicId);
       setPatientNoteTypes(data);
 
       setNewNoteType({
@@ -3935,10 +3934,10 @@ export default function SettingsPage() {
   const handleAddCancelReason = async () => {
     try {
       setSaving(true);
-      await createCancelReason(DEMO_CLINIC_ID, newCancelReason);
+      await createCancelReason(clinicId, newCancelReason);
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID);
+      const data = await getCancelReasons(clinicId);
       setCancelReasons(data);
 
       setNewCancelReason({
@@ -3957,10 +3956,10 @@ export default function SettingsPage() {
   const handleUpdateCancelReason = async (reasonId: string, updates: any) => {
     try {
       setSaving(true);
-      await updateCancelReason(DEMO_CLINIC_ID, reasonId, updates);
+      await updateCancelReason(clinicId, reasonId, updates);
 
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID);
+      const data = await getCancelReasons(clinicId);
       setCancelReasons(data);
     } catch (error) {
       console.error("キャンセル理由更新エラー:", error);
@@ -3974,10 +3973,10 @@ export default function SettingsPage() {
     showConfirm("このキャンセル理由を削除しますか？", async () => {
       try {
         setSaving(true);
-        await deleteCancelReason(DEMO_CLINIC_ID, reasonId);
+        await deleteCancelReason(clinicId, reasonId);
 
         // データを再読み込み
-        const data = await getCancelReasons(DEMO_CLINIC_ID);
+        const data = await getCancelReasons(clinicId);
         setCancelReasons(data);
       } catch (error) {
         console.error("キャンセル理由削除エラー:", error);
@@ -3998,10 +3997,10 @@ export default function SettingsPage() {
   const handleAddMemoTemplate = async () => {
     try {
       setSaving(true);
-      await createMemoTemplate(DEMO_CLINIC_ID, newMemoTemplate);
+      await createMemoTemplate(clinicId, newMemoTemplate);
 
       // データを再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      const data = await getMemoTemplates(clinicId);
       setMemoTemplates(data);
 
       setNewMemoTemplate({
@@ -4020,10 +4019,10 @@ export default function SettingsPage() {
   const handleUpdateMemoTemplate = async (templateId: string, updates: Partial<MemoTemplate>) => {
     try {
       setSaving(true);
-      await updateMemoTemplate(DEMO_CLINIC_ID, templateId, updates);
+      await updateMemoTemplate(clinicId, templateId, updates);
 
       // データを再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      const data = await getMemoTemplates(clinicId);
       setMemoTemplates(data);
     } catch (error) {
       console.error("メモテンプレート更新エラー:", error);
@@ -4037,10 +4036,10 @@ export default function SettingsPage() {
     showConfirm("このメモテンプレートを削除しますか？", async () => {
       try {
         setSaving(true);
-        await deleteMemoTemplate(DEMO_CLINIC_ID, templateId);
+        await deleteMemoTemplate(clinicId, templateId);
 
         // データを再読み込み
-        const data = await getMemoTemplates(DEMO_CLINIC_ID);
+        const data = await getMemoTemplates(clinicId);
         setMemoTemplates(data);
       } catch (error) {
         console.error("メモテンプレート削除エラー:", error);
@@ -4069,21 +4068,21 @@ export default function SettingsPage() {
       // 各テンプレートの並び順を更新
       for (let i = 0; i < result.length; i++) {
         console.log(`更新中: ${result[i].name} の並び順を ${i} に設定`);
-        await updateMemoTemplate(DEMO_CLINIC_ID, result[i].id, {
+        await updateMemoTemplate(clinicId, result[i].id, {
           sort_order: i
         });
       }
 
       console.log('並び順更新完了、データを再読み込み');
       // データを再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      const data = await getMemoTemplates(clinicId);
       console.log('再読み込み後のデータ:', data);
       setMemoTemplates(data);
     } catch (error) {
       console.error("並び順更新エラー:", error);
       showAlert("並び順の更新に失敗しました", "error");
       // エラー時は再読み込み
-      const data = await getMemoTemplates(DEMO_CLINIC_ID);
+      const data = await getMemoTemplates(clinicId);
       setMemoTemplates(data);
     }
   };
@@ -4094,7 +4093,7 @@ export default function SettingsPage() {
     try {
       setSaving(true);
       await createMemoTodoTemplate({
-        clinic_id: DEMO_CLINIC_ID,
+        clinic_id: clinicId,
         name: newMemoTodoTemplate.name,
         items: newMemoTodoTemplate.items,
         sort_order: newMemoTodoTemplate.sort_order,
@@ -4102,7 +4101,7 @@ export default function SettingsPage() {
       });
 
       // データを再読み込み
-      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID);
+      const data = await getMemoTodoTemplates(clinicId);
       setMemoTodoTemplates(data);
 
       setNewMemoTodoTemplate({
@@ -4126,7 +4125,7 @@ export default function SettingsPage() {
       await updateMemoTodoTemplate(templateId, updates);
 
       // データを再読み込み
-      const data = await getMemoTodoTemplates(DEMO_CLINIC_ID);
+      const data = await getMemoTodoTemplates(clinicId);
       setMemoTodoTemplates(data);
     } catch (error) {
       console.error("メモTODOテンプレート更新エラー:", error);
@@ -4143,7 +4142,7 @@ export default function SettingsPage() {
         await deleteMemoTodoTemplate(templateId);
 
         // データを再読み込み
-        const data = await getMemoTodoTemplates(DEMO_CLINIC_ID);
+        const data = await getMemoTodoTemplates(clinicId);
         setMemoTodoTemplates(data);
       } catch (error) {
         console.error("メモTODOテンプレート削除エラー:", error);
@@ -4164,14 +4163,14 @@ export default function SettingsPage() {
     
     try {
       setSaving(true);
-      await updateCancelReason(DEMO_CLINIC_ID, editingCancelReason.id, {
+      await updateCancelReason(clinicId, editingCancelReason.id, {
         name: editingCancelReason.name,
         is_active: editingCancelReason.is_active,
       });
 
       console.log("更新完了、データを再読み込み中...");
       // データを再読み込み
-      const data = await getCancelReasons(DEMO_CLINIC_ID);
+      const data = await getCancelReasons(clinicId);
       setCancelReasons(data);
 
       console.log("編集モーダルを閉じます");
@@ -4190,7 +4189,7 @@ export default function SettingsPage() {
     // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
     const newStaffMember = {
       id: `temp-staff-${Date.now()}`,
-      clinic_id: DEMO_CLINIC_ID,
+      clinic_id: clinicId,
       ...newStaff,
       is_active: true,
       created_at: new Date().toISOString(),
@@ -4601,10 +4600,10 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={noteType.is_active}
                     onChange={(e) => {
-                      updatePatientNoteType(DEMO_CLINIC_ID, noteType.id, {
+                      updatePatientNoteType(clinicId, noteType.id, {
                         is_active: e.target.checked,
                       }).then(() => {
-                        const data = getPatientNoteTypes(DEMO_CLINIC_ID);
+                        const data = getPatientNoteTypes(clinicId);
                         data.then((d) => setPatientNoteTypes(d));
                       });
                     }}
@@ -4616,9 +4615,9 @@ export default function SettingsPage() {
                   <button
                     onClick={() => {
                       showConfirm("このノートタイプを削除しますか？", () => {
-                        deletePatientNoteType(DEMO_CLINIC_ID, noteType.id).then(
+                        deletePatientNoteType(clinicId, noteType.id).then(
                           () => {
-                            const data = getPatientNoteTypes(DEMO_CLINIC_ID);
+                            const data = getPatientNoteTypes(clinicId);
                             data.then((d) => setPatientNoteTypes(d));
                           },
                         );
@@ -5718,7 +5717,7 @@ export default function SettingsPage() {
         level: selectedTab === "menu1" ? 1 : selectedTab === "menu2" ? 2 : 3,
         parent_id: newTreatmentMenu.parent_id || null, // nullに統一
         is_active: true,
-        clinic_id: DEMO_CLINIC_ID,
+        clinic_id: clinicId,
       };
 
       console.log("メニュー追加（ローカルのみ）:", menuData);
@@ -5766,7 +5765,7 @@ export default function SettingsPage() {
         parent_id: parentMenuForChild.id,
         standard_duration: newTreatmentMenu.standard_duration || 30,
         is_active: true,
-        clinic_id: DEMO_CLINIC_ID,
+        clinic_id: clinicId,
       };
 
       console.log("子メニュー追加（ローカルのみ）:", menuData);
@@ -6555,7 +6554,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="border border-gray-200 rounded-lg p-4 max-h-[calc(100vh-300px)] overflow-y-auto">
                   <QuestionnaireForm
-                    clinicId={DEMO_CLINIC_ID}
+                    clinicId={clinicId}
                     questionnaireId={previewQuestionnaireId}
                     onCancel={() => {}}
                     onSave={() => {}}
@@ -7006,13 +7005,13 @@ export default function SettingsPage() {
                 onSubmit={async (formData: any) => {
                   try {
                     const { createPatient } = await import('@/lib/api/patients');
-                    await createPatient(DEMO_CLINIC_ID, {
+                    await createPatient(clinicId, {
                       ...formData,
                       is_registered: true
                     });
 
                     // データ再読み込み
-                    const data = await getPatients(DEMO_CLINIC_ID);
+                    const data = await getPatients(clinicId);
                     setPatients(data);
                     setFilteredPatients(data);
 
@@ -7926,7 +7925,7 @@ export default function SettingsPage() {
             {selectedShiftTab === "table" && (
               <div>
                 <ShiftTable 
-                  clinicId={DEMO_CLINIC_ID} 
+                  clinicId={clinicId} 
                   refreshTrigger={refreshTrigger}
                 />
               </div>
@@ -7935,7 +7934,7 @@ export default function SettingsPage() {
             {/* パターンタブ */}
             {selectedShiftTab === "pattern" && (
               <div>
-                <ShiftPatterns clinicId={DEMO_CLINIC_ID} />
+                <ShiftPatterns clinicId={clinicId} />
               </div>
             )}
           </div>
@@ -11566,7 +11565,7 @@ export default function SettingsPage() {
                       setSaving(true);
                       try {
                         const payload = {
-                          clinic_id: DEMO_CLINIC_ID,
+                          clinic_id: clinicId,
                           settings: notificationSettings,
                         };
                         console.log("送信データ:", payload);
@@ -11903,7 +11902,7 @@ export default function SettingsPage() {
                                         "Content-Type": "application/json",
                                       },
                                       body: JSON.stringify({
-                                        clinic_id: DEMO_CLINIC_ID,
+                                        clinic_id: clinicId,
                                         name: templateForm.name,
                                         notification_type:
                                           templateForm.notification_type,
@@ -12947,7 +12946,7 @@ export default function SettingsPage() {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
-                                clinic_id: DEMO_CLINIC_ID,
+                                clinic_id: clinicId,
                                 enabled: autoReminderRule.enabled,
                                 intervals: autoReminderRule.intervals,
                                 template_id: autoReminderRule.template_id || null,
@@ -13373,7 +13372,7 @@ export default function SettingsPage() {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                              clinic_id: DEMO_CLINIC_ID,
+                              clinic_id: clinicId,
                               name: richMenuSubTab === "registered"
                                 ? "連携済みユーザー用リッチメニュー"
                                 : "未連携ユーザー用リッチメニュー",
@@ -13400,7 +13399,7 @@ export default function SettingsPage() {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                              clinic_id: DEMO_CLINIC_ID,
+                              clinic_id: clinicId,
                               rich_menu_id: richMenuId,
                               buttons: currentButtons,
                               menu_type: richMenuSubTab
@@ -13420,7 +13419,7 @@ export default function SettingsPage() {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                              clinic_id: DEMO_CLINIC_ID,
+                              clinic_id: clinicId,
                               registered_menu_id: richMenuSubTab === "registered" ? richMenuId : undefined,
                               unregistered_menu_id: richMenuSubTab === "unregistered" ? richMenuId : undefined
                             }),
@@ -13441,7 +13440,7 @@ export default function SettingsPage() {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
-                                clinic_id: DEMO_CLINIC_ID,
+                                clinic_id: clinicId,
                                 rich_menu_id: richMenuId
                               }),
                             });
@@ -13805,7 +13804,7 @@ export default function SettingsPage() {
               setSelectedQuestionnaire(null);
             }}
             questionnaireId={selectedQuestionnaire.id}
-            clinicId={DEMO_CLINIC_ID}
+            clinicId={clinicId}
             onSave={(updatedQuestionnaire) => {
               console.log("問診票を保存しました:", updatedQuestionnaire);
               // リストを更新
@@ -13873,7 +13872,7 @@ export default function SettingsPage() {
 
                     try {
                       setSaving(true);
-                      const newQuestionnaire = await createQuestionnaire(DEMO_CLINIC_ID, {
+                      const newQuestionnaire = await createQuestionnaire(clinicId, {
                         name: name.trim(),
                         description: description.trim(),
                         is_active: true

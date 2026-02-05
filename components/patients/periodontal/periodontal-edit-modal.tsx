@@ -98,9 +98,9 @@ export function PeriodontalEditModal({
       isOpen={isOpen}
       onClose={handleCancel}
       size="large"
-      className="max-w-[90vw] max-h-[95vh]"
+      className="max-w-[95vw] h-[98vh]"
     >
-      <div className="p-6">
+      <div className="p-1">
         {initialData && (
           <PeriodontalInputForm
             measurementType={examination.measurement_type}

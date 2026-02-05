@@ -4,14 +4,14 @@ import { useState } from 'react'
 import TrainingFlowChart from '@/components/training/TrainingFlowChart'
 import TrainingProgressChart from '@/components/training/TrainingProgressChart'
 import PatientIssuesTab from '@/components/training/PatientIssuesTab'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface PatientTrainingTabsProps {
   patientId: string
 }
 
 export default function PatientTrainingTabs({ patientId }: PatientTrainingTabsProps) {
+  const clinicId = useClinicId()
   const [activeTab, setActiveTab] = useState<'training' | 'progress' | 'issues'>('training')
 
   return (
@@ -54,7 +54,7 @@ export default function PatientTrainingTabs({ patientId }: PatientTrainingTabsPr
 
       {/* トレーニング管理タブ */}
       {activeTab === 'training' && (
-        <TrainingFlowChart patientId={patientId} clinicId={DEMO_CLINIC_ID} />
+        <TrainingFlowChart patientId={patientId} clinicId={clinicId} />
       )}
 
       {/* 進捗グラフタブ */}

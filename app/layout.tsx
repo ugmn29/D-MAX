@@ -3,11 +3,12 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { UTMCapture } from '@/components/tracking/UTMCapture'
 import { DynamicTrackingTags } from '@/components/tracking/DynamicTrackingTags'
+import { AuthProvider } from '@/components/providers/auth-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
-// 仮のクリニックID（本番環境では認証情報から取得）
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+// トラッキング用（Phase 1では維持、将来的にAuthContextから取得）
+const TRACKING_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export const metadata: Metadata = {
   title: 'D-MAX - 歯科医院向け予約・サブカルテアプリ',
@@ -22,13 +23,15 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        <DynamicTrackingTags clinicId={DEMO_CLINIC_ID} />
+        <DynamicTrackingTags clinicId={TRACKING_CLINIC_ID} />
       </head>
       <body className={inter.className}>
-        <UTMCapture />
-        <div className="min-h-screen bg-dmax-background">
-          {children}
-        </div>
+        <AuthProvider>
+          <UTMCapture />
+          <div className="min-h-screen bg-dmax-background">
+            {children}
+          </div>
+        </AuthProvider>
       </body>
     </html>
   )

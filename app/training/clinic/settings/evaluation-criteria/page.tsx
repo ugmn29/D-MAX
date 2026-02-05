@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Training } from '@/types/training'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface CustomCriteria {
   training_id: string
@@ -18,6 +17,7 @@ interface CustomCriteria {
 }
 
 export default function EvaluationCriteriaPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [trainings, setTrainings] = useState<Training[]>([])
   const [customizations, setCustomizations] = useState<Map<string, CustomCriteria>>(new Map())
@@ -45,7 +45,7 @@ export default function EvaluationCriteriaPage() {
       const { data: customData, error: customError } = await supabase
         .from('clinic_training_customizations')
         .select('*')
-        .eq('clinic_id', DEMO_CLINIC_ID)
+        .eq('clinic_id', clinicId)
 
       if (customError) throw customError
 
@@ -97,7 +97,7 @@ export default function EvaluationCriteriaPage() {
       const { error } = await supabase
         .from('clinic_training_customizations')
         .upsert({
-          clinic_id: DEMO_CLINIC_ID,
+          clinic_id: clinicId,
           training_id: training.id,
           evaluation_level_1_label: criteria.evaluation_level_1_label,
           evaluation_level_1_criteria: criteria.evaluation_level_1_criteria,
@@ -130,7 +130,7 @@ export default function EvaluationCriteriaPage() {
       const { error } = await supabase
         .from('clinic_training_customizations')
         .delete()
-        .eq('clinic_id', DEMO_CLINIC_ID)
+        .eq('clinic_id', clinicId)
         .eq('training_id', trainingId)
 
       if (error) throw error

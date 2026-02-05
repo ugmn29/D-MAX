@@ -8,9 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save, Plus, Trash2, Edit, FileText, Tag, FolderOpen } from 'lucide-react'
 import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface TreatmentMenu {
   id: string
@@ -25,6 +23,7 @@ interface TreatmentMenu {
 }
 
 export default function TreatmentSettingsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -46,8 +45,8 @@ export default function TreatmentSettingsPage() {
     const loadMenus = async () => {
       try {
         setLoading(true)
-        console.log('メニュー読み込み開始:', DEMO_CLINIC_ID)
-        const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+        console.log('メニュー読み込み開始:', clinicId)
+        const data = await getTreatmentMenus(clinicId)
         console.log('読み込んだメニューデータ:', data)
         setMenus(data)
       } catch (error) {
@@ -95,11 +94,11 @@ export default function TreatmentSettingsPage() {
       }
       
       console.log('メニュー追加開始:', menuData)
-      const result = await createTreatmentMenu(DEMO_CLINIC_ID, menuData)
+      const result = await createTreatmentMenu(clinicId, menuData)
       console.log('メニュー追加成功:', result)
       
       // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+      const data = await getTreatmentMenus(clinicId)
       setMenus(data)
       
       setNewMenu({
@@ -125,7 +124,7 @@ export default function TreatmentSettingsPage() {
   const handleEditMenu = async (menu: TreatmentMenu) => {
     try {
       setSaving(true)
-      await updateTreatmentMenu(DEMO_CLINIC_ID, menu.id, {
+      await updateTreatmentMenu(clinicId, menu.id, {
         name: menu.name,
         standard_duration: menu.standard_duration,
         color: menu.color,
@@ -134,7 +133,7 @@ export default function TreatmentSettingsPage() {
       })
       
       // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+      const data = await getTreatmentMenus(clinicId)
       setMenus(data)
       setEditingMenu(null)
     } catch (error) {
@@ -151,10 +150,10 @@ export default function TreatmentSettingsPage() {
     
     try {
       setSaving(true)
-      await deleteTreatmentMenu(DEMO_CLINIC_ID, menuId)
+      await deleteTreatmentMenu(clinicId, menuId)
       
       // データを再読み込み
-      const data = await getTreatmentMenus(DEMO_CLINIC_ID)
+      const data = await getTreatmentMenus(clinicId)
       setMenus(data)
     } catch (error) {
       console.error('メニュー削除エラー:', error)

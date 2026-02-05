@@ -10,11 +10,10 @@ import Link from 'next/link'
 import { getPatients, searchPatients, getPatientsStats } from '@/lib/api/patients'
 import { Patient } from '@/types/database'
 import { calculateAge } from '@/lib/utils/date'
-
-// 仮のクリニックID（後で認証システムから取得）
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function PatientsPage() {
+  const clinicId = useClinicId()
   const [searchQuery, setSearchQuery] = useState('')
   const [patients, setPatients] = useState<Patient[]>([])
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([])
@@ -27,8 +26,8 @@ export default function PatientsPage() {
     try {
       setLoading(true)
       const [patientsData, statsData] = await Promise.all([
-        getPatients(DEMO_CLINIC_ID),
-        getPatientsStats(DEMO_CLINIC_ID)
+        getPatients(clinicId),
+        getPatientsStats(clinicId)
       ])
       setPatients(patientsData)
       setFilteredPatients(patientsData)
@@ -47,7 +46,7 @@ export default function PatientsPage() {
     try {
       setSearchQuery(query)
       if (query.trim()) {
-        const results = await searchPatients(DEMO_CLINIC_ID, query)
+        const results = await searchPatients(clinicId, query)
         setFilteredPatients(results)
       } else {
         setFilteredPatients(patients)

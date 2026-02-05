@@ -15,14 +15,13 @@ import { ArrowLeft, Save, Plus, Trash2, Edit3, Settings, ArrowRight, Stethoscope
 import { getClinicSettings, setClinicSetting, getClinic } from '@/lib/api/clinic'
 import { getTreatmentMenus, updateTreatmentMenu } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function WebReservationSettingsPage() {
+  const clinicId = useClinicId()
   // デバッグ: ファイルが読み込まれているか確認
   console.log('🔍 WebReservationSettingsPage component loaded at:', new Date().toISOString())
-  
+
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -87,10 +86,10 @@ export default function WebReservationSettingsPage() {
       try {
         setLoading(true)
         const [clinicData, settings, menus, staffData] = await Promise.all([
-          getClinic(DEMO_CLINIC_ID),
-          getClinicSettings(DEMO_CLINIC_ID),
-          getTreatmentMenus(DEMO_CLINIC_ID),
-          getStaff(DEMO_CLINIC_ID)
+          getClinic(clinicId),
+          getClinicSettings(clinicId),
+          getTreatmentMenus(clinicId),
+          getStaff(clinicId)
         ])
 
         setClinic(clinicData)
@@ -283,7 +282,7 @@ export default function WebReservationSettingsPage() {
         booking_menus: webBookingMenus
       }
       console.log('🔵 保存するデータ:', settingsToSave)
-      await setClinicSetting(DEMO_CLINIC_ID, 'web_reservation', settingsToSave)
+      await setClinicSetting(clinicId, 'web_reservation', settingsToSave)
       console.log('🔵 setClinicSetting完了 - 保存成功')
       saveSuccessful = true
     } catch (error) {

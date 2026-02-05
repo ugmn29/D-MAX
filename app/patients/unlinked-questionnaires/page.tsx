@@ -27,10 +27,10 @@ import { getPatients, createPatient } from '@/lib/api/patients'
 import { Patient } from '@/types/database'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function UnlinkedQuestionnairesPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [unlinkedResponses, setUnlinkedResponses] = useState<QuestionnaireResponse[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
@@ -48,8 +48,8 @@ export default function UnlinkedQuestionnairesPage() {
       setError(null)
 
       const [responses, patientsData] = await Promise.all([
-        getUnlinkedQuestionnaireResponses(DEMO_CLINIC_ID),
-        getPatients(DEMO_CLINIC_ID)
+        getUnlinkedQuestionnaireResponses(clinicId),
+        getPatients(clinicId)
       ])
 
       console.log('未連携問診票取得:', responses.length, '件')
@@ -90,7 +90,7 @@ export default function UnlinkedQuestionnairesPage() {
       const patientInfo = extractPatientInfo(response)
 
       // 仮登録患者を作成
-      const newPatient = await createPatient(DEMO_CLINIC_ID, {
+      const newPatient = await createPatient(clinicId, {
         last_name: patientInfo.name.split(' ')[0] || '姓',
         first_name: patientInfo.name.split(' ')[1] || '名',
         phone: patientInfo.phone,

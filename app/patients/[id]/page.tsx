@@ -10,10 +10,10 @@ import { calculateAge } from '@/lib/utils/date'
 import { PatientDetailTabs } from '@/components/patients/patient-detail-tabs'
 import { getPatientById } from '@/lib/api/patients'
 import { Patient } from '@/types/database'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function PatientDetailPage() {
+  const clinicId = useClinicId()
   const params = useParams()
   const patientId = params.id as string
   const [patient, setPatient] = useState<Patient | null>(null)
@@ -22,7 +22,7 @@ export default function PatientDetailPage() {
   useEffect(() => {
     const loadPatient = async () => {
       try {
-        const data = await getPatientById(DEMO_CLINIC_ID, patientId)
+        const data = await getPatientById(clinicId, patientId)
         console.log('患者詳細ページ: 取得した患者データ', data)
         setPatient(data)
       } catch (error) {

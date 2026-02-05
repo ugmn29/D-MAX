@@ -47,8 +47,7 @@ import { DentalChart } from './visual/dental-chart'
 import { PeriodontalFlowCollapsibleCompact, type SrpSelectionItem, type DeepPocketTooth } from './periodontal-flow-collapsible-compact'
 import type { VisualToothData } from '@/lib/api/visual-exams'
 import { getActiveMemoTodoTemplates, parseTemplateItems, MemoTodoTemplate } from '@/lib/api/memo-todo-templates'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 // 永久歯と乳歯の歯番号
 const PERMANENT_TEETH = [
@@ -159,6 +158,7 @@ const PERIODONTAL_FLOW_PHASES = [
 ] as const
 
 export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
+  const clinicId = useClinicId()
   const [plans, setPlans] = useState<TreatmentPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -284,7 +284,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
   useEffect(() => {
     const loadMemoTodoTemplates = async () => {
       try {
-        const templates = await getActiveMemoTodoTemplates(DEMO_CLINIC_ID)
+        const templates = await getActiveMemoTodoTemplates(clinicId)
         setMemoTodoTemplates(templates)
       } catch (error) {
         console.error('メモTODOテンプレートの読み込みに失敗:', error)
@@ -312,7 +312,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     try {
       let rawMemo: string | null = null
       if (isUUID(patientId)) {
-        rawMemo = await getPatientTreatmentMemo(DEMO_CLINIC_ID, patientId)
+        rawMemo = await getPatientTreatmentMemo(clinicId, patientId)
       } else {
         // UUID形式でない場合はローカルストレージから読み込み
         rawMemo = localStorage.getItem(`treatment_memo_${patientId}`)
@@ -347,7 +347,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     try {
       setTreatmentMemoSaving(true)
       if (isUUID(patientId)) {
-        await updatePatientTreatmentMemo(DEMO_CLINIC_ID, patientId, memoJson || null)
+        await updatePatientTreatmentMemo(clinicId, patientId, memoJson || null)
         console.log('DBに保存完了')
       } else {
         // UUID形式でない場合はローカルストレージに保存
@@ -472,7 +472,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     try {
       const memoJson = JSON.stringify(newData)
       if (isUUID(patientId)) {
-        await updatePatientTreatmentMemo(DEMO_CLINIC_ID, patientId, memoJson)
+        await updatePatientTreatmentMemo(clinicId, patientId, memoJson)
       } else {
         localStorage.setItem(`treatment_memo_${patientId}`, memoJson)
       }
@@ -484,7 +484,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
   const loadPlans = async () => {
     try {
       setLoading(true)
-      const data = await getTreatmentPlans(DEMO_CLINIC_ID, patientId)
+      const data = await getTreatmentPlans(clinicId, patientId)
       setPlans(data)
     } catch (error) {
       console.error('治療計画読み込みエラー:', error)
@@ -514,7 +514,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       // 全TODOを一括更新
       await Promise.all(
         phasePlans.map(plan =>
-          updateTreatmentPlan(DEMO_CLINIC_ID, plan.id!, {
+          updateTreatmentPlan(clinicId, plan.id!, {
             status: newStatus,
             completed_at: timestamp,
           })
@@ -613,7 +613,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
 
         const plansToCreate = convertProposalToTreatmentPlan(
           proposal,
-          DEMO_CLINIC_ID,
+          clinicId,
           patientId,
           sortOrder,
           restorationChoice,
@@ -621,7 +621,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
         )
 
         for (const plan of plansToCreate) {
-          await createTreatmentPlan(DEMO_CLINIC_ID, patientId, plan)
+          await createTreatmentPlan(clinicId, patientId, plan)
           sortOrder++
         }
       }
@@ -734,7 +734,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
         // P重防が選択されている場合は削除
         const existingPHeavy = plans.filter(p => p.periodontal_phase === 'P_HEAVY_PREVENTION')
         for (const plan of existingPHeavy) {
-          await deleteTreatmentPlan(DEMO_CLINIC_ID, plan.id)
+          await deleteTreatmentPlan(clinicId, plan.id)
         }
 
         const labelPrefix = phaseId === 'SRP' ? 'SRP' : phaseId === 'SRP_2' ? '再SRP' : '再々SRP'
@@ -745,7 +745,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
             ? `${labelPrefix}（${selection.label.split(' ')[0]}）`
             : `${labelPrefix}（${teethStr}番）`
 
-          await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+          await createTreatmentPlan(clinicId, patientId, {
             treatment_content: content,
             staff_type: 'hygienist',
             tooth_number: teethStr,
@@ -767,7 +767,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
             ? `${labelPrefix}（${selection.label.split(' ')[0]}）`
             : `${labelPrefix}（${teethStr}番）`
 
-          await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+          await createTreatmentPlan(clinicId, patientId, {
             treatment_content: content,
             staff_type: 'doctor',
             tooth_number: teethStr,
@@ -787,11 +787,11 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
           p.periodontal_phase === 'SRP_3'
         )
         for (const plan of existingSRP) {
-          await deleteTreatmentPlan(DEMO_CLINIC_ID, plan.id)
+          await deleteTreatmentPlan(clinicId, plan.id)
         }
 
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: 'P重防（歯周病重症化予防治療）',
           staff_type: 'hygienist',
           priority: 3,
@@ -815,11 +815,11 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
           )
         )
         for (const plan of existingToDelete) {
-          await deleteTreatmentPlan(DEMO_CLINIC_ID, plan.id)
+          await deleteTreatmentPlan(clinicId, plan.id)
         }
 
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: 'SPT（歯周病安定期治療）',
           staff_type: 'hygienist',
           priority: 3,
@@ -832,7 +832,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       // P検③
       else if (phaseId === 'P_EXAM_3') {
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: 'P検③（歯周基本検査）',
           staff_type: 'hygienist',
           priority: 2,
@@ -844,7 +844,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       // P検④
       else if (phaseId === 'P_EXAM_4') {
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: 'P検④（歯周基本検査）',
           staff_type: 'hygienist',
           priority: 2,
@@ -856,7 +856,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       // P検⑤
       else if (phaseId === 'P_EXAM_5') {
         currentSortOrder++
-        await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+        await createTreatmentPlan(clinicId, patientId, {
           treatment_content: 'P検⑤（歯周基本検査）',
           staff_type: 'hygienist',
           priority: 2,
@@ -912,7 +912,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
 
     try {
       const toothNumberStr = Array.from(editingSrpSelectedTeeth).sort((a, b) => a - b).join(', ')
-      await updateTreatmentPlan(DEMO_CLINIC_ID, editingSrpPlan.id, {
+      await updateTreatmentPlan(clinicId, editingSrpPlan.id, {
         tooth_number: toothNumberStr
       })
       await loadPlans()
@@ -942,7 +942,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     if (!confirmDelete) return
 
     try {
-      await deleteTreatmentPlan(DEMO_CLINIC_ID, editingSrpPlan.id)
+      await deleteTreatmentPlan(clinicId, editingSrpPlan.id)
       await loadPlans()
       setEditingSrpPlan(null)
       setEditingSrpPhaseId('')
@@ -1001,7 +1001,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       // 現在の計画より後ろにある計画のsort_orderを1つずつ増やす
       const plansToShift = plans.filter(p => p.sort_order > editingSrpPlan.sort_order)
       for (const plan of plansToShift) {
-        await updateTreatmentPlan(DEMO_CLINIC_ID, plan.id, {
+        await updateTreatmentPlan(clinicId, plan.id, {
           sort_order: plan.sort_order + 1
         })
       }
@@ -1014,7 +1014,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       else if (editingSrpPhaseId === 'SURGERY_2') labelPrefix = '再歯周外科'
 
       // 元の計画の対象歯を更新
-      await updateTreatmentPlan(DEMO_CLINIC_ID, editingSrpPlan.id, {
+      await updateTreatmentPlan(clinicId, editingSrpPlan.id, {
         tooth_number: remainingTeeth.join(', '),
         treatment_content: `${labelPrefix}（${remainingTeeth.join(', ')}番）`
       })
@@ -1033,7 +1033,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
         sort_order: editingSrpPlan.sort_order + 1
       }
 
-      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, newPlan)
+      await createTreatmentPlan(clinicId, patientId, newPlan)
 
       // ダイアログを閉じる
       setSrpSplitDialogOpen(false)
@@ -1085,7 +1085,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       else if (addingSrpPhaseId === 'SURGERY') labelPrefix = '歯周外科'
       else if (addingSrpPhaseId === 'SURGERY_2') labelPrefix = '再歯周外科'
 
-      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+      await createTreatmentPlan(clinicId, patientId, {
         treatment_content: `${labelPrefix}（${toothNumberStr}番）`,
         staff_type: addingSrpPhaseId.startsWith('SURGERY') ? 'doctor' : 'hygienist',
         tooth_number: toothNumberStr,
@@ -1267,7 +1267,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     try {
       // 各計画のsort_orderを更新
       for (const update of updates) {
-        await updateTreatmentPlan(DEMO_CLINIC_ID, update.id, {
+        await updateTreatmentPlan(clinicId, update.id, {
           sort_order: update.sort_order,
         })
       }
@@ -1302,7 +1302,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     }
 
     try {
-      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, formData)
+      await createTreatmentPlan(clinicId, patientId, formData)
       await loadPlans()
       { setShowAddForm(false); setNewFormSelectedTeeth(new Set()) }
       setFormData({
@@ -1332,7 +1332,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     if (!editingPlan) return
 
     try {
-      await updateTreatmentPlan(DEMO_CLINIC_ID, editingPlan.id, {
+      await updateTreatmentPlan(clinicId, editingPlan.id, {
         treatment_content: editingPlan.treatment_content,
         tooth_number: editingPlan.tooth_number,
         priority: editingPlan.priority,
@@ -1354,7 +1354,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     if (!confirm('この治療計画を削除しますか？')) return
 
     try {
-      await deleteTreatmentPlan(DEMO_CLINIC_ID, planId)
+      await deleteTreatmentPlan(clinicId, planId)
       await loadPlans()
     } catch (error) {
       console.error('治療計画削除エラー:', error)
@@ -1365,7 +1365,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
   // 完了
   const handleComplete = async (planId: string) => {
     try {
-      await completeTreatmentPlan(DEMO_CLINIC_ID, planId)
+      await completeTreatmentPlan(clinicId, planId)
       await loadPlans()
     } catch (error) {
       console.error('治療計画完了エラー:', error)
@@ -1376,7 +1376,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
   // 完了を未完了に戻す
   const handleUncomplete = async (planId: string) => {
     try {
-      await updateTreatmentPlan(DEMO_CLINIC_ID, planId, {
+      await updateTreatmentPlan(clinicId, planId, {
         status: 'planned',
         completed_at: null
       })
@@ -1414,13 +1414,13 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
       // 現在の計画より後ろにある計画のsort_orderを1つずつ増やす
       const plansToShift = plans.filter(p => p.sort_order > splitDialogPlan.sort_order)
       for (const plan of plansToShift) {
-        await updateTreatmentPlan(DEMO_CLINIC_ID, plan.id, {
+        await updateTreatmentPlan(clinicId, plan.id, {
           sort_order: plan.sort_order + 1
         })
       }
 
       // 元の計画の対象歯を更新
-      await updateTreatmentPlan(DEMO_CLINIC_ID, splitDialogPlan.id, {
+      await updateTreatmentPlan(clinicId, splitDialogPlan.id, {
         tooth_number: remainingTeeth.join(', ')
       })
 
@@ -1438,7 +1438,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
         sort_order: splitDialogPlan.sort_order + 1
       }
 
-      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, newPlan)
+      await createTreatmentPlan(clinicId, patientId, newPlan)
 
       // ダイアログを閉じる
       setSplitDialogOpen(false)
@@ -1493,7 +1493,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     }
 
     try {
-      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+      await createTreatmentPlan(clinicId, patientId, {
         ...doctorFormData,
         staff_type: 'doctor',
         is_memo: false,
@@ -1522,7 +1522,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
     }
 
     try {
-      await createTreatmentPlan(DEMO_CLINIC_ID, patientId, {
+      await createTreatmentPlan(clinicId, patientId, {
         ...hygienistFormData,
         staff_type: 'hygienist',
         is_memo: false,
@@ -2083,7 +2083,7 @@ export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
                       deepPocketTeeth={deepPocketTeeth}
                       missingTeeth={missingTeeth}
                       patientId={patientId}
-                      clinicId={DEMO_CLINIC_ID}
+                      clinicId={clinicId}
                     />
                   </CardContent>
                 </Card>

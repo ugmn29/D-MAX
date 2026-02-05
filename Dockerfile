@@ -1,0 +1,94 @@
+# ---- deps ----
+FROM node:20-slim AS deps
+
+RUN apt-get update && apt-get install -y \
+  build-essential \
+  python3 \
+  libcairo2-dev \
+  libpango1.0-dev \
+  libjpeg-dev \
+  libgif-dev \
+  librsvg2-dev \
+  pkg-config \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# ---- builder ----
+FROM node:20-slim AS builder
+
+RUN apt-get update && apt-get install -y \
+  build-essential \
+  python3 \
+  libcairo2-dev \
+  libpango1.0-dev \
+  libjpeg-dev \
+  libgif-dev \
+  librsvg2-dev \
+  pkg-config \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# ビルド時に環境変数を受け取る
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG SUPABASE_SERVICE_ROLE_KEY
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
+ARG NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
+ARG NEXT_PUBLIC_LIFF_ID_QR_CODE
+ARG NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+ARG NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
+ARG NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ENV NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+ENV NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID
+ENV NEXT_PUBLIC_LIFF_ID_INITIAL_LINK=$NEXT_PUBLIC_LIFF_ID_INITIAL_LINK
+ENV NEXT_PUBLIC_LIFF_ID_QR_CODE=$NEXT_PUBLIC_LIFF_ID_QR_CODE
+ENV NEXT_PUBLIC_LIFF_ID_APPOINTMENTS=$NEXT_PUBLIC_LIFF_ID_APPOINTMENTS
+ENV NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER=$NEXT_PUBLIC_LIFF_ID_FAMILY_REGISTER
+ENV NEXT_PUBLIC_LIFF_ID_WEB_BOOKING=$NEXT_PUBLIC_LIFF_ID_WEB_BOOKING
+
+RUN npm run build
+
+# ---- runner ----
+FROM node:20-slim AS runner
+
+RUN apt-get update && apt-get install -y \
+  libcairo2 \
+  libpango-1.0-0 \
+  libpangocairo-1.0-0 \
+  libjpeg62-turbo \
+  libgif7 \
+  librsvg2-2 \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# standalone 出力をコピー
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+EXPOSE 8080
+
+CMD ["node", "server.js"]

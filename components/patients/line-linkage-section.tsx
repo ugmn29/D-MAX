@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { useAuth } from '@/components/providers/auth-provider'
 
 interface LineLinkageSectionProps {
   patientId: string
@@ -39,6 +40,7 @@ interface Linkage {
 }
 
 export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionProps) {
+  const { staff } = useAuth()
   const [invitationCode, setInvitationCode] = useState<InvitationCode | null>(null)
   const [linkages, setLinkages] = useState<Linkage[]>([])
   const [loading, setLoading] = useState(false)
@@ -78,9 +80,7 @@ export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionPr
   const handleGenerateCode = async () => {
     setLoading(true)
     try {
-      // 現在のユーザーID（スタッフID）を取得
-      // TODO: 認証から取得する実装が必要
-      const demoStaffId = '11111111-1111-1111-1111-111111111111'
+      const staffId = staff?.id || ''
 
       const response = await fetch('/api/line/invitation-codes', {
         method: 'POST',
@@ -88,7 +88,7 @@ export function LineLinkageSection({ patientId, clinicId }: LineLinkageSectionPr
         body: JSON.stringify({
           patient_id: patientId,
           clinic_id: clinicId,
-          created_by: demoStaffId,
+          created_by: staffId,
           expires_in_days: 30
         })
       })

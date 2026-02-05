@@ -11,9 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowLeft, Save, Building2, Clock } from 'lucide-react'
 import { getClinic, getClinicSettings, setClinicSetting, updateClinicSettings } from '@/lib/api/clinic'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 const WEEKDAYS = [
   { id: 'monday', name: '月曜日' },
@@ -41,6 +39,7 @@ const TABS = [
 ]
 
 export default function ClinicSettingsPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -70,8 +69,8 @@ export default function ClinicSettingsPage() {
       try {
         setLoading(true)
         const [clinic, settings] = await Promise.all([
-          getClinic(DEMO_CLINIC_ID),
-          getClinicSettings(DEMO_CLINIC_ID)
+          getClinic(clinicId),
+          getClinicSettings(clinicId)
         ])
         
         if (clinic) {
@@ -132,7 +131,7 @@ export default function ClinicSettingsPage() {
 
       // クリニック情報を保存（clinicテーブルとclinic_settingsテーブルの両方）
       console.log('clinicテーブル更新中...')
-      await updateClinicSettings(DEMO_CLINIC_ID, {
+      await updateClinicSettings(clinicId, {
         timeSlotMinutes,
         businessHours: formattedBusinessHours,
         breakTimes,
@@ -140,12 +139,12 @@ export default function ClinicSettingsPage() {
       })
       
       // clinic_settingsテーブルにも保存
-      await setClinicSetting(DEMO_CLINIC_ID, 'business_hours', formattedBusinessHours)
-      await setClinicSetting(DEMO_CLINIC_ID, 'break_times', breakTimes)
+      await setClinicSetting(clinicId, 'business_hours', formattedBusinessHours)
+      await setClinicSetting(clinicId, 'break_times', breakTimes)
       
       // 休診日設定をclinic_settingsテーブルに保存
       console.log('holidays保存中...', holidays)
-      await setClinicSetting(DEMO_CLINIC_ID, 'holidays', holidays)
+      await setClinicSetting(clinicId, 'holidays', holidays)
       
       console.log('全ての設定保存完了')
       alert('設定を保存しました')

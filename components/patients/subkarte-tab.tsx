@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useClinicId } from '@/hooks/use-clinic-id'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -63,6 +64,7 @@ interface SubKarteTabProps {
 }
 
 export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps) {
+  const clinicId = useClinicId()
   const [entries, setEntries] = useState<SubKarteEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [activeInputType, setActiveInputType] = useState<'text' | 'handwriting' | 'audio' | 'file'>('text')
@@ -182,8 +184,7 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
     const loadStaff = async () => {
       try {
         // 設定ページと同じクリニックIDを使用
-        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-        const staffData = await getStaff(DEMO_CLINIC_ID)
+        const staffData = await getStaff(clinicId)
         console.log('読み込んだスタッフデータ:', staffData)
         setStaffList(staffData.map(staff => ({
           id: staff.id,
@@ -211,12 +212,11 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
   useEffect(() => {
     const loadMemoTodoTemplates = async () => {
       try {
-        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-        console.log('SubKarteTab: Loading memo todo templates for clinic:', DEMO_CLINIC_ID)
+        console.log('SubKarteTab: Loading memo todo templates for clinic:', clinicId)
         // デバッグ: localStorageの生データを確認
         const rawData = localStorage.getItem('memo_todo_templates')
         console.log('SubKarteTab: Raw localStorage data:', rawData)
-        const templates = await getActiveMemoTodoTemplates(DEMO_CLINIC_ID)
+        const templates = await getActiveMemoTodoTemplates(clinicId)
         console.log('SubKarteTab: Loaded templates:', templates)
         setMemoTodoTemplates(templates)
       } catch (error) {
@@ -246,8 +246,7 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
       let rawMemo: string | null = null
       if (isUUID(patientId)) {
         // UUID形式の場合はDBから読み込み
-        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-        rawMemo = await getPatientTreatmentMemo(DEMO_CLINIC_ID, patientId)
+        rawMemo = await getPatientTreatmentMemo(clinicId, patientId)
       } else {
         // UUID形式でない場合はローカルストレージから読み込み
         rawMemo = localStorage.getItem(`treatment_memo_${patientId}`)
@@ -297,8 +296,7 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
       setTreatmentMemoSaving(true)
       if (isUUID(patientId)) {
         // UUID形式の場合はDBに保存
-        const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-        await updatePatientTreatmentMemo(DEMO_CLINIC_ID, patientId, memoJson || null)
+        await updatePatientTreatmentMemo(clinicId, patientId, memoJson || null)
         console.log('DBに保存完了')
       } else {
         // UUID形式でない場合はローカルストレージに保存

@@ -22,8 +22,7 @@ import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { getAppointments } from '@/lib/api/appointments'
 import { getPatientById } from '@/lib/api/patients'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface Appointment {
   id: string
@@ -129,6 +128,7 @@ const mockAppointments: Appointment[] = [
 ]
 
 export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
+  const clinicId = useClinicId()
   console.log('AppointmentsTab: コンポーネントが初期化されました', { patientId })
 
   const router = useRouter()
@@ -145,7 +145,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
   const handleNewAppointment = async () => {
     try {
       // 患者情報を取得
-      const patient = await getPatientById(DEMO_CLINIC_ID, patientId)
+      const patient = await getPatientById(clinicId, patientId)
       console.log('新規予約: 患者情報を取得', patient)
 
       if (!patient) {
@@ -156,7 +156,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
       // 患者情報のみの仮予約オブジェクトを作成（既存のコピー機能と同じ形式）
       // 仮登録・本登録に関わらず、患者情報をコピーして新規予約を作成
       const templateAppointment = {
-        clinic_id: DEMO_CLINIC_ID,    // clinic_idを追加
+        clinic_id: clinicId,    // clinic_idを追加
         patient_id: patient.id,
         patient: {
           id: patient.id,
@@ -207,7 +207,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
       console.log('AppointmentsTab: 予約履歴を読み込み中', { patientId })
       
       // 予約編集モーダルと同じ方法で予約データを取得
-      const allAppointments = await getAppointments(DEMO_CLINIC_ID)
+      const allAppointments = await getAppointments(clinicId)
       console.log('AppointmentsTab: 取得した全予約データ:', allAppointments)
       
       // この患者の予約履歴をフィルタリング（予約編集モーダルと同じロジック）

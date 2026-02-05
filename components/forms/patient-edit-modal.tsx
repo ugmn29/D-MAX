@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useClinicId } from '@/hooks/use-clinic-id'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,9 +46,9 @@ interface FamilyMember {
   phone?: string
 }
 
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
-
-export function PatientEditModal({ isOpen, onClose, patient, clinicId, onSave }: PatientEditModalProps) {
+export function PatientEditModal({ isOpen, onClose, patient, clinicId: clinicIdProp, onSave }: PatientEditModalProps) {
+  const hookClinicId = useClinicId()
+  const clinicId = clinicIdProp || hookClinicId
   const [saving, setSaving] = useState(false)
   const [editData, setEditData] = useState({
     last_name: '',

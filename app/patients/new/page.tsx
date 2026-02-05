@@ -8,11 +8,10 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { createPatient } from '@/lib/api/patients'
-
-// 仮のクリニックID（後で認証システムから取得）
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function NewPatientPage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -31,7 +30,7 @@ export default function NewPatientPage() {
       const address = addressParts.join(' ')
 
       // Supabaseに患者データを保存（本登録として作成）
-      await createPatient(DEMO_CLINIC_ID, {
+      await createPatient(clinicId, {
         ...formData,
         address, // 結合された住所
         is_registered: true  // 本登録として作成

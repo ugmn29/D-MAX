@@ -6,6 +6,7 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   images: {
     domains: ['localhost', 'lofty-herlinda-compulsively.ngrok-free.dev'],
   },

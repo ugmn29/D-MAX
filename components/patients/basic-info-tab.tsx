@@ -50,6 +50,7 @@ import {
   PatientWebBookingSettings,
 } from "@/lib/api/patient-web-booking-settings";
 import { getPatientIcons, upsertPatientIcons } from "@/lib/api/patient-icons";
+import { useClinicId } from "@/hooks/use-clinic-id";
 import { LineLinkageSection } from "./line-linkage-section";
 import { PatientEditModal } from "@/components/forms/patient-edit-modal";
 import {
@@ -77,9 +78,8 @@ interface FamilyMember {
   patient_number: number;
 }
 
-const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
-
 export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
+  const clinicId = useClinicId();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -142,7 +142,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
     // データベースに即座に保存
     try {
-      await upsertPatientIcons(patientId, DEMO_CLINIC_ID, newIconIds);
+      await upsertPatientIcons(patientId, clinicId, newIconIds);
       console.log("アイコンをデータベースに保存しました:", newIconIds);
 
       // 他のタブやコンポーネントに更新を通知
@@ -192,10 +192,9 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       console.log("BasicInfoTab: 通知設定が更新されました");
       // 通知設定を再読み込み
       try {
-        const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
         const preferencesData = await getPatientNotificationPreferences(
           patientId,
-          DEMO_CLINIC_ID,
+          clinicId,
         );
         if (preferencesData) {
           setNotificationPreferences({
@@ -229,8 +228,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       console.log("BasicInfoTab: 患者データが更新されました", event.detail);
       // 患者データを再読み込み
       try {
-        const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
-        const updatedPatient = await getPatientById(DEMO_CLINIC_ID, patientId);
+        const updatedPatient = await getPatientById(clinicId, patientId);
         if (updatedPatient) {
           console.log(
             "BasicInfoTab: イベント受信 - データベースから取得した primary_doctor_id:",
@@ -296,11 +294,10 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   const loadPatientData = async () => {
     try {
       setLoading(true);
-      const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
 
       // 実際の患者データを取得
       const { getPatientById } = await import("@/lib/api/patients");
-      const patientData = await getPatientById(DEMO_CLINIC_ID, patientId);
+      const patientData = await getPatientById(clinicId, patientId);
 
       if (!patientData) {
         console.error("患者データが見つかりません:", patientId);
@@ -343,7 +340,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
           // 問診票の定義を取得（linked_fieldを確認するため）
           const { getQuestionnaires } =
             await import("@/lib/api/questionnaires");
-          const questionnaires = await getQuestionnaires(DEMO_CLINIC_ID);
+          const questionnaires = await getQuestionnaires(clinicId);
           const questionnaire = questionnaires.find(
             (q) => q.id === questionnaireId,
           );
@@ -579,7 +576,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
                   "問診票データ保存前のpatientData.is_registered:",
                   patientData.is_registered,
                 );
-                await updatePatient(DEMO_CLINIC_ID, patientId, updateData);
+                await updatePatient(clinicId, patientId, updateData);
                 console.log("問診票データの自動保存完了");
                 console.log(
                   "問診票データ保存後のpatientData.is_registered:",
@@ -648,7 +645,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       try {
         const preferencesData = await getPatientNotificationPreferences(
           patientId,
-          DEMO_CLINIC_ID,
+          clinicId,
         );
         if (preferencesData) {
           setNotificationPreferences({
@@ -670,7 +667,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       try {
         const webBookingData = await getPatientWebBookingSettings(
           patientId,
-          DEMO_CLINIC_ID,
+          clinicId,
         );
         if (webBookingData) {
           setWebBookingSettings({
@@ -693,7 +690,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       try {
         const patientIconsData = await getPatientIcons(
           patientId,
-          DEMO_CLINIC_ID,
+          clinicId,
         );
         if (patientIconsData && patientIconsData.icon_ids) {
           setSelectedIconIds(patientIconsData.icon_ids);
@@ -736,7 +733,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
   const loadStaffData = async () => {
     try {
-      const staffData = await getStaff(DEMO_CLINIC_ID);
+      const staffData = await getStaff(clinicId);
       setStaff(staffData);
 
       // 歯科医師をフィルタリング（役職名で判定）
@@ -822,9 +819,8 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
   // 家族候補を検索（住所または電話番号が一致する患者）
   const searchFamilyCandidates = async () => {
     try {
-      const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
       const { getPatients } = await import("@/lib/api/patients");
-      const allPatients = await getPatients(DEMO_CLINIC_ID);
+      const allPatients = await getPatients(clinicId);
 
       if (!patient) return;
 
@@ -886,9 +882,8 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
     }
 
     try {
-      const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
       const { getPatients } = await import("@/lib/api/patients");
-      const allPatients = await getPatients(DEMO_CLINIC_ID);
+      const allPatients = await getPatients(clinicId);
 
       // 既に連携されている家族のIDリスト
       const linkedFamilyIds = familyMembers.map((f) => f.id);
@@ -957,7 +952,6 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
 
   const handleSave = async () => {
     try {
-      const DEMO_CLINIC_ID = "11111111-1111-1111-1111-111111111111";
 
       // 患者データの更新
       const updateData: any = {
@@ -1002,13 +996,13 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       console.log("患者データを保存:", updateData);
 
       // 患者データを更新
-      await updatePatient(DEMO_CLINIC_ID, patientId, updateData);
+      await updatePatient(clinicId, patientId, updateData);
 
       // 通知受信設定を保存
       try {
         await upsertPatientNotificationPreferences(
           patientId,
-          DEMO_CLINIC_ID,
+          clinicId,
           notificationPreferences,
         );
         console.log("通知受信設定の保存に成功しました");
@@ -1028,7 +1022,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
       try {
         await upsertPatientWebBookingSettings(
           patientId,
-          DEMO_CLINIC_ID,
+          clinicId,
           webBookingSettings,
         );
         console.log("Web予約設定の保存に成功しました");
@@ -2157,7 +2151,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
               <div>
                 <LineLinkageSection
                   patientId={patientId}
-                  clinicId={DEMO_CLINIC_ID}
+                  clinicId={clinicId}
                 />
               </div>
             </div>
@@ -2170,12 +2164,12 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
         isOpen={showPatientEditModal}
         onClose={() => setShowPatientEditModal(false)}
         patient={patient}
-        clinicId={DEMO_CLINIC_ID}
+        clinicId={clinicId}
         onSave={async () => {
           // 患者情報を再取得して表示を更新
           try {
             const updatedPatient = await getPatientById(
-              DEMO_CLINIC_ID,
+              clinicId,
               patientId,
             );
             if (updatedPatient) {
@@ -2227,7 +2221,7 @@ export function BasicInfoTab({ patientId }: BasicInfoTabProps) {
             try {
               const patientIconsData = await getPatientIcons(
                 patientId,
-                DEMO_CLINIC_ID,
+                clinicId,
               );
               if (patientIconsData && patientIconsData.icon_ids) {
                 setSelectedIconIds(patientIconsData.icon_ids);

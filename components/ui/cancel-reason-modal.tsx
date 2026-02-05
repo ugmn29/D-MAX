@@ -7,6 +7,7 @@ import { X } from 'lucide-react'
 import { getCancelReasons } from '@/lib/api/cancel-reasons'
 import { cancelAppointment } from '@/lib/api/appointments'
 import { CancelReason } from '@/lib/api/cancel-reasons'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface CancelReasonModalProps {
   isOpen: boolean
@@ -31,6 +32,7 @@ export function CancelReasonModal({
   appointmentData,
   onCancelAndReschedule
 }: CancelReasonModalProps) {
+  const clinicId = useClinicId()
   const [cancelReasons, setCancelReasons] = useState<CancelReason[]>([])
   const [selectedReasonId, setSelectedReasonId] = useState<string>('')
   const [cancelMemo, setCancelMemo] = useState<string>('')
@@ -47,8 +49,7 @@ export function CancelReasonModal({
   const loadCancelReasons = async () => {
     try {
       setLoading(true)
-      // デモクリニックIDを使用
-      const reasons = await getCancelReasons('11111111-1111-1111-1111-111111111111')
+      const reasons = await getCancelReasons(clinicId)
       setCancelReasons(reasons)
     } catch (error) {
       console.error('キャンセル理由取得エラー:', error)

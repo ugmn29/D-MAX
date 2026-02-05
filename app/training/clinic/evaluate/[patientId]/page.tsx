@@ -8,8 +8,7 @@ import { Training } from '@/types/training'
 import { EvaluationInput } from '@/types/evaluation'
 import { getPatientById } from '@/lib/api/patients'
 import IssueAnalysisModal from '@/components/training/IssueAnalysisModal'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface MenuTraining {
   id: string
@@ -33,6 +32,7 @@ interface EvaluationState {
 }
 
 export default function EvaluatePage() {
+  const clinicId = useClinicId()
   const router = useRouter()
   const params = useParams()
   const patientId = params.patientId as string
@@ -52,7 +52,7 @@ export default function EvaluatePage() {
   const loadData = async () => {
     try {
       // 患者情報を取得
-      const patientData = await getPatientById(DEMO_CLINIC_ID, patientId)
+      const patientData = await getPatientById(clinicId, patientId)
       setPatient(patientData)
 
       // アクティブなメニューを取得
@@ -147,7 +147,7 @@ export default function EvaluatePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patient_id: patientId,
-          clinic_id: DEMO_CLINIC_ID,
+          clinic_id: clinicId,
           menu_id: activeMenu.id,
           evaluations: evaluationInputs,
         }),
@@ -405,7 +405,7 @@ export default function EvaluatePage() {
       {showIssueModal && analysisResult && (
         <IssueAnalysisModal
           patientId={patientId}
-          clinicId={DEMO_CLINIC_ID}
+          clinicId={clinicId}
           analysisResult={analysisResult}
           onClose={() => {
             setShowIssueModal(false)

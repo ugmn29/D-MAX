@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface TrainingRecord {
   training_id: string
@@ -20,6 +19,7 @@ interface TrainingProgressChartProps {
 }
 
 export default function TrainingProgressChart({ patientId }: TrainingProgressChartProps) {
+  const clinicId = useClinicId()
   const [records, setRecords] = useState<TrainingRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [totalStats, setTotalStats] = useState({
@@ -47,7 +47,7 @@ export default function TrainingProgressChart({ patientId }: TrainingProgressCha
           )
         `)
         .eq('patient_id', patientId)
-        .eq('clinic_id', DEMO_CLINIC_ID)
+        .eq('clinic_id', clinicId)
         .order('performed_at', { ascending: false })
 
       if (error) {
