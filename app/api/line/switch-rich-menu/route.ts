@@ -80,10 +80,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('✅ LINE基本設定取得成功:', {
-      hasToken: !!channelAccessToken,
-      tokenPrefix: channelAccessToken?.substring(0, 20) + '...'
-    })
 
     // リッチメニュー設定を取得
     console.log('📖 リッチメニュー設定を取得中...')

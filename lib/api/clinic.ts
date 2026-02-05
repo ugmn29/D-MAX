@@ -179,20 +179,13 @@ export async function setClinicSetting(
   key: string,
   value: any
 ): Promise<void> {
-  console.log('setClinicSetting呼び出し:', { clinicId, key, value })
-  
   // モックモードの場合はlocalStorageに保存
   if (MOCK_MODE) {
-    console.log('モックモード: クリニック設定を保存します', { key, value })
-    console.log('モックモード: 保存するキー:', key, '保存する値:', value)
     
     try {
       const existingData = JSON.parse(localStorage.getItem('mock_clinic_settings') || '{}')
-      console.log('モックモード: 既存の設定:', existingData)
       const updatedData = { ...existingData, [key]: value }
-      console.log('モックモード: 更新後の設定:', updatedData)
       localStorage.setItem('mock_clinic_settings', JSON.stringify(updatedData))
-      console.log('モックモード: 設定を保存しました', updatedData)
     } catch (error) {
       console.error('モックモード: localStorage保存エラー:', error)
     }

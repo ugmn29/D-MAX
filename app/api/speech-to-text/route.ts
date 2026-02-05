@@ -11,14 +11,12 @@ function getSpeechClient() {
     // 本番環境: 環境変数からサービスアカウントのJSON文字列を読み込む（Vercel/Cloud Run）
     // 開発環境: gcloud auth application-default login で認証
     if (process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON) {
-      console.log('Using service account from environment variable (production)')
       const credentials = JSON.parse(process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON)
       speechClient = new speech.SpeechClient({
         credentials,
         projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
       })
     } else {
-      console.log('Using Application Default Credentials (development)')
       // 開発環境: gcloud auth application-default login
       // または Cloud Run/GKE/GCE では自動的にサービスアカウントを使用
       const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID

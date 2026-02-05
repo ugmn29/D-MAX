@@ -17,14 +17,13 @@ const supabaseServiceKey = useProduction
   ? (process.env.SUPABASE_SERVICE_ROLE_KEY_PRODUCTION || process.env.SUPABASE_SERVICE_ROLE_KEY)
   : process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// 環境変数が設定されていない場合の警告
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  console.warn('⚠️ Supabase環境変数が設定されていません。Vercelで環境変数を設定してください。')
+// 開発環境のみ: 環境変数の警告と接続先を表示
+if (process.env.NODE_ENV !== 'production') {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.warn('⚠️ Supabase環境変数が設定されていません。')
+  }
+  console.log(`🔌 Supabase接続先: ${useProduction ? '本番環境' : 'ローカル環境'}`)
 }
-
-// 接続先を表示
-console.log(`🔌 Supabase接続先: ${useProduction ? '本番環境' : 'ローカル環境'}`)
-console.log(`📍 URL: ${supabaseUrl}`)
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -52,13 +51,6 @@ export const supabaseAdmin = supabaseServiceKey
     })
   : null
 
-// デバッグ情報
-console.log('Supabaseクライアント初期化:', {
-  supabaseUrl,
-  hasAnonKey: !!supabaseAnonKey,
-  hasServiceKey: !!supabaseServiceKey,
-  hasSupabaseAdmin: !!supabaseAdmin
-})
 
 // マルチテナント対応のためのヘルパー関数
 export const getClinicId = async (): Promise<string | null> => {

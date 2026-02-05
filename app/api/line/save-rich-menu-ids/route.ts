@@ -17,12 +17,6 @@ export async function POST(request: NextRequest) {
       unregistered_menu_id
     } = body
 
-    console.log('💾 リッチメニューID保存リクエスト:', {
-      clinic_id,
-      registered_menu_id,
-      unregistered_menu_id,
-      has_supabaseAdmin: !!supabaseAdmin
-    })
 
     if (!clinic_id) {
       console.error('❌ clinic_id が未指定')
@@ -43,7 +37,6 @@ export async function POST(request: NextRequest) {
     const supabase = supabaseAdmin
 
     // 既存のリッチメニューID設定を取得
-    console.log('🔍 既存設定を取得中...')
     const { data: existingSettings, error: fetchError } = await supabase
       .from('clinic_settings')
       .select('setting_value')
@@ -55,8 +48,6 @@ export async function POST(request: NextRequest) {
       console.error('❌ 既存設定取得エラー:', fetchError)
     }
 
-    console.log('📋 既存設定:', existingSettings?.setting_value || 'なし')
-
     const existingValue = existingSettings?.setting_value || {}
 
     // 既存の値とマージ（新しい値のみ上書き）
@@ -65,10 +56,6 @@ export async function POST(request: NextRequest) {
       line_unregistered_rich_menu_id: unregistered_menu_id || existingValue.line_unregistered_rich_menu_id
     }
 
-    console.log('📊 保存する値:', newValue)
-
-    // line_rich_menu キーに保存
-    console.log('💾 データベースに保存中...')
     const { data: upsertData, error } = await supabase
       .from('clinic_settings')
       .upsert({
@@ -90,8 +77,6 @@ export async function POST(request: NextRequest) {
       throw new Error(`Database Error: ${error.message}`)
     }
 
-    console.log('✅ リッチメニューID保存成功')
-    console.log('📊 保存されたデータ:', upsertData)
 
     // 連携済みユーザーに新しいリッチメニューを割り当て
     let reassignedCount = 0

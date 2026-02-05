@@ -48,12 +48,6 @@ export async function POST(request: NextRequest) {
 
     // 招待コードを正規化
     const normalizedCode = normalizeInvitationCode(invitation_code)
-    console.log('🔍 招待コード検証:', {
-      original: invitation_code,
-      normalized: normalizedCode,
-      birth_date,
-      line_user_id
-    })
 
     // 招待コードのフォーマットを検証
     if (!validateInvitationCodeFormat(normalizedCode)) {
@@ -66,11 +60,6 @@ export async function POST(request: NextRequest) {
 
     // 招待コードを検索
     const currentTime = new Date().toISOString()
-    console.log('🔍 招待コード検索開始:', {
-      code: normalizedCode,
-      status: 'pending',
-      currentTime
-    })
 
     const { data: invitationData, error: invitationError } = await supabase
       .from('line_invitation_codes')
@@ -80,14 +69,6 @@ export async function POST(request: NextRequest) {
       .gt('expires_at', currentTime)
       .single()
 
-    console.log('🔍 招待コード検索結果:', {
-      found: !!invitationData,
-      error: invitationError,
-      errorCode: invitationError?.code,
-      errorMessage: invitationError?.message,
-      code: normalizedCode,
-      data: invitationData
-    })
 
     if (invitationError || !invitationData) {
       console.error('❌ 招待コード検索失敗:', {
@@ -118,11 +99,6 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       )
     }
-    console.log('🔍 生年月日チェック:', {
-      patient_birth_date: patient.birth_date,
-      input_birth_date: birth_date,
-      match: patient.birth_date === birth_date
-    })
 
     if (patient.birth_date !== birth_date) {
       console.error('❌ 生年月日不一致:', {
