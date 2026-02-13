@@ -5,7 +5,7 @@
  * 安全に変換を行うためのユーティリティ関数群
  */
 
-import type { Prisma } from '@/generated/prisma'
+import type { Prisma } from '@/generated/prisma/client'
 
 /**
  * Date → ISO文字列への変換
