@@ -51,3 +51,5 @@ google-cloud-key.json
 
 /generated/prisma
 *.bak
+.backups/
+.master-data/
