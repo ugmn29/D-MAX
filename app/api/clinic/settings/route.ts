@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 /**
  * POST /api/clinic/settings
- * クリニック設定を保存
+ * クリニック設定を保存 (Prisma版)
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      console.error('Supabase Admin clientが初期化されていません')
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const body = await request.json()
     const { clinic_id, setting_key, setting_value } = body
@@ -41,25 +34,24 @@ export async function POST(request: NextRequest) {
       has_value: !!setting_value
     })
 
-    // データベースに保存
-    const { data, error } = await supabase
-      .from('clinic_settings')
-      .upsert({
+    // Prismaのupsertを使用
+    const data = await prisma.clinic_settings.upsert({
+      where: {
+        clinic_id_setting_key: {
+          clinic_id,
+          setting_key
+        }
+      },
+      update: {
+        setting_value,
+        updated_at: new Date()
+      },
+      create: {
         clinic_id,
         setting_key,
         setting_value
-      }, {
-        onConflict: 'clinic_id,setting_key'
-      })
-      .select()
-
-    if (error) {
-      console.error('❌ 設定保存エラー:', error)
-      return NextResponse.json(
-        { error: `設定の保存に失敗しました: ${error.message}` },
-        { status: 500 }
-      )
-    }
+      }
+    })
 
     console.log('✅ 設定保存成功:', {
       clinic_id,
@@ -73,34 +65,49 @@ export async function POST(request: NextRequest) {
       if (line.enabled && line.accessToken && line.channelSecret) {
         console.log('🔄 LINE設定を同期中...')
 
-        // LINE基本設定を保存（getLineSettings関数が読み取る形式）
-        const { error: lineError } = await supabase
-          .from('clinic_settings')
-          .upsert({
-            clinic_id,
-            setting_key: 'line',
-            setting_value: {
-              channel_access_token: line.accessToken,
-              channel_secret: line.channelSecret,
-              channel_id: line.channelId || undefined,
-              webhook_url: line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'
+        try {
+          await prisma.clinic_settings.upsert({
+            where: {
+              clinic_id_setting_key: {
+                clinic_id,
+                setting_key: 'line'
+              }
+            },
+            update: {
+              setting_value: {
+                channel_access_token: line.accessToken,
+                channel_secret: line.channelSecret,
+                channel_id: line.channelId || undefined,
+                webhook_url: line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'
+              },
+              updated_at: new Date()
+            },
+            create: {
+              clinic_id,
+              setting_key: 'line',
+              setting_value: {
+                channel_access_token: line.accessToken,
+                channel_secret: line.channelSecret,
+                channel_id: line.channelId || undefined,
+                webhook_url: line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'
+              }
             }
-          }, {
-            onConflict: 'clinic_id,setting_key'
           })
 
-        if (lineError) {
+          console.log('✅ LINE設定を同期しました')
+        } catch (lineError) {
           console.error('⚠️ LINE設定同期エラー:', lineError)
           // エラーでも通知設定は保存されているので継続
-        } else {
-          console.log('✅ LINE設定を同期しました')
         }
       }
     }
 
+    // Date型をISO文字列に変換して返す
+    const responseData = convertDatesToStrings(data, ['created_at', 'updated_at'])
+
     return NextResponse.json({
       success: true,
-      data
+      data: responseData
     })
 
   } catch (error) {
@@ -114,18 +121,11 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/clinic/settings?clinic_id=xxx&setting_key=xxx
- * クリニック設定を取得
+ * クリニック設定を取得 (Prisma版)
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const searchParams = request.nextUrl.searchParams
     const clinic_id = searchParams.get('clinic_id')
@@ -138,26 +138,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    let query = supabase
-      .from('clinic_settings')
-      .select('*')
-      .eq('clinic_id', clinic_id)
+    // setting_keyの有無で条件分岐
+    const settings = setting_key
+      ? await prisma.clinic_settings.findMany({
+          where: {
+            clinic_id,
+            setting_key
+          }
+        })
+      : await prisma.clinic_settings.findMany({
+          where: {
+            clinic_id
+          }
+        })
 
-    if (setting_key) {
-      query = query.eq('setting_key', setting_key)
-    }
+    // Date型をISO文字列に変換
+    const settingsWithStringDates = settings.map(setting =>
+      convertDatesToStrings(setting, ['created_at', 'updated_at'])
+    )
 
-    const { data, error } = await query
-
-    if (error) {
-      console.error('設定取得エラー:', error)
-      return NextResponse.json(
-        { error: '設定の取得に失敗しました' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ settings: data })
+    return NextResponse.json({ settings: settingsWithStringDates })
 
   } catch (error) {
     console.error('設定取得エラー:', error)
