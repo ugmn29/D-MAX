@@ -358,15 +358,15 @@ model users {
   id                          String                 @id @db.Uuid
   aud                         String?                @db.VarChar(255)
   role                        String?                @db.VarChar(255)
-  email                       String?                @unique(map: "users_email_partial_key", where: raw("(is_sso_user = false)")) @db.VarChar(255)
+  email                       String?                @unique(map: "users_email_partial_key") @db.VarChar(255)
   encrypted_password          String?                @db.VarChar(255)
   email_confirmed_at          DateTime?              @db.Timestamptz(6)
   invited_at                  DateTime?              @db.Timestamptz(6)
-  confirmation_token          String?                @unique(map: "confirmation_token_idx", where: raw("((confirmation_token)::text !~ '^[0-9 ]*$'::text)")) @db.VarChar(255)
+  confirmation_token          String?                @unique(map: "confirmation_token_idx") @db.VarChar(255)
   confirmation_sent_at        DateTime?              @db.Timestamptz(6)
-  recovery_token              String?                @unique(map: "recovery_token_idx", where: raw("((recovery_token)::text !~ '^[0-9 ]*$'::text)")) @db.VarChar(255)
+  recovery_token              String?                @unique(map: "recovery_token_idx") @db.VarChar(255)
   recovery_sent_at            DateTime?              @db.Timestamptz(6)
-  email_change_token_new      String?                @unique(map: "email_change_token_new_idx", where: raw("((email_change_token_new)::text !~ '^[0-9 ]*$'::text)")) @db.VarChar(255)
+  email_change_token_new      String?                @unique(map: "email_change_token_new_idx") @db.VarChar(255)
   email_change                String?                @db.VarChar(255)
   email_change_sent_at        DateTime?              @db.Timestamptz(6)
   last_sign_in_at             DateTime?              @db.Timestamptz(6)
@@ -381,10 +381,10 @@ model users {
   phone_change_token          String?                @default("") @db.VarChar(255)
   phone_change_sent_at        DateTime?              @db.Timestamptz(6)
   confirmed_at                DateTime?              @default(dbgenerated("LEAST(email_confirmed_at, phone_confirmed_at)")) @db.Timestamptz(6)
-  email_change_token_current  String?                @unique(map: "email_change_token_current_idx", where: raw("((email_change_token_current)::text !~ '^[0-9 ]*$'::text)")) @default("") @db.VarChar(255)
+  email_change_token_current  String?                @unique(map: "email_change_token_current_idx") @default("") @db.VarChar(255)
   email_change_confirm_status Int?                   @default(0) @db.SmallInt
   banned_until                DateTime?              @db.Timestamptz(6)
-  reauthentication_token      String?                @unique(map: "reauthentication_token_idx", where: raw("((reauthentication_token)::text !~ '^[0-9 ]*$'::text)")) @default("") @db.VarChar(255)
+  reauthentication_token      String?                @unique(map: "reauthentication_token_idx") @default("") @db.VarChar(255)
   reauthentication_sent_at    DateTime?              @db.Timestamptz(6)
   is_sso_user                 Boolean                @default(false)
   deleted_at                  DateTime?              @db.Timestamptz(6)
@@ -3056,23 +3056,23 @@ enum one_time_token_type {
 }
 
 enum appointment_status {
+  NOT_YET_ARRIVED @map("未来院")
+  LATE            @map("遅刻")
+  CHECKED_IN      @map("来院済み")
+  IN_TREATMENT    @map("診療中")
+  PAYMENT         @map("会計")
+  COMPLETED       @map("終了")
+  CANCELLED       @map("キャンセル")
 
-  // 未来院 @map("未来院")
-  // 遅刻 @map("遅刻")
-  // 来院済み @map("来院済み")
-  // 診療中 @map("診療中")
-  // 会計 @map("会計")
-  // 終了 @map("終了")
-  // キャンセル @map("キャンセル")
   @@schema("public")
 }
 
 enum log_action {
+  CREATED   @map("作成")
+  UPDATED   @map("変更")
+  CANCELLED @map("キャンセル")
+  DELETED   @map("削除")
 
-  // 作成 @map("作成")
-  // 変更 @map("変更")
-  // キャンセル @map("キャンセル")
-  // 削除 @map("削除")
   @@schema("public")
 }
 
