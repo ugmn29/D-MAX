@@ -50,3 +50,4 @@ google-cloud-key.json
 .env.remote
 
 /generated/prisma
+*.bak

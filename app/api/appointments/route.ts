@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAppointments, createAppointment, updateAppointment, deleteAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
+import { getAppointments, createAppointment, updateAppointment, deleteAppointment, updateAppointmentStatus } from '@/lib/api/appointments-prisma'
 import {
   createAppointmentReminderNotification,
   createAppointmentChangeNotification,
