@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Patient } from '@/types/database'
 import { getPatientById } from '@/lib/api/patients'
 import TrainingFlowChart from '@/components/training/TrainingFlowChart'
@@ -111,11 +110,10 @@ export default function PatientDetailPage() {
         const mockMenuTrainings = JSON.parse(localStorage.getItem('mock_menu_trainings') || '[]')
         const mockRecords = JSON.parse(localStorage.getItem('mock_training_records') || '[]')
 
-        // トレーニング情報を取得
-        const { data: trainingsData } = await supabase
-          .from('trainings')
-          .select('*')
-          .eq('is_deleted', false)
+        // トレーニング情報をAPI経由で取得
+        const trainingsResponse = await fetch(`/api/training/clinic/patient-data?patientId=${patientId}&type=trainings-data`)
+        const trainingsResult = await trainingsResponse.json()
+        const trainingsData = trainingsResult.data || []
 
         const patientActiveMenu = mockMenus.find((m: any) => m.patient_id === patientId && m.is_active)
 
@@ -124,7 +122,7 @@ export default function PatientDetailPage() {
             .filter((mt: any) => mt.menu_id === patientActiveMenu.id)
             .map((mt: any) => ({
               ...mt,
-              training: trainingsData?.find((t: any) => t.id === mt.training_id)
+              training: trainingsData.find((t: any) => t.id === mt.training_id)
             }))
             .sort((a: any, b: any) => a.sort_order - b.sort_order)
 
@@ -139,76 +137,34 @@ export default function PatientDetailPage() {
           .filter((r: any) => r.patient_id === patientId)
           .map((r: any) => ({
             ...r,
-            training: trainingsData?.find((t: any) => t.id === r.training_id)
+            training: trainingsData.find((t: any) => t.id === r.training_id)
           }))
           .sort((a: any, b: any) => new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime())
 
         setTrainingRecords(patientRecords)
       } else {
         // データベースモード - アクティブなメニューを取得
-        const { data: menuData, error } = await supabase
-          .from('training_menus')
-          .select(`
-            *,
-            menu_trainings(
-              *,
-              training:trainings(*)
-            )
-          `)
-          .eq('patient_id', patientId)
-          .eq('is_active', true)
-          .single()
+        const menuResponse = await fetch(`/api/training/clinic/patient-data?patientId=${patientId}&type=active-menu`)
+        const menuResult = await menuResponse.json()
 
-        if (error) {
-          // エラーが発生した場合は何もしない
-        } else if (menuData) {
-          // sort_orderでソート
-          const sortedMenuTrainings = (menuData.menu_trainings || []).sort(
-            (a: any, b: any) => a.sort_order - b.sort_order
-          )
-          setActiveMenu({
-            ...menuData,
-            menu_trainings: sortedMenuTrainings
-          })
+        if (menuResponse.ok && menuResult.data) {
+          setActiveMenu(menuResult.data)
         }
 
         // メニュー履歴を取得（過去の非アクティブなメニュー）
-        const { data: historyData, error: historyError } = await supabase
-          .from('training_menus')
-          .select(`
-            *,
-            menu_trainings(
-              *,
-              training:trainings(*)
-            )
-          `)
-          .eq('patient_id', patientId)
-          .eq('is_active', false)
-          .order('prescribed_at', { ascending: false })
+        const historyResponse = await fetch(`/api/training/clinic/patient-data?patientId=${patientId}&type=menu-history`)
+        const historyResult = await historyResponse.json()
 
-        if (!historyError && historyData) {
-          const sortedHistory = historyData.map((menu: any) => ({
-            ...menu,
-            menu_trainings: (menu.menu_trainings || []).sort(
-              (a: any, b: any) => a.sort_order - b.sort_order
-            )
-          }))
-          setMenuHistory(sortedHistory)
+        if (historyResponse.ok && historyResult.data) {
+          setMenuHistory(historyResult.data)
         }
 
         // トレーニング実施記録を取得（データベースモード）
-        const { data: recordsData, error: recordsError } = await supabase
-          .from('training_records')
-          .select(`
-            *,
-            training:trainings(*)
-          `)
-          .eq('patient_id', patientId)
-          .order('performed_at', { ascending: false })
-          .limit(50)
+        const recordsResponse = await fetch(`/api/training/clinic/patient-data?patientId=${patientId}&type=training-records&limit=50`)
+        const recordsResult = await recordsResponse.json()
 
-        if (!recordsError && recordsData) {
-          setTrainingRecords(recordsData)
+        if (recordsResponse.ok && recordsResult.data) {
+          setTrainingRecords(recordsResult.data)
         }
       }
     } catch (error) {

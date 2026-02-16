@@ -4,6 +4,7 @@ import './globals.css'
 import { UTMCapture } from '@/components/tracking/UTMCapture'
 import { DynamicTrackingTags } from '@/components/tracking/DynamicTrackingTags'
 import { AuthProvider } from '@/components/providers/auth-provider'
+import { StorageVersionChecker } from '@/components/storage-version-checker'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -26,6 +27,7 @@ export default function RootLayout({
         <DynamicTrackingTags clinicId={TRACKING_CLINIC_ID} />
       </head>
       <body className={inter.className}>
+        <StorageVersionChecker />
         <AuthProvider>
           <UTMCapture />
           <div className="min-h-screen bg-dmax-background">

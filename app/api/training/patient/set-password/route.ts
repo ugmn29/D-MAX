@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getPrismaClient } from '@/lib/prisma-client'
 import bcrypt from 'bcryptjs'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function POST(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const { patientId, password } = await request.json()
 
     if (!patientId || !password) {
@@ -29,22 +25,14 @@ export async function POST(request: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10)
 
     // データベースを更新
-    const { error } = await supabaseAdmin
-      .from('patients')
-      .update({
+    await prisma.patients.update({
+      where: { id: patientId },
+      data: {
         password_hash: passwordHash,
         password_set: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', patientId)
-
-    if (error) {
-      console.error('パスワード設定エラー:', error)
-      return NextResponse.json(
-        { error: 'パスワードの設定に失敗しました' },
-        { status: 500 }
-      )
-    }
+        updated_at: new Date(),
+      },
+    })
 
     return NextResponse.json({
       success: true,

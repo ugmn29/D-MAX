@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 export async function GET(
   request: NextRequest,
@@ -12,41 +13,38 @@ export async function GET(
 ) {
   try {
     const { id: patientId } = await params
+    const prisma = getPrismaClient()
 
     // 患者の診療記録を取得（新しい順）
-    const { data: records, error } = await supabase
-      .from('medical_records')
-      .select(`
-        id,
-        visit_date,
-        visit_type,
-        diseases,
-        treatments,
-        prescriptions,
-        subjective,
-        objective,
-        assessment,
-        plan,
-        total_points,
-        created_at,
-        created_by,
-        staff:created_by (
-          id,
-          name
-        )
-      `)
-      .eq('patient_id', patientId)
-      .order('visit_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    if (error) {
-      console.error('診療記録取得エラー:', error)
-      return NextResponse.json(
-        { error: '診療記録の取得に失敗しました' },
-        { status: 500 }
-      )
-    }
+    const records = await prisma.medical_records.findMany({
+      where: { patient_id: patientId },
+      select: {
+        id: true,
+        visit_date: true,
+        visit_type: true,
+        diseases: true,
+        treatments: true,
+        prescriptions: true,
+        subjective: true,
+        objective: true,
+        assessment: true,
+        plan: true,
+        total_points: true,
+        created_at: true,
+        created_by: true,
+        staff_medical_records_created_byTostaff: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [
+        { visit_date: 'desc' },
+        { created_at: 'desc' },
+      ],
+      take: 50,
+    })
 
     if (!records || records.length === 0) {
       return NextResponse.json([])
@@ -59,8 +57,9 @@ export async function GET(
 
     records.forEach(record => {
       // 病名コードIDを収集
-      if (record.diseases && Array.isArray(record.diseases)) {
-        record.diseases.forEach((disease: any) => {
+      const diseases = record.diseases as any[] | null
+      if (diseases && Array.isArray(diseases)) {
+        diseases.forEach((disease: any) => {
           if (disease.disease_code_id) {
             diseaseCodeIds.add(disease.disease_code_id)
           }
@@ -68,8 +67,9 @@ export async function GET(
       }
 
       // 処置コードIDを収集
-      if (record.treatments && Array.isArray(record.treatments)) {
-        record.treatments.forEach((treatment: any) => {
+      const treatments = record.treatments as any[] | null
+      if (treatments && Array.isArray(treatments)) {
+        treatments.forEach((treatment: any) => {
           if (treatment.treatment_code_id) {
             treatmentCodeIds.add(treatment.treatment_code_id)
           }
@@ -77,8 +77,9 @@ export async function GET(
       }
 
       // 薬剤コードIDを収集
-      if (record.prescriptions && Array.isArray(record.prescriptions)) {
-        record.prescriptions.forEach((prescription: any) => {
+      const prescriptions = record.prescriptions as any[] | null
+      if (prescriptions && Array.isArray(prescriptions)) {
+        prescriptions.forEach((prescription: any) => {
           if (prescription.medicine_code_id) {
             medicineCodeIds.add(prescription.medicine_code_id)
           }
@@ -89,59 +90,57 @@ export async function GET(
     // 病名コードの詳細を一括取得
     const diseaseCodesMap = new Map<string, any>()
     if (diseaseCodeIds.size > 0) {
-      const { data: diseaseCodes } = await supabase
-        .from('disease_codes')
-        .select('id, code, name')
-        .in('id', Array.from(diseaseCodeIds))
+      const diseaseCodes = await prisma.disease_codes.findMany({
+        where: { id: { in: Array.from(diseaseCodeIds) } },
+        select: { id: true, code: true, name: true },
+      })
 
-      if (diseaseCodes) {
-        diseaseCodes.forEach(dc => {
-          diseaseCodesMap.set(dc.id, dc)
-        })
-      }
+      diseaseCodes.forEach(dc => {
+        diseaseCodesMap.set(dc.id, dc)
+      })
     }
 
     // 処置コードの詳細を一括取得
     const treatmentCodesMap = new Map<string, any>()
     if (treatmentCodeIds.size > 0) {
-      const { data: treatmentCodes } = await supabase
-        .from('treatment_codes')
-        .select('id, code, name, points')
-        .in('id', Array.from(treatmentCodeIds))
+      const treatmentCodes = await prisma.treatment_codes.findMany({
+        where: { id: { in: Array.from(treatmentCodeIds) } },
+        select: { id: true, code: true, name: true, points: true },
+      })
 
-      if (treatmentCodes) {
-        treatmentCodes.forEach(tc => {
-          treatmentCodesMap.set(tc.id, tc)
-        })
-      }
+      treatmentCodes.forEach(tc => {
+        treatmentCodesMap.set(tc.id, tc)
+      })
     }
 
     // 薬剤コードの詳細を一括取得
     const medicineCodesMap = new Map<string, any>()
     if (medicineCodeIds.size > 0) {
-      const { data: medicineCodes } = await supabase
-        .from('medicine_codes')
-        .select('id, code, name')
-        .in('id', Array.from(medicineCodeIds))
+      const medicineCodes = await prisma.medicine_codes.findMany({
+        where: { id: { in: Array.from(medicineCodeIds) } },
+        select: { id: true, code: true, name: true },
+      })
 
-      if (medicineCodes) {
-        medicineCodes.forEach(mc => {
-          medicineCodesMap.set(mc.id, mc)
-        })
-      }
+      medicineCodes.forEach(mc => {
+        medicineCodesMap.set(mc.id, mc)
+      })
     }
 
     // タイムラインエントリーを構築
     const timeline = records.map(record => {
+      const diseases = (record.diseases as any[]) || []
+      const treatments = (record.treatments as any[]) || []
+      const prescriptions = (record.prescriptions as any[]) || []
+
       // 病名に詳細情報を追加（既存の名前を優先、なければマスターから取得）
-      const enrichedDiseases = (record.diseases || []).map((disease: any) => ({
+      const enrichedDiseases = diseases.map((disease: any) => ({
         ...disease,
         disease_code: disease.disease_code || diseaseCodesMap.get(disease.disease_code_id)?.code,
         disease_name: disease.disease_name || diseaseCodesMap.get(disease.disease_code_id)?.name
       }))
 
       // 処置に詳細情報を追加（既存の名前を優先、なければマスターから取得）
-      const enrichedTreatments = (record.treatments || []).map((treatment: any) => {
+      const enrichedTreatments = treatments.map((treatment: any) => {
         const treatmentCode = treatmentCodesMap.get(treatment.treatment_code_id)
         return {
           ...treatment,
@@ -152,14 +151,14 @@ export async function GET(
       })
 
       // 処方に詳細情報を追加（既存の名前を優先、なければマスターから取得）
-      const enrichedPrescriptions = (record.prescriptions || []).map((prescription: any) => ({
+      const enrichedPrescriptions = prescriptions.map((prescription: any) => ({
         ...prescription,
         medicine_name: prescription.medicine_name || medicineCodesMap.get(prescription.medicine_code_id)?.name
       }))
 
       return {
         id: record.id,
-        visit_date: record.visit_date,
+        visit_date: record.visit_date instanceof Date ? record.visit_date.toISOString() : record.visit_date,
         visit_type: record.visit_type,
         diseases: enrichedDiseases,
         treatments: enrichedTreatments,
@@ -169,8 +168,8 @@ export async function GET(
         assessment: record.assessment || '',
         plan: record.plan || '',
         total_points: record.total_points || 0,
-        created_by_name: (record.staff as any)?.name || '',
-        created_at: record.created_at
+        created_by_name: record.staff_medical_records_created_byTostaff?.name || '',
+        created_at: record.created_at instanceof Date ? record.created_at.toISOString() : record.created_at
       }
     })
 

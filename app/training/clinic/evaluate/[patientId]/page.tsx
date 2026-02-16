@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Patient } from '@/types/database'
 import { Training } from '@/types/training'
 import { EvaluationInput } from '@/types/evaluation'
@@ -55,23 +54,14 @@ export default function EvaluatePage() {
       const patientData = await getPatientById(clinicId, patientId)
       setPatient(patientData)
 
-      // アクティブなメニューを取得
-      const { data: menuData, error } = await supabase
-        .from('training_menus')
-        .select(`
-          *,
-          menu_trainings(
-            *,
-            training:trainings(*)
-          )
-        `)
-        .eq('patient_id', patientId)
-        .eq('is_active', true)
-        .single()
+      // アクティブなメニューをAPI経由で取得
+      const menuResponse = await fetch(`/api/training/clinic/patient-data?patientId=${patientId}&type=active-menu`)
+      const menuResult = await menuResponse.json()
 
-      if (error) {
-        console.error('メニュー取得エラー:', error)
-      } else if (menuData) {
+      if (!menuResponse.ok) {
+        console.error('メニュー取得エラー:', menuResult.error)
+      } else if (menuResult.data) {
+        const menuData = menuResult.data
         const sortedMenuTrainings = (menuData.menu_trainings || []).sort(
           (a: any, b: any) => a.sort_order - b.sort_order
         )
@@ -83,10 +73,13 @@ export default function EvaluatePage() {
         // 評価状態を初期化
         const initialEvaluations: EvaluationState = {}
         sortedMenuTrainings.forEach((mt: MenuTraining) => {
-          initialEvaluations[mt.training_id] = {
-            menu_training_id: mt.id,
-            evaluation_level: null,
-            comment: '',
+          const trainingId = mt.training_id || mt.training?.id
+          if (trainingId) {
+            initialEvaluations[trainingId] = {
+              menu_training_id: mt.id,
+              evaluation_level: null,
+              comment: '',
+            }
           }
         })
         setEvaluations(initialEvaluations)

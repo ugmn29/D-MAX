@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function POST() {
   try {
+    const prisma = getPrismaClient()
+
     // 既存のデフォルトトレーニングを削除
-    await supabase.from('trainings').delete().eq('is_default', true)
+    await prisma.trainings.deleteMany({
+      where: { is_default: true }
+    })
 
     // 資料に基づいたトレーニングデータ
     const trainings = [
@@ -186,7 +190,7 @@ export async function POST() {
           '5秒間を5回行います'
         ],
         precautions: [
-          '痛み��感じたらすぐに中止してください',
+          '痛みを感じたらすぐに中止してください',
           '無理に引っ張らないでください'
         ]
       },
@@ -394,7 +398,7 @@ export async function POST() {
         instructions: [
           '口を閉じます',
           '空気を口の中に溜めます',
-          '���頬を風船のように膨らませます',
+          '両頬を風船のように膨らませます',
           '5秒間キープします'
         ],
         precautions: [
@@ -576,20 +580,21 @@ export async function POST() {
       }
     ]
 
-    const { data, error } = await supabase
-      .from('trainings')
-      .insert(trainings)
-      .select()
+    // Prisma createMany で一括挿入
+    const result = await prisma.trainings.createMany({
+      data: trainings
+    })
 
-    if (error) {
-      console.error('データ投入エラー:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    // 挿入されたデータを取得して返す
+    const insertedData = await prisma.trainings.findMany({
+      where: { is_default: true },
+      orderBy: { created_at: 'asc' }
+    })
 
     return NextResponse.json({
       success: true,
-      count: data.length,
-      message: `${data.length}件のトレーニングを登録しました`
+      count: result.count,
+      message: `${result.count}件のトレーニングを登録しました`
     })
   } catch (error: any) {
     console.error('エラー:', error)

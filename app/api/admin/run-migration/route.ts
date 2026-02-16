@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getPrismaClient } from '@/lib/prisma-client'
 import fs from 'fs'
 import path from 'path'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,12 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
+    const prisma = getPrismaClient()
 
     // マイグレーションファイルを読み込み
     const migration023Path = path.join(process.cwd(), 'supabase/migrations/023_add_training_system.sql')
@@ -30,46 +22,47 @@ export async function POST(request: NextRequest) {
     const migration024 = fs.readFileSync(migration024Path, 'utf-8')
 
     // マイグレーション実行
-    console.log('Executing migration 023...')
-    const { error: error023 } = await supabaseAdmin.rpc('exec_sql', {
-      sql: migration023
-    })
+    let error023Message: string | undefined
+    let error024Message: string | undefined
 
-    if (error023) {
-      console.error('Migration 023 error:', error023)
+    console.log('Executing migration 023...')
+    try {
+      await prisma.$executeRawUnsafe(migration023)
+    } catch (err: any) {
+      console.error('Migration 023 error:', err)
+      error023Message = err.message
       // エラーでも続行（テーブルが既に存在する場合など）
     }
 
     console.log('Executing migration 024...')
-    const { error: error024 } = await supabaseAdmin.rpc('exec_sql', {
-      sql: migration024
-    })
-
-    if (error024) {
-      console.error('Migration 024 error:', error024)
+    try {
+      await prisma.$executeRawUnsafe(migration024)
+    } catch (err: any) {
+      console.error('Migration 024 error:', err)
+      error024Message = err.message
     }
 
     // 確認クエリ
-    const { data: tables } = await supabaseAdmin
-      .from('information_schema.tables')
-      .select('table_name')
-      .eq('table_schema', 'public')
-      .like('table_name', '%training%')
+    const tables = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name LIKE '%training%'
+    `
 
-    const { data: trainings, count } = await supabaseAdmin
-      .from('trainings')
-      .select('*', { count: 'exact' })
-      .eq('is_default', true)
+    const trainings = await prisma.trainings.findMany({
+      where: { is_default: true }
+    })
 
     return NextResponse.json({
       success: true,
       message: 'Migration completed',
       results: {
         tablesCreated: tables?.map(t => t.table_name) || [],
-        defaultTrainingsCount: count,
+        defaultTrainingsCount: trainings.length,
         errors: {
-          migration023: error023?.message,
-          migration024: error024?.message
+          migration023: error023Message,
+          migration024: error024Message
         }
       }
     })

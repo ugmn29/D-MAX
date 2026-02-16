@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function GET(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const { searchParams } = new URL(request.url)
     const patientId = searchParams.get('patientId')
 
@@ -22,13 +18,22 @@ export async function GET(request: NextRequest) {
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const { data: records } = await supabaseAdmin
-      .from('training_records')
-      .select('performed_at, completed')
-      .eq('patient_id', patientId)
-      .eq('completed', true)
-      .gte('performed_at', thirtyDaysAgo.toISOString())
-      .order('performed_at', { ascending: false })
+    const records = await prisma.training_records.findMany({
+      where: {
+        patient_id: patientId,
+        completed: true,
+        performed_at: {
+          gte: thirtyDaysAgo,
+        },
+      },
+      select: {
+        performed_at: true,
+        completed: true,
+      },
+      orderBy: {
+        performed_at: 'desc',
+      },
+    })
 
     if (!records || records.length === 0) {
       return NextResponse.json({ success: true, streak: 0 })
@@ -36,7 +41,10 @@ export async function GET(request: NextRequest) {
 
     // 日付ごとにユニークな日を抽出
     const uniqueDates = new Set(
-      records.map(r => new Date(r.performed_at).toISOString().split('T')[0])
+      records.map(r => {
+        const d = r.performed_at instanceof Date ? r.performed_at : new Date(r.performed_at!)
+        return d.toISOString().split('T')[0]
+      })
     )
     const sortedDates = Array.from(uniqueDates).sort((a, b) => b.localeCompare(a))
 

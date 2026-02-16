@@ -1,9 +1,13 @@
+// Migrated to Prisma API Routes
+
 /**
  * 処置セットAPI関数
  * Treatment Sets API Functions
  */
 
-import { supabase } from '@/lib/utils/supabase-client'
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 export interface TreatmentSet {
   id: string
@@ -49,18 +53,12 @@ export interface TreatmentRequiredField {
  */
 export async function getTreatmentSets(): Promise<TreatmentSet[]> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_sets')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order')
-
-    if (error) {
-      console.error('処置セット取得エラー:', error)
+    const response = await fetch(`${baseUrl}/api/emr/treatment-sets`)
+    if (!response.ok) {
+      console.error('処置セット取得エラー:', response.statusText)
       return []
     }
-
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('処置セット取得エラー:', error)
     return []
@@ -72,36 +70,17 @@ export async function getTreatmentSets(): Promise<TreatmentSet[]> {
  */
 export async function getTreatmentSetItems(setId: string): Promise<TreatmentSetItem[]> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_set_items')
-      .select('*')
-      .eq('set_id', setId)
-      .order('display_order')
+    const params = new URLSearchParams({
+      set_id: setId,
+      items: 'true',
+    })
 
-    if (error) {
-      console.error('処置セット構成要素取得エラー:', error)
+    const response = await fetch(`${baseUrl}/api/emr/treatment-sets?${params}`)
+    if (!response.ok) {
+      console.error('処置セット構成要素取得エラー:', response.statusText)
       return []
     }
-
-    if (!data || data.length === 0) return []
-
-    // 各アイテムの処置情報を取得
-    const itemsWithTreatments = await Promise.all(
-      data.map(async (item) => {
-        const { data: treatment } = await supabase
-          .from('treatment_codes')
-          .select('code, name, points')
-          .eq('code', item.treatment_code)
-          .single()
-
-        return {
-          ...item,
-          treatment: treatment || undefined
-        }
-      })
-    )
-
-    return itemsWithTreatments
+    return await response.json()
   } catch (error) {
     console.error('処置セット構成要素取得エラー:', error)
     return []
@@ -113,23 +92,14 @@ export async function getTreatmentSetItems(setId: string): Promise<TreatmentSetI
  */
 export async function getSuggestedTreatmentSets(diseaseCode: string): Promise<TreatmentSet[]> {
   try {
-    const { data, error } = await supabase
-      .from('disease_treatment_set_mapping')
-      .select(`
-        priority,
-        treatment_sets (*)
-      `)
-      .eq('disease_code', diseaseCode)
-      .order('priority', { ascending: false })
-
-    if (error) {
-      console.error('推奨処置セット取得エラー:', error)
+    const response = await fetch(
+      `${baseUrl}/api/emr/treatment-sets?disease_code=${encodeURIComponent(diseaseCode)}`
+    )
+    if (!response.ok) {
+      console.error('推奨処置セット取得エラー:', response.statusText)
       return []
     }
-
-    if (!data || data.length === 0) return []
-
-    return data.map((d: any) => d.treatment_sets).filter(Boolean)
+    return await response.json()
   } catch (error) {
     console.error('推奨処置セット取得エラー:', error)
     return []
@@ -148,14 +118,13 @@ export async function getSuggestedTreatmentSetsByDiseaseName(
 
     if (!setCode) return []
 
-    const { data, error } = await supabase
-      .from('treatment_sets')
-      .select('*')
-      .eq('code', setCode)
-      .eq('is_active', true)
-      .single()
+    const response = await fetch(
+      `${baseUrl}/api/emr/treatment-sets?code=${encodeURIComponent(setCode)}`
+    )
+    if (!response.ok) return []
 
-    if (error || !data) return []
+    const data = await response.json()
+    if (!data) return []
 
     return [data]
   } catch (error) {
@@ -212,18 +181,14 @@ export async function getTreatmentRequiredFields(
   treatmentCode: string
 ): Promise<TreatmentRequiredField[]> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_required_fields')
-      .select('*')
-      .eq('treatment_code', treatmentCode)
-      .order('display_order')
-
-    if (error) {
-      console.error('必須記載項目取得エラー:', error)
+    const response = await fetch(
+      `${baseUrl}/api/emr/treatment-required-fields?treatment_code=${encodeURIComponent(treatmentCode)}`
+    )
+    if (!response.ok) {
+      console.error('必須記載項目取得エラー:', response.statusText)
       return []
     }
-
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('必須記載項目取得エラー:', error)
     return []
@@ -235,18 +200,12 @@ export async function getTreatmentRequiredFields(
  */
 export async function getTreatmentSetByCode(code: string): Promise<TreatmentSet | null> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_sets')
-      .select('*')
-      .eq('code', code)
-      .eq('is_active', true)
-      .single()
-
-    if (error || !data) {
-      return null
-    }
-
-    return data
+    const response = await fetch(
+      `${baseUrl}/api/emr/treatment-sets?code=${encodeURIComponent(code)}`
+    )
+    if (!response.ok) return null
+    const data = await response.json()
+    return data || null
   } catch (error) {
     console.error('処置セット取得エラー:', error)
     return null

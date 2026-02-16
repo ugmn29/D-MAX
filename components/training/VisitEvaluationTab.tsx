@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useClinicId } from '@/hooks/use-clinic-id'
 
@@ -34,17 +33,13 @@ export default function VisitEvaluationTab({ patientId, patientName }: VisitEval
 
   const loadTests = async () => {
     try {
-      const { data, error } = await supabase
-        .from('lip_closure_tests')
-        .select('*')
-        .eq('patient_id', patientId)
-        .eq('clinic_id', clinicId)
-        .order('test_date', { ascending: false })
+      const response = await fetch(`/api/training/lip-closure-tests?patient_id=${patientId}&clinic_id=${clinicId}`)
+      const result = await response.json()
 
-      if (error) {
-        console.error('口唇閉鎖検査記録取得エラー:', error)
+      if (!response.ok) {
+        console.error('口唇閉鎖検査記録取得エラー:', result.error)
       } else {
-        setTests(data || [])
+        setTests(result.data || [])
       }
     } catch (error) {
       console.error('データ取得エラー:', error)
@@ -68,19 +63,21 @@ export default function VisitEvaluationTab({ patientId, patientName }: VisitEval
     setIsSaving(true)
 
     try {
-      const { error } = await supabase
-        .from('lip_closure_tests')
-        .insert({
+      const response = await fetch('/api/training/lip-closure-tests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           patient_id: patientId,
           clinic_id: clinicId,
-          test_date: new Date().toISOString(),
           measurement_value: value,
           notes: null,
           examiner_id: null, // TODO: 実際のスタッフIDを設定
-        })
+        }),
+      })
 
-      if (error) {
-        console.error('保存エラー:', error)
+      if (!response.ok) {
+        const result = await response.json()
+        console.error('保存エラー:', result.error)
         alert('保存に失敗しました')
       } else {
         alert('検査記録を保存しました')
@@ -99,13 +96,13 @@ export default function VisitEvaluationTab({ patientId, patientName }: VisitEval
     if (!confirm('この検査記録を削除しますか?')) return
 
     try {
-      const { error } = await supabase
-        .from('lip_closure_tests')
-        .delete()
-        .eq('id', testId)
+      const response = await fetch(`/api/training/lip-closure-tests?id=${testId}`, {
+        method: 'DELETE',
+      })
 
-      if (error) {
-        console.error('削除エラー:', error)
+      if (!response.ok) {
+        const result = await response.json()
+        console.error('削除エラー:', result.error)
         alert('削除に失敗しました')
       } else {
         alert('検査記録を削除しました')

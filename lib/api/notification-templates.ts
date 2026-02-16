@@ -1,49 +1,63 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import {
   NotificationTemplate,
   NotificationTemplateInsert,
   NotificationTemplateUpdate
 } from '@/types/notification'
 
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
 /**
  * 通知テンプレート一覧を取得
  */
 export async function getNotificationTemplates(clinicId: string): Promise<NotificationTemplate[]> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('notification_templates')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('created_at', { ascending: false })
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-templates?clinic_id=${clinicId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知テンプレートの取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('通知テンプレート取得エラー:', error)
-    throw new Error('通知テンプレートの取得に失敗しました')
+    throw error instanceof Error ? error : new Error('通知テンプレートの取得に失敗しました')
   }
-
-  return data || []
 }
 
 /**
  * 通知テンプレートをIDで取得
  */
 export async function getNotificationTemplate(id: string): Promise<NotificationTemplate | null> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('notification_templates')
-    .select('*')
-    .eq('id', id)
-    .single()
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-templates/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知テンプレートの取得に失敗しました')
     }
-    console.error('通知テンプレート取得エラー:', error)
-    throw new Error('通知テンプレートの取得に失敗しました')
-  }
 
-  return data
+    return await response.json()
+  } catch (error) {
+    console.error('通知テンプレート取得エラー:', error)
+    throw error instanceof Error ? error : new Error('通知テンプレートの取得に失敗しました')
+  }
 }
 
 /**
@@ -53,20 +67,29 @@ export async function getNotificationTemplatesByType(
   clinicId: string,
   notificationType: string
 ): Promise<NotificationTemplate[]> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('notification_templates')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .eq('notification_type', notificationType)
-    .order('created_at', { ascending: false })
+  try {
+    const params = new URLSearchParams({
+      clinic_id: clinicId,
+      notification_type: notificationType
+    })
 
-  if (error) {
+    const response = await fetch(`${baseUrl}/api/notification-templates?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知テンプレートの取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('通知テンプレート取得エラー:', error)
-    throw new Error('通知テンプレートの取得に失敗しました')
+    throw error instanceof Error ? error : new Error('通知テンプレートの取得に失敗しました')
   }
-
-  return data || []
 }
 
 /**
@@ -75,23 +98,25 @@ export async function getNotificationTemplatesByType(
 export async function createNotificationTemplate(
   template: NotificationTemplateInsert
 ): Promise<NotificationTemplate> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('notification_templates')
-    .insert({
-      ...template,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-templates`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(template)
     })
-    .select()
-    .single()
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知テンプレートの作成に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('通知テンプレート作成エラー:', error)
-    throw new Error('通知テンプレートの作成に失敗しました')
+    throw error instanceof Error ? error : new Error('通知テンプレートの作成に失敗しました')
   }
-
-  return data
 }
 
 /**
@@ -101,38 +126,46 @@ export async function updateNotificationTemplate(
   id: string,
   updates: NotificationTemplateUpdate
 ): Promise<NotificationTemplate> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('notification_templates')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-templates/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updates)
     })
-    .eq('id', id)
-    .select()
-    .single()
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知テンプレートの更新に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('通知テンプレート更新エラー:', error)
-    throw new Error('通知テンプレートの更新に失敗しました')
+    throw error instanceof Error ? error : new Error('通知テンプレートの更新に失敗しました')
   }
-
-  return data
 }
 
 /**
  * 通知テンプレートを削除
  */
 export async function deleteNotificationTemplate(id: string): Promise<void> {
-  const client = getSupabaseClient()
-  const { error } = await client
-    .from('notification_templates')
-    .delete()
-    .eq('id', id)
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-templates/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知テンプレートの削除に失敗しました')
+    }
+  } catch (error) {
     console.error('通知テンプレート削除エラー:', error)
-    throw new Error('通知テンプレートの削除に失敗しました')
+    throw error instanceof Error ? error : new Error('通知テンプレートの削除に失敗しました')
   }
 }
 

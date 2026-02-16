@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useClinicId } from '@/hooks/use-clinic-id'
 
@@ -34,27 +33,17 @@ export default function TrainingProgressChart({ patientId }: TrainingProgressCha
 
   const loadTrainingRecords = async () => {
     try {
-      // 患者のトレーニング実施記録を集計
-      const { data, error } = await supabase
-        .from('training_records')
-        .select(`
-          training_id,
-          completed,
-          interrupted,
-          performed_at,
-          trainings!inner(
-            training_name
-          )
-        `)
-        .eq('patient_id', patientId)
-        .eq('clinic_id', clinicId)
-        .order('performed_at', { ascending: false })
+      // 患者のトレーニング実施記録をAPI経由で取得
+      const response = await fetch(`/api/training/training-records?patient_id=${patientId}&clinic_id=${clinicId}`)
+      const result = await response.json()
 
-      if (error) {
-        console.error('トレーニング記録取得エラー:', error)
+      if (!response.ok) {
+        console.error('トレーニング記録取得エラー:', result.error)
         setIsLoading(false)
         return
       }
+
+      const data = result.data || []
 
       // トレーニングごとに集計
       const recordMap = new Map<string, TrainingRecord>()
@@ -62,9 +51,9 @@ export default function TrainingProgressChart({ patientId }: TrainingProgressCha
       let completedCount = 0
       let interruptedCount = 0
 
-      data?.forEach((record: any) => {
+      data.forEach((record: any) => {
         const trainingId = record.training_id
-        const trainingName = record.trainings.training_name
+        const trainingName = record.training_name
 
         if (!recordMap.has(trainingId)) {
           recordMap.set(trainingId, {

@@ -1,3 +1,5 @@
+// Migrated to Prisma API Routes
+
 /**
  * 診療行為の関連提案システム
  * Treatment Suggestion System
@@ -5,8 +7,11 @@
  * 選択された診療行為に基づいて、関連する処置や加算を自動提案
  */
 
-import { supabase } from '@/lib/utils/supabase-client'
 import { TreatmentCode } from '@/types/emr'
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 export interface TreatmentSuggestion {
   code: string
@@ -43,65 +48,33 @@ export async function suggestRelatedTreatments(
     return []
   }
 
-  const suggestions: TreatmentSuggestion[] = []
-  const suggestedCodes = new Set<string>()
+  try {
+    const response = await fetch(`${baseUrl}/api/emr/treatment-suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selectedTreatmentCodes,
+        patientAge,
+        visitContext,
+      }),
+    })
 
-  // 直近に追加された処置のみを対象（最後の1件）
-  const latestCode = selectedTreatmentCodes[selectedTreatmentCodes.length - 1]
-
-  const { data: treatment, error } = await supabase
-    .from('treatment_codes')
-    .select('*')
-    .eq('code', latestCode)
-    .single()
-
-  if (error || !treatment) return []
-
-  // 1. メタデータから加算ルールを抽出
-  const additionSuggestions = extractAdditionSuggestions(
-    treatment,
-    patientAge,
-    visitContext
-  )
-  additionSuggestions.forEach(s => {
-    if (!suggestedCodes.has(s.code)) {
-      suggestions.push(s)
-      suggestedCodes.add(s.code)
+    if (!response.ok) {
+      console.error('治療提案エラー:', response.statusText)
+      return []
     }
-  })
 
-  // 2. 前後処置の提案（優先度高）
-  const sequentialSuggestions = await findSequentialTreatments(treatment)
-  sequentialSuggestions.forEach(s => {
-    if (!suggestedCodes.has(s.code) && !selectedTreatmentCodes.includes(s.code)) {
-      suggestions.push(s)
-      suggestedCodes.add(s.code)
-    }
-  })
-
-  // 3. 同じカテゴリで併用される処置を検索
-  const relatedSuggestions = await findRelatedTreatments(treatment)
-  relatedSuggestions.forEach(s => {
-    if (!suggestedCodes.has(s.code) && !selectedTreatmentCodes.includes(s.code)) {
-      suggestions.push(s)
-      suggestedCodes.add(s.code)
-    }
-  })
-
-  // 優先度順にソート、重複削除
-  const uniqueSuggestions = Array.from(
-    new Map(suggestions.map(s => [s.code, s])).values()
-  )
-
-  return uniqueSuggestions
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, 8) // 最大8件まで
+    return await response.json()
+  } catch (error) {
+    console.error('治療提案エラー:', error)
+    return []
+  }
 }
 
 /**
- * メタデータから加算ルールを抽出
+ * メタデータから加算ルールを抽出（純粋関数 - クライアントサイドで使用可能）
  */
-function extractAdditionSuggestions(
+export function extractAdditionSuggestions(
   treatment: any,
   patientAge?: number,
   visitContext?: any
@@ -170,113 +143,9 @@ function extractAdditionSuggestions(
 }
 
 /**
- * 同じカテゴリで併用される処置を検索
+ * 処置名からキーワードを抽出（純粋関数）
  */
-async function findRelatedTreatments(treatment: any): Promise<TreatmentSuggestion[]> {
-  const suggestions: TreatmentSuggestion[] = []
-
-  // 処置名からキーワードを抽出して関連処置を検索
-  const treatmentKeywords = extractTreatmentKeywords(treatment.name)
-
-  // カテゴリベースの関連処置マッピング（改善版）
-  const relatedPatterns: { [key: string]: Array<{ keywords: string[], reason: string, excludeKeywords?: string[] }> } = {
-    '309': [ // 歯内療法（抜髄・根管治療）
-      {
-        keywords: ['根管貼薬', '根管拡大', '根管洗浄'],
-        reason: '根管治療の基本処置',
-        excludeKeywords: ['加算', '顕微鏡']
-      },
-      {
-        keywords: ['感染根管', '根充'],
-        reason: '根管治療の後続処置',
-        excludeKeywords: ['加算']
-      }
-    ],
-    '310': [ // 抜歯
-      {
-        keywords: ['消炎', '口腔内'],
-        reason: '抜歯に伴う処置',
-        excludeKeywords: ['悪性', '腫瘍', '手術']
-      },
-      {
-        keywords: ['難抜歯', '埋伏'],
-        reason: '難症例の抜歯加算',
-        excludeKeywords: []
-      }
-    ],
-    '313': [ // 充填
-      {
-        keywords: ['う蝕'],
-        reason: '充填前のう蝕処置',
-        excludeKeywords: ['歯髄', '根管']
-      },
-      {
-        keywords: ['知覚過敏', 'ＳＣ'],
-        reason: '充填前後の処置',
-        excludeKeywords: []
-      }
-    ],
-    '316': [ // 歯冠修復
-      {
-        keywords: ['支台歯形成', '形成加算'],
-        reason: '歯冠修復の形成',
-        excludeKeywords: []
-      },
-      {
-        keywords: ['印象採得', '咬合採得'],
-        reason: '歯冠修復の印象・咬合記録',
-        excludeKeywords: []
-      }
-    ]
-  }
-
-  const category = treatment.code.substring(0, 3)
-  const patterns = relatedPatterns[category]
-
-  if (!patterns) return suggestions
-
-  // 各パターンで関連処置を検索
-  for (const pattern of patterns) {
-    for (const keyword of pattern.keywords) {
-      let query = supabase
-        .from('treatment_codes')
-        .select('code, name, points')
-        .ilike('name', `%${keyword}%`)
-        .neq('code', treatment.code) // 自分自身を除外
-        .limit(3)
-
-      const { data: relatedTreatments, error } = await query
-
-      if (!error && relatedTreatments) {
-        for (const t of relatedTreatments) {
-          // 除外キーワードチェック
-          const shouldExclude = pattern.excludeKeywords?.some(ex =>
-            t.name.includes(ex)
-          )
-
-          if (!shouldExclude) {
-            suggestions.push({
-              code: t.code,
-              name: t.name,
-              points: t.points,
-              reason: pattern.reason,
-              type: 'related',
-              priority: 3,
-              autoAdd: false
-            })
-          }
-        }
-      }
-    }
-  }
-
-  return suggestions
-}
-
-/**
- * 処置名からキーワードを抽出
- */
-function extractTreatmentKeywords(name: string): string[] {
+export function extractTreatmentKeywords(name: string): string[] {
   const keywords: string[] = []
 
   // 一般的な処置キーワード
@@ -296,175 +165,44 @@ function extractTreatmentKeywords(name: string): string[] {
 }
 
 /**
- * 前後処置の提案（治療の流れに基づく）
- */
-async function findSequentialTreatments(treatment: any): Promise<TreatmentSuggestion[]> {
-  const suggestions: TreatmentSuggestion[] = []
-
-  // 処置名から次のステップを判定（より詳細なパターンマッチング）
-  const sequentialPatterns = [
-    {
-      trigger: /抜髄/,
-      next: [
-        { keyword: '根管貼薬', excludeKeywords: ['加算', '抜歯前提'], reason: '抜髄後の基本処置' },
-        { keyword: '感染根管', excludeKeywords: ['加算'], reason: '感染している場合の処置' }
-      ]
-    },
-    {
-      trigger: /根管貼薬/,
-      next: [
-        { keyword: '根管充填', excludeKeywords: ['加算'], reason: '根管治療の最終ステップ' },
-        { keyword: '感染根管', excludeKeywords: ['加算'], reason: '追加の根管治療' }
-      ]
-    },
-    {
-      trigger: /抜歯/,
-      next: [
-        { keyword: '難抜歯', excludeKeywords: [], reason: '難症例の場合の加算' },
-        { keyword: '埋伏', excludeKeywords: [], reason: '埋伏歯の場合の加算' }
-      ]
-    },
-    {
-      trigger: /充填/,
-      next: [
-        { keyword: 'う蝕', excludeKeywords: ['歯髄', '根管'], reason: '充填前のう蝕除去' },
-        { keyword: '知覚過敏', excludeKeywords: [], reason: '充填後の知覚過敏処置' },
-        { keyword: 'ＳＣ', excludeKeywords: [], reason: '知覚過敏抑制処置' }
-      ]
-    },
-    {
-      trigger: /形成/,
-      next: [
-        { keyword: '印象', excludeKeywords: ['形成'], reason: '形成後の印象採得' },
-        { keyword: '仮封', excludeKeywords: [], reason: '形成後の仮封' },
-        { keyword: '咬合採得', excludeKeywords: [], reason: '形成後の咬合記録' }
-      ]
-    },
-    {
-      trigger: /印象採得/,
-      next: [
-        { keyword: '咬合採得', excludeKeywords: [], reason: '印象採得と併せて行う処置' },
-        { keyword: '仮着', excludeKeywords: [], reason: '印象採得後の仮着' }
-      ]
-    }
-  ]
-
-  for (const pattern of sequentialPatterns) {
-    if (pattern.trigger.test(treatment.name)) {
-      for (const nextItem of pattern.next) {
-        const { data: nextTreatments, error } = await supabase
-          .from('treatment_codes')
-          .select('code, name, points')
-          .ilike('name', `%${nextItem.keyword}%`)
-          .neq('code', treatment.code)
-          .limit(2)
-
-        if (!error && nextTreatments) {
-          for (const t of nextTreatments) {
-            // 除外キーワードチェック
-            const shouldExclude = nextItem.excludeKeywords?.some(ex =>
-              t.name.includes(ex)
-            )
-
-            if (!shouldExclude) {
-              suggestions.push({
-                code: t.code,
-                name: t.name,
-                points: t.points,
-                reason: nextItem.reason,
-                type: 'commonly_used',
-                priority: 4,
-                autoAdd: false
-              })
-            }
-          }
-        }
-      }
-      break // 最初にマッチしたパターンのみ
-    }
-  }
-
-  return suggestions
-}
-
-/**
  * 診療行為の追加が可能かバリデーション
  */
 export async function validateTreatmentAddition(
   newTreatmentCode: string,
   existingTreatmentCodes: string[]
 ): Promise<ValidationResult> {
-  const result: ValidationResult = {
-    canAdd: true,
-    errors: [],
-    warnings: [],
-    inclusionConflicts: [],
-    exclusionConflicts: []
-  }
+  try {
+    const response = await fetch(`${baseUrl}/api/emr/treatment-suggestions/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        newTreatmentCode,
+        existingTreatmentCodes,
+      }),
+    })
 
-  // 新規処置の情報を取得
-  const { data: newTreatment, error } = await supabase
-    .from('treatment_codes')
-    .select('*')
-    .eq('code', newTreatmentCode)
-    .single()
-
-  if (error || !newTreatment) {
-    result.canAdd = false
-    result.errors.push('診療行為が見つかりません')
-    return result
-  }
-
-  // 既存処置との包括・背反チェック
-  for (const existingCode of existingTreatmentCodes) {
-    const { data: existingTreatment } = await supabase
-      .from('treatment_codes')
-      .select('*')
-      .eq('code', existingCode)
-      .single()
-
-    if (!existingTreatment) continue
-
-    // 包括チェック（新規処置が既存処置に包括される）
-    if (existingTreatment.inclusion_rules?.includes(newTreatmentCode)) {
-      result.inclusionConflicts.push(
-        `${newTreatment.name}は${existingTreatment.name}に包括されるため、別途算定できません`
-      )
-      result.canAdd = false
+    if (!response.ok) {
+      console.error('バリデーションエラー:', response.statusText)
+      return {
+        canAdd: true,
+        errors: [],
+        warnings: ['バリデーションの実行に失敗しました'],
+        inclusionConflicts: [],
+        exclusionConflicts: [],
+      }
     }
 
-    // 包括チェック（既存処置が新規処置に包括される）
-    if (newTreatment.inclusion_rules?.includes(existingCode)) {
-      result.warnings.push(
-        `${existingTreatment.name}は${newTreatment.name}に包括されるため、削除を検討してください`
-      )
-    }
-
-    // 背反チェック
-    const exclusionRules = newTreatment.exclusion_rules || {}
-
-    if (exclusionRules.simultaneous?.includes(existingCode)) {
-      result.exclusionConflicts.push(
-        `${newTreatment.name}と${existingTreatment.name}は同時算定できません`
-      )
-      result.canAdd = false
-    }
-
-    if (exclusionRules.same_day?.includes(existingCode)) {
-      result.exclusionConflicts.push(
-        `${newTreatment.name}と${existingTreatment.name}は同日算定できません`
-      )
-      result.canAdd = false
-    }
-
-    if (exclusionRules.same_month?.includes(existingCode)) {
-      result.warnings.push(
-        `${newTreatment.name}と${existingTreatment.name}は同月算定の制限があります`
-      )
+    return await response.json()
+  } catch (error) {
+    console.error('バリデーションエラー:', error)
+    return {
+      canAdd: true,
+      errors: [],
+      warnings: ['バリデーションの実行に失敗しました'],
+      inclusionConflicts: [],
+      exclusionConflicts: [],
     }
   }
-
-  return result
 }
 
 /**
@@ -474,21 +212,23 @@ export async function searchRelatedTreatmentsByKeyword(
   keyword: string,
   category?: string
 ): Promise<TreatmentCode[]> {
-  let query = supabase
-    .from('treatment_codes')
-    .select('*')
-    .or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%`)
+  try {
+    const params = new URLSearchParams({
+      q: keyword,
+      limit: '20',
+    })
+    if (category) {
+      params.set('category', category)
+    }
 
-  if (category) {
-    query = query.ilike('code', `${category}%`)
-  }
-
-  const { data, error } = await query.limit(20)
-
-  if (error) {
+    const response = await fetch(`${baseUrl}/api/emr/treatment-suggestions/search?${params}`)
+    if (!response.ok) {
+      console.error('関連処置検索エラー:', response.statusText)
+      return []
+    }
+    return await response.json()
+  } catch (error) {
     console.error('関連処置検索エラー:', error)
     return []
   }
-
-  return data || []
 }

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import { getPatientById } from './patients'
 import { getNotificationTemplates } from './notification-templates'
 import { canReceiveNotification } from './patient-notification-preferences'
@@ -41,7 +41,9 @@ export async function createAppointmentReminderNotification(
   clinicId: string,
   appointmentDatetime: string
 ): Promise<void> {
-  const client = getSupabaseClient()
+  const baseUrl = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
 
   // 患者の通知受信設定をチェック
   const canReceive = await canReceiveNotification(patientId, clinicId, 'appointment_reminder')
@@ -101,9 +103,10 @@ export async function createAppointmentReminderNotification(
 ご来院をお待ちしております。`
 
   // 通知スケジュールを作成
-  const { error } = await client
-    .from('patient_notification_schedules')
-    .insert({
+  const response = await fetch(`${baseUrl}/api/notification-schedules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       patient_id: patientId,
       clinic_id: clinicId,
       linked_appointment_id: appointmentId,
@@ -116,9 +119,10 @@ export async function createAppointmentReminderNotification(
       status: 'scheduled',
       is_auto_reminder: false
     })
+  })
 
-  if (error) {
-    console.error('通知スケジュール作成エラー:', error)
+  if (!response.ok) {
+    console.error('通知スケジュール作成エラー')
     throw new Error('通知スケジュールの作成に失敗しました')
   }
 
@@ -142,7 +146,9 @@ export async function createAppointmentChangeNotification(
   oldDatetime: string,
   newDatetime: string
 ): Promise<void> {
-  const client = getSupabaseClient()
+  const baseUrl = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
 
   // 患者の通知受信設定をチェック
   const canReceive = await canReceiveNotification(patientId, clinicId, 'appointment_change')
@@ -196,9 +202,10 @@ export async function createAppointmentChangeNotification(
 
 よろしくお願いいたします。`
 
-  const { error } = await client
-    .from('patient_notification_schedules')
-    .insert({
+  const response = await fetch(`${baseUrl}/api/notification-schedules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       patient_id: patientId,
       clinic_id: clinicId,
       linked_appointment_id: appointmentId,
@@ -211,9 +218,10 @@ export async function createAppointmentChangeNotification(
       status: 'scheduled',
       is_auto_reminder: false
     })
+  })
 
-  if (error) {
-    console.error('変更通知作成エラー:', error)
+  if (!response.ok) {
+    console.error('変更通知作成エラー')
     throw new Error('変更通知の作成に失敗しました')
   }
 
@@ -231,20 +239,29 @@ export async function createAppointmentChangeNotification(
 export async function cancelAppointmentNotifications(
   appointmentId: string
 ): Promise<void> {
-  const client = getSupabaseClient()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  const { error } = await client
-    .from('patient_notification_schedules')
-    .update({ status: 'cancelled' })
-    .eq('linked_appointment_id', appointmentId)
-    .in('status', ['scheduled'])
+    const response = await fetch(`${baseUrl}/api/notification-schedules/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        linked_appointment_id: appointmentId
+      })
+    })
 
-  if (error) {
+    if (!response.ok) {
+      console.error('通知キャンセルエラー')
+      throw new Error('通知のキャンセルに失敗しました')
+    }
+
+    console.log('予約に紐づく通知をキャンセルしました:', appointmentId)
+  } catch (error) {
     console.error('通知キャンセルエラー:', error)
     throw new Error('通知のキャンセルに失敗しました')
   }
-
-  console.log('予約に紐づく通知をキャンセルしました:', appointmentId)
 }
 
 /**
@@ -256,23 +273,32 @@ export async function handleAppointmentConfirmed(
   appointmentId?: string,
   appointmentDatetime?: string
 ): Promise<void> {
-  const client = getSupabaseClient()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  // この患者の自動リマインド通知をキャンセル
-  const { error } = await client
-    .from('patient_notification_schedules')
-    .update({ status: 'cancelled' })
-    .eq('patient_id', patientId)
-    .eq('clinic_id', clinicId)
-    .eq('is_auto_reminder', true)
-    .in('status', ['scheduled'])
+    // この患者の自動リマインド通知をキャンセル
+    const response = await fetch(`${baseUrl}/api/notification-schedules/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_id: patientId,
+        clinic_id: clinicId,
+        is_auto_reminder: true
+      })
+    })
 
-  if (error) {
+    if (!response.ok) {
+      console.error('自動リマインドキャンセルエラー')
+      throw new Error('自動リマインドのキャンセルに失敗しました')
+    }
+
+    console.log('予約確定により自動リマインドをキャンセルしました:', patientId)
+  } catch (error) {
     console.error('自動リマインドキャンセルエラー:', error)
     throw new Error('自動リマインドのキャンセルに失敗しました')
   }
-
-  console.log('予約確定により自動リマインドをキャンセルしました:', patientId)
 }
 
 /**
@@ -284,7 +310,9 @@ export async function createAppointmentConfirmationNotification(
   clinicId: string,
   appointmentDatetime: string
 ): Promise<void> {
-  const client = getSupabaseClient()
+  const baseUrl = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
 
   // 患者の通知受信設定をチェック
   const canReceive = await canReceiveNotification(patientId, clinicId, 'appointment_confirmation')
@@ -334,9 +362,10 @@ export async function createAppointmentConfirmationNotification(
 
 ご来院をお待ちしております。`
 
-  const { error: insertError } = await client
-    .from('patient_notification_schedules')
-    .insert({
+  const response = await fetch(`${baseUrl}/api/notification-schedules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       patient_id: patientId,
       clinic_id: clinicId,
       linked_appointment_id: appointmentId,
@@ -349,9 +378,10 @@ export async function createAppointmentConfirmationNotification(
       status: 'scheduled',
       is_auto_reminder: false
     })
+  })
 
-  if (insertError) {
-    console.error('予約確定通知作成エラー:', insertError)
+  if (!response.ok) {
+    console.error('予約確定通知作成エラー')
     throw new Error('予約確定通知の作成に失敗しました')
   }
 

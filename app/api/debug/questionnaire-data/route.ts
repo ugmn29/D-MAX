@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 /**
  * 問診票の実際のデータ構造を確認するためのデバッグエンドポイント
@@ -10,51 +10,47 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const responseId = searchParams.get('response_id') || '623ab580-0afd-42cf-8a4e-feaf4c680174'
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 1. 問診票回答データを取得
-    const { data: response, error: responseError } = await supabase
-      .from('questionnaire_responses')
-      .select('*')
-      .eq('id', responseId)
-      .single()
+    const response = await prisma.questionnaire_responses.findUnique({
+      where: { id: responseId }
+    })
 
-    if (responseError) {
+    if (!response) {
       return NextResponse.json({
         success: false,
         error: '問診票回答の取得に失敗',
-        details: responseError.message
+        details: '指定されたIDの問診票回答が見つかりません'
       }, { status: 404 })
     }
 
     // 2. 問診票の質問定義を取得
-    const { data: questions, error: questionsError } = await supabase
-      .from('questionnaire_questions')
-      .select('*')
-      .eq('questionnaire_id', response.questionnaire_id)
-      .order('sort_order', { ascending: true })
+    const questions = await prisma.questionnaire_questions.findMany({
+      where: { questionnaire_id: response.questionnaire_id },
+      orderBy: { sort_order: 'asc' }
+    })
 
-    if (questionsError) {
+    if (!questions || questions.length === 0) {
       return NextResponse.json({
         success: false,
         error: '質問定義の取得に失敗',
-        details: questionsError.message
+        details: '質問定義が見つかりません'
       }, { status: 500 })
     }
 
     // 3. 患者情報を取得
-    let patient = null
+    let patient: any = null
     if (response.patient_id) {
-      const { data: patientData } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', response.patient_id)
-        .single()
-      patient = patientData
+      patient = await prisma.patients.findUnique({
+        where: { id: response.patient_id }
+      })
     }
 
+    const responseData = response.response_data as any
+
     // 4. response_dataのキーと質問IDのマッピングを分析
-    const responseDataKeys = Object.keys(response.response_data || {})
+    const responseDataKeys = Object.keys(responseData || {})
     const questionIds = questions?.map(q => q.id) || []
 
     // キーの形式を分析
@@ -68,8 +64,8 @@ export async function GET(request: NextRequest) {
 
     // 質問とresponse_dataのマッピング状況
     const mappingAnalysis = questions?.map(q => {
-      const uuidAnswer = response.response_data?.[q.id]
-      const legacyAnswer = response.response_data?.[`q${Math.floor(q.sort_order / 10) + 1}-${q.sort_order % 10 || 10}`]
+      const uuidAnswer = responseData?.[q.id]
+      const legacyAnswer = responseData?.[`q${Math.floor((q.sort_order || 0) / 10) + 1}-${(q.sort_order || 0) % 10 || 10}`]
 
       return {
         question_id: q.id,
@@ -88,7 +84,7 @@ export async function GET(request: NextRequest) {
         id: response.id,
         questionnaire_id: response.questionnaire_id,
         patient_id: response.patient_id,
-        response_data: response.response_data
+        response_data: responseData
       },
       questions: questions?.map(q => ({
         id: q.id,

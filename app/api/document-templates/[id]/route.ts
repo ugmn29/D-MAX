@@ -1,33 +1,29 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 // PUT - テンプレート更新
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json()
-    const { id } = params
-    const supabase = getSupabaseClient()
+    const { id } = await params
+    const prisma = getPrismaClient()
 
-    const { data, error } = await supabase
-      .from('document_templates')
-      .update({
+    const data = await prisma.document_templates.update({
+      where: { id },
+      data: {
         template_name: body.template_name,
         template_data: body.template_data,
         display_order: body.display_order
-      })
-      .eq('id', id)
-      .select()
-      .single()
+      }
+    })
 
-    if (error) {
-      console.error('Error updating template:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const result = convertDatesToStrings(data, ['created_at', 'updated_at'])
 
-    return NextResponse.json(data)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error in PUT /api/document-templates/[id]:', error)
     return NextResponse.json(
@@ -40,26 +36,21 @@ export async function PUT(
 // DELETE - テンプレート論理削除
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
-    const supabase = getSupabaseClient()
+    const { id } = await params
+    const prisma = getPrismaClient()
 
     // 論理削除（is_active を false に設定）
-    const { data, error } = await supabase
-      .from('document_templates')
-      .update({ is_active: false })
-      .eq('id', id)
-      .select()
-      .single()
+    const data = await prisma.document_templates.update({
+      where: { id },
+      data: { is_active: false }
+    })
 
-    if (error) {
-      console.error('Error deleting template:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const result = convertDatesToStrings(data, ['created_at', 'updated_at'])
 
-    return NextResponse.json(data)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error in DELETE /api/document-templates/[id]:', error)
     return NextResponse.json(

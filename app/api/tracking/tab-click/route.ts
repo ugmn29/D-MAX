@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
+
+const DATE_FIELDS = ['click_timestamp', 'booking_completed_at', 'created_at'] as const
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,12 +31,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // タブクリックイベントを記録
-    const { data: clickEvent, error: clickError } = await supabase
-      .from('hp_tab_click_events')
-      .insert({
+    const clickEvent = await prisma.hp_tab_click_events.create({
+      data: {
         session_id,
         clinic_id,
         tab_id,
@@ -46,20 +48,11 @@ export async function POST(request: NextRequest) {
         device_type,
         os,
         browser,
-        click_timestamp: new Date().toISOString(),
-      })
-      .select()
-      .single()
+        click_timestamp: new Date(),
+      },
+    })
 
-    if (clickError) {
-      console.error('タブクリックイベント記録エラー:', clickError)
-      return NextResponse.json(
-        { error: 'Failed to record tab click event' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ success: true, data: clickEvent })
+    return NextResponse.json({ success: true, data: convertDatesToStrings(clickEvent, [...DATE_FIELDS]) })
   } catch (error) {
     console.error('タブクリックAPI エラー:', error)
     return NextResponse.json(
@@ -82,30 +75,29 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    // セッションIDに紐づくタブクリックイベントを更新
-    const { data, error } = await supabase
-      .from('hp_tab_click_events')
-      .update({
-        did_visit_booking: true,
-        did_complete_booking: did_complete_booking || false,
-        booking_completed_at: did_complete_booking ? new Date().toISOString() : null,
-      })
-      .eq('session_id', session_id)
-      .order('click_timestamp', { ascending: false })
-      .limit(1)
-      .select()
+    // セッションIDに紐づく最新のタブクリックイベントを取得
+    const latestEvent = await prisma.hp_tab_click_events.findFirst({
+      where: { session_id },
+      orderBy: { click_timestamp: 'desc' },
+    })
 
-    if (error) {
-      console.error('タブクリックイベント更新エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to update tab click event' },
-        { status: 500 }
-      )
+    if (!latestEvent) {
+      return NextResponse.json({ success: true, data: [] })
     }
 
-    return NextResponse.json({ success: true, data })
+    // 最新のイベントを更新
+    const updated = await prisma.hp_tab_click_events.update({
+      where: { id: latestEvent.id },
+      data: {
+        did_visit_booking: true,
+        did_complete_booking: did_complete_booking || false,
+        booking_completed_at: did_complete_booking ? new Date() : null,
+      },
+    })
+
+    return NextResponse.json({ success: true, data: [convertDatesToStrings(updated, [...DATE_FIELDS])] })
   } catch (error) {
     console.error('タブクリック更新API エラー:', error)
     return NextResponse.json(

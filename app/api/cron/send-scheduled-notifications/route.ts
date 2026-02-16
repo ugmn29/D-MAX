@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 /**
  * GET /api/cron/send-scheduled-notifications
@@ -11,7 +11,7 @@ import { getSupabaseClient } from '@/lib/utils/supabase-client'
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 認証チェック（本番環境では必須）
     const authHeader = request.headers.get('authorization')
@@ -30,38 +30,24 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const fiveMinutesLater = new Date(now.getTime() + 5 * 60 * 1000)
 
-    const { data: schedules, error: schedulesError } = await supabase
-      .from('patient_notification_schedules')
-      .select(`
-        id,
-        patient_id,
-        clinic_id,
-        notification_type,
-        template_id,
-        send_datetime,
-        send_channel,
-        treatment_menu_id,
-        web_booking_menu_ids,
-        web_booking_staff_ids,
-        custom_message,
-        auto_send,
-        treatment_menus (
-          id,
-          name
-        )
-      `)
-      .eq('status', 'scheduled')
-      .eq('auto_send', true)
-      .lte('send_datetime', fiveMinutesLater.toISOString())
-      .gte('send_datetime', now.toISOString())
-
-    if (schedulesError) {
-      console.error('通知スケジュール取得エラー:', schedulesError)
-      return NextResponse.json(
-        { error: '通知スケジュールの取得に失敗しました' },
-        { status: 500 }
-      )
-    }
+    const schedules = await prisma.patient_notification_schedules.findMany({
+      where: {
+        status: 'scheduled',
+        auto_send: true,
+        send_datetime: {
+          lte: fiveMinutesLater,
+          gte: now
+        }
+      },
+      include: {
+        treatment_menus: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    })
 
     if (!schedules || schedules.length === 0) {
       console.log('送信予定の通知はありません')
@@ -88,7 +74,8 @@ export async function GET(request: NextRequest) {
 
         // Web予約URLを生成（該当する場合）
         let webBookingUrl = null
-        if (schedule.web_booking_menu_ids && schedule.web_booking_menu_ids.length > 0) {
+        const webBookingMenuIds = schedule.web_booking_menu_ids as any
+        if (webBookingMenuIds && webBookingMenuIds.length > 0) {
           // TODO: Web予約トークンを生成してLIFF URLを作成
           webBookingUrl = `${process.env.NEXT_PUBLIC_APP_URL}/liff/web-booking`
         }
@@ -115,13 +102,13 @@ export async function GET(request: NextRequest) {
 
         if (response.ok) {
           // 送信成功: ステータスを更新
-          await supabase
-            .from('patient_notification_schedules')
-            .update({
+          await prisma.patient_notification_schedules.update({
+            where: { id: schedule.id },
+            data: {
               status: 'sent',
-              sent_at: new Date().toISOString()
-            })
-            .eq('id', schedule.id)
+              sent_at: new Date()
+            }
+          })
 
           successCount++
           console.log(`送信成功: ${schedule.id}`)
@@ -134,13 +121,13 @@ export async function GET(request: NextRequest) {
         console.error(`通知送信エラー (${schedule.id}):`, error)
 
         // 送信失敗: ステータスを更新
-        await supabase
-          .from('patient_notification_schedules')
-          .update({
+        await prisma.patient_notification_schedules.update({
+          where: { id: schedule.id },
+          data: {
             status: 'failed',
             error_message: error.message
-          })
-          .eq('id', schedule.id)
+          }
+        })
 
         errorCount++
       }

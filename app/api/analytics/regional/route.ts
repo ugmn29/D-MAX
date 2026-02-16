@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,46 +15,40 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
     // 地域別患者数と売上を集計
     // 1. ジオコーディングキャッシュから地域情報を取得
-    const { data: geocodeData, error: geocodeError } = await supabase
-      .from('patient_geocode_cache')
-      .select(`
-        patient_id,
-        prefecture,
-        city,
-        district,
-        latitude,
-        longitude,
-        distance_from_clinic
-      `)
-      .eq('clinic_id', clinicId)
-      .eq('geocode_status', 'success')
-
-    if (geocodeError) {
-      return NextResponse.json({ error: geocodeError.message }, { status: 500 })
-    }
+    const geocodeData = await prisma.patient_geocode_cache.findMany({
+      where: {
+        clinic_id: clinicId,
+        geocode_status: 'success',
+      },
+      select: {
+        patient_id: true,
+        prefecture: true,
+        city: true,
+        district: true,
+        latitude: true,
+        longitude: true,
+        distance_from_clinic: true,
+      },
+    })
 
     // 患者IDリストを取得
     const patientIds = geocodeData?.map(g => g.patient_id) || []
 
     if (patientIds.length === 0) {
       // ジオコーディングデータがない場合は、患者テーブルから直接集計
-      const { data: patients, error: patientsError } = await supabase
-        .from('patients')
-        .select(`
-          id,
-          prefecture,
-          city,
-          created_at
-        `)
-        .eq('clinic_id', clinicId)
-
-      if (patientsError) {
-        return NextResponse.json({ error: patientsError.message }, { status: 500 })
-      }
+      const patients = await prisma.patients.findMany({
+        where: { clinic_id: clinicId },
+        select: {
+          id: true,
+          prefecture: true,
+          city: true,
+          created_at: true,
+        },
+      })
 
       // 都道府県・市区町村ごとに集計
       const areaMap = new Map<string, {
@@ -93,7 +84,7 @@ export async function GET(request: NextRequest) {
         area.patientCount++
 
         // 期間内の新規患者かどうか
-        if (startDate && endDate) {
+        if (startDate && endDate && patient.created_at) {
           const createdAt = new Date(patient.created_at)
           const start = new Date(startDate)
           const end = new Date(endDate)
@@ -118,73 +109,94 @@ export async function GET(request: NextRequest) {
     }
 
     // 売上データを取得
-    let revenueQuery = supabase
-      .from('appointments')
-      .select(`
-        patient_id,
-        total_fee
-      `)
-      .eq('clinic_id', clinicId)
-      .in('patient_id', patientIds)
-      .eq('status', 'completed')
-
-    if (startDate) {
-      revenueQuery = revenueQuery.gte('start_time', startDate)
+    // 注: appointmentsテーブルにtotal_feeフィールドは存在しないため、売上は0として処理
+    const revenueWhere: Record<string, unknown> = {
+      clinic_id: clinicId,
+      patient_id: { in: patientIds },
+      status: 'COMPLETED' as const,
     }
-    if (endDate) {
-      revenueQuery = revenueQuery.lte('start_time', endDate)
+    if (startDate || endDate) {
+      const timeFilter: Record<string, unknown> = {}
+      if (startDate) timeFilter.gte = new Date(startDate)
+      if (endDate) timeFilter.lte = new Date(endDate)
+      revenueWhere.start_time = timeFilter
     }
 
-    const { data: revenueData } = await revenueQuery
+    const revenueData = await prisma.appointments.findMany({
+      where: revenueWhere,
+      select: {
+        patient_id: true,
+      },
+    })
 
-    // 患者ごとの売上を集計
+    // 患者ごとの売上を集計（total_feeがないため0として処理）
     const patientRevenueMap = new Map<string, number>()
     for (const appointment of revenueData || []) {
       const current = patientRevenueMap.get(appointment.patient_id) || 0
-      patientRevenueMap.set(appointment.patient_id, current + (appointment.total_fee || 0))
+      patientRevenueMap.set(appointment.patient_id, current + 0)
     }
 
     // 診療メニューデータを取得
-    let treatmentQuery = supabase
-      .from('appointment_menus')
-      .select(`
-        appointment:appointments!inner(patient_id, clinic_id, start_time),
-        menu:menus(name)
-      `)
-      .eq('appointment.clinic_id', clinicId)
-
-    if (startDate) {
-      treatmentQuery = treatmentQuery.gte('appointment.start_time', startDate)
+    // appointment_menusテーブルはPrismaスキーマに存在しないため、
+    // appointmentsのmenu1_id/menu2_id/menu3_idを使って治療メニューを取得
+    const appointmentMenuWhere: Record<string, unknown> = {
+      clinic_id: clinicId,
+      OR: [
+        { menu1_id: { not: null } },
+        { menu2_id: { not: null } },
+        { menu3_id: { not: null } },
+      ],
     }
-    if (endDate) {
-      treatmentQuery = treatmentQuery.lte('appointment.start_time', endDate)
+    if (startDate || endDate) {
+      const timeFilter: Record<string, unknown> = {}
+      if (startDate) timeFilter.gte = new Date(startDate)
+      if (endDate) timeFilter.lte = new Date(endDate)
+      appointmentMenuWhere.start_time = timeFilter
     }
 
-    const { data: treatmentData } = await treatmentQuery
+    const appointmentsWithMenus = await prisma.appointments.findMany({
+      where: appointmentMenuWhere,
+      select: {
+        patient_id: true,
+        treatment_menus_appointments_menu1_idTotreatment_menus: { select: { name: true } },
+        treatment_menus_appointments_menu2_idTotreatment_menus: { select: { name: true } },
+        treatment_menus_appointments_menu3_idTotreatment_menus: { select: { name: true } },
+      },
+    })
 
     // 患者ごとの診療メニューを集計
     const patientTreatmentMap = new Map<string, Map<string, number>>()
-    for (const item of treatmentData || []) {
-      const patientId = (item.appointment as { patient_id: string })?.patient_id
-      const menuName = (item.menu as { name: string })?.name
-      if (!patientId || !menuName) continue
-
+    for (const item of appointmentsWithMenus || []) {
+      const patientId = item.patient_id
       if (!patientTreatmentMap.has(patientId)) {
         patientTreatmentMap.set(patientId, new Map())
       }
       const treatmentCount = patientTreatmentMap.get(patientId)!
-      treatmentCount.set(menuName, (treatmentCount.get(menuName) || 0) + 1)
+      if (item.treatment_menus_appointments_menu1_idTotreatment_menus?.name) {
+        const name = item.treatment_menus_appointments_menu1_idTotreatment_menus.name
+        treatmentCount.set(name, (treatmentCount.get(name) || 0) + 1)
+      }
+      if (item.treatment_menus_appointments_menu2_idTotreatment_menus?.name) {
+        const name = item.treatment_menus_appointments_menu2_idTotreatment_menus.name
+        treatmentCount.set(name, (treatmentCount.get(name) || 0) + 1)
+      }
+      if (item.treatment_menus_appointments_menu3_idTotreatment_menus?.name) {
+        const name = item.treatment_menus_appointments_menu3_idTotreatment_menus.name
+        treatmentCount.set(name, (treatmentCount.get(name) || 0) + 1)
+      }
     }
 
     // 新規患者かどうかを判定するために患者の作成日を取得
-    const { data: patientCreatedDates } = await supabase
-      .from('patients')
-      .select('id, created_at')
-      .in('id', patientIds)
+    const patientCreatedDates = await prisma.patients.findMany({
+      where: { id: { in: patientIds } },
+      select: { id: true, created_at: true },
+    })
 
     const patientCreatedMap = new Map<string, Date>()
     for (const p of patientCreatedDates || []) {
-      patientCreatedMap.set(p.id, new Date(p.created_at))
+      if (p.created_at) {
+        patientCreatedMap.set(p.id, new Date(p.created_at))
+      }
     }
 
     // 地域ごとに集計
@@ -215,8 +227,8 @@ export async function GET(request: NextRequest) {
           totalRevenue: 0,
           avgRevenue: 0,
           topTreatments: [],
-          latitude: geo.latitude,
-          longitude: geo.longitude,
+          latitude: geo.latitude ? Number(geo.latitude) : undefined,
+          longitude: geo.longitude ? Number(geo.longitude) : undefined,
           avgDistance: 0,
         })
       }
@@ -240,7 +252,8 @@ export async function GET(request: NextRequest) {
 
       // 距離の平均を計算
       if (geo.distance_from_clinic) {
-        area.avgDistance = ((area.avgDistance || 0) * (area.patientCount - 1) + geo.distance_from_clinic) / area.patientCount
+        const distNum = Number(geo.distance_from_clinic)
+        area.avgDistance = ((area.avgDistance || 0) * (area.patientCount - 1) + distNum) / area.patientCount
       }
     }
 

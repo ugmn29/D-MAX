@@ -25,9 +25,9 @@ function createPgPool(): Pool {
 
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 10, // 最大接続数
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    max: 15, // 最大接続数
+    idleTimeoutMillis: 60000, // アイドル接続のタイムアウト（60秒）
+    connectionTimeoutMillis: 10000, // 接続タイムアウト（10秒）
   })
 
   if (process.env.NODE_ENV !== 'production') {

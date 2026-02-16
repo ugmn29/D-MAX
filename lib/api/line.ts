@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import {
   LineUserLink,
   LineUserLinkInsert,
@@ -14,69 +14,89 @@ import {
  * LINE User IDで連携を取得
  */
 export async function getLineUserLinks(lineUserId: string, clinicId?: string): Promise<LineUserLink[]> {
-  const client = getSupabaseClient()
-  let query = client
-    .from('line_user_links')
-    .select('*')
-    .eq('line_user_id', lineUserId)
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  if (clinicId) {
-    query = query.eq('clinic_id', clinicId)
-  }
+    const params = new URLSearchParams({ lineUserId })
+    if (clinicId) {
+      params.append('clinicId', clinicId)
+    }
 
-  const { data, error } = await query
-    .order('is_primary', { ascending: false })
-    .order('linked_at', { ascending: true })
+    const response = await fetch(`${baseUrl}/api/line/user-links?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'LINE連携の取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('LINE連携取得エラー:', error)
     throw new Error('LINE連携の取得に失敗しました')
   }
-
-  return data || []
 }
 
 /**
  * 患者IDでLINE連携を取得
  */
 export async function getPatientLineLinks(patientId: string): Promise<LineUserLink[]> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('line_user_links')
-    .select('*')
-    .eq('patient_id', patientId)
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  if (error) {
+    const response = await fetch(`${baseUrl}/api/line/user-links?patientId=${patientId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '患者のLINE連携の取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('患者LINE連携取得エラー:', error)
     throw new Error('患者のLINE連携の取得に失敗しました')
   }
-
-  return data || []
 }
 
 /**
  * プライマリ患者を取得
  */
 export async function getPrimaryPatient(lineUserId: string): Promise<LineUserLink | null> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('line_user_links')
-    .select('*')
-    .eq('line_user_id', lineUserId)
-    .eq('is_primary', true)
-    .single()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // プライマリがない場合、最初に連携した患者を返す
-      const links = await getLineUserLinks(lineUserId)
-      return links.length > 0 ? links[0] : null
+    const response = await fetch(`${baseUrl}/api/line/user-links/primary?lineUserId=${lineUserId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      console.error('プライマリ患者取得エラー')
+      return null
     }
+
+    return await response.json()
+  } catch (error) {
     console.error('プライマリ患者取得エラー:', error)
     return null
   }
-
-  return data
 }
 
 /**
@@ -85,80 +105,28 @@ export async function getPrimaryPatient(lineUserId: string): Promise<LineUserLin
 export async function linkLineUserToPatient(
   request: LineLinkRequest
 ): Promise<LineUserLink> {
-  const client = getSupabaseClient()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  // 患者番号と生年月日で患者を検索
-  const { data: patients, error: searchError } = await client
-    .from('patients')
-    .select('id, name, name_kana, birthdate')
-    .eq('clinic_id', request.clinic_id)
-    .eq('patient_number', request.patient_number)
+    const response = await fetch(`${baseUrl}/api/line/user-links`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(request)
+    })
 
-  if (searchError) {
-    console.error('患者検索エラー:', searchError)
-    throw new Error('患者の検索に失敗しました')
-  }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'LINE連携の作成に失敗しました')
+    }
 
-  if (!patients || patients.length === 0) {
-    throw new Error('該当する患者が見つかりません')
-  }
-
-  // 生年月日の照合（8桁数字で照合）
-  const patient = patients.find(p => {
-    if (!p.birthdate) return false
-    const birthdate = new Date(p.birthdate)
-    const birthdateStr = `${birthdate.getFullYear()}${String(birthdate.getMonth() + 1).padStart(2, '0')}${String(birthdate.getDate()).padStart(2, '0')}`
-    return birthdateStr === request.birthdate
-  })
-
-  if (!patient) {
-    throw new Error('生年月日が一致しません')
-  }
-
-  // 既に連携されているかチェック
-  const { data: existing } = await client
-    .from('line_user_links')
-    .select('*')
-    .eq('line_user_id', request.line_user_id)
-    .eq('patient_id', patient.id)
-    .single()
-
-  if (existing) {
-    throw new Error('既に連携されています')
-  }
-
-  // 現在の連携数を確認
-  const existingLinks = await getLineUserLinks(request.line_user_id)
-  const isPrimary = existingLinks.length === 0 // 最初の連携はプライマリ
-
-  // 連携を作成
-  const linkData: LineUserLinkInsert = {
-    clinic_id: request.clinic_id,
-    line_user_id: request.line_user_id,
-    patient_id: patient.id,
-    relationship: request.relationship || (isPrimary ? 'self' : null),
-    nickname: patient.name,
-    is_primary: isPrimary,
-    linked_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-
-  const { data: link, error: linkError } = await client
-    .from('line_user_links')
-    .insert(linkData)
-    .select()
-    .single()
-
-  if (linkError) {
-    console.error('LINE連携作成エラー:', linkError)
-    throw new Error('LINE連携の作成に失敗しました')
-  }
-
-  // 患者名を追加して返す
-  return {
-    ...link,
-    patient_name: patient.name
+    return await response.json()
+  } catch (error: any) {
+    console.error('LINE連携作成エラー:', error)
+    throw new Error(error.message || 'LINE連携の作成に失敗しました')
   }
 }
 
@@ -169,45 +137,54 @@ export async function switchPatient(
   lineUserId: string,
   patientId: string
 ): Promise<void> {
-  const client = getSupabaseClient()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  // 該当の連携を検索
-  const { data: link, error } = await client
-    .from('line_user_links')
-    .select('*')
-    .eq('line_user_id', lineUserId)
-    .eq('patient_id', patientId)
-    .single()
-
-  if (error || !link) {
-    throw new Error('該当の連携が見つかりません')
-  }
-
-  // last_selected_at を更新
-  await client
-    .from('line_user_links')
-    .update({
-      last_selected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+    const response = await fetch(`${baseUrl}/api/line/user-links/actions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'switch-patient',
+        lineUserId,
+        patientId
+      })
     })
-    .eq('id', link.id)
 
-  // 対話状態のコンテキストを更新
-  await updateConversationContext(lineUserId, { selectedPatientId: patientId })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '患者切り替えに失敗しました')
+    }
+  } catch (error: any) {
+    console.error('患者切り替えエラー:', error)
+    throw new Error(error.message || '患者切り替えに失敗しました')
+  }
 }
 
 /**
  * LINE連携を削除
  */
 export async function unlinkLineUser(lineUserId: string, patientId: string): Promise<void> {
-  const client = getSupabaseClient()
-  const { error } = await client
-    .from('line_user_links')
-    .delete()
-    .eq('line_user_id', lineUserId)
-    .eq('patient_id', patientId)
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  if (error) {
+    const response = await fetch(`${baseUrl}/api/line/user-links?lineUserId=${lineUserId}&patientId=${patientId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'LINE連携の削除に失敗しました')
+    }
+  } catch (error) {
     console.error('LINE連携削除エラー:', error)
     throw new Error('LINE連携の削除に失敗しました')
   }
@@ -221,22 +198,27 @@ export async function unlinkLineUser(lineUserId: string, patientId: string): Pro
  * 対話状態を取得
  */
 export async function getConversationState(lineUserId: string): Promise<LineConversationState | null> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('line_conversation_states')
-    .select('*')
-    .eq('line_user_id', lineUserId)
-    .single()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  if (error) {
-    if (error.code === 'PGRST116') {
+    const response = await fetch(`${baseUrl}/api/line/conversation-states?lineUserId=${lineUserId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
       return null
     }
+
+    return await response.json()
+  } catch (error) {
     console.error('対話状態取得エラー:', error)
     return null
   }
-
-  return data
 }
 
 /**
@@ -246,26 +228,32 @@ export async function upsertConversationState(
   lineUserId: string,
   state: LineConversationStateUpdate
 ): Promise<LineConversationState> {
-  const client = getSupabaseClient()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  const stateData: LineConversationStateInsert = {
-    line_user_id: lineUserId,
-    ...state,
-    updated_at: new Date().toISOString()
-  }
+    const response = await fetch(`${baseUrl}/api/line/conversation-states`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        lineUserId,
+        ...state
+      })
+    })
 
-  const { data, error } = await client
-    .from('line_conversation_states')
-    .upsert(stateData, { onConflict: 'line_user_id' })
-    .select()
-    .single()
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '対話状態の更新に失敗しました')
+    }
 
-  if (error) {
+    return await response.json()
+  } catch (error) {
     console.error('対話状態更新エラー:', error)
     throw new Error('対話状態の更新に失敗しました')
   }
-
-  return data
 }
 
 /**
@@ -325,42 +313,89 @@ export async function updateBlockStatus(
   patientId: string,
   isBlocked: boolean
 ): Promise<void> {
-  const client = getSupabaseClient()
-  await client
-    .from('line_user_links')
-    .update({
-      is_blocked: isBlocked,
-      updated_at: new Date().toISOString()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
+
+    const response = await fetch(`${baseUrl}/api/line/user-links/actions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'update-block-status',
+        lineUserId,
+        patientId,
+        isBlocked
+      })
     })
-    .eq('line_user_id', lineUserId)
-    .eq('patient_id', patientId)
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'ブロック状態の更新に失敗しました')
+    }
+  } catch (error) {
+    console.error('ブロック状態更新エラー:', error)
+    throw error
+  }
 }
 
 /**
  * 最終やり取り日時を更新
  */
 export async function updateLastInteraction(lineUserId: string, patientId: string): Promise<void> {
-  const client = getSupabaseClient()
-  await client
-    .from('line_user_links')
-    .update({
-      last_interaction_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
+
+    const response = await fetch(`${baseUrl}/api/line/user-links/actions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'update-last-interaction',
+        lineUserId,
+        patientId
+      })
     })
-    .eq('line_user_id', lineUserId)
-    .eq('patient_id', patientId)
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '最終やり取り日時の更新に失敗しました')
+    }
+  } catch (error) {
+    console.error('最終やり取り日時更新エラー:', error)
+    throw error
+  }
 }
 
 /**
  * 現在選択中の患者を取得
  */
 export async function getCurrentPatient(lineUserId: string): Promise<string | null> {
-  const state = await getConversationState(lineUserId)
-  if (state?.context?.selectedPatientId) {
-    return state.context.selectedPatientId
-  }
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  // コンテキストにない場合、プライマリ患者を取得
-  const primary = await getPrimaryPatient(lineUserId)
-  return primary?.patient_id || null
+    const response = await fetch(`${baseUrl}/api/line/user-links/current?lineUserId=${lineUserId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const result = await response.json()
+    return result.patientId || null
+  } catch (error) {
+    console.error('現在の患者取得エラー:', error)
+    return null
+  }
 }

@@ -1,17 +1,10 @@
-import { supabase, supabaseAdmin } from '@/lib/utils/supabase-client'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database'
+// Migrated to Prisma API Routes
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 export type MeasurementType = '6point' | '4point' | '1point'
-
-// Supabaseクライアント取得関数
-const createClient = (): SupabaseClient<Database> => {
-  // 開発環境ではsupabaseAdminを使用してRLSをバイパス
-  if (process.env.NODE_ENV === 'development' && supabaseAdmin) {
-    return supabaseAdmin
-  }
-  return supabase
-}
 
 export type ExaminationPhase = 'P_EXAM_1' | 'P_EXAM_2' | 'P_EXAM_3' | 'P_EXAM_4' | 'P_EXAM_5' | 'SPT' | 'OTHER'
 
@@ -94,7 +87,7 @@ export interface UpdatePeriodontalExamInput {
  * 新規歯周検査を作成
  */
 export async function createPeriodontalExam(input: CreatePeriodontalExamInput): Promise<PeriodontalExam> {
-  const response = await fetch('/api/periodontal-exams', {
+  const response = await fetch(`${baseUrl}/api/periodontal-exams`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -114,7 +107,7 @@ export async function createPeriodontalExam(input: CreatePeriodontalExamInput): 
  * 患者の歯周検査履歴を取得
  */
 export async function getPeriodontalExams(patientId: string): Promise<PeriodontalExam[]> {
-  const response = await fetch(`/api/periodontal-exams?patient_id=${patientId}`)
+  const response = await fetch(`${baseUrl}/api/periodontal-exams?patient_id=${patientId}`)
 
   if (!response.ok) {
     const error = await response.json()
@@ -128,7 +121,7 @@ export async function getPeriodontalExams(patientId: string): Promise<Periodonta
  * 特定の歯周検査を取得（歯ごとのデータを含む）
  */
 export async function getPeriodontalExam(examId: string): Promise<PeriodontalExam> {
-  const response = await fetch(`/api/periodontal-exams/${examId}`)
+  const response = await fetch(`${baseUrl}/api/periodontal-exams/${examId}`)
 
   if (!response.ok) {
     const error = await response.json()
@@ -145,7 +138,7 @@ export async function updatePeriodontalExam(
   examId: string,
   input: UpdatePeriodontalExamInput
 ): Promise<PeriodontalExam> {
-  const response = await fetch(`/api/periodontal-exams/${examId}`, {
+  const response = await fetch(`${baseUrl}/api/periodontal-exams/${examId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -165,7 +158,7 @@ export async function updatePeriodontalExam(
  * 歯周検査を削除
  */
 export async function deletePeriodontalExam(examId: string): Promise<void> {
-  const response = await fetch(`/api/periodontal-exams/${examId}`, {
+  const response = await fetch(`${baseUrl}/api/periodontal-exams/${examId}`, {
     method: 'DELETE',
   })
 
@@ -179,38 +172,12 @@ export async function deletePeriodontalExam(examId: string): Promise<void> {
  * 患者の最新の歯周検査を取得（前回値コピー用）
  */
 export async function getLatestPeriodontalExam(patientId: string): Promise<PeriodontalExam | null> {
-  const supabase = createClient()
+  const response = await fetch(`${baseUrl}/api/periodontal-exams/latest?patient_id=${encodeURIComponent(patientId)}`)
 
-  // 最新の検査レコードを取得
-  const { data: exam, error: examError } = await supabase
-    .from('periodontal_examinations')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('examination_date', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (examError) {
-    if (examError.code === 'PGRST116') {
-      // データが見つからない場合
-      return null
-    }
-    throw new Error(`Failed to fetch latest periodontal examination: ${examError.message}`)
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch latest periodontal examination')
   }
 
-  // 歯ごとのデータを取得
-  const { data: toothData, error: toothError } = await supabase
-    .from('periodontal_tooth_data')
-    .select('*')
-    .eq('examination_id', exam.id)
-    .order('tooth_number')
-
-  if (toothError) {
-    throw new Error(`Failed to fetch tooth data: ${toothError.message}`)
-  }
-
-  return {
-    ...exam,
-    tooth_data: toothData || [],
-  }
+  return response.json()
 }

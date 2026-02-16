@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/providers/auth-provider'
 import { Button } from '@/components/ui/button'
@@ -19,9 +19,14 @@ function LoginForm() {
   const searchParams = useSearchParams()
 
   // 既にログイン済みの場合はリダイレクト
+  useEffect(() => {
+    if (clinicId) {
+      const redirect = searchParams.get('redirect') || '/'
+      router.push(redirect)
+    }
+  }, [clinicId, router, searchParams])
+
   if (clinicId) {
-    const redirect = searchParams.get('redirect') || '/'
-    router.push(redirect)
     return null
   }
 

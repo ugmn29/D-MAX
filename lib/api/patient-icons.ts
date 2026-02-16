@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 
 export interface PatientIcons {
   id: string
@@ -9,6 +9,10 @@ export interface PatientIcons {
   updated_at: string
 }
 
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
 /**
  * 患者の特記事項アイコンを取得
  */
@@ -16,34 +20,34 @@ export async function getPatientIcons(
   patientId: string,
   clinicId: string
 ): Promise<PatientIcons | null> {
-  const supabase = getSupabaseClient()
+  try {
+    const params = new URLSearchParams({
+      patient_id: patientId,
+      clinic_id: clinicId
+    })
 
-  const { data, error } = await supabase
-    .from('patient_icons')
-    .select('*')
-    .eq('patient_id', patientId)
-    .eq('clinic_id', clinicId)
-    .single()
+    const response = await fetch(`${baseUrl}/api/patient-icons?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
-    if (error.code === 'PGRST116') {
+    if (response.status === 404) {
       // レコードが存在しない場合はnullを返す
       return null
     }
-    // テーブルが見つからない場合もnullを返す（マイグレーション前の互換性）
-    if (error.code === 'PGRST205' || error.code === '42P01') {
-      console.warn('patient_iconsテーブルが存在しません。マイグレーションを実行してください。')
+
+    if (!response.ok) {
+      console.warn('患者アイコンの取得時に予期しないエラーが発生しました')
       return null
     }
-    // その他のエラーもログ出力してnullを返す（エラーをthrowしない）
-    console.warn('患者アイコンの取得時に予期しないエラーが発生しました:', {
-      code: error.code,
-      message: error.message
-    })
+
+    return await response.json()
+  } catch (error) {
+    console.warn('患者アイコンの取得時にエラーが発生しました:', error)
     return null
   }
-
-  return data
 }
 
 /**
@@ -54,35 +58,29 @@ export async function upsertPatientIcons(
   clinicId: string,
   iconIds: string[]
 ): Promise<PatientIcons> {
-  const supabase = getSupabaseClient()
-
-  const { data, error } = await supabase
-    .from('patient_icons')
-    .upsert(
-      {
+  try {
+    const response = await fetch(`${baseUrl}/api/patient-icons`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         patient_id: patientId,
         clinic_id: clinicId,
-        icon_ids: iconIds,
-        updated_at: new Date().toISOString()
-      },
-      {
-        onConflict: 'patient_id,clinic_id'
-      }
-    )
-    .select()
-    .single()
+        icon_ids: iconIds
+      })
+    })
 
-  if (error) {
-    // テーブルが見つからない場合
-    if (error.code === 'PGRST205' || error.code === '42P01') {
-      console.warn('patient_iconsテーブルが存在しません。マイグレーションを実行してください。')
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '患者アイコンの保存に失敗しました')
     }
+
+    return await response.json()
+  } catch (error) {
     console.error('患者アイコンの保存エラー:', error)
     throw error
   }
-
-  return data
 }
 
 /**
@@ -92,15 +90,24 @@ export async function deletePatientIcons(
   patientId: string,
   clinicId: string
 ): Promise<void> {
-  const supabase = getSupabaseClient()
+  try {
+    const params = new URLSearchParams({
+      patient_id: patientId,
+      clinic_id: clinicId
+    })
 
-  const { error } = await supabase
-    .from('patient_icons')
-    .delete()
-    .eq('patient_id', patientId)
-    .eq('clinic_id', clinicId)
+    const response = await fetch(`${baseUrl}/api/patient-icons?${params.toString()}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '患者アイコンの削除に失敗しました')
+    }
+  } catch (error) {
     console.error('患者アイコンの削除エラー:', error)
     throw error
   }

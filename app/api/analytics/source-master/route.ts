@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 // GET: 流入元マスタを取得
 export async function GET(request: NextRequest) {
@@ -17,27 +15,28 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
-    const { data, error } = await supabase
-      .from('acquisition_source_master')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
+    const data = await prisma.acquisition_source_master.findMany({
+      where: {
+        clinic_id: clinicId,
+        is_active: true,
+      },
+      orderBy: { sort_order: 'asc' },
+    })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const serialized = data.map(item =>
+      convertDatesToStrings(item, ['created_at', 'updated_at'])
+    )
 
     // カテゴリ別にグループ化
     const grouped = {
-      online: data?.filter(s => s.category === 'online') || [],
-      offline: data?.filter(s => s.category === 'offline') || [],
-      referral: data?.filter(s => s.category === 'referral') || [],
+      online: serialized.filter(s => s.category === 'online'),
+      offline: serialized.filter(s => s.category === 'offline'),
+      referral: serialized.filter(s => s.category === 'referral'),
     }
 
-    return NextResponse.json({ data, grouped })
+    return NextResponse.json({ data: serialized, grouped })
   } catch (error) {
     console.error('Get acquisition sources error:', error)
     return NextResponse.json(
@@ -68,11 +67,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
-    const { data, error } = await supabase
-      .from('acquisition_source_master')
-      .insert({
+    const data = await prisma.acquisition_source_master.create({
+      data: {
         clinic_id,
         normalized_name,
         display_name,
@@ -80,15 +78,12 @@ export async function POST(request: NextRequest) {
         utm_source_patterns: utm_source_patterns || [],
         questionnaire_patterns: questionnaire_patterns || [],
         sort_order: sort_order || 0,
-      })
-      .select()
-      .single()
+      },
+    })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const serialized = convertDatesToStrings(data, ['created_at', 'updated_at'])
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: serialized })
   } catch (error) {
     console.error('Add acquisition source error:', error)
     return NextResponse.json(
@@ -120,9 +115,9 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
-    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    const updateData: Record<string, unknown> = { updated_at: new Date() }
     if (normalized_name !== undefined) updateData.normalized_name = normalized_name
     if (display_name !== undefined) updateData.display_name = display_name
     if (category !== undefined) updateData.category = category
@@ -131,18 +126,14 @@ export async function PUT(request: NextRequest) {
     if (sort_order !== undefined) updateData.sort_order = sort_order
     if (is_active !== undefined) updateData.is_active = is_active
 
-    const { data, error } = await supabase
-      .from('acquisition_source_master')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
+    const data = await prisma.acquisition_source_master.update({
+      where: { id },
+      data: updateData,
+    })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const serialized = convertDatesToStrings(data, ['created_at', 'updated_at'])
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: serialized })
   } catch (error) {
     console.error('Update acquisition source error:', error)
     return NextResponse.json(
@@ -165,17 +156,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
     // 論理削除
-    const { error } = await supabase
-      .from('acquisition_source_master')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id)
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    await prisma.acquisition_source_master.update({
+      where: { id },
+      data: { is_active: false, updated_at: new Date() },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

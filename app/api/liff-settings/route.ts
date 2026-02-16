@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 // メモリキャッシュ（5分間有効）
 let cachedLiffIds: any = null
@@ -27,31 +27,24 @@ export async function GET(request: NextRequest) {
     // デフォルトのclinic_id
     const clinicId = '11111111-1111-1111-1111-111111111111'
 
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     // 1回のクエリで両方の設定を取得（最適化）
-    const { data: settings, error } = await supabaseAdmin
-      .from('clinic_settings')
-      .select('setting_key, setting_value')
-      .eq('clinic_id', clinicId)
-      .in('setting_key', ['line', 'notification_settings'])
-
-    if (error) {
-      console.error('LIFF設定取得エラー:', error)
-    }
+    const settings = await prisma.clinic_settings.findMany({
+      where: {
+        clinic_id: clinicId,
+        setting_key: { in: ['line', 'notification_settings'] }
+      },
+      select: { setting_key: true, setting_value: true }
+    })
 
     // 設定を分類
     const lineSettings = settings?.find(s => s.setting_key === 'line')
     const notificationSettings = settings?.find(s => s.setting_key === 'notification_settings')
 
     // line設定 または notification_settings.line からLIFF IDを取得
-    const lineConfig = lineSettings?.setting_value || {}
-    const notifLineConfig = notificationSettings?.setting_value?.line || {}
+    const lineConfig = (lineSettings?.setting_value as any) || {}
+    const notifLineConfig = (notificationSettings?.setting_value as any)?.line || {}
 
     // 優先順位: line設定 > notification_settings.line
     const liffIds = {

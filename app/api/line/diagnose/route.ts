@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { jsonToObject } from '@/lib/prisma-helpers'
 
 /**
  * GET /api/line/diagnose
@@ -7,17 +8,13 @@ import { supabaseAdmin } from '@/lib/supabase'
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase Admin not initialized' }, { status: 500 })
-    }
+    const prisma = getPrismaClient()
 
     // クリニックID取得
-    const { data: clinics } = await supabase
-      .from('clinics')
-      .select('id, name')
-      .limit(1)
+    const clinics = await prisma.clinics.findMany({
+      select: { id: true, name: true },
+      take: 1
+    })
 
     if (!clinics || clinics.length === 0) {
       return NextResponse.json({ error: 'No clinic found' }, { status: 404 })
@@ -26,47 +23,64 @@ export async function GET(request: NextRequest) {
     const clinicId = clinics[0].id
 
     // LINE基本設定
-    const { data: lineSettings } = await supabase
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinicId)
-      .eq('setting_key', 'line')
-      .maybeSingle()
+    const lineSettings = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id: clinicId,
+        setting_key: 'line',
+      },
+      select: { setting_value: true }
+    })
 
-    const channelAccessToken = lineSettings?.setting_value?.channel_access_token
+    const lineValue = jsonToObject<any>(lineSettings?.setting_value)
+    const channelAccessToken = lineValue?.channel_access_token
     const isTestToken = channelAccessToken && channelAccessToken.startsWith('test-')
 
     // リッチメニューID設定
-    const { data: richMenuSettings } = await supabase
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinicId)
-      .eq('setting_key', 'line_rich_menu')
-      .maybeSingle()
+    const richMenuSettings = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id: clinicId,
+        setting_key: 'line_rich_menu',
+      },
+      select: { setting_value: true }
+    })
 
-    const registeredMenuId = richMenuSettings?.setting_value?.line_registered_rich_menu_id
-    const unregisteredMenuId = richMenuSettings?.setting_value?.line_unregistered_rich_menu_id
+    const richMenuValue = jsonToObject<any>(richMenuSettings?.setting_value)
+    const registeredMenuId = richMenuValue?.line_registered_rich_menu_id
+    const unregisteredMenuId = richMenuValue?.line_unregistered_rich_menu_id
 
     // 患者データ（最新10件）
-    const { data: patients } = await supabase
-      .from('patients')
-      .select('id, patient_number, last_name, first_name, line_patient_id, updated_at')
-      .eq('clinic_id', clinicId)
-      .order('updated_at', { ascending: false })
-      .limit(10)
+    const patients = await prisma.patients.findMany({
+      where: { clinic_id: clinicId },
+      select: {
+        id: true,
+        patient_number: true,
+        last_name: true,
+        first_name: true,
+        updated_at: true,
+      },
+      orderBy: { updated_at: 'desc' },
+      take: 10
+    })
 
-    const linkedPatients = patients?.filter(p => p.line_patient_id) || []
+    // line_patient_id は patients テーブルに存在しないため、
+    // line_user_links テーブルから連携済み患者を取得
+    const linkedPatientIds = await prisma.line_patient_linkages.findMany({
+      where: { clinic_id: clinicId },
+      select: { patient_id: true }
+    })
+    const linkedPatientIdSet = new Set(linkedPatientIds.map(l => l.patient_id))
+    const linkedPatients = patients.filter(p => linkedPatientIdSet.has(p.id))
 
     // 連携履歴
-    const { data: linkages } = await supabase
-      .from('line_patient_linkages')
-      .select('id, line_user_id, patient_id, created_at')
-      .eq('clinic_id', clinicId)
-      .order('created_at', { ascending: false })
-      .limit(5)
+    const linkages = await prisma.line_patient_linkages.findMany({
+      where: { clinic_id: clinicId },
+      select: { id: true, line_user_id: true, patient_id: true, created_at: true },
+      orderBy: { created_at: 'desc' },
+      take: 5
+    })
 
     // 診断結果
-    const diagnosis = {
+    const diagnosis: any = {
       clinic: {
         id: clinicId,
         name: clinics[0].name
@@ -83,23 +97,22 @@ export async function GET(request: NextRequest) {
         unregisteredMenuId
       },
       patients: {
-        total: patients?.length || 0,
+        total: patients.length,
         linkedCount: linkedPatients.length,
         recent: linkedPatients.slice(0, 3).map(p => ({
           name: `${p.last_name || ''} ${p.first_name || ''}`.trim(),
           patientNumber: p.patient_number,
-          lineUserId: p.line_patient_id?.substring(0, 30) + '...',
-          updatedAt: p.updated_at
+          updatedAt: p.updated_at?.toISOString() || null
         }))
       },
       linkageHistory: {
-        count: linkages?.length || 0,
-        recent: linkages?.slice(0, 3).map(l => ({
+        count: linkages.length,
+        recent: linkages.slice(0, 3).map(l => ({
           lineUserId: l.line_user_id,  // 完全なIDを返す
-          createdAt: l.created_at
-        })) || []
+          createdAt: l.created_at?.toISOString() || null
+        }))
       },
-      issues: []
+      issues: [] as any[]
     }
 
     // 問題の特定
@@ -122,7 +135,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    if (linkedPatients.length > 0 && (!linkages || linkages.length === 0)) {
+    if (linkedPatients.length > 0 && linkages.length === 0) {
       diagnosis.issues.push({
         severity: 'warning',
         message: 'LINE連携済み患者がいますが、連携履歴テーブルに記録がありません。リッチメニュー切り替え処理が実行されていない可能性があります。'

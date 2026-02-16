@@ -402,7 +402,12 @@ export function AppointmentLogsTab({ patientId }: AppointmentLogsTabProps) {
                           <div className="flex items-center gap-2">
                             <CalendarDays className="w-5 h-5" />
                             <span>
-                              {formatDateTime(log.appointment.start_time)} - {formatTime(log.appointment.end_time)}
+                              {log.appointment.appointment_date
+                                ? format(new Date(log.appointment.appointment_date + 'T00:00:00'), 'yyyy年MM月dd日(E)', { locale: ja })
+                                : ''
+                              }
+                              {' '}
+                              {log.appointment.start_time} - {log.appointment.end_time}
                             </span>
                           </div>
                           <Badge variant="outline" className="text-sm">

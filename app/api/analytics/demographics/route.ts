@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { getPrismaClient } from '@/lib/prisma-client'
 
 // 年齢を計算
-function calculateAge(birthDate: string | null): number | null {
+function calculateAge(birthDate: Date | null): number | null {
   if (!birthDate) return null
   const birth = new Date(birthDate)
   const today = new Date()
@@ -54,31 +51,27 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
     // 患者データを取得
-    const { data: patients, error: patientsError } = await supabase
-      .from('patients')
-      .select(`
-        id,
-        gender,
-        birth_date,
-        created_at
-      `)
-      .eq('clinic_id', clinicId)
-
-    if (patientsError) {
-      return NextResponse.json({ error: patientsError.message }, { status: 500 })
-    }
+    const patients = await prisma.patients.findMany({
+      where: { clinic_id: clinicId },
+      select: {
+        id: true,
+        gender: true,
+        birth_date: true,
+        created_at: true,
+      },
+    })
 
     // 流入元データを取得
-    const { data: acquisitionData } = await supabase
-      .from('patient_acquisition_sources')
-      .select(`
-        patient_id,
-        final_source
-      `)
-      .eq('clinic_id', clinicId)
+    const acquisitionData = await prisma.patient_acquisition_sources.findMany({
+      where: { clinic_id: clinicId },
+      select: {
+        patient_id: true,
+        final_source: true,
+      },
+    })
 
     const patientSourceMap = new Map<string, string>()
     for (const acq of acquisitionData || []) {
@@ -86,60 +79,78 @@ export async function GET(request: NextRequest) {
     }
 
     // 売上データを取得
-    let revenueQuery = supabase
-      .from('appointments')
-      .select(`
-        patient_id,
-        total_fee
-      `)
-      .eq('clinic_id', clinicId)
-      .eq('status', 'completed')
-
-    if (startDate) {
-      revenueQuery = revenueQuery.gte('start_time', startDate)
+    // 注: appointmentsテーブルにtotal_feeフィールドは存在しないため、
+    // 売上関連のロジックは0値で処理されます
+    const revenueWhere: Record<string, unknown> = {
+      clinic_id: clinicId,
+      status: 'COMPLETED' as const,
     }
-    if (endDate) {
-      revenueQuery = revenueQuery.lte('start_time', endDate)
+    if (startDate || endDate) {
+      const timeFilter: Record<string, unknown> = {}
+      if (startDate) timeFilter.gte = new Date(startDate)
+      if (endDate) timeFilter.lte = new Date(endDate)
+      revenueWhere.start_time = timeFilter
     }
 
-    const { data: revenueData } = await revenueQuery
+    const revenueData = await prisma.appointments.findMany({
+      where: revenueWhere,
+      select: {
+        patient_id: true,
+      },
+    })
 
-    // 患者ごとの売上を集計
+    // 患者ごとの売上を集計（total_feeがないため0として処理）
     const patientRevenueMap = new Map<string, number>()
     for (const appointment of revenueData || []) {
       const current = patientRevenueMap.get(appointment.patient_id) || 0
-      patientRevenueMap.set(appointment.patient_id, current + (appointment.total_fee || 0))
+      patientRevenueMap.set(appointment.patient_id, current + 0)
     }
 
     // 診療メニューデータを取得
-    let treatmentQuery = supabase
-      .from('appointment_menus')
-      .select(`
-        appointment:appointments!inner(patient_id, clinic_id, start_time),
-        menu:menus(name)
-      `)
-      .eq('appointment.clinic_id', clinicId)
-
-    if (startDate) {
-      treatmentQuery = treatmentQuery.gte('appointment.start_time', startDate)
+    // appointment_menusテーブルはPrismaスキーマに存在しないため、
+    // appointmentsのmenu1_id/menu2_id/menu3_idを使って治療メニューを取得
+    const appointmentMenuWhere: Record<string, unknown> = {
+      clinic_id: clinicId,
+      OR: [
+        { menu1_id: { not: null } },
+        { menu2_id: { not: null } },
+        { menu3_id: { not: null } },
+      ],
     }
-    if (endDate) {
-      treatmentQuery = treatmentQuery.lte('appointment.start_time', endDate)
+    if (startDate || endDate) {
+      const timeFilter: Record<string, unknown> = {}
+      if (startDate) timeFilter.gte = new Date(startDate)
+      if (endDate) timeFilter.lte = new Date(endDate)
+      appointmentMenuWhere.start_time = timeFilter
     }
 
-    const { data: treatmentData } = await treatmentQuery
+    const appointmentsWithMenus = await prisma.appointments.findMany({
+      where: appointmentMenuWhere,
+      select: {
+        patient_id: true,
+        treatment_menus_appointments_menu1_idTotreatment_menus: { select: { name: true } },
+        treatment_menus_appointments_menu2_idTotreatment_menus: { select: { name: true } },
+        treatment_menus_appointments_menu3_idTotreatment_menus: { select: { name: true } },
+      },
+    })
 
     // 患者ごとの診療メニューを集計
     const patientTreatmentMap = new Map<string, string[]>()
-    for (const item of treatmentData || []) {
-      const patientId = (item.appointment as { patient_id: string })?.patient_id
-      const menuName = (item.menu as { name: string })?.name
-      if (!patientId || !menuName) continue
-
+    for (const item of appointmentsWithMenus || []) {
+      const patientId = item.patient_id
       if (!patientTreatmentMap.has(patientId)) {
         patientTreatmentMap.set(patientId, [])
       }
-      patientTreatmentMap.get(patientId)!.push(menuName)
+      const treatments = patientTreatmentMap.get(patientId)!
+      if (item.treatment_menus_appointments_menu1_idTotreatment_menus?.name) {
+        treatments.push(item.treatment_menus_appointments_menu1_idTotreatment_menus.name)
+      }
+      if (item.treatment_menus_appointments_menu2_idTotreatment_menus?.name) {
+        treatments.push(item.treatment_menus_appointments_menu2_idTotreatment_menus.name)
+      }
+      if (item.treatment_menus_appointments_menu3_idTotreatment_menus?.name) {
+        treatments.push(item.treatment_menus_appointments_menu3_idTotreatment_menus.name)
+      }
     }
 
     // 年齢・性別分布を集計
@@ -161,10 +172,10 @@ export async function GET(request: NextRequest) {
 
       if (ageGenderMap.has(ageGroup)) {
         const counts = ageGenderMap.get(ageGroup)!
-        if (gender === 'male' || gender === '男性') {
+        if (gender === 'male') {
           counts.male++
           totalMale++
-        } else if (gender === 'female' || gender === '女性') {
+        } else if (gender === 'female') {
           counts.female++
           totalFemale++
         }
@@ -213,7 +224,6 @@ export async function GET(request: NextRequest) {
 
     // 年齢層別の売上と人気診療
     const ageRevenueMap = new Map<string, { totalRevenue: number; count: number; treatments: Map<string, number> }>()
-    const simpleAgeGroups = ['20代', '30代', '40代', '50代', '60代以上']
 
     for (const patient of patients || []) {
       const age = calculateAge(patient.birth_date)

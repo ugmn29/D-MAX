@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { data, error } = await supabase
-      .from('clinics')
-      .select('id, name, slug')
-      .eq('id', params.id)
-      .single()
+    const { id } = await params
+    const prisma = getPrismaClient()
 
-    if (error) throw error
+    const data = await prisma.clinics.findUnique({
+      where: { id }
+    })
 
     if (!data) {
       return NextResponse.json(
@@ -21,7 +21,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(convertDatesToStrings(data, ['created_at', 'updated_at']))
   } catch (error: any) {
     console.error('クリニック取得エラー:', error)
     return NextResponse.json(
@@ -33,9 +33,11 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+    const prisma = getPrismaClient()
     const body = await request.json()
     const { slug } = body
 
@@ -46,7 +48,6 @@ export async function PATCH(
       )
     }
 
-    // スラッグのバリデーション（英数字とハイフンのみ）
     if (!/^[a-z0-9-]+$/.test(slug)) {
       return NextResponse.json(
         { error: 'URLスラッグは英小文字、数字、ハイフンのみ使用できます' },
@@ -55,12 +56,13 @@ export async function PATCH(
     }
 
     // 重複チェック
-    const { data: existing } = await supabase
-      .from('clinics')
-      .select('id')
-      .eq('slug', slug)
-      .neq('id', params.id)
-      .single()
+    const existing = await prisma.clinics.findFirst({
+      where: {
+        slug,
+        id: { not: id }
+      },
+      select: { id: true }
+    })
 
     if (existing) {
       return NextResponse.json(
@@ -69,21 +71,44 @@ export async function PATCH(
       )
     }
 
-    // スラッグを更新
-    const { data, error } = await supabase
-      .from('clinics')
-      .update({ slug })
-      .eq('id', params.id)
-      .select('id, name, slug')
-      .single()
-
-    if (error) throw error
+    const data = await prisma.clinics.update({
+      where: { id },
+      data: { slug },
+      select: { id: true, name: true, slug: true }
+    })
 
     return NextResponse.json(data)
   } catch (error: any) {
     console.error('クリニック更新エラー:', error)
     return NextResponse.json(
       { error: error.message || 'クリニック情報の更新に失敗しました' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const prisma = getPrismaClient()
+    const body = await request.json()
+
+    const data = await prisma.clinics.update({
+      where: { id },
+      data: {
+        ...body,
+        updated_at: new Date()
+      }
+    })
+
+    return NextResponse.json(convertDatesToStrings(data, ['created_at', 'updated_at']))
+  } catch (error: any) {
+    console.error('クリニック設定更新エラー:', error)
+    return NextResponse.json(
+      { error: error.message || '設定の更新に失敗しました' },
       { status: 500 }
     )
   }

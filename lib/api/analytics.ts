@@ -1,8 +1,11 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import { getAppointments } from '@/lib/api/appointments'
 import { getPatients } from '@/lib/api/patients'
 import { getStaff } from '@/lib/api/staff'
-import { MOCK_MODE } from '@/lib/utils/mock-mode'
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 // 分析データの型定義
 export interface KPIData {
@@ -43,29 +46,28 @@ export interface StaffProductivityData {
   appointment_count: number
   sales_per_hour: number
   average_sales_per_appointment: number
-  // 新規フィールド
-  available_slots: number // 利用可能な時間枠数
-  booked_slots: number // 予約済み時間枠数
-  fill_rate: number // 埋め率（%）
-  treatment_breakdown: { // 治療内容別集計
+  available_slots: number
+  booked_slots: number
+  fill_rate: number
+  treatment_breakdown: {
     menu_id: string
     menu_name: string
     count: number
   }[]
-  daily_trends: { // 日別売上推移
+  daily_trends: {
     date: string
     sales: number
     appointment_count: number
   }[]
-  time_slot_stats: { // 時間帯別統計
+  time_slot_stats: {
     hour: number
     appointment_count: number
   }[]
-  day_of_week_stats: { // 曜日別統計
-    day_of_week: number // 0=日曜, 1=月曜, ...
+  day_of_week_stats: {
+    day_of_week: number
     appointment_count: number
   }[]
-  is_active: boolean // アクティブ状態
+  is_active: boolean
 }
 
 export interface TimeSlotAnalysisData {
@@ -171,6 +173,55 @@ export interface ComparisonData {
 
 export type PeriodType = 'daily' | 'weekly' | 'monthly'
 export type ComparisonType = 'previous' | 'same_period_last_year' | 'none'
+
+// --- API Route fetch helpers ---
+
+async function fetchTreatmentMenus(clinicId: string, activeOnly: boolean = false): Promise<any[]> {
+  const params = new URLSearchParams({ clinic_id: clinicId })
+  if (activeOnly) params.set('active_only', 'true')
+
+  const response = await fetch(`${baseUrl}/api/analytics/treatment-menus?${params}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || '診療メニューの取得に失敗しました')
+  }
+
+  return await response.json()
+}
+
+async function fetchCancelReasons(clinicId: string): Promise<any[]> {
+  const response = await fetch(`${baseUrl}/api/analytics/cancel-reasons?clinic_id=${clinicId}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || 'キャンセル理由の取得に失敗しました')
+  }
+
+  return await response.json()
+}
+
+async function fetchClinicSettings(clinicId: string): Promise<{ id: string; time_slot_minutes: number }> {
+  const response = await fetch(`${baseUrl}/api/analytics/clinic-settings?clinic_id=${clinicId}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || 'クリニック設定の取得に失敗しました')
+  }
+
+  return await response.json()
+}
+
+// --- Main analytics functions ---
 
 // 基本分析データを取得
 export async function getAnalyticsData(
@@ -426,19 +477,19 @@ async function getKPIData(
 ): Promise<KPIData> {
   // 現在期間の予約データを取得
   const currentAppointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // 前期間の予約データを取得
   const previousAppointments = await getAppointments(clinicId, prevStartDate, prevEndDate)
-  
+
   // 患者データを取得
   const allPatients = await getPatients(clinicId)
 
   // 現在期間の計算
   const totalAppointments = currentAppointments.length
-  const completedAppointments = currentAppointments.filter(apt => 
+  const completedAppointments = currentAppointments.filter(apt =>
     ['来院済み', '診療中', '会計', '終了'].includes(apt.status)
   ).length
-  const cancelledAppointments = currentAppointments.filter(apt => 
+  const cancelledAppointments = currentAppointments.filter(apt =>
     apt.status === 'キャンセル'
   ).length
 
@@ -454,7 +505,7 @@ async function getKPIData(
   }).length
 
   // 本登録患者数を計算
-  const registeredPatients = allPatients.filter(patient => 
+  const registeredPatients = allPatients.filter(patient =>
     patient.is_registered && currentPatientIds.has(patient.id)
   ).length
 
@@ -464,20 +515,20 @@ async function getKPIData(
   const prevTotalPatients = prevPatientIds.size
 
   // 売上データは現在モック（実際の売上データがないため）
-  const totalSales = completedAppointments * 35000 // 仮の平均売上
-  const insuranceSales = Math.floor(totalSales * 0.67) // 67%が保険診療
+  const totalSales = completedAppointments * 35000
+  const insuranceSales = Math.floor(totalSales * 0.67)
   const selfPaySales = totalSales - insuranceSales
-  const prevTotalSales = prevTotalAppointments * 35000 // 前期間の仮売上
+  const prevTotalSales = prevTotalAppointments * 35000
 
   // 変化率の計算
-  const salesChangePercentage = prevTotalSales > 0 
-    ? ((totalSales - prevTotalSales) / prevTotalSales) * 100 
+  const salesChangePercentage = prevTotalSales > 0
+    ? ((totalSales - prevTotalSales) / prevTotalSales) * 100
     : 0
-  const patientsChangePercentage = prevTotalPatients > 0 
-    ? ((totalPatients - prevTotalPatients) / prevTotalPatients) * 100 
+  const patientsChangePercentage = prevTotalPatients > 0
+    ? ((totalPatients - prevTotalPatients) / prevTotalPatients) * 100
     : 0
-  const appointmentsChangePercentage = prevTotalAppointments > 0 
-    ? ((totalAppointments - prevTotalAppointments) / prevTotalAppointments) * 100 
+  const appointmentsChangePercentage = prevTotalAppointments > 0
+    ? ((totalAppointments - prevTotalAppointments) / prevTotalAppointments) * 100
     : 0
 
   return {
@@ -504,10 +555,10 @@ async function getSalesTrendData(
 ): Promise<SalesTrendData[]> {
   // 実際の予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // 日付ごとにグループ化
   const dailyData = new Map<string, any[]>()
-  
+
   appointments.forEach(apt => {
     const dateStr = apt.appointment_date
     if (!dailyData.has(dateStr)) {
@@ -524,14 +575,14 @@ async function getSalesTrendData(
   while (currentDate <= endDateObj) {
     const dateStr = currentDate.toISOString().split('T')[0]
     const dayAppointments = dailyData.get(dateStr) || []
-    
+
     // 完了した予約のみをカウント
-    const completedAppointments = dayAppointments.filter(apt => 
+    const completedAppointments = dayAppointments.filter(apt =>
       ['来院済み', '診療中', '会計', '終了'].includes(apt.status)
     )
-    
+
     const appointmentCount = completedAppointments.length
-    const totalSales = appointmentCount * 35000 // 仮の平均売上
+    const totalSales = appointmentCount * 35000
     const insuranceSales = Math.floor(totalSales * 0.67)
     const selfPaySales = totalSales - insuranceSales
 
@@ -555,33 +606,28 @@ async function getTreatmentSalesData(
   startDate: string,
   endDate: string
 ): Promise<TreatmentSalesData[]> {
-  const client = getSupabaseClient()
-  
-  // 診療メニューを取得
-  const { data: menus, error: menusError } = await client
-    .from('treatment_menus')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('sort_order')
-
-  if (menusError) {
-    console.error('診療メニュー取得エラー:', menusError)
+  // 診療メニューをAPI Routeから取得
+  let menus: any[] = []
+  try {
+    menus = await fetchTreatmentMenus(clinicId)
+  } catch (error) {
+    console.error('診療メニュー取得エラー:', error)
     return []
   }
 
   // 実際の予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // 完了した予約のみを対象
-  const completedAppointments = appointments.filter(apt => 
+  const completedAppointments = appointments.filter(apt =>
     ['来院済み', '診療中', '会計', '終了'].includes(apt.status)
   )
 
   // 診療メニュー別に集計
   const menuStats = new Map<string, { count: number, name: string }>()
-  
+
   // 各メニューの初期化
-  menus?.forEach(menu => {
+  menus.forEach(menu => {
     menuStats.set(menu.id, { count: 0, name: menu.name })
   })
 
@@ -601,12 +647,12 @@ async function getTreatmentSalesData(
   // 結果を配列に変換
   const totalAppointments = completedAppointments.length
   const result: TreatmentSalesData[] = []
-  
+
   menuStats.forEach((stats, menuId) => {
     if (stats.count > 0) {
-      const totalSales = stats.count * 35000 // 仮の平均売上
+      const totalSales = stats.count * 35000
       const percentage = totalAppointments > 0 ? (stats.count / totalAppointments) * 100 : 0
-      
+
       result.push({
         treatment_name: stats.name,
         total_sales: totalSales,
@@ -628,8 +674,6 @@ async function getStaffProductivityData(
   startDate: string,
   endDate: string
 ): Promise<StaffProductivityData[]> {
-  const client = getSupabaseClient()
-
   // スタッフ情報を取得（設定ページと同じAPI使用）
   const staff = await getStaff(clinicId)
 
@@ -638,14 +682,14 @@ async function getStaffProductivityData(
     return []
   }
 
-  // クリニック設定を取得（時間枠設定）
-  const { data: clinic } = await client
-    .from('clinics')
-    .select('time_slot_minutes')
-    .eq('id', clinicId)
-    .single()
-
-  const timeSlotMinutes = clinic?.time_slot_minutes || 15
+  // クリニック設定をAPI Routeから取得（時間枠設定）
+  let timeSlotMinutes = 15
+  try {
+    const clinicSettings = await fetchClinicSettings(clinicId)
+    timeSlotMinutes = clinicSettings.time_slot_minutes || 15
+  } catch (error) {
+    console.error('クリニック設定取得エラー:', error)
+  }
 
   // 全予約データを取得（キャンセルも含む）
   const allAppointments = await getAppointments(clinicId, startDate, endDate)
@@ -669,7 +713,7 @@ async function getStaffProductivityData(
   const staffStatsMap = new Map<string, {
     staff: any
     appointments: any[]
-    bookedSlots: Set<string> // date_time の組み合わせ
+    bookedSlots: Set<string>
   }>()
 
   // 各スタッフの初期化（getStaffは既にis_activeでフィルタ済み）
@@ -745,7 +789,7 @@ async function getStaffProductivityData(
     stats.appointments.forEach(apt => {
       const date = apt.date
       if (dailyMap.has(date)) {
-        dailyMap.get(date)!.sales += 35000 // 仮の売上
+        dailyMap.get(date)!.sales += 35000
         dailyMap.get(date)!.count++
       } else {
         dailyMap.set(date, { sales: 35000, count: 1 })
@@ -851,21 +895,21 @@ async function getTimeSlotAnalysisData(
 ): Promise<TimeSlotAnalysisData[]> {
   // 実際の予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // 完了した予約のみを対象
-  const completedAppointments = appointments.filter(apt => 
+  const completedAppointments = appointments.filter(apt =>
     ['来院済み', '診療中', '会計', '終了'].includes(apt.status)
   )
 
   // 時間帯別に集計（1時間ごと）
   const timeSlotStats = new Map<string, number>()
-  
+
   // 時間帯の初期化（9:00-18:00）
   const timeSlots = [
     '09:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00',
     '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00', '17:00-18:00'
   ]
-  
+
   timeSlots.forEach(slot => {
     timeSlotStats.set(slot, 0)
   })
@@ -874,7 +918,7 @@ async function getTimeSlotAnalysisData(
   completedAppointments.forEach(apt => {
     const startHour = parseInt(apt.start_time.split(':')[0])
     const endHour = parseInt(apt.end_time.split(':')[0])
-    
+
     // 予約が該当する時間帯を特定
     for (let hour = startHour; hour < endHour; hour++) {
       const timeSlot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`
@@ -886,12 +930,12 @@ async function getTimeSlotAnalysisData(
 
   // 結果を配列に変換
   const result: TimeSlotAnalysisData[] = []
-  
+
   timeSlots.forEach(slot => {
     const appointmentCount = timeSlotStats.get(slot) || 0
-    const totalSales = appointmentCount * 35000 // 仮の平均売上
-    const utilizationRate = Math.min((appointmentCount / 4) * 100, 100) // 仮の最大稼働率（1時間に4件想定）
-    
+    const totalSales = appointmentCount * 35000
+    const utilizationRate = Math.min((appointmentCount / 4) * 100, 100)
+
     result.push({
       time_slot: slot,
       appointment_count: appointmentCount,
@@ -909,18 +953,12 @@ export async function getCancelAnalysisData(
   startDate: string,
   endDate: string
 ): Promise<CancelAnalysisData> {
-  const client = getSupabaseClient()
-  
-  // キャンセル理由マスタを取得
-  const { data: cancelReasons, error: reasonsError } = await client
-    .from('cancel_reasons')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('sort_order')
-
-  if (reasonsError) {
-    console.error('キャンセル理由取得エラー:', reasonsError)
-    // エラーが発生した場合はデフォルト値を返す
+  // キャンセル理由マスタをAPI Routeから取得
+  let cancelReasons: any[] = []
+  try {
+    cancelReasons = await fetchCancelReasons(clinicId)
+  } catch (error) {
+    console.error('キャンセル理由取得エラー:', error)
     return {
       total_cancelled: 0,
       registered_cancelled: 0,
@@ -944,14 +982,13 @@ export async function getCancelAnalysisData(
 
   // 実際の予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // キャンセルされた予約のみを対象
   const cancelledAppointments = appointments.filter(apt => apt.status === 'キャンセル')
 
   // 基本統計
   const total_cancelled = cancelledAppointments.length
   const registered_cancelled = cancelledAppointments.filter(apt => {
-    // 患者情報を取得して本登録かどうか判定
     return apt.patient_id && cancelledAppointments.some(ca => ca.patient_id === apt.patient_id)
   }).length
   const temporary_cancelled = total_cancelled - registered_cancelled
@@ -966,7 +1003,7 @@ export async function getCancelAnalysisData(
   }>()
 
   // 各理由の初期化
-  cancelReasons?.forEach(reason => {
+  cancelReasons.forEach(reason => {
     reasonStats.set(reason.id, {
       reason_id: reason.id,
       reason_name: reason.name,
@@ -978,11 +1015,9 @@ export async function getCancelAnalysisData(
 
   // キャンセル予約から理由を集計
   cancelledAppointments.forEach(apt => {
-    // キャンセル理由IDが設定されている場合はそれを使用
-    // 設定されていない場合は「不明」として処理
     const reasonId = apt.cancel_reason_id || 'unknown'
     const reasonName = apt.cancel_reason?.name || '不明'
-    
+
     if (!reasonStats.has(reasonId)) {
       reasonStats.set(reasonId, {
         reason_id: reasonId,
@@ -995,8 +1030,7 @@ export async function getCancelAnalysisData(
 
     const reason = reasonStats.get(reasonId)!
     reason.count++
-    
-    // 本登録・仮登録の判定（簡易版）
+
     if (apt.patient_id && apt.patient_id.startsWith('temp-')) {
       reason.temporary_count++
     } else {
@@ -1027,7 +1061,7 @@ export async function getCancelAnalysisData(
 
     const daily = dailyMap.get(date)!
     daily.total_cancelled++
-    
+
     if (apt.patient_id && apt.patient_id.startsWith('temp-')) {
       daily.temporary_cancelled++
     } else {
@@ -1035,7 +1069,7 @@ export async function getCancelAnalysisData(
     }
   })
 
-  const daily_stats = Array.from(dailyMap.values()).sort((a, b) => 
+  const daily_stats = Array.from(dailyMap.values()).sort((a, b) =>
     new Date(a.date).getTime() - new Date(b.date).getTime()
   )
 
@@ -1056,19 +1090,19 @@ export async function getTimeSlotCancelAnalysis(
 ): Promise<TimeSlotCancelData[]> {
   // 実際の予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // キャンセルされた予約のみを対象
   const cancelledAppointments = appointments.filter(apt => apt.status === 'キャンセル')
 
   // 時間帯別に集計（1時間ごと）
   const timeSlotStats = new Map<string, number>()
-  
+
   // 時間帯の初期化（9:00-18:00）
   const timeSlots = [
     '09:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00',
     '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00', '17:00-18:00'
   ]
-  
+
   timeSlots.forEach(slot => {
     timeSlotStats.set(slot, 0)
   })
@@ -1077,8 +1111,7 @@ export async function getTimeSlotCancelAnalysis(
   cancelledAppointments.forEach(apt => {
     const startHour = parseInt(apt.start_time.split(':')[0])
     const endHour = parseInt(apt.end_time.split(':')[0])
-    
-    // 予約が該当する時間帯を特定
+
     for (let hour = startHour; hour < endHour; hour++) {
       const timeSlot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`
       if (timeSlotStats.has(timeSlot)) {
@@ -1089,13 +1122,13 @@ export async function getTimeSlotCancelAnalysis(
 
   // 結果を配列に変換
   const result: TimeSlotCancelData[] = []
-  
+
   timeSlots.forEach(slot => {
     const cancelCount = timeSlotStats.get(slot) || 0
-    const cancelRate = cancelledAppointments.length > 0 
-      ? (cancelCount / cancelledAppointments.length) * 100 
+    const cancelRate = cancelledAppointments.length > 0
+      ? (cancelCount / cancelledAppointments.length) * 100
       : 0
-    
+
     result.push({
       time_slot: slot,
       cancel_count: cancelCount,
@@ -1112,35 +1145,35 @@ export async function getStaffCancelAnalysis(
   startDate: string,
   endDate: string
 ): Promise<StaffCancelData[]> {
-  const client = getSupabaseClient()
-  
-  // スタッフ情報を取得
-  const { data: staff, error: staffError } = await client
-    .from('staff')
-    .select(`
-      *,
-      position:staff_positions(name)
-    `)
-    .eq('clinic_id', clinicId)
-
-  if (staffError) {
-    console.error('スタッフ情報取得エラー:', staffError)
+  // スタッフ情報をAPI Routeから取得（全スタッフ、非アクティブ含む）
+  let staffList: any[] = []
+  try {
+    const response = await fetch(`${baseUrl}/api/staff?clinic_id=${clinicId}&active_only=false`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!response.ok) {
+      throw new Error('スタッフ情報の取得に失敗しました')
+    }
+    staffList = await response.json()
+  } catch (error) {
+    console.error('スタッフ情報取得エラー:', error)
     return []
   }
 
   // 実際の予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // スタッフ別に集計
-  const staffStats = new Map<string, { 
-    name: string, 
-    position_name: string, 
+  const staffStats = new Map<string, {
+    name: string,
+    position_name: string,
     total_appointments: number,
     cancelled_appointments: number
   }>()
 
   // 各スタッフの初期化
-  staff?.forEach(s => {
+  staffList.forEach(s => {
     staffStats.set(s.id, {
       name: s.name,
       position_name: s.position?.name || '不明',
@@ -1176,11 +1209,11 @@ export async function getStaffCancelAnalysis(
 
   // 結果を配列に変換
   const result: StaffCancelData[] = []
-  
+
   staffStats.forEach((stats, staffId) => {
     if (stats.total_appointments > 0) {
       const cancelRate = (stats.cancelled_appointments / stats.total_appointments) * 100
-      
+
       result.push({
         staff_id: staffId,
         staff_name: stats.name,
@@ -1204,32 +1237,27 @@ export async function getTreatmentCancelAnalysis(
   startDate: string,
   endDate: string
 ): Promise<TreatmentCancelData[]> {
-  const client = getSupabaseClient()
-  
-  // 診療メニューを取得
-  const { data: menus, error: menusError } = await client
-    .from('treatment_menus')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('sort_order')
-
-  if (menusError) {
-    console.error('診療メニュー取得エラー:', menusError)
+  // 診療メニューをAPI Routeから取得
+  let menus: any[] = []
+  try {
+    menus = await fetchTreatmentMenus(clinicId)
+  } catch (error) {
+    console.error('診療メニュー取得エラー:', error)
     return []
   }
 
   // 実際の予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
-  
+
   // 診療メニュー別に集計
-  const menuStats = new Map<string, { 
-    name: string, 
+  const menuStats = new Map<string, {
+    name: string,
     total_appointments: number,
     cancelled_appointments: number
   }>()
 
   // 各メニューの初期化
-  menus?.forEach(menu => {
+  menus.forEach(menu => {
     menuStats.set(menu.id, {
       name: menu.name,
       total_appointments: 0,
@@ -1264,11 +1292,11 @@ export async function getTreatmentCancelAnalysis(
 
   // 結果を配列に変換
   const result: TreatmentCancelData[] = []
-  
+
   menuStats.forEach((stats, menuId) => {
     if (stats.total_appointments > 0) {
       const cancelRate = (stats.cancelled_appointments / stats.total_appointments) * 100
-      
+
       result.push({
         menu_id: menuId,
         menu_name: stats.name,
@@ -1295,17 +1323,11 @@ async function getTreatmentMenuStats(
   // 予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
 
-  // 診療メニューを取得（level, parent_id, sort_order含む）
-  const supabase = getSupabaseClient()
-  const { data: menus, error } = await supabase
-    .from('treatment_menus')
-    .select('id, name, level, parent_id, sort_order')
-    .eq('clinic_id', clinicId)
-    .eq('is_active', true)
-    .order('level', { ascending: true })
-    .order('sort_order', { ascending: true })
-
-  if (error) {
+  // 診療メニューをAPI Routeから取得（アクティブのみ）
+  let menus: any[] = []
+  try {
+    menus = await fetchTreatmentMenus(clinicId, true)
+  } catch (error) {
     console.error('診療メニュー取得エラー:', error)
     return []
   }
@@ -1319,7 +1341,7 @@ async function getTreatmentMenuStats(
     sort_order: number
   }>()
 
-  menus?.forEach(menu => {
+  menus.forEach(menu => {
     menuCountMap.set(menu.id, {
       name: menu.name,
       count: 0,
@@ -1373,16 +1395,11 @@ export async function getTreatmentMenuStatsByParent(
   // 予約データを取得
   const appointments = await getAppointments(clinicId, startDate, endDate)
 
-  // 診療メニューを取得
-  const supabase = getSupabaseClient()
-  const { data: menus, error } = await supabase
-    .from('treatment_menus')
-    .select('id, name, level, parent_id, sort_order')
-    .eq('clinic_id', clinicId)
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-
-  if (error) {
+  // 診療メニューをAPI Routeから取得（アクティブのみ）
+  let menus: any[] = []
+  try {
+    menus = await fetchTreatmentMenus(clinicId, true)
+  } catch (error) {
     console.error('診療メニュー取得エラー:', error)
     return []
   }
@@ -1396,7 +1413,7 @@ export async function getTreatmentMenuStatsByParent(
     sort_order: number
   }>()
 
-  menus?.forEach(menu => {
+  menus.forEach(menu => {
     if (menu.level === targetLevel) {
       menuCountMap.set(menu.id, {
         name: menu.name,
@@ -1411,19 +1428,15 @@ export async function getTreatmentMenuStatsByParent(
   // 予約データから集計（キャンセル除外）
   appointments.forEach(apt => {
     if (apt.status !== 'キャンセル') {
-      // targetLevelに応じて集計
       if (targetLevel === 1) {
-        // level=1: menu1_idを集計
         if (apt.menu1_id && menuCountMap.has(apt.menu1_id)) {
           menuCountMap.get(apt.menu1_id)!.count++
         }
       } else if (targetLevel === 2) {
-        // level=2: 指定されたparentMenuIdがmenu1_idの場合、menu2_idを集計
         if (apt.menu1_id === parentMenuId && apt.menu2_id && menuCountMap.has(apt.menu2_id)) {
           menuCountMap.get(apt.menu2_id)!.count++
         }
       } else if (targetLevel === 3) {
-        // level=3: 指定されたparentMenuIdがmenu2_idの場合、menu3_idを集計
         if (apt.menu2_id === parentMenuId && apt.menu3_id && menuCountMap.has(apt.menu3_id)) {
           menuCountMap.get(apt.menu3_id)!.count++
         }
@@ -1449,4 +1462,3 @@ export async function getTreatmentMenuStatsByParent(
 
   return result
 }
-

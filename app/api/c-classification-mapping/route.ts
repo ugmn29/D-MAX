@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,21 +9,12 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // C分類マッピング情報を取得
-    const { data: mappings, error } = await supabase
-      .from('c_classification_question_mapping')
-      .select('*')
-      .order('c_classification_item')
-
-    if (error) {
-      console.error('マッピング情報取得エラー:', error)
-      return NextResponse.json(
-        { error: 'マッピング情報の取得に失敗しました' },
-        { status: 500 }
-      )
-    }
+    const mappings = await prisma.c_classification_question_mapping.findMany({
+      orderBy: { c_classification_item: 'asc' }
+    })
 
     // section_name + question_text をキーとしたマップを作成
     const mappingMap = new Map<string, string[]>()
@@ -62,7 +53,7 @@ export async function GET(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
     const body = await request.json()
     const { section_name, question_text, c_classification_items } = body
 
@@ -74,42 +65,27 @@ export async function PUT(request: NextRequest) {
     }
 
     // 既存のマッピングを削除
-    const { error: deleteError } = await supabase
-      .from('c_classification_question_mapping')
-      .delete()
-      .eq('section_name', section_name)
-      .eq('question_text', question_text)
-
-    if (deleteError) {
-      console.error('既存マッピング削除エラー:', deleteError)
-      return NextResponse.json(
-        { error: '既存マッピングの削除に失敗しました' },
-        { status: 500 }
-      )
-    }
+    await prisma.c_classification_question_mapping.deleteMany({
+      where: {
+        section_name,
+        question_text
+      }
+    })
 
     // 新しいマッピングを追加
     if (c_classification_items && c_classification_items.length > 0) {
-      const mappingsToInsert = c_classification_items.map((cItem: string, index: number) => ({
+      const mappingsToInsert = c_classification_items.map((cItem: string) => ({
         section_name,
         question_text,
         c_classification_item: cItem,
         matching_condition: { operator: 'has_any_value' }, // デフォルトの条件
         priority: 1,
-        created_at: new Date().toISOString(),
+        created_at: new Date(),
       }))
 
-      const { error: insertError } = await supabase
-        .from('c_classification_question_mapping')
-        .insert(mappingsToInsert)
-
-      if (insertError) {
-        console.error('マッピング追加エラー:', insertError)
-        return NextResponse.json(
-          { error: 'マッピングの追加に失敗しました' },
-          { status: 500 }
-        )
-      }
+      await prisma.c_classification_question_mapping.createMany({
+        data: mappingsToInsert
+      })
     }
 
     return NextResponse.json({

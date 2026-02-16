@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 export async function POST(
   request: NextRequest,
@@ -13,15 +14,14 @@ export async function POST(
   try {
     const { id: patientId } = await params
     const data = await request.json()
+    const prisma = getPrismaClient()
 
     // Get the first staff member as default created_by if not provided
     let createdBy = data.created_by
     if (!createdBy) {
-      const { data: staffData } = await supabase
-        .from('staff')
-        .select('id')
-        .limit(1)
-        .single()
+      const staffData = await prisma.staff.findFirst({
+        select: { id: true },
+      })
 
       if (staffData) {
         createdBy = staffData.id
@@ -29,9 +29,8 @@ export async function POST(
     }
 
     // 医療記録を保存 (JSONB columns for diseases, treatments, prescriptions)
-    const { data: record, error: recordError } = await supabase
-      .from('medical_records')
-      .insert({
+    const record = await prisma.medical_records.create({
+      data: {
         patient_id: patientId,
         clinic_id: data.clinic_id,
         visit_date: data.visit_date,
@@ -47,19 +46,12 @@ export async function POST(
         self_pay_items: data.self_pay_items || [],
         created_by: createdBy,
         updated_by: createdBy,
-      })
-      .select()
-      .single()
+      },
+    })
 
-    if (recordError) {
-      console.error('医療記録保存エラー:', recordError)
-      return NextResponse.json(
-        { error: '医療記録の保存に失敗しました', details: recordError.message },
-        { status: 500 }
-      )
-    }
+    const converted = convertDatesToStrings(record, ['visit_date', 'created_at', 'updated_at'])
 
-    return NextResponse.json({ success: true, record })
+    return NextResponse.json({ success: true, record: converted })
   } catch (error) {
     console.error('医療記録API全体エラー:', error)
     return NextResponse.json(

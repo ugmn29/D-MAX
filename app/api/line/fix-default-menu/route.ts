@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getLineSettings } from '@/lib/line/messaging'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { jsonToObject } from '@/lib/prisma-helpers'
 
 /**
  * POST /api/line/fix-default-menu
@@ -8,20 +9,22 @@ import { supabaseAdmin } from '@/lib/supabase'
  */
 export async function POST() {
   try {
+    const prisma = getPrismaClient()
     const clinicId = '11111111-1111-1111-1111-111111111111'
 
     // LINE設定を取得
     const lineSettings = await getLineSettings(clinicId)
 
     // 未連携メニューIDを取得
-    const { data: richMenuSettings } = await supabaseAdmin
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinicId)
-      .eq('setting_key', 'line_rich_menu')
-      .single()
+    const richMenuSettings = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id: clinicId,
+        setting_key: 'line_rich_menu',
+      },
+      select: { setting_value: true }
+    })
 
-    const unregisteredMenuId = richMenuSettings?.setting_value?.line_unregistered_rich_menu_id
+    const unregisteredMenuId = jsonToObject<any>(richMenuSettings?.setting_value)?.line_unregistered_rich_menu_id
 
     if (!unregisteredMenuId) {
       return NextResponse.json(
@@ -87,18 +90,20 @@ export async function POST() {
  */
 export async function GET() {
   try {
+    const prisma = getPrismaClient()
     const clinicId = '11111111-1111-1111-1111-111111111111'
 
     const lineSettings = await getLineSettings(clinicId)
 
-    const { data: richMenuSettings } = await supabaseAdmin
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinicId)
-      .eq('setting_key', 'line_rich_menu')
-      .single()
+    const richMenuSettings = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id: clinicId,
+        setting_key: 'line_rich_menu',
+      },
+      select: { setting_value: true }
+    })
 
-    const unregisteredMenuId = richMenuSettings?.setting_value?.line_unregistered_rich_menu_id
+    const unregisteredMenuId = jsonToObject<any>(richMenuSettings?.setting_value)?.line_unregistered_rich_menu_id
 
     // 現在のデフォルトメニューを確認
     const currentDefaultResponse = await fetch(

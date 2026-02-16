@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function POST(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const { patientId } = await request.json()
 
     if (!patientId) {
@@ -18,22 +14,14 @@ export async function POST(request: NextRequest) {
     }
 
     // パスワードをリセット（password_hashをnull、password_setをfalseに）
-    const { error } = await supabaseAdmin
-      .from('patients')
-      .update({
+    await prisma.patients.update({
+      where: { id: patientId },
+      data: {
         password_hash: null,
         password_set: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', patientId)
-
-    if (error) {
-      console.error('パスワードリセットエラー:', error)
-      return NextResponse.json(
-        { error: 'パスワードのリセットに失敗しました' },
-        { status: 500 }
-      )
-    }
+        updated_at: new Date(),
+      },
+    })
 
     return NextResponse.json({
       success: true,

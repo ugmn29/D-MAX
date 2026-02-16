@@ -1,14 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Training } from '@/types/training'
-import type { Database } from '@/types/database'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import TrainingEvaluationModal from './TrainingEvaluationModal'
-
-// 型付きクライアント
-const typedSupabase = supabase as SupabaseClient<Database>
 
 interface TrainingFlowChartProps {
   patientId: string
@@ -118,32 +112,19 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
     setIsLoading(true)
     try {
       // 全トレーニングを取得
-      const { data: trainingsData, error: trainingsError } = await typedSupabase
-        .from('trainings')
-        .select('*')
-        .eq('is_deleted', false)
-        .is('clinic_id', null)
-
-      if (trainingsError) {
-        console.error('トレーニング取得エラー:', trainingsError)
-        throw new Error(`トレーニングデータの取得に失敗: ${trainingsError.message}`)
+      const trainingsRes = await fetch('/api/training/trainings')
+      if (!trainingsRes.ok) {
+        throw new Error(`トレーニングデータの取得に失敗: ${trainingsRes.statusText}`)
       }
+      const trainingsJson = await trainingsRes.json()
+      const trainingsData = trainingsJson.data || []
 
-      console.log('取得したトレーニング数:', trainingsData?.length || 0)
+      console.log('取得したトレーニング数:', trainingsData.length)
 
       // アクティブなメニューを取得
-      const { data: activeMenuData } = await typedSupabase
-        .from('training_menus')
-        .select(`
-          id,
-          menu_trainings(
-            id,
-            training_id
-          )
-        `)
-        .eq('patient_id', patientId)
-        .eq('is_active', true)
-        .single()
+      const menuRes = await fetch(`/api/training/menus?patient_id=${patientId}`)
+      const menuJson = await menuRes.json()
+      const activeMenuData = menuJson.data
 
       setActiveMenuId(activeMenuData?.id || null)
 
@@ -155,15 +136,13 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
       )
 
       // 評価進捗を取得
-      const { data: progressData } = await typedSupabase
-        .from('training_evaluations')
-        .select('training_id, evaluation_level, evaluated_at')
-        .eq('patient_id', patientId)
-        .order('evaluated_at', { ascending: false })
+      const evalRes = await fetch(`/api/training/evaluations?patient_id=${patientId}`)
+      const evalJson = await evalRes.json()
+      const progressData = evalJson.data || []
 
       // トレーニングごとの評価情報を集計
       const evaluationMap = new Map<string, any>()
-      progressData?.forEach((evaluation) => {
+      progressData?.forEach((evaluation: any) => {
         if (!evaluationMap.has(evaluation.training_id)) {
           evaluationMap.set(evaluation.training_id, {
             latest_evaluation_level: evaluation.evaluation_level,
@@ -178,7 +157,7 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
       })
 
       // トレーニングデータと評価情報を統合
-      const trainingsWithStatus: TrainingWithStatus[] = (trainingsData || []).map((training) => {
+      const trainingsWithStatus: TrainingWithStatus[] = (trainingsData || []).map((training: any) => {
         const evalInfo = evaluationMap.get(training.id)
         return {
           ...training,
@@ -194,13 +173,11 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
       setAllTrainings(trainingsWithStatus)
     } catch (error) {
       console.error('データ取得エラー:', error)
-      // ユーザーにエラーを表示
       if (error instanceof Error) {
         console.error('エラーメッセージ:', error.message)
         console.error('エラースタック:', error.stack)
       }
-      // Supabase接続エラーの可能性を通知
-      alert('トレーニングデータの取得に失敗しました。\nSupabaseが起動しているか確認してください。')
+      alert('トレーニングデータの取得に失敗しました。\nサーバーが起動しているか確認してください。')
     } finally {
       setIsLoading(false)
     }
@@ -238,47 +215,57 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
     try {
       if (!activeMenuId) {
         // 新しいメニューを作成
-        const { data: menuData, error: menuError } = await typedSupabase
-          .from('training_menus')
-          .insert({
+        const menuRes = await fetch('/api/training/menus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             patient_id: patientId,
             clinic_id: clinicId,
-            menu_name: `トレーニングメニュー`,
+            menu_name: 'トレーニングメニュー',
             is_active: true,
-          })
-          .select()
-          .single()
-
-        if (menuError) throw menuError
-        setActiveMenuId(menuData.id)
-
-        // トレーニングを追加
-        const { error: mtError } = await typedSupabase.from('menu_trainings').insert({
-          menu_id: menuData.id,
-          training_id: trainingId,
-          sort_order: 1,
-          action_seconds: 10,
-          rest_seconds: 5,
-          sets: 3,
-          auto_progress: true,
+          }),
         })
 
-        if (mtError) throw mtError
+        if (!menuRes.ok) throw new Error('メニュー作成に失敗しました')
+        const menuJson = await menuRes.json()
+        const newMenuId = menuJson.data.id
+        setActiveMenuId(newMenuId)
+
+        // トレーニングを追加
+        const mtRes = await fetch('/api/training/menu-trainings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            menu_id: newMenuId,
+            training_id: trainingId,
+            sort_order: 1,
+            action_seconds: 10,
+            rest_seconds: 5,
+            sets: 3,
+            auto_progress: true,
+          }),
+        })
+
+        if (!mtRes.ok) throw new Error('トレーニング追加に失敗しました')
       } else {
         // 既存メニューにトレーニングを追加
         const prescribedCount = allTrainings.filter((t) => t.is_prescribed).length
 
-        const { error } = await typedSupabase.from('menu_trainings').insert({
-          menu_id: activeMenuId,
-          training_id: trainingId,
-          sort_order: prescribedCount + 1,
-          action_seconds: 10,
-          rest_seconds: 5,
-          sets: 3,
-          auto_progress: true,
+        const mtRes = await fetch('/api/training/menu-trainings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            menu_id: activeMenuId,
+            training_id: trainingId,
+            sort_order: prescribedCount + 1,
+            action_seconds: 10,
+            rest_seconds: 5,
+            sets: 3,
+            auto_progress: true,
+          }),
         })
 
-        if (error) throw error
+        if (!mtRes.ok) throw new Error('トレーニング追加に失敗しました')
       }
 
       showModalMessage({
@@ -309,12 +296,11 @@ export default function TrainingFlowChart({ patientId, clinicId }: TrainingFlowC
 
   const executeUnprescribe = async (menuTrainingId: string) => {
     try {
-      const { error } = await typedSupabase
-        .from('menu_trainings')
-        .delete()
-        .eq('id', menuTrainingId)
+      const res = await fetch(`/api/training/menu-trainings?id=${menuTrainingId}`, {
+        method: 'DELETE',
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error('処方解除に失敗しました')
 
       showModalMessage({
         type: 'success',

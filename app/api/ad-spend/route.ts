@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings, convertArrayDatesToStrings } from '@/lib/prisma-helpers'
+
+const DATE_FIELDS = ['spend_date', 'created_at', 'updated_at'] as const
 
 // GET: 広告費記録を取得
 export async function GET(request: NextRequest) {
@@ -16,32 +19,29 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    let query = supabase
-      .from('ad_spend_records')
-      .select('*')
-      .eq('clinic_id', clinic_id)
-      .order('spend_date', { ascending: false })
+    const where: any = { clinic_id }
 
-    if (start_date) {
-      query = query.gte('spend_date', start_date)
-    }
-    if (end_date) {
-      query = query.lte('spend_date', end_date)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error('広告費データ取得エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch ad spend records' },
-        { status: 500 }
-      )
+    if (start_date || end_date) {
+      where.spend_date = {}
+      if (start_date) {
+        where.spend_date.gte = new Date(start_date)
+      }
+      if (end_date) {
+        where.spend_date.lte = new Date(end_date)
+      }
     }
 
-    return NextResponse.json({ success: true, data })
+    const data = await prisma.ad_spend_records.findMany({
+      where,
+      orderBy: { spend_date: 'desc' },
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: convertArrayDatesToStrings(data, [...DATE_FIELDS]),
+    })
   } catch (error) {
     console.error('広告費取得APIエラー:', error)
     return NextResponse.json(
@@ -72,31 +72,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    const { data, error } = await supabase
-      .from('ad_spend_records')
-      .insert({
+    const data = await prisma.ad_spend_records.create({
+      data: {
         clinic_id,
         ad_platform,
         campaign_name: campaign_name || null,
-        spend_date,
+        spend_date: new Date(spend_date),
         amount,
         currency: currency || 'JPY',
-        notes: notes || null
-      })
-      .select()
-      .single()
+        notes: notes || null,
+      },
+    })
 
-    if (error) {
-      console.error('広告費作成エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to create ad spend record' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, data: convertDatesToStrings(data, [...DATE_FIELDS]) })
   } catch (error) {
     console.error('広告費作成APIエラー:', error)
     return NextResponse.json(
@@ -127,32 +117,22 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    const { data, error } = await supabase
-      .from('ad_spend_records')
-      .update({
+    const data = await prisma.ad_spend_records.update({
+      where: { id },
+      data: {
         ad_platform,
         campaign_name,
-        spend_date,
+        spend_date: spend_date ? new Date(spend_date) : undefined,
         amount,
         currency,
         notes,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single()
+        updated_at: new Date(),
+      },
+    })
 
-    if (error) {
-      console.error('広告費更新エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to update ad spend record' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, data: convertDatesToStrings(data, [...DATE_FIELDS]) })
   } catch (error) {
     console.error('広告費更新APIエラー:', error)
     return NextResponse.json(
@@ -175,20 +155,11 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    const { error } = await supabase
-      .from('ad_spend_records')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      console.error('広告費削除エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to delete ad spend record' },
-        { status: 500 }
-      )
-    }
+    await prisma.ad_spend_records.delete({
+      where: { id },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

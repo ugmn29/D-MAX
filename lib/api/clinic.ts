@@ -1,147 +1,64 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
-import { initializeDatabase } from '@/lib/utils/database-setup'
 import { Clinic, ClinicSettings, DailyMemo, DailyMemoInsert, DailyMemoUpdate } from '@/types/database'
-import { MOCK_MODE, MOCK_CLINIC_SETTINGS } from '@/lib/utils/mock-mode'
+// Migrated to Prisma API Routes
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 /**
  * クリニック情報を取得
  */
 export async function getClinic(clinicId: string): Promise<Clinic | null> {
-  // モックモードの場合はモックデータを返す
-  if (MOCK_MODE) {
-    
-    // localStorageから保存された設定を読み込む
-    let savedSettings: any = {}
-    try {
-      const savedData = localStorage.getItem('mock_clinic_settings')
-      if (savedData) {
-        savedSettings = JSON.parse(savedData)
+  try {
+    const response = await fetch(`${baseUrl}/api/clinics/${clinicId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('モックモード: localStorage読み込みエラー:', error)
-    }
-    
-    return {
-      id: clinicId,
-      name: savedSettings.name || 'デモクリニック',
-      name_kana: savedSettings.name_kana || '',
-      phone: savedSettings.phone || '03-1234-5678',
-      email: savedSettings.email || 'demo@clinic.com',
-      website_url: savedSettings.website_url || '',
-      postal_code: savedSettings.postal_code || '100-0001',
-      prefecture: savedSettings.prefecture || '東京都',
-      city: savedSettings.city || '千代田区',
-      address_line: savedSettings.address_line || '千代田1-1-1',
-      business_hours: savedSettings.business_hours || {
-        monday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-        tuesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-        wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-        thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-        friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-        saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-        sunday: { isOpen: false, timeSlots: [] }
-      },
-      break_times: savedSettings.break_times || {
-        monday: [{ start: '12:00', end: '13:00' }],
-        tuesday: [{ start: '12:00', end: '13:00' }],
-        wednesday: [{ start: '12:00', end: '13:00' }],
-        thursday: [{ start: '12:00', end: '13:00' }],
-        friday: [{ start: '12:00', end: '13:00' }],
-        saturday: [{ start: '12:00', end: '13:00' }],
-        sunday: []
-      },
-      time_slot_minutes: savedSettings.time_slot_minutes || 15,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-  }
+    })
 
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('clinics')
-    .select('*')
-    .eq('id', clinicId)
-    .single()
-
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null
+    if (!response.ok) {
+      if (response.status === 404) return null
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'クリニック情報の取得に失敗しました')
     }
+
+    return await response.json()
+  } catch (error) {
     console.error('クリニック取得エラー:', error)
-    throw new Error('クリニック情報の取得に失敗しました')
+    throw error
   }
-
-  return data
 }
 
 /**
  * クリニック設定を取得
  */
 export async function getClinicSettings(clinicId: string): Promise<Record<string, any>> {
-  
-  // モックモードの場合はモックデータを返す
-  if (MOCK_MODE) {
-    
-    // localStorageから保存された設定を読み込む
-    let savedSettings = {}
-    try {
-      const savedData = localStorage.getItem('mock_clinic_settings')
-      if (savedData) {
-        savedSettings = JSON.parse(savedData)
-      }
-    } catch (error) {
-      console.error('モックモード: localStorage読み込みエラー:', error)
-    }
-    
-    // デフォルト設定と保存された設定をマージ
-    const mergedSettings = { ...MOCK_CLINIC_SETTINGS, ...savedSettings }
-    return mergedSettings
-  }
-  
   try {
-    const client = getSupabaseClient()
-    
-    const { data, error } = await client
-      .from('clinic_settings')
-      .select('setting_key, setting_value')
-      .eq('clinic_id', clinicId)
-
-
-    if (error) {
-      console.error('クリニック設定取得エラー:', error)
-      console.error('エラーの詳細:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      })
-      
-      // テーブルが存在しない場合はデフォルト設定を返す
-      console.warn('clinic_settingsテーブルが存在しません。デフォルト設定を返します。')
-      return {
-        time_slot_minutes: 15,
-        display_items: [],
-        cell_height: 40
+    const response = await fetch(`${baseUrl}/api/clinic/settings?clinic_id=${clinicId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    }
-
-    const settings: Record<string, any> = {}
-    data?.forEach(setting => {
-      settings[setting.setting_key] = setting.setting_value
     })
 
-    console.log('time_slot_minutesの値:', settings.time_slot_minutes)
-    return settings
-  } catch (error) {
-    console.error('getClinicSettings全体エラー:', error)
-    console.error('エラーの型:', typeof error)
-    console.error('エラーの詳細:', error instanceof Error ? error.message : error)
-    // エラーが発生した場合はデフォルト設定を返す
-    return {
-      time_slot_minutes: 15,
-      display_items: [],
-      cell_height: 40
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'クリニック設定の取得に失敗しました')
     }
+
+    const { settings } = await response.json()
+
+    // 設定を {key: value} 形式のオブジェクトに変換
+    const settingsObj: Record<string, any> = {}
+    for (const setting of settings || []) {
+      settingsObj[setting.setting_key] = setting.setting_value
+    }
+
+    return settingsObj
+  } catch (error) {
+    console.error('クリニック設定取得エラー:', error)
+    throw error
   }
 }
 
@@ -152,23 +69,31 @@ export async function getClinicSetting(
   clinicId: string,
   key: string
 ): Promise<any> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('clinic_settings')
-    .select('setting_value')
-    .eq('clinic_id', clinicId)
-    .eq('setting_key', key)
-    .single()
+  try {
+    const response = await fetch(`${baseUrl}/api/clinic/settings?clinic_id=${clinicId}&setting_key=${key}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
-    if (error.code === 'PGRST116') {
+    if (!response.ok) {
+      if (response.status === 404) return null
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '設定値の取得に失敗しました')
+    }
+
+    const { settings } = await response.json()
+
+    if (!settings || settings.length === 0) {
       return null
     }
+
+    return settings[0].setting_value
+  } catch (error) {
     console.error('設定値取得エラー:', error)
     throw new Error('設定値の取得に失敗しました')
   }
-
-  return data.setting_value
 }
 
 /**
@@ -179,47 +104,26 @@ export async function setClinicSetting(
   key: string,
   value: any
 ): Promise<void> {
-  // モックモードの場合はlocalStorageに保存
-  if (MOCK_MODE) {
-    
-    try {
-      const existingData = JSON.parse(localStorage.getItem('mock_clinic_settings') || '{}')
-      const updatedData = { ...existingData, [key]: value }
-      localStorage.setItem('mock_clinic_settings', JSON.stringify(updatedData))
-    } catch (error) {
-      console.error('モックモード: localStorage保存エラー:', error)
-    }
-    
-    return
-  }
-  
-  const upsertData = {
-    clinic_id: clinicId,
-    setting_key: key,
-    setting_value: value
-  }
-  
-  console.log('Supabaseに送信するデータ:', upsertData)
-  
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('clinic_settings')
-    .upsert(upsertData, { onConflict: 'clinic_id,setting_key' })
-    .select()
-
-  console.log('setClinicSettingレスポンス:', { data, error })
-
-  if (error) {
-    console.error('設定値保存エラー:', error)
-    console.error('エラーの詳細:', {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code
+  try {
+    const response = await fetch(`${baseUrl}/api/clinic/settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        clinic_id: clinicId,
+        setting_key: key,
+        setting_value: value
+      })
     })
-    throw new Error(`設定値の保存に失敗しました: ${error.message}`)
-  } else {
-    console.log('設定値保存成功:', data)
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '設定値の保存に失敗しました')
+    }
+  } catch (error) {
+    console.error('設定値保存エラー:', error)
+    throw error
   }
 }
 
@@ -230,43 +134,25 @@ export async function getDailyMemo(
   clinicId: string,
   date: string
 ): Promise<DailyMemo | null> {
-  // モックモードの場合はlocalStorageから取得
-  if (MOCK_MODE) {
-    console.log('モックモード: 日次メモデータを取得します', { clinicId, date })
-    try {
-      const savedMemos = localStorage.getItem('mock_daily_memos')
-      if (savedMemos) {
-        const memosData = JSON.parse(savedMemos)
-        const memoKey = `${clinicId}_${date}`
-        const memo = memosData[memoKey]
-        if (memo) {
-          console.log('モックモード: メモを取得しました', memo)
-          return memo
-        }
+  try {
+    const response = await fetch(`${baseUrl}/api/daily-memos?clinic_id=${clinicId}&date=${date}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('モックモード: localStorage読み込みエラー:', error)
-    }
-    return null
-  }
+    })
 
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('daily_memos')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .eq('date', date)
-    .single()
-
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null
+    if (!response.ok) {
+      if (response.status === 404) return null
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '日次メモの取得に失敗しました')
     }
+
+    return await response.json()
+  } catch (error) {
     console.error('日次メモ取得エラー:', error)
     throw new Error('日次メモの取得に失敗しました')
   }
-
-  return data
 }
 
 /**
@@ -278,84 +164,36 @@ export async function saveDailyMemo(
   memo: string,
   createdBy?: string
 ): Promise<DailyMemo> {
-  const memoData: DailyMemoInsert = {
-    clinic_id: clinicId,
-    date,
-    memo,
-    created_by: createdBy
-  }
+  try {
+    const response = await fetch(`${baseUrl}/api/daily-memos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        clinic_id: clinicId,
+        date,
+        memo,
+        created_by: createdBy
+      })
+    })
 
-  // モックモードの場合はlocalStorageに保存
-  if (MOCK_MODE) {
-    console.log('モックモード: 日次メモを保存します', { clinicId, date, memo })
-    try {
-      const savedMemos = localStorage.getItem('mock_daily_memos')
-      const memosData = savedMemos ? JSON.parse(savedMemos) : {}
-      const memoKey = `${clinicId}_${date}`
-      memosData[memoKey] = {
-        ...memoData,
-        id: memoKey,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-      localStorage.setItem('mock_daily_memos', JSON.stringify(memosData))
-      console.log('モックモード: メモを保存しました', memosData[memoKey])
-      return memosData[memoKey]
-    } catch (error) {
-      console.error('モックモード: localStorage保存エラー:', error)
-      throw new Error('日次メモの保存に失敗しました')
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '日次メモの保存に失敗しました')
     }
-  }
 
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('daily_memos')
-    .upsert(memoData)
-    .select()
-    .single()
-
-  if (error) {
+    return await response.json()
+  } catch (error) {
     console.error('日次メモ保存エラー:', error)
     throw new Error('日次メモの保存に失敗しました')
   }
-
-  return data
 }
 
 /**
  * 診療時間を取得（デフォルト値付き）
  */
 export async function getBusinessHours(clinicId: string) {
-
-  // モックモードの場合はlocalStorageから読み込む
-  if (MOCK_MODE) {
-
-    // localStorageから保存された設定を読み込む
-    try {
-      const savedData = localStorage.getItem('mock_clinic_settings')
-      if (savedData) {
-        const savedSettings = JSON.parse(savedData)
-        if (savedSettings.business_hours) {
-          return savedSettings.business_hours
-        }
-      }
-    } catch (error) {
-      console.error('モックモード: localStorage読み込みエラー:', error)
-    }
-
-    // localStorageにない場合はデフォルト値
-    const defaultBusinessHours = {
-      monday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-      tuesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-      wednesday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-      thursday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-      friday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-      saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
-      sunday: { isOpen: false, timeSlots: [] }
-    }
-    return defaultBusinessHours
-  }
-  
   try {
     // まずclinic_settingsテーブルから取得を試行
     const settingsBusinessHours = await getClinicSetting(clinicId, 'business_hours')
@@ -365,7 +203,7 @@ export async function getBusinessHours(clinicId: string) {
   } catch (error) {
     console.log('clinic_settingsから取得失敗、clinicテーブルから取得を試行')
   }
-  
+
   // clinic_settingsにない場合はclinicテーブルから取得
   const clinic = await getClinic(clinicId)
   const businessHours = clinic?.business_hours || {
@@ -377,7 +215,7 @@ export async function getBusinessHours(clinicId: string) {
     saturday: { isOpen: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
     sunday: { isOpen: false, timeSlots: [] }
   }
-  
+
   return businessHours
 }
 
@@ -399,7 +237,7 @@ function calculateBreakTimesFromBusinessHours(businessHours: any) {
     }
 
     // 時間順にソート
-    const sortedSlots = [...dayHours.timeSlots].sort((a, b) => {
+    const sortedSlots = [...dayHours.timeSlots].sort((a: any, b: any) => {
       const aMinutes = parseInt(a.start.split(':')[0]) * 60 + parseInt(a.start.split(':')[1])
       const bMinutes = parseInt(b.start.split(':')[0]) * 60 + parseInt(b.start.split(':')[1])
       return aMinutes - bMinutes
@@ -423,7 +261,6 @@ function calculateBreakTimesFromBusinessHours(businessHours: any) {
  * 明示的に設定された休憩時間は無視し、常に診療時間から自動計算する
  */
 export async function getBreakTimes(clinicId: string) {
-
   // 診療時間を取得
   const businessHours = await getBusinessHours(clinicId)
 
@@ -437,7 +274,6 @@ export async function getBreakTimes(clinicId: string) {
  * 1コマ時間を取得（デフォルト値付き）
  */
 export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
-  
   try {
     // まずclinic_settingsテーブルから取得を試行
     const settingsTimeSlotMinutes = await getClinicSetting(clinicId, 'time_slot_minutes')
@@ -447,11 +283,11 @@ export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
   } catch (error) {
     console.log('clinic_settingsから取得失敗、clinicテーブルから取得を試行')
   }
-  
+
   // clinic_settingsにない場合はclinicテーブルから取得
   const clinic = await getClinic(clinicId)
   const timeSlotMinutes = clinic?.time_slot_minutes || 15
-  
+
   return timeSlotMinutes
 }
 
@@ -459,29 +295,8 @@ export async function getTimeSlotMinutes(clinicId: string): Promise<number> {
  * 休診日を取得（デフォルト値付き）
  */
 export async function getHolidays(clinicId: string): Promise<string[]> {
-  console.log('getHolidays呼び出し:', clinicId)
-  
-  // モックモードの場合はlocalStorageから取得
-  if (MOCK_MODE) {
-    console.log('モックモード: 休診日データを取得します')
-    try {
-      const savedSettings = localStorage.getItem('mock_clinic_settings')
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings)
-        const holidays = settings.holidays || []
-        console.log('モックモード: 取得した休診日:', holidays)
-        return holidays
-      }
-    } catch (error) {
-      console.error('モックモード: localStorage読み込みエラー:', error)
-    }
-    console.log('モックモード: 休診日データを返します（空配列）')
-    return []
-  }
-  
   try {
     const holidays = await getClinicSetting(clinicId, 'holidays')
-    console.log('取得した休診日:', holidays)
     return holidays || []
   } catch (error) {
     console.error('休診日取得エラー:', error)
@@ -504,77 +319,6 @@ export async function updateClinicSettings(clinicId: string, settings: {
   cancelTypes?: string[]
   penaltySettings?: any
 }) {
-  // モックモードの場合はlocalStorageに保存
-  if (MOCK_MODE) {
-    
-    // localStorageに保存
-    const updateData: any = {}
-    
-    if (settings.timeSlotMinutes !== undefined) {
-      updateData.time_slot_minutes = settings.timeSlotMinutes
-    }
-    
-    if (settings.businessHours !== undefined) {
-      updateData.business_hours = settings.businessHours
-    }
-    
-    if (settings.breakTimes !== undefined) {
-      updateData.break_times = settings.breakTimes
-    }
-    
-    if (settings.clinicInfo !== undefined) {
-      Object.assign(updateData, settings.clinicInfo)
-    }
-    
-    // 追加の設定項目を処理
-    if (settings.unitCount !== undefined) {
-      updateData.unit_count = settings.unitCount
-    }
-    
-    if (settings.units !== undefined) {
-      updateData.units = settings.units
-    }
-    
-    if (settings.displayItems !== undefined) {
-      updateData.display_items = settings.displayItems
-    }
-    
-    if (settings.cellHeight !== undefined) {
-      updateData.cell_height = settings.cellHeight
-    }
-    
-    if (settings.cancelTypes !== undefined) {
-      updateData.cancel_types = settings.cancelTypes
-      console.log('モックモード: cancel_typesをupdateDataに設定:', settings.cancelTypes)
-    } else {
-      console.log('モックモード: cancelTypesがundefinedです')
-    }
-    
-    if (settings.penaltySettings !== undefined) {
-      updateData.penalty_settings = settings.penaltySettings
-    }
-    
-    // localStorageに保存
-    let updatedData: any = {}
-    try {
-      const existingData = JSON.parse(localStorage.getItem('mock_clinic_settings') || '{}')
-      console.log('モックモード: 既存データ:', existingData)
-      console.log('モックモード: 更新データ:', updateData)
-      console.log('モックモード: 更新データの詳細:', JSON.stringify(updateData, null, 2))
-      console.log('モックモード: 更新データのcancel_types:', updateData.cancel_types)
-      updatedData = { ...existingData, ...updateData }
-      console.log('モックモード: マージ後のデータ:', updatedData)
-      console.log('モックモード: マージ後のcancel_types:', updatedData.cancel_types)
-      localStorage.setItem('mock_clinic_settings', JSON.stringify(updatedData))
-      console.log('モックモード: localStorageに保存完了')
-    } catch (error) {
-      console.error('モックモード: localStorage保存エラー:', error)
-      updatedData = updateData // エラー時はupdateDataを返す
-    }
-    
-    return updatedData
-  }
-
   try {
     const updateData: any = {}
 
@@ -594,20 +338,46 @@ export async function updateClinicSettings(clinicId: string, settings: {
       Object.assign(updateData, settings.clinicInfo)
     }
 
-    const client = getSupabaseClient()
-    const { data, error } = await client
-      .from('clinics')
-      .update(updateData)
-      .eq('id', clinicId)
-      .select()
-      .single()
+    // clinicsテーブルの更新（timeSlotMinutes, businessHours等がある場合のみ）
+    if (Object.keys(updateData).length > 0) {
+      const response = await fetch(`${baseUrl}/api/clinics/${clinicId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      })
 
-    if (error) {
-      console.error('クリニック設定更新エラー:', error)
-      throw new Error('設定の更新に失敗しました')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || '設定の更新に失敗しました')
+      }
     }
 
-    return data
+    // clinic_settingsテーブルに個別設定を保存
+    const settingsToSave: { key: string; value: any }[] = []
+
+    if (settings.timeSlotMinutes !== undefined) {
+      settingsToSave.push({ key: 'time_slot_minutes', value: settings.timeSlotMinutes })
+    }
+    if (settings.displayItems !== undefined) {
+      settingsToSave.push({ key: 'display_items', value: settings.displayItems })
+    }
+    if (settings.cellHeight !== undefined) {
+      settingsToSave.push({ key: 'cell_height', value: settings.cellHeight })
+    }
+    if (settings.cancelTypes !== undefined) {
+      settingsToSave.push({ key: 'cancel_types', value: settings.cancelTypes })
+    }
+    if (settings.penaltySettings !== undefined) {
+      settingsToSave.push({ key: 'penalty_settings', value: settings.penaltySettings })
+    }
+
+    for (const { key, value } of settingsToSave) {
+      await setClinicSetting(clinicId, key, value)
+    }
+
+    return { success: true }
   } catch (error) {
     console.error('クリニック設定更新エラー:', error)
     throw error

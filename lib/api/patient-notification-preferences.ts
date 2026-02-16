@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 
 export interface PatientNotificationPreferences {
   id: string
@@ -20,6 +20,10 @@ export interface PatientNotificationPreferencesUpdate {
   appointment_change?: boolean
   custom?: boolean
 }
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 /**
  * 患者の通知受信設定を取得
@@ -44,29 +48,22 @@ export async function getPatientNotificationPreferences(
       return null
     }
 
-    const supabase = getSupabaseClient()
-
-    const { data, error } = await supabase
-      .from('patient_notification_preferences')
-      .select('*')
-      .eq('patient_id', patientId)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (error) {
-      // レコードが存在しない場合はnullを返す
-      if (error.code === 'PGRST116') {
-        return null
+    const response = await fetch(
+      `${baseUrl}/api/patients/${patientId}/notification-preferences?clinic_id=${encodeURIComponent(clinicId)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       }
-      // テーブルが見つからない場合も静かにnullを返す
-      if (error.code === 'PGRST205' || error.code === '42P01') {
-        return null
-      }
-      console.warn('患者通知設定取得時に予期しないエラー:', { code: error.code, message: error.message })
-      // エラーがあってもnullを返してデフォルト値を使用する
+    )
+
+    if (!response.ok) {
+      console.warn('患者通知設定取得時にエラー:', response.status)
       return null
     }
 
+    const data = await response.json()
     return data
   } catch (error) {
     console.error('患者通知設定取得で予期しないエラー:', error)
@@ -106,27 +103,23 @@ export async function upsertPatientNotificationPreferences(
       return null
     }
 
-    const supabase = getSupabaseClient()
+    const response = await fetch(
+      `${baseUrl}/api/patients/${patientId}/notification-preferences?clinic_id=${encodeURIComponent(clinicId)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(preferences)
+      }
+    )
 
-    const { data, error } = await supabase
-      .from('patient_notification_preferences')
-      .upsert({
-        patient_id: patientId,
-        clinic_id: clinicId,
-        ...preferences,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'patient_id,clinic_id'
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('患者通知設定更新エラー:', error)
-      throw new Error('患者の通知受信設定の更新に失敗しました')
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '患者の通知受信設定の更新に失敗しました')
     }
 
-    return data
+    return await response.json()
   } catch (error) {
     console.error('患者通知設定更新で予期しないエラー:', error)
     throw error

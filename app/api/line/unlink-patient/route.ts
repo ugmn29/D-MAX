@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 /**
  * POST /api/line/unlink-patient
@@ -7,14 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase'
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const body = await request.json()
     const { line_user_id, patient_id } = body
@@ -35,14 +28,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 連携情報を取得
-    const { data: linkage, error: linkageError } = await supabase
-      .from('line_patient_linkages')
-      .select('*')
-      .eq('line_user_id', line_user_id)
-      .eq('patient_id', patient_id)
-      .single()
+    const linkage = await prisma.line_patient_linkages.findFirst({
+      where: {
+        line_user_id,
+        patient_id,
+      }
+    })
 
-    if (linkageError || !linkage) {
+    if (!linkage) {
       return NextResponse.json(
         { error: '連携情報が見つかりません' },
         { status: 404 }
@@ -50,12 +43,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 連携を削除
-    const { error: deleteError } = await supabase
-      .from('line_patient_linkages')
-      .delete()
-      .eq('id', linkage.id)
-
-    if (deleteError) {
+    try {
+      await prisma.line_patient_linkages.delete({
+        where: { id: linkage.id }
+      })
+    } catch (deleteError) {
       console.error('連携解除エラー:', deleteError)
       return NextResponse.json(
         { error: '連携解除に失敗しました' },
@@ -64,12 +56,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 残りの連携を確認
-    const { data: remainingLinkages } = await supabase
-      .from('line_patient_linkages')
-      .select('id')
-      .eq('line_user_id', line_user_id)
+    const remainingLinkages = await prisma.line_patient_linkages.findMany({
+      where: { line_user_id },
+      select: { id: true }
+    })
 
-    const hasRemainingLinks = remainingLinkages && remainingLinkages.length > 0
+    const hasRemainingLinks = remainingLinkages.length > 0
 
     // リッチメニューを切り替え
     try {

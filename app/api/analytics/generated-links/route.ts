@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 // GET: リンク生成履歴を取得
 export async function GET(request: NextRequest) {
@@ -19,26 +17,24 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
-    let query = supabase
-      .from('generated_links_history')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
+    const where: Record<string, unknown> = { clinic_id: clinicId }
     if (linkType) {
-      query = query.eq('link_type', linkType)
+      where.link_type = linkType
     }
 
-    const { data, error } = await query
+    const data = await prisma.generated_links_history.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      take: limit,
+    })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const serialized = data.map(item =>
+      convertDatesToStrings(item, ['created_at', 'last_clicked_at'])
+    )
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: serialized })
   } catch (error) {
     console.error('Get generated links error:', error)
     return NextResponse.json(
@@ -75,11 +71,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
-    const { data, error } = await supabase
-      .from('generated_links_history')
-      .insert({
+    const data = await prisma.generated_links_history.create({
+      data: {
         clinic_id,
         link_type,
         generated_url,
@@ -93,15 +88,12 @@ export async function POST(request: NextRequest) {
         label,
         qr_code_url,
         created_by,
-      })
-      .select()
-      .single()
+      },
+    })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const serialized = convertDatesToStrings(data, ['created_at', 'last_clicked_at'])
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: serialized })
   } catch (error) {
     console.error('Save generated link error:', error)
     return NextResponse.json(
@@ -124,16 +116,11 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
-    const { error } = await supabase
-      .from('generated_links_history')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    await prisma.generated_links_history.delete({
+      where: { id },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -8,10 +8,13 @@ import { SidebarCalendar } from '@/components/calendar/sidebar-calendar'
 import { Button } from '@/components/ui/button'
 import { Patient } from '@/types/database'
 import { getClinicSettings } from '@/lib/api/clinic'
-import { useClinicId } from '@/hooks/use-clinic-id'
+import { useAuth } from '@/components/providers/auth-provider'
+
+const FALLBACK_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function HomePage() {
-  const clinicId = useClinicId()
+  const { clinicId: authClinicId, loading: authLoading } = useAuth()
+  const clinicId = authClinicId || FALLBACK_CLINIC_ID
   const router = useRouter()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [mounted, setMounted] = useState(false)
@@ -45,7 +48,6 @@ export default function HomePage() {
 
   useEffect(() => {
     setMounted(true)
-    loadSettings()
 
     // localStorageからペーストモードのデータを読み取る
     const storedIsPasteMode = localStorage.getItem('isPasteMode')
@@ -69,24 +71,19 @@ export default function HomePage() {
     }
   }, [])
 
-  // ページがフォーカスされた時に設定を再読み込み
+  // 認証完了後に設定を読み込み（authLoadingが解除された時）
   useEffect(() => {
-    const handleFocus = () => {
-      console.log('メインページ: ページフォーカス - 設定を再読み込み')
+    if (!authLoading) {
       loadSettings()
     }
+  }, [authLoading, clinicId])
 
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [])
-
-  // ページの可視性変更時に設定を再読み込み
+  // ページの可視性変更時に設定を再読み込み（focusイベントと統合して重複呼び出しを防止）
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         console.log('メインページ: ページが可視になった - 設定とカレンダーを再読み込み')
         loadSettings()
-        // カレンダーを再マウントして最新のユニットデータを取得
         handleRefresh()
       }
     }
@@ -195,7 +192,7 @@ export default function HomePage() {
       }
 
       setTimeSlotMinutes(numericTimeSlotMinutes)
-      setDisplayItems(settings.display_items || [])
+      setDisplayItems(Array.isArray(settings.display_items) ? settings.display_items : [])
       setCellHeight(finalCellHeight)
       setSettingsLoaded(true)
 
@@ -210,7 +207,7 @@ export default function HomePage() {
     }
   }
 
-  if (!mounted || !settingsLoaded) {
+  if (!mounted || authLoading || !settingsLoaded) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

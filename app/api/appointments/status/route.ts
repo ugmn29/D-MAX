@@ -1,5 +1,6 @@
+// Migrated to Prisma API Routes
 import { NextRequest, NextResponse } from 'next/server'
-import { updateAppointmentStatus } from '@/lib/api/appointments'
+import { updateAppointmentStatus } from '@/lib/api/appointments-prisma'
 
 export async function PUT(request: NextRequest) {
   try {
@@ -10,7 +11,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'clinicId, appointmentId, and status are required' }, { status: 400 })
     }
 
-    await updateAppointmentStatus(clinicId, appointmentId, status)
+    await updateAppointmentStatus(appointmentId, status)
     return NextResponse.json({ message: '予約ステータスを更新しました' })
   } catch (error) {
     console.error('予約ステータス更新エラー:', error)

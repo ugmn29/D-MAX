@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function GET(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const { searchParams } = new URL(request.url)
     const trainingId = searchParams.get('trainingId')
     const patientId = searchParams.get('patientId')
@@ -20,14 +16,11 @@ export async function GET(request: NextRequest) {
     }
 
     // トレーニング詳細を取得
-    const { data: training, error: trainingError } = await supabaseAdmin
-      .from('trainings')
-      .select('*')
-      .eq('id', trainingId)
-      .single()
+    const training = await prisma.trainings.findUnique({
+      where: { id: trainingId },
+    })
 
-    if (trainingError || !training) {
-      console.error('Training fetch error:', trainingError)
+    if (!training) {
       return NextResponse.json(
         { error: 'トレーニングが見つかりません' },
         { status: 404 }
@@ -35,20 +28,30 @@ export async function GET(request: NextRequest) {
     }
 
     // 患者のアクティブメニューから設定を取得
-    const { data: menuTraining } = await supabaseAdmin
-      .from('training_menus')
-      .select(`
-        id,
-        menu_trainings!inner (
-          action_seconds,
-          rest_seconds,
-          sets
-        )
-      `)
-      .eq('patient_id', patientId)
-      .eq('is_active', true)
-      .eq('menu_trainings.training_id', trainingId)
-      .single()
+    const menuTraining = await prisma.training_menus.findFirst({
+      where: {
+        patient_id: patientId,
+        is_active: true,
+        menu_trainings: {
+          some: {
+            training_id: trainingId,
+          },
+        },
+      },
+      select: {
+        id: true,
+        menu_trainings: {
+          where: {
+            training_id: trainingId,
+          },
+          select: {
+            action_seconds: true,
+            rest_seconds: true,
+            sets: true,
+          },
+        },
+      },
+    })
 
     // メニューの設定がある場合はそれを使用、なければデフォルト値
     const config = menuTraining?.menu_trainings?.[0] || {

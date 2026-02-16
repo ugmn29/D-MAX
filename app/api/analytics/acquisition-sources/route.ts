@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertArrayDatesToStrings } from '@/lib/prisma-helpers'
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,30 +16,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 獲得経路データを取得
-    let query = supabase
-      .from('patient_acquisition_sources')
-      .select('*')
-      .eq('clinic_id', clinic_id)
-
+    const acquisitionWhere: any = { clinic_id }
     if (start_date) {
-      query = query.gte('booking_completed_at', start_date)
+      acquisitionWhere.booking_completed_at = { ...acquisitionWhere.booking_completed_at, gte: new Date(start_date) }
     }
     if (end_date) {
-      query = query.lte('booking_completed_at', end_date)
+      acquisitionWhere.booking_completed_at = { ...acquisitionWhere.booking_completed_at, lte: new Date(end_date) }
     }
 
-    const { data, error } = await query
-
-    if (error) {
-      console.error('獲得経路データ取得エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch acquisition data' },
-        { status: 500 }
-      )
-    }
+    const data = await prisma.patient_acquisition_sources.findMany({
+      where: acquisitionWhere,
+    })
 
     // 流入元別に集計
     const sourceStats = new Map<string, {
@@ -99,13 +90,20 @@ export async function GET(request: NextRequest) {
 
     deviceArray.sort((a, b) => b.count - a.count)
 
+    // Date型をstringに変換してレスポンスに含める
+    const rawData = convertArrayDatesToStrings(data, [
+      'first_visit_at',
+      'booking_completed_at',
+      'created_at',
+    ])
+
     return NextResponse.json({
       success: true,
       data: {
         total_count: data?.length || 0,
         by_source: sourceArray,
         by_device: deviceArray,
-        raw_data: data,
+        raw_data: rawData,
       },
     })
   } catch (error) {

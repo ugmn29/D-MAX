@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 interface PatientLTVData {
   patient_id: string
@@ -37,30 +37,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 獲得経路データを取得
-    let acquisitionQuery = supabase
-      .from('patient_acquisition_sources')
-      .select('patient_id, final_source, booking_completed_at')
-      .eq('clinic_id', clinic_id)
-
+    const acquisitionWhere: any = { clinic_id }
     if (start_date) {
-      acquisitionQuery = acquisitionQuery.gte('booking_completed_at', start_date)
+      acquisitionWhere.booking_completed_at = { ...acquisitionWhere.booking_completed_at, gte: new Date(start_date) }
     }
     if (end_date) {
-      acquisitionQuery = acquisitionQuery.lte('booking_completed_at', end_date)
+      acquisitionWhere.booking_completed_at = { ...acquisitionWhere.booking_completed_at, lte: new Date(end_date) }
     }
 
-    const { data: acquisitionData, error: acquisitionError } = await acquisitionQuery
-
-    if (acquisitionError) {
-      console.error('獲得経路データ取得エラー:', acquisitionError)
-      return NextResponse.json(
-        { error: 'Failed to fetch acquisition data' },
-        { status: 500 }
-      )
-    }
+    const acquisitionData = await prisma.patient_acquisition_sources.findMany({
+      where: acquisitionWhere,
+      select: {
+        patient_id: true,
+        final_source: true,
+        booking_completed_at: true,
+      },
+    })
 
     if (!acquisitionData || acquisitionData.length === 0) {
       return NextResponse.json({
@@ -79,32 +74,31 @@ export async function GET(request: NextRequest) {
     const patientIds = acquisitionData.map(a => a.patient_id)
 
     // 各患者の予約データを取得
-    const { data: appointments, error: appointmentsError } = await supabase
-      .from('appointments')
-      .select('patient_id, appointment_date, status')
-      .eq('clinic_id', clinic_id)
-      .in('patient_id', patientIds)
-      .neq('status', 'キャンセル')
+    const appointments = await prisma.appointments.findMany({
+      where: {
+        clinic_id,
+        patient_id: { in: patientIds },
+        status: { not: 'CANCELLED' },
+      },
+      select: {
+        patient_id: true,
+        appointment_date: true,
+        status: true,
+      },
+    })
 
-    if (appointmentsError) {
-      console.error('予約データ取得エラー:', appointmentsError)
-      return NextResponse.json(
-        { error: 'Failed to fetch appointments' },
-        { status: 500 }
-      )
-    }
-
-    // 各患者の会計データを取得（実際の売上）
-    const { data: payments, error: paymentsError } = await supabase
-      .from('payments')
-      .select('patient_id, amount, payment_date')
-      .eq('clinic_id', clinic_id)
-      .in('patient_id', patientIds)
-
-    if (paymentsError) {
-      console.error('会計データ取得エラー:', paymentsError)
-      // 会計データがない場合は空配列として続行
-    }
+    // 各患者の会計データを取得（salesテーブルを使用）
+    const salesData = await prisma.sales.findMany({
+      where: {
+        clinic_id,
+        patient_id: { in: patientIds },
+      },
+      select: {
+        patient_id: true,
+        amount: true,
+        sale_date: true,
+      },
+    })
 
     // 患者ごとのLTVを計算
     const patientLTVMap = new Map<string, PatientLTVData>()
@@ -118,16 +112,17 @@ export async function GET(request: NextRequest) {
       const visitCount = patientAppointments.length
 
       // 患者の会計を取得
-      const patientPayments = payments?.filter(p => p.patient_id === patientId) || []
-      const totalRevenue = patientPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
+      const patientSales = salesData?.filter(p => p.patient_id === patientId) || []
+      const totalRevenue = patientSales.reduce((sum, p) => sum + (p.amount || 0), 0)
 
       // 初回・最終来院日
       const appointmentDates = patientAppointments
         .map(a => new Date(a.appointment_date))
         .sort((a, b) => a.getTime() - b.getTime())
 
-      const firstVisitDate = appointmentDates[0]?.toISOString() || acquisition.booking_completed_at
-      const lastVisitDate = appointmentDates[appointmentDates.length - 1]?.toISOString() || acquisition.booking_completed_at
+      const bookingCompletedAt = acquisition.booking_completed_at?.toISOString() || ''
+      const firstVisitDate = appointmentDates[0]?.toISOString() || bookingCompletedAt
+      const lastVisitDate = appointmentDates[appointmentDates.length - 1]?.toISOString() || bookingCompletedAt
 
       // 患者の生涯日数
       const lifetimeDays = appointmentDates.length > 1

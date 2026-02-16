@@ -5,7 +5,6 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { getHolidays, setClinicSetting } from '@/lib/api/clinic'
 
 interface WorkingDayModalProps {
   isOpen: boolean
@@ -35,66 +34,52 @@ export const WorkingDayModal: React.FC<WorkingDayModalProps> = ({
     console.log('working-day-modal: handleSave開始', { isWorkingDay, clinicId, date })
     try {
       setLoading(true)
-      
-      // モックモードの場合はlocalStorageを更新
-      if (typeof window !== 'undefined') {
-        try {
-          const savedHolidays = localStorage.getItem('mock_individual_holidays')
-          const holidaysData = savedHolidays ? JSON.parse(savedHolidays) : {}
-          const dateKey = `${clinicId}_${date}`
-          
-          if (isWorkingDay) {
-            // 診療日に設定する場合は個別休診日設定をfalseに設定
-            holidaysData[dateKey] = false
-            console.log('モックモード: 個別休診日をfalseに設定しました（診療日に設定）', dateKey)
-          } else {
-            // 休診日に設定する場合は個別休診日設定をtrueに設定
-            holidaysData[dateKey] = true
-            console.log('モックモード: 個別休診日をtrueに設定しました（休診日に設定）', dateKey)
-          }
-          
-          localStorage.setItem('mock_individual_holidays', JSON.stringify(holidaysData))
-          console.log('モックモード: localStorage更新完了', holidaysData)
-          
-          // 保存後の確認
-          const verifyData = localStorage.getItem('mock_individual_holidays')
-          console.log('モックモード: 保存後の確認', verifyData)
-          
-          // カスタムイベントを発火してシフト表に通知
-          const event = new CustomEvent('individualHolidaysUpdated', {
-            detail: { clinicId, date, isWorkingDay }
-          })
-          window.dispatchEvent(event)
-          console.log('モックモード: カスタムイベント発火', event.detail)
-        } catch (error) {
-          console.error('モックモード: localStorage更新エラー:', error)
-        }
-        
-        onSave()
-        onClose()
-        return
-      }
-      
-      // 個別休診日設定を削除（診療日に戻す）
-      const response = await fetch('/api/individual-holidays', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          clinicId,
-          date
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error('休診日設定の削除に失敗しました')
-      }
-      
-      const { error } = await response.json()
 
-      if (error) {
-        console.error('個別休診日削除エラー:', error)
+      let response: Response
+
+      if (isWorkingDay) {
+        // 診療日に設定する場合は個別休診日設定を削除
+        response = await fetch('/api/individual-holidays', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            clinic_id: clinicId,
+            date
+          })
+        })
+      } else {
+        // 休診日に設定する場合は個別休診日を登録
+        response = await fetch('/api/individual-holidays', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            clinic_id: clinicId,
+            date,
+            is_holiday: true
+          })
+        })
+      }
+
+      if (!response.ok) {
+        throw new Error('休診日設定の更新に失敗しました')
+      }
+
+      const data = await response.json()
+
+      if (data.error) {
+        console.error('個別休診日更新エラー:', data.error)
+      }
+
+      // カスタムイベントを発火してシフト表・カレンダーに通知
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('individualHolidaysUpdated', {
+          detail: { clinicId, date, isWorkingDay }
+        })
+        window.dispatchEvent(event)
       }
 
       onSave()

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 
 export interface PatientWebBookingSettings {
   id: string
@@ -23,6 +23,10 @@ export interface PatientWebBookingSettingsUpdate {
   max_concurrent_bookings?: number | null
 }
 
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
 /**
  * Get patient web booking settings
  */
@@ -46,27 +50,27 @@ export async function getPatientWebBookingSettings(
       return null
     }
 
-    const supabase = getSupabaseClient()
+    const params = new URLSearchParams({
+      patient_id: patientId,
+      clinic_id: clinicId
+    })
 
-    const { data, error } = await supabase
-      .from('patient_web_booking_settings')
-      .select('*')
-      .eq('patient_id', patientId)
-      .eq('clinic_id', clinicId)
-      .single()
+    const response = await fetch(
+      `${baseUrl}/api/patient-web-booking-settings?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null
-      }
-      // テーブルが見つからない場合も静かにnullを返す
-      if (error.code === 'PGRST205' || error.code === '42P01') {
-        return null
-      }
-      console.warn('Web予約設定取得時に予期しないエラー:', { code: error.code, message: error.message })
+    if (!response.ok) {
+      console.warn('Web予約設定取得時にエラー:', response.status)
       return null
     }
 
+    const data = await response.json()
     return data
   } catch (error) {
     console.error('Unexpected error getting web booking settings:', error)
@@ -106,27 +110,28 @@ export async function upsertPatientWebBookingSettings(
       return null
     }
 
-    const supabase = getSupabaseClient()
+    const params = new URLSearchParams({
+      patient_id: patientId,
+      clinic_id: clinicId
+    })
 
-    const { data, error } = await supabase
-      .from('patient_web_booking_settings')
-      .upsert({
-        patient_id: patientId,
-        clinic_id: clinicId,
-        ...settings,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'patient_id,clinic_id'
-      })
-      .select()
-      .single()
+    const response = await fetch(
+      `${baseUrl}/api/patient-web-booking-settings?${params.toString()}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+      }
+    )
 
-    if (error) {
-      console.error('Failed to update web booking settings:', error)
-      throw new Error('Failed to update web booking settings')
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to update web booking settings')
     }
 
-    return data
+    return await response.json()
   } catch (error) {
     console.error('Unexpected error updating web booking settings:', error)
     throw error

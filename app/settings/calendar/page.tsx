@@ -177,7 +177,7 @@ export default function CalendarSettingsPage() {
         setTimeSlotMinutes(numericTimeSlotValue)
 
         // displayItemsを設定
-        const loadedDisplayItems = settings.display_items || []
+        const loadedDisplayItems = Array.isArray(settings.display_items) ? settings.display_items : []
         console.log('設定ページ: 読み込んだdisplayItems:', loadedDisplayItems)
         setDisplayItems(loadedDisplayItems)
 

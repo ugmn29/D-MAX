@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Training } from '@/types/training'
 import { X } from 'lucide-react'
 
@@ -42,23 +41,33 @@ export default function TrainingEvaluationModal({
 
     setIsSaving(true)
     try {
-      const { error } = await supabase.from('training_evaluations').insert({
-        patient_id: patientId,
-        menu_training_id: menuTrainingId,
-        training_id: training.id,
-        evaluation_level: evaluationLevel,
-        comment: comment,
-        evaluated_at: new Date().toISOString(),
+      const response = await fetch('/api/training/evaluations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_id: patientId,
+          clinic_id: '', // will be set server-side if needed
+          menu_id: null,
+          evaluations: [{
+            training_id: training.id,
+            menu_training_id: menuTrainingId,
+            evaluation_level: evaluationLevel,
+            comment: comment || undefined,
+          }],
+        }),
       })
 
-      if (error) throw error
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || '評価の保存に失敗しました')
+      }
 
       alert('評価を保存しました')
       onSuccess?.()
       onClose()
-    } catch (error) {
+    } catch (error: any) {
       console.error('評価保存エラー:', error)
-      alert('評価の保存に失敗しました')
+      alert(error.message || '評価の保存に失敗しました')
     } finally {
       setIsSaving(false)
     }

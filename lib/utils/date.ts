@@ -35,7 +35,9 @@ export function formatDateForDB(date: Date): string {
  * YYYY-MM-DD 形式の文字列をDateオブジェクトに変換（日本時間として扱う）
  */
 export function parseDBDate(dateString: string): Date {
-  const [year, month, day] = dateString.split('-').map(Number)
+  // ISO形式 "YYYY-MM-DDT00:00:00.000Z" にも対応
+  const datePart = dateString.split('T')[0]
+  const [year, month, day] = datePart.split('-').map(Number)
   return new Date(year, month - 1, day)
 }
 

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import { getTreatmentMenus } from './treatment'
 import { getStaff } from './staff'
 import { getAppointments } from './appointments'

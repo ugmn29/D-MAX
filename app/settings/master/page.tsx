@@ -27,14 +27,14 @@ import {
   HelpCircle, 
   Calendar
 } from 'lucide-react'
-import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff-positions'
+import { getStaffPositions, createStaffPosition, updateStaffPosition, deleteStaffPosition } from '@/lib/api/staff'
 import { getPatientNoteTypes, createPatientNoteType, updatePatientNoteType, deletePatientNoteType } from '@/lib/api/patient-note-types'
 import { getCancelReasons, createCancelReason, updateCancelReason, deleteCancelReason } from '@/lib/api/cancel-reasons'
 import { getMemoTemplates, createMemoTemplate, updateMemoTemplate, deleteMemoTemplate, MemoTemplate } from '@/lib/api/memo-templates'
 import { getMemoTodoTemplates, createMemoTodoTemplate, updateMemoTodoTemplate, deleteMemoTodoTemplate, MemoTodoTemplate, parseTemplateItems } from '@/lib/api/memo-todo-templates'
 import { PATIENT_ICONS } from '@/lib/constants/patient-icons'
 import { initializeClinicStaffPositions, initializeClinicCancelReasons } from '@/lib/api/clinic-initialization'
-import { useClinicId } from '@/hooks/use-clinic-id'
+import { useAuth } from '@/components/providers/auth-provider'
 
 interface StaffPosition {
   id: string
@@ -59,8 +59,11 @@ interface CancelReason {
   is_active: boolean
 }
 
+const FALLBACK_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+
 export default function MasterSettingsPage() {
-  const clinicId = useClinicId()
+  const { clinicId: authClinicId, loading: authLoading } = useAuth()
+  const clinicId = authClinicId || FALLBACK_CLINIC_ID
   const [selectedTab, setSelectedTab] = useState('icons')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -118,8 +121,10 @@ export default function MasterSettingsPage() {
   const [iconMaster, setIconMaster] = useState(PATIENT_ICONS)
   const [editingIconId, setEditingIconId] = useState<string | null>(null)
 
-  // データ読み込み
+  // データ読み込み（auth解決後に実行）
   useEffect(() => {
+    if (authLoading) return
+
     const loadData = async () => {
       try {
         setLoading(true)
@@ -174,7 +179,7 @@ export default function MasterSettingsPage() {
     }
 
     loadData()
-  }, [])
+  }, [authLoading, clinicId])
 
   // 役職追加
   const handleAddPosition = async () => {
@@ -467,7 +472,7 @@ export default function MasterSettingsPage() {
     }
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

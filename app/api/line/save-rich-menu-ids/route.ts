@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { jsonToObject } from '@/lib/prisma-helpers'
 import { Client } from '@line/bot-sdk'
 
 /**
@@ -9,6 +10,8 @@ import { Client } from '@line/bot-sdk'
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 POST /api/line/save-rich-menu-ids - 開始')
+
+    const prisma = getPrismaClient()
 
     const body = await request.json()
     const {
@@ -26,29 +29,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!supabaseAdmin) {
-      console.error('❌ supabaseAdmin が初期化されていません')
-      return NextResponse.json(
-        { error: 'サーバー設定エラー: Supabase Admin未初期化' },
-        { status: 500 }
-      )
-    }
-
-    const supabase = supabaseAdmin
-
     // 既存のリッチメニューID設定を取得
-    const { data: existingSettings, error: fetchError } = await supabase
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinic_id)
-      .eq('setting_key', 'line_rich_menu')
-      .maybeSingle()
+    const existingSettings = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id,
+        setting_key: 'line_rich_menu',
+      },
+      select: { setting_value: true }
+    })
 
-    if (fetchError) {
-      console.error('❌ 既存設定取得エラー:', fetchError)
-    }
-
-    const existingValue = existingSettings?.setting_value || {}
+    const existingValue = jsonToObject<any>(existingSettings?.setting_value) || {}
 
     // 既存の値とマージ（新しい値のみ上書き）
     const newValue = {
@@ -56,26 +46,22 @@ export async function POST(request: NextRequest) {
       line_unregistered_rich_menu_id: unregistered_menu_id || existingValue.line_unregistered_rich_menu_id
     }
 
-    const { data: upsertData, error } = await supabase
-      .from('clinic_settings')
-      .upsert({
-        clinic_id: clinic_id,
+    await prisma.clinic_settings.upsert({
+      where: {
+        clinic_id_setting_key: {
+          clinic_id,
+          setting_key: 'line_rich_menu',
+        }
+      },
+      create: {
+        clinic_id,
         setting_key: 'line_rich_menu',
-        setting_value: newValue
-      }, {
-        onConflict: 'clinic_id,setting_key'
-      })
-      .select()
-
-    if (error) {
-      console.error('❌ リッチメニューID保存エラー:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      })
-      throw new Error(`Database Error: ${error.message}`)
-    }
+        setting_value: newValue,
+      },
+      update: {
+        setting_value: newValue,
+      }
+    })
 
 
     // 連携済みユーザーに新しいリッチメニューを割り当て
@@ -85,26 +71,27 @@ export async function POST(request: NextRequest) {
         console.log('🔄 既存連携ユーザーにリッチメニューを再割り当て中...')
 
         // LINE設定を取得
-        const { data: lineSettings } = await supabase
-          .from('clinic_settings')
-          .select('setting_value')
-          .eq('clinic_id', clinic_id)
-          .eq('setting_key', 'line')
-          .single()
+        const lineSettings = await prisma.clinic_settings.findFirst({
+          where: {
+            clinic_id,
+            setting_key: 'line',
+          },
+          select: { setting_value: true }
+        })
 
-        const channelAccessToken = lineSettings?.setting_value?.channel_access_token
+        const channelAccessToken = jsonToObject<any>(lineSettings?.setting_value)?.channel_access_token
 
         if (channelAccessToken) {
           // LINE Botクライアント初期化
           const lineClient = new Client({ channelAccessToken })
 
           // 連携済みユーザーを取得
-          const { data: linkages } = await supabase
-            .from('line_patient_linkages')
-            .select('line_user_id')
-            .eq('clinic_id', clinic_id)
+          const linkages = await prisma.line_patient_linkages.findMany({
+            where: { clinic_id },
+            select: { line_user_id: true }
+          })
 
-          if (linkages && linkages.length > 0) {
+          if (linkages.length > 0) {
             console.log(`📋 ${linkages.length}人の連携済みユーザーを更新中...`)
 
             // 各ユーザーに新しいリッチメニューを割り当て

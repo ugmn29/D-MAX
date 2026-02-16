@@ -8,7 +8,9 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save, Plus, Trash2, Edit, FileText, Tag, FolderOpen } from 'lucide-react'
 import { getTreatmentMenus, createTreatmentMenu, updateTreatmentMenu, deleteTreatmentMenu } from '@/lib/api/treatment'
-import { useClinicId } from '@/hooks/use-clinic-id'
+import { useAuth } from '@/components/providers/auth-provider'
+
+const FALLBACK_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 interface TreatmentMenu {
   id: string
@@ -23,7 +25,8 @@ interface TreatmentMenu {
 }
 
 export default function TreatmentSettingsPage() {
-  const clinicId = useClinicId()
+  const { clinicId: authClinicId, loading: authLoading } = useAuth()
+  const clinicId = authClinicId || FALLBACK_CLINIC_ID
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -40,14 +43,14 @@ export default function TreatmentSettingsPage() {
     sort_order: 0
   })
 
-  // データ読み込み
+  // データ読み込み（auth解決後に実行）
   useEffect(() => {
+    if (authLoading) return
+
     const loadMenus = async () => {
       try {
         setLoading(true)
-        console.log('メニュー読み込み開始:', clinicId)
         const data = await getTreatmentMenus(clinicId)
-        console.log('読み込んだメニューデータ:', data)
         setMenus(data)
       } catch (error) {
         console.error('メニュー読み込みエラー:', error)
@@ -55,9 +58,9 @@ export default function TreatmentSettingsPage() {
         setLoading(false)
       }
     }
-    
+
     loadMenus()
-  }, [])
+  }, [authLoading, clinicId])
 
   // メニューを階層構造に変換
   const buildMenuTree = (menus: TreatmentMenu[]): TreatmentMenu[] => {
@@ -199,9 +202,9 @@ export default function TreatmentSettingsPage() {
       <div key={menu.id} className="border rounded-lg p-4 mb-2" style={{ marginLeft: `${indent}px` }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div 
-              className="w-4 h-4 rounded"
-              style={{ backgroundColor: menu.color }}
+            <div
+              className="w-6 h-6 rounded-md flex-shrink-0"
+              style={{ backgroundColor: menu.color || '#6B7280' }}
             />
             <div>
               <div className="font-medium">{menu.name}</div>
@@ -234,7 +237,7 @@ export default function TreatmentSettingsPage() {
     )
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -281,8 +284,8 @@ export default function TreatmentSettingsPage() {
           </div>
           
           <div className="flex items-center space-x-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setNewMenu(prev => ({
                   ...prev,
@@ -292,6 +295,10 @@ export default function TreatmentSettingsPage() {
               }}
               className="flex items-center space-x-2"
             >
+              <div
+                className="w-4 h-4 rounded border border-gray-300"
+                style={{ backgroundColor: newMenu.color }}
+              />
               <Plus className="w-4 h-4" />
               <span>
                 {selectedTab === 'menu1' && 'メニュー-1を追加'}

@@ -1,7 +1,10 @@
+// Migrated to Prisma API Routes
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/prisma-client'
 import { convertDatesToStrings, convertArrayDatesToStrings, PatientGender } from '@/lib/prisma-helpers'
-import { MOCK_MODE } from '@/lib/utils/mock-mode'
+
+const DATE_FIELDS = ['created_at', 'updated_at', 'birth_date', 'training_last_login_at'] as const
+const DATE_ONLY_FIELDS = ['birth_date'] as const
 
 // GET: 患者一覧を取得
 export async function GET(request: NextRequest) {
@@ -11,19 +14,6 @@ export async function GET(request: NextRequest) {
 
     if (!clinicId) {
       return NextResponse.json({ error: 'clinic_id is required' }, { status: 400 })
-    }
-
-    // MOCK_MODEの場合はlocalStorageから取得
-    if (MOCK_MODE) {
-      try {
-        const { getMockPatients } = await import('@/lib/utils/mock-mode')
-        const mockPatients = getMockPatients()
-        console.log('MOCK_MODE: localStorageから患者データを取得:', mockPatients.length, '件')
-        return NextResponse.json(mockPatients)
-      } catch (mockError) {
-        console.error('MOCK_MODE患者データ取得エラー:', mockError)
-        return NextResponse.json([])
-      }
     }
 
     // Prismaで患者一覧を取得
@@ -38,10 +28,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Date型をISO文字列に変換
-    const patientsWithStringDates = convertArrayDatesToStrings(
-      patients,
-      ['created_at', 'updated_at', 'birth_date', 'training_last_login_at']
-    )
+    const patientsWithStringDates = convertArrayDatesToStrings(patients, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
 
     return NextResponse.json(patientsWithStringDates)
   } catch (error) {
@@ -68,48 +55,40 @@ export async function POST(request: NextRequest) {
       is_registered
     } = body
 
-    if (!clinic_id || !last_name || !first_name) {
+    if (!clinic_id || !last_name) {
       return NextResponse.json({
-        error: 'clinic_id, last_name, and first_name are required'
+        error: 'clinic_id and last_name are required'
       }, { status: 400 })
-    }
-
-    // MOCK_MODEの場合はlocalStorageに保存
-    if (MOCK_MODE) {
-      try {
-        const { addMockPatient } = await import('@/lib/utils/mock-mode')
-        const newPatient = {
-          id: `p_${Date.now()}`,
-          clinic_id,
-          patient_number: patient_number || Date.now(),
-          last_name,
-          first_name,
-          last_name_kana: last_name_kana || '',
-          first_name_kana: first_name_kana || '',
-          birth_date: birth_date || null,
-          gender: gender || null,
-          phone: phone || '',
-          email: email || '',
-          is_registered: is_registered !== undefined ? is_registered : false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-        const result = addMockPatient(newPatient)
-        return NextResponse.json(result)
-      } catch (mockError) {
-        console.error('MOCK_MODE患者作成エラー:', mockError)
-        return NextResponse.json({ error: 'Failed to create patient' }, { status: 500 })
-      }
     }
 
     // Prismaで患者を作成
     const prisma = getPrismaClient()
+
+    // 診察券番号の生成（指定がない場合は連番で自動生成）
+    let assignedPatientNumber = patient_number ? Number(patient_number) : null
+    if (!assignedPatientNumber) {
+      const existingPatients = await prisma.patients.findMany({
+        where: { clinic_id, patient_number: { not: null } },
+        select: { patient_number: true },
+        orderBy: { patient_number: 'asc' }
+      })
+      const numbers = existingPatients.map(p => p.patient_number as number).sort((a, b) => a - b)
+      // 欠番を探す
+      assignedPatientNumber = numbers.length + 1
+      for (let i = 0; i < numbers.length; i++) {
+        if (numbers[i] !== i + 1) {
+          assignedPatientNumber = i + 1
+          break
+        }
+      }
+    }
+
     const patient = await prisma.patients.create({
       data: {
         clinic_id,
-        patient_number: patient_number || Math.floor(Date.now() / 1000),
+        patient_number: assignedPatientNumber,
         last_name,
-        first_name,
+        first_name: first_name || '',
         last_name_kana: last_name_kana || null,
         first_name_kana: first_name_kana || null,
         birth_date: birth_date ? new Date(birth_date) : null,
@@ -121,10 +100,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Date型をISO文字列に変換
-    const patientWithStringDates = convertDatesToStrings(
-      patient,
-      ['created_at', 'updated_at', 'birth_date', 'training_last_login_at']
-    )
+    const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
 
     return NextResponse.json(patientWithStringDates)
   } catch (error) {
@@ -154,33 +130,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    // MOCK_MODEの場合はlocalStorageを更新
-    if (MOCK_MODE) {
-      try {
-        const { updateMockPatient } = await import('@/lib/utils/mock-mode')
-        const updates = {
-          ...(last_name && { last_name }),
-          ...(first_name && { first_name }),
-          ...(last_name_kana !== undefined && { last_name_kana }),
-          ...(first_name_kana !== undefined && { first_name_kana }),
-          ...(birth_date !== undefined && { birth_date }),
-          ...(gender !== undefined && { gender }),
-          ...(phone !== undefined && { phone }),
-          ...(email !== undefined && { email }),
-          ...(is_registered !== undefined && { is_registered }),
-          updated_at: new Date().toISOString()
-        }
-        const result = updateMockPatient(id, updates)
-        if (!result) {
-          return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
-        }
-        return NextResponse.json(result)
-      } catch (mockError) {
-        console.error('MOCK_MODE患者更新エラー:', mockError)
-        return NextResponse.json({ error: 'Failed to update patient' }, { status: 500 })
-      }
-    }
-
     // Prismaで患者を更新
     const prisma = getPrismaClient()
 
@@ -205,10 +154,7 @@ export async function PUT(request: NextRequest) {
     })
 
     // Date型をISO文字列に変換
-    const patientWithStringDates = convertDatesToStrings(
-      patient,
-      ['created_at', 'updated_at', 'birth_date', 'training_last_login_at']
-    )
+    const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
 
     return NextResponse.json(patientWithStringDates)
   } catch (error: any) {
@@ -231,18 +177,6 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
-    }
-
-    // MOCK_MODEの場合はlocalStorageから削除
-    if (MOCK_MODE) {
-      try {
-        const { removeMockPatient } = await import('@/lib/utils/mock-mode')
-        removeMockPatient(id)
-        return NextResponse.json({ success: true })
-      } catch (mockError) {
-        console.error('MOCK_MODE患者削除エラー:', mockError)
-        return NextResponse.json({ error: 'Failed to delete patient' }, { status: 500 })
-      }
     }
 
     // Prismaで患者を削除

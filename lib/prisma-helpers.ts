@@ -36,12 +36,18 @@ export function stringToDate(dateStr: string | null | undefined): Date | null {
  */
 export function convertDatesToStrings<T extends Record<string, any>>(
   obj: T,
-  dateFields: (keyof T)[]
+  dateFields: (keyof T)[],
+  dateOnlyFields?: (keyof T)[]
 ): T {
   const result = { ...obj }
   for (const field of dateFields) {
     if (result[field] instanceof Date) {
-      (result[field] as any) = (result[field] as Date).toISOString()
+      if (dateOnlyFields?.includes(field)) {
+        // @db.Date フィールド → YYYY-MM-DD形式
+        (result[field] as any) = (result[field] as Date).toISOString().split('T')[0]
+      } else {
+        (result[field] as any) = (result[field] as Date).toISOString()
+      }
     }
   }
   return result
@@ -52,9 +58,10 @@ export function convertDatesToStrings<T extends Record<string, any>>(
  */
 export function convertArrayDatesToStrings<T extends Record<string, any>>(
   arr: T[],
-  dateFields: (keyof T)[]
+  dateFields: (keyof T)[],
+  dateOnlyFields?: (keyof T)[]
 ): T[] {
-  return arr.map(obj => convertDatesToStrings(obj, dateFields))
+  return arr.map(obj => convertDatesToStrings(obj, dateFields, dateOnlyFields))
 }
 
 /**

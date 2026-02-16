@@ -1,9 +1,8 @@
+// Migrated to Prisma API Routes
 /**
  * 売上データCSVインポートAPI
  * 電子カルテシステムからの売上データインポート機能
  */
-
-import { createClient } from '@supabase/supabase-js'
 
 // CSVパース用の型定義
 export interface SalesCSVRow {
@@ -159,68 +158,6 @@ export function decodePaymentMethod(code: string): string {
 }
 
 /**
- * 患者IDで既存患者を検索
- */
-export async function findPatientByExternalId(
-  supabase: any,
-  clinicId: string,
-  externalPatientId: string
-): Promise<string | null> {
-  // 患者の外部IDまたはカルテ番号で検索
-  const { data, error } = await supabase
-    .from('patients')
-    .select('id')
-    .eq('clinic_id', clinicId)
-    .or(`patient_number.eq.${externalPatientId},external_id.eq.${externalPatientId}`)
-    .single()
-
-  if (error || !data) return null
-  return data.id
-}
-
-/**
- * スタッフ名で既存スタッフを検索
- */
-export async function findStaffByName(
-  supabase: any,
-  clinicId: string,
-  staffName: string
-): Promise<string | null> {
-  if (!staffName) return null
-
-  const { data, error } = await supabase
-    .from('staff')
-    .select('id')
-    .eq('clinic_id', clinicId)
-    .or(`name.eq.${staffName},display_name.eq.${staffName}`)
-    .single()
-
-  if (error || !data) return null
-  return data.id
-}
-
-/**
- * 診療メニュー名で既存メニューを検索
- */
-export async function findTreatmentMenuByName(
-  supabase: any,
-  clinicId: string,
-  menuName: string
-): Promise<string | null> {
-  if (!menuName) return null
-
-  const { data, error } = await supabase
-    .from('treatment_menus')
-    .select('id')
-    .eq('clinic_id', clinicId)
-    .eq('name', menuName)
-    .single()
-
-  if (error || !data) return null
-  return data.id
-}
-
-/**
  * CSVデータ1行をバリデーション
  */
 export function validateRow(row: SalesCSVRow, rowIndex: number): string | null {
@@ -256,6 +193,10 @@ export function validateRow(row: SalesCSVRow, rowIndex: number): string | null {
   return null
 }
 
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
 /**
  * 売上データをインポート
  */
@@ -268,155 +209,36 @@ export async function importSalesData(
     importedBy?: string
   } = {}
 ): Promise<ImportResult> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  const supabase = createClient(supabaseUrl, supabaseKey)
-
-  // CSVパース
-  const rows = parseCSV(csvText)
-  const errors: ImportError[] = []
-  let successCount = 0
-
-  // インポート履歴レコード作成
-  const { data: importHistory, error: historyError } = await supabase
-    .from('sales_import_history')
-    .insert({
-      clinic_id: clinicId,
-      file_name: 'upload.csv',
-      total_records: rows.length,
-      success_records: 0,
-      failed_records: 0,
-      imported_by: options.importedBy,
-      status: 'processing'
+  try {
+    const response = await fetch(`${baseUrl}/api/sales-import`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        csvText,
+        clinicId,
+        options
+      })
     })
-    .select()
-    .single()
 
-  if (historyError || !importHistory) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '売上データのインポートに失敗しました')
+    }
+
+    return await response.json()
+  } catch (error: any) {
+    console.error('売上インポートエラー:', error)
+
+    // ネットワークエラー等の場合はエラーResultを返す
     return {
       success: false,
       import_id: '',
-      total_records: rows.length,
+      total_records: 0,
       success_records: 0,
-      failed_records: rows.length,
-      errors: [{ row: 0, error: 'インポート履歴の作成に失敗しました', data: historyError }]
+      failed_records: 0,
+      errors: [{ row: 0, error: error.message || '売上データのインポートに失敗しました', data: null }]
     }
-  }
-
-  // 各行を処理
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]
-    const rowNum = i + 2 // ヘッダー行を考慮
-
-    // バリデーション
-    const validationError = validateRow(row, rowNum)
-    if (validationError) {
-      errors.push({ row: rowNum, error: validationError, data: row })
-      if (!options.skipErrors) break
-      continue
-    }
-
-    try {
-      // 患者検索
-      const patientId = await findPatientByExternalId(supabase, clinicId, row.patient_id!)
-      if (!patientId) {
-        errors.push({
-          row: rowNum,
-          error: `患者ID「${row.patient_id}」が見つかりません`,
-          data: row
-        })
-        if (!options.skipErrors) break
-        continue
-      }
-
-      // スタッフ検索
-      const staffId = row.staff_name
-        ? await findStaffByName(supabase, clinicId, row.staff_name)
-        : null
-
-      // 診療メニュー検索
-      const treatmentMenuId = row.treatment_menu
-        ? await findTreatmentMenuByName(supabase, clinicId, row.treatment_menu)
-        : null
-
-      // 診療行為コードの配列化
-      const treatmentCodes = row.treatment_codes
-        ? row.treatment_codes.split(',').map(c => c.trim())
-        : null
-
-      // 売上データ作成
-      const salesData = {
-        clinic_id: clinicId,
-        patient_id: patientId,
-        staff_id: staffId,
-        treatment_menu_id: treatmentMenuId,
-        receipt_number: row.receipt_number,
-        treatment_date: normalizeDate(row.treatment_date!),
-        sale_date: row.sale_date ? normalizeDate(row.sale_date) : normalizeDate(row.treatment_date!),
-        insurance_type: row.insurance_type || '',
-        insurance_points: normalizeNumber(row.insurance_points || 0),
-        insurance_amount: normalizeNumber(row.insurance_amount || 0),
-        patient_copay: normalizeNumber(row.patient_copay || 0),
-        self_pay_amount: normalizeNumber(row.self_pay_amount || 0),
-        total_amount: normalizeNumber(row.total_amount!),
-        amount: normalizeNumber(row.total_amount!), // 既存のamountフィールド
-        category: normalizeInsuranceType(row.insurance_type || ''),
-        payment_method: row.payment_method || '',
-        treatment_codes: treatmentCodes,
-        notes: row.notes || '',
-        imported_at: new Date().toISOString(),
-        import_file_name: 'upload.csv'
-      }
-
-      // ドライラン時はスキップ
-      if (!options.dryRun) {
-        const { error: insertError } = await supabase
-          .from('sales')
-          .insert(salesData)
-
-        if (insertError) {
-          errors.push({
-            row: rowNum,
-            error: `登録エラー: ${insertError.message}`,
-            data: row
-          })
-          if (!options.skipErrors) break
-          continue
-        }
-      }
-
-      successCount++
-    } catch (error: any) {
-      errors.push({
-        row: rowNum,
-        error: `予期しないエラー: ${error.message}`,
-        data: row
-      })
-      if (!options.skipErrors) break
-    }
-  }
-
-  // インポート履歴を更新
-  const finalStatus = errors.length === 0 ? 'completed' :
-                     successCount > 0 ? 'completed' : 'failed'
-
-  await supabase
-    .from('sales_import_history')
-    .update({
-      success_records: successCount,
-      failed_records: errors.length,
-      status: finalStatus,
-      error_details: errors.length > 0 ? errors : null,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', importHistory.id)
-
-  return {
-    success: errors.length === 0 || (options.skipErrors && successCount > 0),
-    import_id: importHistory.id,
-    total_records: rows.length,
-    success_records: successCount,
-    failed_records: errors.length,
-    errors
   }
 }

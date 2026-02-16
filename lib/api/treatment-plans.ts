@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+// Migrated to Prisma API Routes
 
 export interface TreatmentPlan {
   id: string
@@ -62,6 +62,10 @@ export interface UpdateTreatmentPlanInput {
   is_memo?: boolean  // メモ・所見フラグ
 }
 
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
 /**
  * 患者の治療計画一覧を取得
  */
@@ -70,18 +74,19 @@ export async function getTreatmentPlans(
   patientId: string
 ): Promise<TreatmentPlan[]> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_plans')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('patient_id', patientId)
-      .order('sort_order', { ascending: true })
+    const response = await fetch(
+      `${baseUrl}/api/treatment-plans?clinic_id=${clinicId}&patient_id=${patientId}`
+    )
 
-    if (error) throw error
-    return data || []
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '治療計画の取得に失敗しました')
+    }
+
+    return await response.json()
   } catch (error) {
     console.error('治療計画取得エラー:', error)
-    throw new Error('治療計画の取得に失敗しました')
+    throw error
   }
 }
 
@@ -93,19 +98,19 @@ export async function getPendingTreatmentPlans(
   patientId: string
 ): Promise<TreatmentPlan[]> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_plans')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('patient_id', patientId)
-      .in('status', ['planned', 'in_progress'])
-      .order('sort_order', { ascending: true })
+    const response = await fetch(
+      `${baseUrl}/api/treatment-plans?clinic_id=${clinicId}&patient_id=${patientId}&status=pending`
+    )
 
-    if (error) throw error
-    return data || []
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '未完了治療計画の取得に失敗しました')
+    }
+
+    return await response.json()
   } catch (error) {
     console.error('未完了治療計画取得エラー:', error)
-    throw new Error('未完了治療計画の取得に失敗しました')
+    throw error
   }
 }
 
@@ -118,37 +123,21 @@ export async function createTreatmentPlan(
   input: CreateTreatmentPlanInput
 ): Promise<TreatmentPlan> {
   try {
-    // 現在の最大sort_orderを取得
-    const { data: existingPlans } = await supabase
-      .from('treatment_plans')
-      .select('sort_order')
-      .eq('clinic_id', clinicId)
-      .eq('patient_id', patientId)
-      .order('sort_order', { ascending: false })
-      .limit(1)
+    const response = await fetch(`${baseUrl}/api/treatment-plans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clinic_id: clinicId, patient_id: patientId, ...input })
+    })
 
-    const maxSortOrder = existingPlans && existingPlans.length > 0
-      ? existingPlans[0].sort_order
-      : -1
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '治療計画の作成に失敗しました')
+    }
 
-    const { data, error } = await supabase
-      .from('treatment_plans')
-      .insert([{
-        clinic_id: clinicId,
-        patient_id: patientId,
-        ...input,
-        sort_order: input.sort_order ?? (maxSortOrder + 1),
-        priority: input.priority ?? 2,
-        status: 'planned'
-      }])
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
+    return await response.json()
   } catch (error) {
     console.error('治療計画作成エラー:', error)
-    throw new Error('治療計画の作成に失敗しました')
+    throw error
   }
 }
 
@@ -161,19 +150,21 @@ export async function updateTreatmentPlan(
   input: UpdateTreatmentPlanInput
 ): Promise<TreatmentPlan> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_plans')
-      .update(input)
-      .eq('id', planId)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
+    const response = await fetch(`${baseUrl}/api/treatment-plans`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: planId, clinic_id: clinicId, ...input })
+    })
 
-    if (error) throw error
-    return data
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '治療計画の更新に失敗しました')
+    }
+
+    return await response.json()
   } catch (error) {
     console.error('治療計画更新エラー:', error)
-    throw new Error('治療計画の更新に失敗しました')
+    throw error
   }
 }
 
@@ -185,16 +176,18 @@ export async function deleteTreatmentPlan(
   planId: string
 ): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('treatment_plans')
-      .delete()
-      .eq('id', planId)
-      .eq('clinic_id', clinicId)
+    const response = await fetch(
+      `${baseUrl}/api/treatment-plans?id=${planId}&clinic_id=${clinicId}`,
+      { method: 'DELETE' }
+    )
 
-    if (error) throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '治療計画の削除に失敗しました')
+    }
   } catch (error) {
     console.error('治療計画削除エラー:', error)
-    throw new Error('治療計画の削除に失敗しました')
+    throw error
   }
 }
 
@@ -208,25 +201,27 @@ export async function completeTreatmentPlan(
   memo?: string
 ): Promise<TreatmentPlan> {
   try {
-    const { data, error} = await supabase
-      .from('treatment_plans')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        implemented_date: new Date().toISOString().split('T')[0],
+    const response = await fetch(`${baseUrl}/api/treatment-plans`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'complete',
+        id: planId,
+        clinic_id: clinicId,
         implemented_by: implementedBy,
         memo: memo
       })
-      .eq('id', planId)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
+    })
 
-    if (error) throw error
-    return data
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '治療計画の完了処理に失敗しました')
+    }
+
+    return await response.json()
   } catch (error) {
     console.error('治療計画完了エラー:', error)
-    throw new Error('治療計画の完了処理に失敗しました')
+    throw error
   }
 }
 
@@ -239,19 +234,23 @@ export async function reorderTreatmentPlans(
   planIds: string[]
 ): Promise<void> {
   try {
-    // 各プランのsort_orderを更新
-    const updates = planIds.map((planId, index) =>
-      supabase
-        .from('treatment_plans')
-        .update({ sort_order: index })
-        .eq('id', planId)
-        .eq('clinic_id', clinicId)
-        .eq('patient_id', patientId)
-    )
+    const response = await fetch(`${baseUrl}/api/treatment-plans`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'reorder',
+        clinic_id: clinicId,
+        patient_id: patientId,
+        plan_ids: planIds
+      })
+    })
 
-    await Promise.all(updates)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '治療計画の順序更新に失敗しました')
+    }
   } catch (error) {
     console.error('治療計画順序更新エラー:', error)
-    throw new Error('治療計画の順序更新に失敗しました')
+    throw error
   }
 }

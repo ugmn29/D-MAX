@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Training } from '@/types/training'
 import { useClinicId } from '@/hooks/use-clinic-id'
 
@@ -32,25 +31,20 @@ export default function EvaluationCriteriaPage() {
   const loadData = async () => {
     try {
       // トレーニング一覧を取得
-      const { data: trainingsData, error: trainingsError } = await supabase
-        .from('trainings')
-        .select('*')
-        .eq('is_deleted', false)
-        .order('category', { ascending: true })
+      const trainingsResponse = await fetch('/api/training/clinic/trainings')
+      const trainingsResult = await trainingsResponse.json()
 
-      if (trainingsError) throw trainingsError
-      setTrainings(trainingsData || [])
+      if (!trainingsResponse.ok) throw new Error(trainingsResult.error)
+      setTrainings(trainingsResult.data || [])
 
       // カスタマイズ済みの評価基準を取得
-      const { data: customData, error: customError } = await supabase
-        .from('clinic_training_customizations')
-        .select('*')
-        .eq('clinic_id', clinicId)
+      const customResponse = await fetch(`/api/training/clinic/evaluation-criteria?clinic_id=${clinicId}`)
+      const customResult = await customResponse.json()
 
-      if (customError) throw customError
+      if (!customResponse.ok) throw new Error(customResult.error)
 
       const customMap = new Map<string, CustomCriteria>()
-      customData?.forEach((c: any) => {
+      ;(customResult.data || []).forEach((c: any) => {
         customMap.set(c.training_id, {
           training_id: c.training_id,
           evaluation_level_1_label: c.evaluation_level_1_label || '',
@@ -93,10 +87,10 @@ export default function EvaluationCriteriaPage() {
     setIsSaving(true)
 
     try {
-      // カスタマイズデータを保存（upsert）
-      const { error } = await supabase
-        .from('clinic_training_customizations')
-        .upsert({
+      const response = await fetch('/api/training/clinic/evaluation-criteria', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           clinic_id: clinicId,
           training_id: training.id,
           evaluation_level_1_label: criteria.evaluation_level_1_label,
@@ -105,9 +99,13 @@ export default function EvaluationCriteriaPage() {
           evaluation_level_2_criteria: criteria.evaluation_level_2_criteria,
           evaluation_level_3_label: criteria.evaluation_level_3_label,
           evaluation_level_3_criteria: criteria.evaluation_level_3_criteria,
-        })
+        }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || '保存に失敗しました')
+      }
 
       setEditingTrainingId(null)
       alert('評価基準を保存しました')
@@ -126,14 +124,15 @@ export default function EvaluationCriteriaPage() {
     setIsSaving(true)
 
     try {
-      // カスタマイズデータを削除
-      const { error } = await supabase
-        .from('clinic_training_customizations')
-        .delete()
-        .eq('clinic_id', clinicId)
-        .eq('training_id', trainingId)
+      const response = await fetch(
+        `/api/training/clinic/evaluation-criteria?clinic_id=${clinicId}&training_id=${trainingId}`,
+        { method: 'DELETE' }
+      )
 
-      if (error) throw error
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'リセットに失敗しました')
+      }
 
       alert('評価基準をデフォルトに戻しました')
       loadData()
@@ -274,51 +273,31 @@ export default function EvaluationCriteriaPage() {
                     </label>
                     <div className="space-y-2">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          ラベル
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">ラベル</label>
                         {isEditing ? (
                           <input
                             type="text"
                             value={criteria.evaluation_level_1_label}
-                            onChange={(e) =>
-                              handleCriteriaChange(
-                                training.id,
-                                'evaluation_level_1_label',
-                                e.target.value
-                              )
-                            }
+                            onChange={(e) => handleCriteriaChange(training.id, 'evaluation_level_1_label', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                             placeholder="例: できなかった"
                           />
                         ) : (
-                          <div className="text-sm text-gray-900">
-                            {criteria.evaluation_level_1_label}
-                          </div>
+                          <div className="text-sm text-gray-900">{criteria.evaluation_level_1_label}</div>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          詳細基準
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">詳細基準</label>
                         {isEditing ? (
                           <textarea
                             value={criteria.evaluation_level_1_criteria}
-                            onChange={(e) =>
-                              handleCriteriaChange(
-                                training.id,
-                                'evaluation_level_1_criteria',
-                                e.target.value
-                              )
-                            }
+                            onChange={(e) => handleCriteriaChange(training.id, 'evaluation_level_1_criteria', e.target.value)}
                             rows={2}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
                             placeholder="詳細な評価基準を入力してください"
                           />
                         ) : (
-                          <div className="text-sm text-gray-700">
-                            {criteria.evaluation_level_1_criteria || '未設定'}
-                          </div>
+                          <div className="text-sm text-gray-700">{criteria.evaluation_level_1_criteria || '未設定'}</div>
                         )}
                       </div>
                     </div>
@@ -331,51 +310,31 @@ export default function EvaluationCriteriaPage() {
                     </label>
                     <div className="space-y-2">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          ラベル
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">ラベル</label>
                         {isEditing ? (
                           <input
                             type="text"
                             value={criteria.evaluation_level_2_label}
-                            onChange={(e) =>
-                              handleCriteriaChange(
-                                training.id,
-                                'evaluation_level_2_label',
-                                e.target.value
-                              )
-                            }
+                            onChange={(e) => handleCriteriaChange(training.id, 'evaluation_level_2_label', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                             placeholder="例: まあまあできた"
                           />
                         ) : (
-                          <div className="text-sm text-gray-900">
-                            {criteria.evaluation_level_2_label}
-                          </div>
+                          <div className="text-sm text-gray-900">{criteria.evaluation_level_2_label}</div>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          詳細基準
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">詳細基準</label>
                         {isEditing ? (
                           <textarea
                             value={criteria.evaluation_level_2_criteria}
-                            onChange={(e) =>
-                              handleCriteriaChange(
-                                training.id,
-                                'evaluation_level_2_criteria',
-                                e.target.value
-                              )
-                            }
+                            onChange={(e) => handleCriteriaChange(training.id, 'evaluation_level_2_criteria', e.target.value)}
                             rows={2}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
                             placeholder="詳細な評価基準を入力してください"
                           />
                         ) : (
-                          <div className="text-sm text-gray-700">
-                            {criteria.evaluation_level_2_criteria || '未設定'}
-                          </div>
+                          <div className="text-sm text-gray-700">{criteria.evaluation_level_2_criteria || '未設定'}</div>
                         )}
                       </div>
                     </div>
@@ -388,51 +347,31 @@ export default function EvaluationCriteriaPage() {
                     </label>
                     <div className="space-y-2">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          ラベル
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">ラベル</label>
                         {isEditing ? (
                           <input
                             type="text"
                             value={criteria.evaluation_level_3_label}
-                            onChange={(e) =>
-                              handleCriteriaChange(
-                                training.id,
-                                'evaluation_level_3_label',
-                                e.target.value
-                              )
-                            }
+                            onChange={(e) => handleCriteriaChange(training.id, 'evaluation_level_3_label', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                             placeholder="例: できた"
                           />
                         ) : (
-                          <div className="text-sm text-gray-900">
-                            {criteria.evaluation_level_3_label}
-                          </div>
+                          <div className="text-sm text-gray-900">{criteria.evaluation_level_3_label}</div>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          詳細基準
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">詳細基準</label>
                         {isEditing ? (
                           <textarea
                             value={criteria.evaluation_level_3_criteria}
-                            onChange={(e) =>
-                              handleCriteriaChange(
-                                training.id,
-                                'evaluation_level_3_criteria',
-                                e.target.value
-                              )
-                            }
+                            onChange={(e) => handleCriteriaChange(training.id, 'evaluation_level_3_criteria', e.target.value)}
                             rows={2}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
                             placeholder="詳細な評価基準を入力してください"
                           />
                         ) : (
-                          <div className="text-sm text-gray-700">
-                            {criteria.evaluation_level_3_criteria || '未設定'}
-                          </div>
+                          <div className="text-sm text-gray-700">{criteria.evaluation_level_3_criteria || '未設定'}</div>
                         )}
                       </div>
                     </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 export async function GET(
   request: NextRequest,
@@ -7,29 +8,32 @@ export async function GET(
 ) {
   try {
     const { id: documentId } = await params
+    const prisma = getPrismaClient()
 
     console.log('Server-side medical document fetch by ID:', { documentId })
 
-    const supabaseClient = getSupabaseClient()
+    const data = await prisma.medical_documents.findUnique({
+      where: { id: documentId },
+      include: {
+        staff: {
+          select: { id: true, name: true }
+        }
+      }
+    })
 
-    const { data, error } = await supabaseClient
-      .from('medical_documents')
-      .select(`
-        *,
-        creator:staff!medical_documents_created_by_fkey(id, name)
-      `)
-      .eq('id', documentId)
-      .single()
-
-    if (error) {
-      console.error('Medical document fetch error:', error)
+    if (!data) {
       return NextResponse.json(
-        { error: error.message, details: error },
+        { error: 'Document not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(data)
+    // Reshape to match Supabase's aliased join format: creator instead of staff
+    const { staff, ...rest } = data
+    const converted = convertDatesToStrings(rest, ['created_at', 'updated_at'])
+    const result = { ...converted, creator: staff }
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Unexpected error fetching medical document:', error)
     return NextResponse.json(
@@ -46,34 +50,30 @@ export async function PATCH(
   try {
     const { id: documentId } = await params
     const body = await request.json()
+    const prisma = getPrismaClient()
 
     console.log('Server-side medical document update:', {
       documentId,
       updates: body
     })
 
-    const supabaseClient = getSupabaseClient()
+    const data = await prisma.medical_documents.update({
+      where: { id: documentId },
+      data: body,
+      include: {
+        staff: {
+          select: { id: true, name: true }
+        }
+      }
+    })
 
-    const { data, error } = await supabaseClient
-      .from('medical_documents')
-      .update(body)
-      .eq('id', documentId)
-      .select(`
-        *,
-        creator:staff!medical_documents_created_by_fkey(id, name)
-      `)
-      .single()
+    // Reshape to match Supabase's aliased join format: creator instead of staff
+    const { staff, ...rest } = data
+    const converted = convertDatesToStrings(rest, ['created_at', 'updated_at'])
+    const result = { ...converted, creator: staff }
 
-    if (error) {
-      console.error('Medical document update error:', error)
-      return NextResponse.json(
-        { error: error.message, details: error },
-        { status: 500 }
-      )
-    }
-
-    console.log('Medical document updated successfully:', data.id)
-    return NextResponse.json(data)
+    console.log('Medical document updated successfully:', result.id)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Unexpected error updating medical document:', error)
     return NextResponse.json(
@@ -89,23 +89,13 @@ export async function DELETE(
 ) {
   try {
     const { id: documentId } = await params
+    const prisma = getPrismaClient()
 
     console.log('Server-side medical document deletion:', { documentId })
 
-    const supabaseClient = getSupabaseClient()
-
-    const { error } = await supabaseClient
-      .from('medical_documents')
-      .delete()
-      .eq('id', documentId)
-
-    if (error) {
-      console.error('Medical document deletion error:', error)
-      return NextResponse.json(
-        { error: error.message, details: error },
-        { status: 500 }
-      )
-    }
+    await prisma.medical_documents.delete({
+      where: { id: documentId }
+    })
 
     console.log('Medical document deleted successfully:', documentId)
     return NextResponse.json({ success: true })
