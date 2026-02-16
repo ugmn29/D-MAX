@@ -675,10 +675,16 @@ async function getStaffProductivityData(
   endDate: string
 ): Promise<StaffProductivityData[]> {
   // スタッフ情報を取得（設定ページと同じAPI使用）
-  const staff = await getStaff(clinicId)
+  let staff: Awaited<ReturnType<typeof getStaff>> = []
+  try {
+    staff = await getStaff(clinicId)
+  } catch (error) {
+    console.warn('スタッフ情報取得エラー（スキップ）:', error)
+    return []
+  }
 
   if (!staff || staff.length === 0) {
-    console.error('スタッフ情報が取得できません')
+    console.warn('スタッフ情報が0件のため、生産性データをスキップします')
     return []
   }
 
