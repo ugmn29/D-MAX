@@ -59,6 +59,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   // 文字起こし関連の状態
   const [transcription, setTranscription] = useState('')
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [interimText, setInterimText] = useState('')
   const [autoTranscription, setAutoTranscription] = useState(true)
   const [segmentCount, setSegmentCount] = useState(0)
   const [appendCount, setAppendCount] = useState(0)
@@ -74,10 +75,11 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
-  const lastAudioBlobRef = useRef<Blob | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const recognitionRef = useRef<any>(null)
+  const isRecordingRef = useRef(false)
 
   // 要約テンプレート
   const summaryTemplates: SummaryTemplate[] = [
@@ -98,12 +100,73 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   ]
 
+  // 音声認識開始（Web Speech API）
+  const startSpeechRecognition = () => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognitionAPI) {
+      alert('このブラウザは音声認識に対応していません。Chrome、Safari、またはEdgeをお使いください。')
+      return
+    }
+
+    const recognition = new SpeechRecognitionAPI()
+    recognition.lang = 'ja-JP'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event: any) => {
+      let interim = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (result.isFinal) {
+          const text = result[0].transcript
+          setTranscription(prev => prev ? prev + text : text)
+          setAppendCount(prev => prev + 1)
+        } else {
+          interim += result[0].transcript
+        }
+      }
+      setInterimText(interim)
+    }
+
+    recognition.onerror = (event: any) => {
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        console.error('音声認識エラー:', event.error)
+      }
+    }
+
+    recognition.onend = () => {
+      setInterimText('')
+      if (isRecordingRef.current) {
+        try {
+          recognition.start()
+        } catch (e) {
+          console.warn('音声認識の再開に失敗:', e)
+        }
+      } else {
+        setIsTranscribing(false)
+      }
+    }
+
+    recognition.start()
+    recognitionRef.current = recognition
+    setIsTranscribing(true)
+  }
+
+  // 音声認識停止
+  const stopSpeechRecognition = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    setInterimText('')
+    setIsTranscribing(false)
+  }
+
   // 録音開始
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true
@@ -121,13 +184,12 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        lastAudioBlobRef.current = audioBlob
-        
+
         // セグメントを作成（30秒ごと）
         const segmentDuration = 30
         const totalSegments = Math.ceil(recordingTime / segmentDuration)
         const newSegments: AudioSegment[] = []
-        
+
         for (let i = 0; i < totalSegments; i++) {
           newSegments.push({
             id: `segment_${Date.now()}_${i}`,
@@ -137,24 +199,25 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
             isSelected: false
           })
         }
-        
+
         setAudioSegments(prev => [...prev, ...newSegments])
         setSegmentCount(prev => prev + totalSegments)
-        
-        // 自動文字起こしが有効な場合
-        if (autoTranscription) {
-          transcribeAudio(audioBlob)
-        }
       }
 
       mediaRecorder.start()
       setIsRecording(true)
+      isRecordingRef.current = true
       setRecordingTime(0)
 
       // 録音時間のカウント
       recordingIntervalRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1)
       }, 1000)
+
+      // 自動文字起こしが有効な場合、音声認識を開始
+      if (autoTranscription) {
+        startSpeechRecognition()
+      }
 
     } catch (error) {
       console.error('録音開始エラー:', error)
@@ -167,67 +230,11 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop()
       setIsRecording(false)
+      isRecordingRef.current = false
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current)
       }
-    }
-  }
-
-  // 文字起こし処理
-  const transcribeAudio = async (audioBlob: Blob) => {
-    setIsTranscribing(true)
-    try {
-      console.log('📤 送信する音声データ:', {
-        size: audioBlob.size,
-        type: audioBlob.type,
-        sizeKB: Math.round(audioBlob.size / 1024) + 'KB'
-      })
-
-      if (audioBlob.size === 0) {
-        console.error('⚠️ 音声データが空です')
-        alert('音声データが空です。録音してから再度お試しください。')
-        return
-      }
-
-      const formData = new FormData()
-      formData.append('audio', audioBlob, 'recording.webm')
-
-      const response = await fetch('/api/speech-to-text', {
-        method: 'POST',
-        body: formData
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error('文字起こしAPIエラー:', response.status, errorData)
-        throw new Error(errorData.details || '文字起こしに失敗しました')
-      }
-
-      const result = await response.json()
-      console.log('📥 文字起こし結果:', {
-        transcript: result.transcript?.substring(0, 50),
-        confidence: result.confidence,
-        length: result.transcript?.length
-      })
-
-      if (result.transcript) {
-        setTranscription(prev => prev ? prev + '\n' + result.transcript : result.transcript)
-      } else {
-        console.warn('⚠️ 文字起こし結果が空です（音声が認識されませんでした）')
-      }
-      setAppendCount(prev => prev + 1)
-    } catch (error) {
-      console.error('文字起こしエラー:', error)
-      alert('文字起こしに失敗しました。もう一度お試しください。')
-    } finally {
-      setIsTranscribing(false)
-    }
-  }
-
-  // 手動文字起こし
-  const handleManualTranscription = () => {
-    if (lastAudioBlobRef.current) {
-      transcribeAudio(lastAudioBlobRef.current)
+      stopSpeechRecognition()
     }
   }
 
@@ -351,6 +358,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       if (playIntervalRef.current) {
         clearInterval(playIntervalRef.current)
       }
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
     }
   }, [])
 
@@ -427,15 +437,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
               </div>
             )}
 
-            {/* 文字起こしボタン */}
+            {/* 操作ボタン */}
             <div className="flex gap-2 mb-4">
-              <Button
-                onClick={handleManualTranscription}
-                disabled={isTranscribing || audioSegments.length === 0}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2"
-              >
-                {isTranscribing ? '文字起こし中...' : '文字起こし'}
-              </Button>
               <Button
                 onClick={undoLast}
                 variant="outline"
@@ -459,9 +462,14 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
               <Textarea
                 value={transcription}
                 onChange={(e) => setTranscription(e.target.value)}
-                placeholder="文字起こし結果がここに表示されます..."
+                placeholder="録音を開始すると、リアルタイムで文字起こしされます..."
                 className="min-h-[200px] w-full p-4 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+              {interimText && (
+                <div className="mt-1 px-4 py-2 text-sm text-gray-400 italic bg-gray-50 rounded border border-gray-200">
+                  認識中: {interimText}
+                </div>
+              )}
             </div>
           </div>
         </div>
