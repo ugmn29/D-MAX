@@ -74,6 +74,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const lastAudioBlobRef = useRef<Blob | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -120,6 +121,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        lastAudioBlobRef.current = audioBlob
         
         // セグメントを作成（30秒ごと）
         const segmentDuration = 30
@@ -200,8 +202,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
   // 手動文字起こし
   const handleManualTranscription = () => {
-    if (audioSegments.length > 0) {
-      transcribeAudio(new Blob())
+    if (lastAudioBlobRef.current) {
+      transcribeAudio(lastAudioBlobRef.current)
     }
   }
 
