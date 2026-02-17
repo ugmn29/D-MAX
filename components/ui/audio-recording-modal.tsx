@@ -176,6 +176,22 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   // 録音開始
   const startRecording = async () => {
     try {
+      // awaitの前に状態とrefをセット + 音声認識を開始
+      // （awaitの後はユーザージェスチャーのコンテキストが失われるため）
+      isRecordingRef.current = true
+      setIsRecording(true)
+      setRecordingTime(0)
+
+      if (autoTranscription) {
+        startSpeechRecognition()
+      }
+
+      // 録音時間のカウント
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+
+      // MediaRecorderを開始（awaitはここで発生）
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -216,22 +232,14 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       }
 
       mediaRecorder.start()
-      setIsRecording(true)
-      isRecordingRef.current = true
-      setRecordingTime(0)
-
-      // 録音時間のカウント
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1)
-      }, 1000)
-
-      // 自動文字起こしが有効な場合、音声認識を開始
-      if (autoTranscription) {
-        startSpeechRecognition()
-      }
-
     } catch (error) {
       console.error('録音開始エラー:', error)
+      isRecordingRef.current = false
+      setIsRecording(false)
+      stopSpeechRecognition()
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current)
+      }
       alert('マイクへのアクセスが許可されていません')
     }
   }
