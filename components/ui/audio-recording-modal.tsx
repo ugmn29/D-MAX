@@ -103,6 +103,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   // 音声認識開始（Web Speech API）
   const startSpeechRecognition = () => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    console.log('🎙️ SpeechRecognition API:', SpeechRecognitionAPI ? '利用可能' : '未対応')
     if (!SpeechRecognitionAPI) {
       alert('このブラウザは音声認識に対応していません。Chrome、Safari、またはEdgeをお使いください。')
       return
@@ -113,12 +114,17 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     recognition.continuous = true
     recognition.interimResults = true
 
+    recognition.onstart = () => {
+      console.log('🎙️ 音声認識開始')
+    }
+
     recognition.onresult = (event: any) => {
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         if (result.isFinal) {
           const text = result[0].transcript
+          console.log('✅ 確定:', text)
           setTranscription(prev => prev ? prev + text : text)
           setAppendCount(prev => prev + 1)
         } else {
@@ -129,16 +135,16 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     recognition.onerror = (event: any) => {
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
-        console.error('音声認識エラー:', event.error)
-      }
+      console.error('🔴 音声認識エラー:', event.error, event.message)
     }
 
     recognition.onend = () => {
+      console.log('🎙️ 音声認識終了 (録音中:', isRecordingRef.current, ')')
       setInterimText('')
       if (isRecordingRef.current) {
         try {
           recognition.start()
+          console.log('🎙️ 音声認識を再開')
         } catch (e) {
           console.warn('音声認識の再開に失敗:', e)
         }
@@ -147,9 +153,14 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       }
     }
 
-    recognition.start()
-    recognitionRef.current = recognition
-    setIsTranscribing(true)
+    try {
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsTranscribing(true)
+      console.log('🎙️ recognition.start() 呼び出し完了')
+    } catch (e) {
+      console.error('🔴 recognition.start() 失敗:', e)
+    }
   }
 
   // 音声認識停止
