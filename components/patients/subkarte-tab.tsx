@@ -1694,6 +1694,8 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
         isOpen={showAudioRecordingModal}
         onClose={() => setShowAudioRecordingModal(false)}
         patientId={patientId}
+        clinicId={clinicId}
+        staffId={getCurrentStaffId()}
       />
 
       {/* 手書きモーダル */}
@@ -2332,6 +2334,8 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
         isOpen={showAudioRecordingModal}
         onClose={() => setShowAudioRecordingModal(false)}
         patientId={patientId}
+        clinicId={clinicId}
+        staffId={getCurrentStaffId()}
       />
 
       <HandwritingModal
