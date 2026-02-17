@@ -104,18 +104,20 @@ export async function POST(request: NextRequest) {
 
     const allPhrases = [...new Set([...periodontalPhrases, ...customPhrases])]
 
-    // 認識設定（WebMコンテナはエンコーディング・サンプルレートを自動検出）
+    // 認識設定（高精度モデル + 歯科用語補正）
     const config: speech.protos.google.cloud.speech.v1.IRecognitionConfig = {
       encoding: 'WEBM_OPUS',
       sampleRateHertz: 48000,
       languageCode: 'ja-JP',
       enableAutomaticPunctuation: true,
-      model: 'default',
+      model: 'latest_short',
+      useEnhanced: true,
       maxAlternatives: 3,
+      enableWordConfidence: true,
       speechContexts: allPhrases.length > 0 ? [
         {
           phrases: allPhrases.slice(0, 500),
-          boost: 10,
+          boost: 15,
         },
       ] : [],
       profanityFilter: false,
