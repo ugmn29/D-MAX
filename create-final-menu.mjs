@@ -3,7 +3,7 @@ console.log('🔧 最終修正：新しいリッチメニューを作成\n');
 
 // 1. 新しいリッチメニューを作成
 console.log('📌 ステップ1: リッチメニュー構造を作成');
-const createResponse = await fetch('https://dmax-mu.vercel.app/api/line/create-rich-menu', {
+const createResponse = await fetch('https://shikabot-mu.vercel.app/api/line/create-rich-menu', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -15,8 +15,8 @@ const createResponse = await fetch('https://dmax-mu.vercel.app/api/line/create-r
     selected: false,
     areas: [
       { bounds: { x: 0, y: 0, width: 833, height: 1686 }, action: { type: 'uri', uri: 'https://line.me/R/nv/QRCodeReader' }},
-      { bounds: { x: 833, y: 0, width: 833, height: 1686 }, action: { type: 'uri', uri: 'https://dmax-mu.vercel.app' }},
-      { bounds: { x: 1666, y: 0, width: 834, height: 1686 }, action: { type: 'uri', uri: 'https://dmax-mu.vercel.app/contact' }}
+      { bounds: { x: 833, y: 0, width: 833, height: 1686 }, action: { type: 'uri', uri: 'https://shikabot-mu.vercel.app' }},
+      { bounds: { x: 1666, y: 0, width: 834, height: 1686 }, action: { type: 'uri', uri: 'https://shikabot-mu.vercel.app/contact' }}
     ]
   })
 });
@@ -33,7 +33,7 @@ console.log('   ID:', newMenuId);
 
 // 2. 画像をアップロード（修正済みのCanvas生成コードを使用）
 console.log('\n📌 ステップ2: 画像をアップロード');
-const uploadResponse = await fetch('https://dmax-mu.vercel.app/api/line/upload-rich-menu-image', {
+const uploadResponse = await fetch('https://shikabot-mu.vercel.app/api/line/upload-rich-menu-image', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -59,7 +59,7 @@ console.log('✅ 画像アップロード成功');
 
 // 3. データベースに保存
 console.log('\n📌 ステップ3: データベースに保存');
-const saveResponse = await fetch('https://dmax-mu.vercel.app/api/line/save-rich-menu-ids', {
+const saveResponse = await fetch('https://shikabot-mu.vercel.app/api/line/save-rich-menu-ids', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -77,7 +77,7 @@ console.log('✅ データベースに保存完了');
 
 // 4. デフォルトメニューとして設定
 console.log('\n📌 ステップ4: デフォルトメニューとして設定');
-const setDefaultResponse = await fetch('https://dmax-mu.vercel.app/api/line/set-default-rich-menu', {
+const setDefaultResponse = await fetch('https://shikabot-mu.vercel.app/api/line/set-default-rich-menu', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -95,7 +95,7 @@ console.log('✅ デフォルトメニュー設定完了');
 
 // 5. 確認
 console.log('\n📌 ステップ5: 設定を確認');
-const verifyResponse = await fetch(`https://dmax-mu.vercel.app/api/line/diagnose?clinic_id=11111111-1111-1111-1111-111111111111`);
+const verifyResponse = await fetch(`https://shikabot-mu.vercel.app/api/line/diagnose?clinic_id=11111111-1111-1111-1111-111111111111`);
 const verifyData = await verifyResponse.json();
 
 console.log('データベース未連携ID:', verifyData.richMenuSettings.unregisteredMenuId);

@@ -227,10 +227,10 @@ Finished supabase db push.
 
 ```bash
 # 問診票データの確認
-curl "https://dmax-mu.vercel.app/api/questionnaires/debug"
+curl "https://shikabot-mu.vercel.app/api/questionnaires/debug"
 
 # 患者連携状況の確認（設定ページAPI）
-curl "https://dmax-mu.vercel.app/api/patients/link-status?clinic_id=11111111-1111-1111-1111-111111111111"
+curl "https://shikabot-mu.vercel.app/api/patients/link-status?clinic_id=11111111-1111-1111-1111-111111111111"
 ```
 
 ### トラブルシューティング

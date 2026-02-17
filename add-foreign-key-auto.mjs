@@ -73,7 +73,7 @@ async function addForeignKey() {
       console.log('')
 
       // 代替: HTTP経由でSQL実行APIを呼び出す
-      const altResponse = await fetch(`${SUPABASE_URL.replace('http://127.0.0.1:54321', 'https://dmax-mu.vercel.app')}/api/migrations/run`, {
+      const altResponse = await fetch(`${SUPABASE_URL.replace('http://127.0.0.1:54321', 'https://shikabot-mu.vercel.app')}/api/migrations/run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -18,15 +18,15 @@ export function Header() {
   const pathname = usePathname()
 
   return (
-    <header className="bg-white border-b border-dmax-border sticky top-0 z-50">
+    <header className="bg-white border-b border-shikabot-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* ロゴ */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
-              <h1 className="text-2xl font-bold text-dmax-primary-dark">DAX</h1>
+              <h1 className="text-2xl font-bold text-shikabot-primary-dark">歯科Bot</h1>
               <span className="ml-2 text-sm text-gray-600 hidden sm:block">
-                歯科医院向け予約・サブカルテアプリ
+                AI搭載の歯科予約・管理システム
               </span>
             </Link>
           </div>
@@ -44,8 +44,8 @@ export function Header() {
                   className={cn(
                     "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors touch-target",
                     isActive
-                      ? "bg-dmax-light-blue text-dmax-primary-dark"
-                      : "text-gray-700 hover:text-dmax-primary-dark hover:bg-gray-50"
+                      ? "bg-shikabot-light-blue text-shikabot-primary-dark"
+                      : "text-gray-700 hover:text-shikabot-primary-dark hover:bg-gray-50"
                   )}
                 >
                   <Icon className="w-4 h-4 mr-2" />

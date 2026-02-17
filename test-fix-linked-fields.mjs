@@ -2,7 +2,7 @@
  * 本番環境でlinked_field修正APIをテストする
  */
 
-const url = 'https://dmax-mu.vercel.app/api/questionnaires/fix-linked-fields'
+const url = 'https://shikabot-mu.vercel.app/api/questionnaires/fix-linked-fields'
 
 console.log('🔧 問診票のlinked_field修正APIを実行中...')
 console.log(`URL: ${url}`)

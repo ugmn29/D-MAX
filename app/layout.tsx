@@ -12,7 +12,7 @@ const inter = Inter({ subsets: ['latin'] })
 const TRACKING_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export const metadata: Metadata = {
-  title: 'DAX - 歯科医院向け予約・サブカルテアプリ',
+  title: '歯科Bot - AI搭載の歯科予約・管理システム',
   description: '歯科医院の診療予約管理、患者管理、経営分析、マーケティングROI最適化の統合プラットフォーム',
 }
 
@@ -30,7 +30,7 @@ export default function RootLayout({
         <StorageVersionChecker />
         <AuthProvider>
           <UTMCapture />
-          <div className="min-h-screen bg-dmax-background">
+          <div className="min-h-screen bg-shikabot-background">
             {children}
           </div>
         </AuthProvider>

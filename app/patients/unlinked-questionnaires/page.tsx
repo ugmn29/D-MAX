@@ -207,7 +207,7 @@ export default function UnlinkedQuestionnairesPage() {
         {/* 問診票一覧 */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-shikabot-primary"></div>
           </div>
         ) : unlinkedResponses.length === 0 ? (
           <Card>

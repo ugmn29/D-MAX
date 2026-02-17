@@ -50,32 +50,32 @@ npx supabase db push
 ```html
 <!-- 例1: ヘッダーの予約ボタン -->
 <a href="予約ページURL"
-   data-dmax-tab="header_button"
-   data-dmax-position="header"
+   data-shikabot-tab="header_button"
+   data-shikabot-position="header"
    class="booking-button">
   予約する
 </a>
 
 <!-- 例2: サイドバーの予約ボタン -->
 <a href="予約ページURL"
-   data-dmax-tab="sidebar_button"
-   data-dmax-position="sidebar"
+   data-shikabot-tab="sidebar_button"
+   data-shikabot-position="sidebar"
    class="booking-button">
   今すぐ予約
 </a>
 
 <!-- 例3: フッターの予約ボタン -->
 <a href="予約ページURL"
-   data-dmax-tab="footer_button"
-   data-dmax-position="footer"
+   data-shikabot-tab="footer_button"
+   data-shikabot-position="footer"
    class="booking-button">
   Web予約はこちら
 </a>
 ```
 
 **属性の説明:**
-- `data-dmax-tab`: タブの識別ID（自由に設定）
-- `data-dmax-position`: タブの位置（header, sidebar, footer, content, floating）
+- `data-shikabot-tab`: タブの識別ID（自由に設定）
+- `data-shikabot-position`: タブの位置（header, sidebar, footer, content, floating）
 
 ---
 
@@ -241,7 +241,7 @@ GTMで以下の設定を追加すると、GA4でもタブ分析可能:
    - 「Tab tracking...」というログが表示されるか確認
 
 2. **data属性の確認**
-   - `data-dmax-tab` 属性が正しく設定されているか
+   - `data-shikabot-tab` 属性が正しく設定されているか
    - スペルミスがないか
 
 3. **スクリプトの確認**

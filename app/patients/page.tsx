@@ -169,7 +169,7 @@ export default function PatientsPage() {
           <CardContent>
             {loading ? (
               <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-shikabot-primary"></div>
               </div>
             ) : (
               <>

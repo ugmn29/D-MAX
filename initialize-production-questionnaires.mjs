@@ -2,7 +2,7 @@
  * Production環境に3つのデフォルト問診表を初期化するスクリプト
  */
 
-const PRODUCTION_URL = 'https://dmax-mu.vercel.app'
+const PRODUCTION_URL = 'https://shikabot-mu.vercel.app'
 const CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 async function initializeQuestionnaires() {

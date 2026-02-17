@@ -76,10 +76,10 @@ export default function AnalyticsPage() {
   }
 
   useEffect(() => {
-    if (startDate && endDate) {
+    if (startDate && endDate && clinicId) {
       loadAnalyticsData()
     }
-  }, [startDate, endDate, comparisonType])
+  }, [startDate, endDate, comparisonType, clinicId])
 
   // メニュードリルダウン処理
   const handleMenuClick = async (menuId: string, menuName: string, level: number) => {

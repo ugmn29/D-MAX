@@ -2,7 +2,7 @@
  * pgライブラリを使うAPIエンドポイント経由でマイグレーションを実行
  */
 
-const PRODUCTION_URL = 'https://dmax-mu.vercel.app'
+const PRODUCTION_URL = 'https://shikabot-mu.vercel.app'
 const MIGRATION_FILE = '20251210000004_add_original_patient_data_to_questionnaire_responses.sql'
 
 async function runMigration() {

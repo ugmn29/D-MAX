@@ -90,7 +90,7 @@ const hasMenuIds = richMenuSettings?.setting_value?.line_registered_rich_menu_id
 if (isTestToken) {
   console.log('❌ テストトークンでは動作しません');
   console.log('   → 本番のChannel Access Tokenを設定してください');
-  console.log('   → 設定ページ: https://dmax-mu.vercel.app/settings');
+  console.log('   → 設定ページ: https://shikabot-mu.vercel.app/settings');
   console.log('   → 通知タブ > 接続設定 > LINEの設定を更新');
 } else if (!hasToken) {
   console.log('❌ Channel Access Tokenが未設定です');

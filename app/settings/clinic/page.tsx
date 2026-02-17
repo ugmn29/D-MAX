@@ -218,7 +218,7 @@ export default function ClinicSettingsPage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-shikabot-primary"></div>
         </div>
       </MainLayout>
     )
@@ -285,7 +285,7 @@ export default function ClinicSettingsPage() {
                       className={`
                         flex items-center space-x-2 px-4 py-2.5 rounded-md transition-all flex-1 justify-center
                         ${activeTab === tab.id
-                          ? 'bg-dmax-primary text-white shadow-sm'
+                          ? 'bg-shikabot-primary text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-50'
                         }
                       `}

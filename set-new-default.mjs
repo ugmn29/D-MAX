@@ -3,7 +3,7 @@ console.log('🔄 新しいリッチメニューをデフォルトに設定\n');
 
 const newMenuId = 'richmenu-e0a7d82120f985f18a8d26d6c5b5be32';
 
-const response = await fetch('https://dmax-mu.vercel.app/api/line/set-default-rich-menu', {
+const response = await fetch('https://shikabot-mu.vercel.app/api/line/set-default-rich-menu', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'

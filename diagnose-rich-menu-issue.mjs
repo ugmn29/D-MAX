@@ -208,7 +208,7 @@ if (issues.length === 0 && warnings.length === 0) {
     console.log('【重要】LINE基本設定が不足しています:');
     console.log('');
     console.log('方法1: 通知タブから保存（推奨）');
-    console.log('  1. https://dmax-mu.vercel.app/settings にアクセス');
+    console.log('  1. https://shikabot-mu.vercel.app/settings にアクセス');
     console.log('  2. 「通知」タブを開く');
     console.log('  3. 「LINE公式アカウント設定」セクションで:');
     console.log('     - ☑ LINE通知を有効にする');

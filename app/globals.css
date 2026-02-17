@@ -62,11 +62,11 @@
 /* D-MAX特有のスタイル */
 @layer components {
   .calendar-grid {
-    @apply border border-dmax-border bg-white;
+    @apply border border-shikabot-border bg-white;
   }
 
   .appointment-block {
-    @apply rounded-sm border-l-4 bg-dmax-light-blue border-l-dmax-primary-dark p-2;
+    @apply rounded-sm border-l-4 bg-shikabot-light-blue border-l-shikabot-primary-dark p-2;
   }
 
   .appointment-block:hover {
@@ -74,7 +74,7 @@
   }
 
   .sidebar-section {
-    @apply bg-white rounded-lg shadow-sm border border-dmax-border p-4 mb-4;
+    @apply bg-white rounded-lg shadow-sm border border-shikabot-border p-4 mb-4;
   }
 
   .touch-target {
@@ -92,7 +92,7 @@
 }
 
 .rbc-time-slot {
-  @apply border-dmax-border;
+  @apply border-shikabot-border;
 }
 
 .rbc-time-view .rbc-time-gutter {
@@ -100,11 +100,11 @@
 }
 
 .rbc-event {
-  @apply bg-dmax-primary text-white rounded-sm;
+  @apply bg-shikabot-primary text-white rounded-sm;
 }
 
 .rbc-event:hover {
-  @apply bg-dmax-primary-dark;
+  @apply bg-shikabot-primary-dark;
 }
 
 /* スクロールバーのカスタマイズ */

@@ -164,14 +164,14 @@ export function generateTabTrackingScript(clinicId: string): string {
 
   // 全ての予約ボタンに自動でトラッキング設定
   window.addEventListener('load', function() {
-    // data-dmax-tab 属性を持つ要素を全て取得
-    const tabButtons = document.querySelectorAll('[data-dmax-tab]');
+    // data-shikabot-tab 属性を持つ要素を全て取得
+    const tabButtons = document.querySelectorAll('[data-shikabot-tab]');
 
     tabButtons.forEach(function(button) {
       button.addEventListener('click', function(e) {
-        const tabId = button.getAttribute('data-dmax-tab');
+        const tabId = button.getAttribute('data-shikabot-tab');
         const tabLabel = button.textContent.trim();
-        const tabPosition = button.getAttribute('data-dmax-position') || 'unknown';
+        const tabPosition = button.getAttribute('data-shikabot-position') || 'unknown';
 
         trackTabClick(tabId, tabLabel, tabPosition);
       });

@@ -59,7 +59,7 @@ const { error: lineError } = await supabase
       channel_access_token: accessToken,
       channel_secret: channelSecret,
       channel_id: channelId || undefined,
-      webhook_url: `https://dmax-mu.vercel.app/api/line/webhook`
+      webhook_url: `https://shikabot-mu.vercel.app/api/line/webhook`
     }
   }, {
     onConflict: 'clinic_id,setting_key'
@@ -98,7 +98,7 @@ const { error: notifError } = await supabase
         channelId: channelId || '',
         channelSecret: channelSecret,
         accessToken: accessToken,
-        webhookUrl: `https://dmax-mu.vercel.app/api/line/webhook`
+        webhookUrl: `https://shikabot-mu.vercel.app/api/line/webhook`
       }
     }
   }, {

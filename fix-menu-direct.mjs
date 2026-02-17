@@ -63,7 +63,7 @@ if (currentDefaultId) {
 // 4. 新しいリッチメニューを作成
 console.log('📌 ステップ4: 新しいリッチメニューを作成');
 
-const createResponse = await fetch('https://dmax-mu.vercel.app/api/line/create-rich-menu', {
+const createResponse = await fetch('https://shikabot-mu.vercel.app/api/line/create-rich-menu', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -82,11 +82,11 @@ const createResponse = await fetch('https://dmax-mu.vercel.app/api/line/create-r
       },
       {
         bounds: { x: 833, y: 0, width: 833, height: 1686 },
-        action: { type: 'uri', uri: 'https://dmax-mu.vercel.app' }
+        action: { type: 'uri', uri: 'https://shikabot-mu.vercel.app' }
       },
       {
         bounds: { x: 1666, y: 0, width: 834, height: 1686 },
-        action: { type: 'uri', uri: 'https://dmax-mu.vercel.app/contact' }
+        action: { type: 'uri', uri: 'https://shikabot-mu.vercel.app/contact' }
       }
     ]
   })
@@ -107,7 +107,7 @@ console.log('');
 // 5. 画像をアップロード
 console.log('📌 ステップ5: 画像をアップロード');
 
-const uploadResponse = await fetch('https://dmax-mu.vercel.app/api/line/upload-rich-menu-image', {
+const uploadResponse = await fetch('https://shikabot-mu.vercel.app/api/line/upload-rich-menu-image', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -139,7 +139,7 @@ console.log('');
 // 6. IDを保存
 console.log('📌 ステップ6: 新しいIDをデータベースに保存');
 
-const saveResponse = await fetch('https://dmax-mu.vercel.app/api/line/save-rich-menu-ids', {
+const saveResponse = await fetch('https://shikabot-mu.vercel.app/api/line/save-rich-menu-ids', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'

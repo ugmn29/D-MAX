@@ -6771,7 +6771,7 @@ export default function SettingsPage() {
                 onClick={() => setTrainingSubTab(tab.id)}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   trainingSubTab === tab.id
-                    ? 'border-dmax-primary text-dmax-primary'
+                    ? 'border-shikabot-primary text-shikabot-primary'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >

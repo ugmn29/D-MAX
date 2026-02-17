@@ -2,7 +2,7 @@
  * APIエンドポイント経由でマイグレーションを実行
  */
 
-const PRODUCTION_URL = 'https://dmax-mu.vercel.app'
+const PRODUCTION_URL = 'https://shikabot-mu.vercel.app'
 const MIGRATION_FILE = '20251210000001_add_questionnaire_patient_fk.sql'
 
 async function runMigration() {

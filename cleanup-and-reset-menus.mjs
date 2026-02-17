@@ -12,7 +12,7 @@ console.log('');
 
 // 1. すべてのリッチメニューを取得
 console.log('📌 ステップ1: すべてのリッチメニューを取得');
-const listResponse = await fetch('https://dmax-mu.vercel.app/api/line/list-rich-menus?clinic_id=11111111-1111-1111-1111-111111111111');
+const listResponse = await fetch('https://shikabot-mu.vercel.app/api/line/list-rich-menus?clinic_id=11111111-1111-1111-1111-111111111111');
 const listResult = await listResponse.json();
 
 const allMenus = listResult.richmenus || [];
@@ -31,7 +31,7 @@ if (menusToDelete.length > 0) {
   let deleteCount = 0;
   for (const menu of menusToDelete) {
     try {
-      const deleteResponse = await fetch('https://dmax-mu.vercel.app/api/line/delete-rich-menu', {
+      const deleteResponse = await fetch('https://shikabot-mu.vercel.app/api/line/delete-rich-menu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -56,7 +56,7 @@ if (menusToDelete.length > 0) {
 
 // 4. 新しいメニューをデフォルトに設定
 console.log('📌 ステップ3: 新しいメニューをデフォルトに設定');
-const setResponse = await fetch('https://dmax-mu.vercel.app/api/line/set-default-rich-menu', {
+const setResponse = await fetch('https://shikabot-mu.vercel.app/api/line/set-default-rich-menu', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

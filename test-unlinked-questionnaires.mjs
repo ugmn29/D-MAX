@@ -4,7 +4,7 @@
 
 const clinicId = '11111111-1111-1111-1111-111111111111'
 
-const url = `https://dmax-mu.vercel.app/api/questionnaires/unlinked?clinicId=${clinicId}`
+const url = `https://shikabot-mu.vercel.app/api/questionnaires/unlinked?clinicId=${clinicId}`
 
 console.log('🔍 未連携問診票APIを呼び出し中...')
 console.log(`URL: ${url}`)

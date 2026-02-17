@@ -2,7 +2,7 @@
  * 本番環境の問診票の質問とlinked_fieldのマッピングを確認
  */
 
-const url = 'https://dmax-mu.vercel.app/api/questionnaires/debug?clinic_id=11111111-1111-1111-1111-111111111111'
+const url = 'https://shikabot-mu.vercel.app/api/questionnaires/debug?clinic_id=11111111-1111-1111-1111-111111111111'
 
 console.log('🔍 問診票の質問とlinked_fieldを確認中...')
 console.log('')

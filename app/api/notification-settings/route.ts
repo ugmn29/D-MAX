@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         channel_access_token: settings.line.channel_access_token,
         channel_secret: settings.line.channel_secret,
         channel_id: settings.line.channel_id || undefined,
-        webhook_url: settings.line.webhook_url || 'https://dmax-mu.vercel.app/api/line/webhook'
+        webhook_url: settings.line.webhook_url || 'https://shikabot-mu.vercel.app/api/line/webhook'
       }
 
       // LIFF IDを追加（存在する場合）

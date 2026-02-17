@@ -5,7 +5,7 @@
 // 最後に連携解除した患者ID
 const patientId = '2ac6f89b-2035-42ad-9ac1-e1784f7de4ed'
 
-const url = `https://dmax-mu.vercel.app/api/patients/${patientId}`
+const url = `https://shikabot-mu.vercel.app/api/patients/${patientId}`
 
 console.log('🔍 患者データを確認中...')
 console.log('')

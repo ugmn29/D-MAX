@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
                 channel_access_token: line.accessToken,
                 channel_secret: line.channelSecret,
                 channel_id: line.channelId || undefined,
-                webhook_url: line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'
+                webhook_url: line.webhookUrl || 'https://shikabot-mu.vercel.app/api/line/webhook'
               },
               updated_at: new Date()
             },
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
                 channel_access_token: line.accessToken,
                 channel_secret: line.channelSecret,
                 channel_id: line.channelId || undefined,
-                webhook_url: line.webhookUrl || 'https://dmax-mu.vercel.app/api/line/webhook'
+                webhook_url: line.webhookUrl || 'https://shikabot-mu.vercel.app/api/line/webhook'
               }
             }
           })
