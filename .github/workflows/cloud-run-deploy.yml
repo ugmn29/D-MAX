@@ -76,6 +76,7 @@ jobs:
             --timeout 300 \
             --concurrency 80 \
             --allow-unauthenticated \
+            --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
             --set-env-vars "NODE_ENV=production" \
             --set-env-vars "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             --set-env-vars "GOOGLE_CLOUD_PROJECT_ID=${{ env.PROJECT_ID }}" \
