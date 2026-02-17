@@ -177,20 +177,44 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const transcribeAudio = async (audioBlob: Blob) => {
     setIsTranscribing(true)
     try {
+      console.log('📤 送信する音声データ:', {
+        size: audioBlob.size,
+        type: audioBlob.type,
+        sizeKB: Math.round(audioBlob.size / 1024) + 'KB'
+      })
+
+      if (audioBlob.size === 0) {
+        console.error('⚠️ 音声データが空です')
+        alert('音声データが空です。録音してから再度お試しください。')
+        return
+      }
+
       const formData = new FormData()
       formData.append('audio', audioBlob, 'recording.webm')
-      
+
       const response = await fetch('/api/speech-to-text', {
         method: 'POST',
         body: formData
       })
-      
+
       if (!response.ok) {
-        throw new Error('文字起こしに失敗しました')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('文字起こしAPIエラー:', response.status, errorData)
+        throw new Error(errorData.details || '文字起こしに失敗しました')
       }
-      
+
       const result = await response.json()
-      setTranscription(result.transcript)
+      console.log('📥 文字起こし結果:', {
+        transcript: result.transcript?.substring(0, 50),
+        confidence: result.confidence,
+        length: result.transcript?.length
+      })
+
+      if (result.transcript) {
+        setTranscription(prev => prev ? prev + '\n' + result.transcript : result.transcript)
+      } else {
+        console.warn('⚠️ 文字起こし結果が空です（音声が認識されませんでした）')
+      }
       setAppendCount(prev => prev + 1)
     } catch (error) {
       console.error('文字起こしエラー:', error)
