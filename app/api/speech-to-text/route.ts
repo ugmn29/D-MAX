@@ -150,12 +150,18 @@ export async function POST(request: NextRequest) {
 
     if (!response.results || response.results.length === 0) {
       console.warn('⚠️ 認識結果が空です（無音または認識不可能な音声）')
-      console.log('  response.results:', response.results)
+      console.log('  response:', JSON.stringify(response).substring(0, 500))
       return NextResponse.json({
         transcript: '',
         confidence: 0,
         languageCode: 'ja-JP',
         alternatives: [],
+        debug: {
+          audioSize: audioBuffer.length,
+          resultsCount: response.results?.length || 0,
+          totalBilledTime: response.totalBilledTime,
+          requestId: response.requestId,
+        }
       })
     }
 
