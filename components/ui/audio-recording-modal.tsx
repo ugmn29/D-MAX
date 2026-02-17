@@ -178,7 +178,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       const formData = new FormData()
       formData.append('audio', audioBlob, 'recording.webm')
       
-      const response = await fetch('/api/transcribe', {
+      const response = await fetch('/api/speech-to-text', {
         method: 'POST',
         body: formData
       })
