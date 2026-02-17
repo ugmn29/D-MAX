@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import speech from '@google-cloud/speech'
-import { existsSync } from 'fs'
-import { join } from 'path'
 
 // Google Cloud Speech-to-Text client
 let speechClient: speech.SpeechClient | null = null
@@ -104,13 +102,19 @@ export async function POST(request: NextRequest) {
 
     const allPhrases = [...new Set([...periodontalPhrases, ...customPhrases])]
 
-    // 認識設定（高精度モデル + 歯科用語補正）
+    // 音声の推定長さを計算（WebM/Opus 48kHz mono ≈ 4KB/s）
+    const estimatedDurationSec = audioBuffer.length / 4000
+    const isLongAudio = estimatedDurationSec > 50 // 50秒以上は長時間認識APIを使用
+
+    console.log(`⏱️ 推定音声長: ${Math.round(estimatedDurationSec)}秒 → ${isLongAudio ? 'longRunningRecognize' : 'recognize'} を使用`)
+
+    // 認識設定（長い音声は latest_long、短い音声は latest_short）
     const config: speech.protos.google.cloud.speech.v1.IRecognitionConfig = {
       encoding: 'WEBM_OPUS',
       sampleRateHertz: 48000,
       languageCode: 'ja-JP',
       enableAutomaticPunctuation: true,
-      model: 'latest_short',
+      model: isLongAudio ? 'latest_long' : 'latest_short',
       useEnhanced: true,
       maxAlternatives: 3,
       enableWordConfidence: true,
@@ -133,13 +137,32 @@ export async function POST(request: NextRequest) {
     }
 
     // 音声認識を実行
-    console.log('📡 Google Cloud Speech-to-Text API呼び出し開始...')
-    const [response] = await client.recognize(recognitionRequest)
-    console.log('✅ API呼び出し完了')
+    let results: any[] | null | undefined
+    let totalBilledTime: any
+    let requestId: any
 
-    if (!response.results || response.results.length === 0) {
+    if (isLongAudio) {
+      // 60秒超の音声: 非同期API（longRunningRecognize）を使用
+      console.log('📡 longRunningRecognize API呼び出し開始...')
+      const [operation] = await client.longRunningRecognize(recognitionRequest)
+      console.log('⏳ 処理中... operationを待機')
+      const [longResponse] = await operation.promise()
+      results = longResponse.results
+      totalBilledTime = longResponse.totalBilledTime
+      requestId = longResponse.requestId
+      console.log('✅ longRunningRecognize完了')
+    } else {
+      // 60秒以下の音声: 同期API（recognize）を使用
+      console.log('📡 recognize API呼び出し開始...')
+      const [shortResponse] = await client.recognize(recognitionRequest)
+      results = shortResponse.results
+      totalBilledTime = shortResponse.totalBilledTime
+      requestId = shortResponse.requestId
+      console.log('✅ recognize完了')
+    }
+
+    if (!results || results.length === 0) {
       console.warn('⚠️ 認識結果が空です（無音または認識不可能な音声）')
-      console.log('  response:', JSON.stringify(response).substring(0, 500))
       return NextResponse.json({
         transcript: '',
         confidence: 0,
@@ -147,24 +170,25 @@ export async function POST(request: NextRequest) {
         alternatives: [],
         debug: {
           audioSize: audioBuffer.length,
-          resultsCount: response.results?.length || 0,
-          totalBilledTime: response.totalBilledTime,
-          requestId: response.requestId,
+          estimatedDurationSec: Math.round(estimatedDurationSec),
+          resultsCount: 0,
+          totalBilledTime,
+          requestId,
         }
       })
     }
 
-    console.log('🎯 認識成功:', response.results.length, '個の結果')
+    console.log('🎯 認識成功:', results.length, '個の結果')
 
-    const transcription = response.results
+    const transcription = results
       .map(result => result.alternatives?.[0]?.transcript || '')
       .join(' ')
       .trim()
 
-    const confidence = response.results[0]?.alternatives?.[0]?.confidence || 0
+    const confidence = results[0]?.alternatives?.[0]?.confidence || 0
 
     // 代替候補も返す
-    const alternatives = response.results[0]?.alternatives?.slice(1, 4).map(alt => ({
+    const alternatives = results[0]?.alternatives?.slice(1, 4).map(alt => ({
       transcript: alt.transcript || '',
       confidence: alt.confidence || 0,
     })) || []
