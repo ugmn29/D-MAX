@@ -1,13 +1,13 @@
-# D-MAX
+# 歯科Bot (ShikaBot)
 
-SupabaseとGitをシームレスに連携させたNext.jsプロジェクトです。
+AI搭載の歯科予約・管理システム。SupabaseとGitをシームレスに連携させたNext.jsプロジェクトです。
 
 ## 🚀 セットアップ
 
 ### 1. リポジトリのクローン
 ```bash
 git clone <your-repository-url>
-cd D-MAX
+cd shikabot
 ```
 
 ### 2. 依存関係のインストール
@@ -100,7 +100,7 @@ GitHub Actionsを使用して自動デプロイが設定されています：
 ## 📁 プロジェクト構造
 
 ```
-D-MAX/
+shikabot/
 ├── .github/workflows/     # GitHub Actions設定
 ├── supabase/
 │   ├── migrations/        # データベースマイグレーション

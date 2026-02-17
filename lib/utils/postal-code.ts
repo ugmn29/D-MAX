@@ -15,12 +15,6 @@ export interface AddressData {
  * @returns 住所データまたはnull
  */
 export async function getAddressFromPostalCode(postalCode: string): Promise<AddressData | null> {
-  // 開発環境では郵便番号APIを無効化（CORSエラー回避）
-  if (process.env.NODE_ENV === 'development') {
-    console.log('開発環境: 郵便番号住所自動入力は無効化されています')
-    return null
-  }
-
   try {
     // ハイフンを除去
     const cleanPostalCode = postalCode.replace(/[^\d]/g, '')
@@ -31,14 +25,7 @@ export async function getAddressFromPostalCode(postalCode: string): Promise<Addr
 
     // 郵便番号検索API（zipcloud）を使用
     const response = await fetch(
-      `https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanPostalCode}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        mode: 'cors',
-      }
+      `https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanPostalCode}`
     )
 
     if (!response.ok) {

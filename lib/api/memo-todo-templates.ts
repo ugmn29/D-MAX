@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+// Migrated to Prisma API Routes
 
 export interface MemoTodoTemplate {
   id: string
@@ -26,48 +26,19 @@ export interface UpdateMemoTodoTemplateInput {
   is_active?: boolean
 }
 
-const LOCAL_STORAGE_KEY = 'memo_todo_templates'
-
-// ローカルストレージからテンプレートを取得
-function getLocalTemplates(): MemoTodoTemplate[] {
-  if (typeof window === 'undefined') return []
-  const stored = localStorage.getItem(LOCAL_STORAGE_KEY)
-  if (!stored) return []
-  try {
-    return JSON.parse(stored)
-  } catch {
-    return []
-  }
+function getBaseUrl(): string {
+  return typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
 }
 
-// ローカルストレージにテンプレートを保存
-function saveLocalTemplates(templates: MemoTodoTemplate[]): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(templates))
-}
-
-// テンプレート一覧取得（ローカル優先、DBフォールバック）
+// テンプレート一覧取得
 export async function getMemoTodoTemplates(clinicId: string): Promise<MemoTodoTemplate[]> {
-  // まずローカルストレージから取得
-  const localTemplates = getLocalTemplates()
-  if (localTemplates.length > 0) {
-    return localTemplates.filter(t => t.clinic_id === clinicId).sort((a, b) => a.sort_order - b.sort_order)
-  }
-
-  // ローカルにない場合はDBから取得を試みる
   try {
-    const { data, error } = await supabase
-      .from('memo_todo_templates')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .order('sort_order', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching memo todo templates:', error)
-      return []
-    }
-
-    return data || []
+    const baseUrl = getBaseUrl()
+    const response = await fetch(`${baseUrl}/api/memo-todo-templates?clinic_id=${encodeURIComponent(clinicId)}`)
+    if (!response.ok) return []
+    return await response.json()
   } catch (error) {
     console.error('Error fetching memo todo templates:', error)
     return []
@@ -76,33 +47,11 @@ export async function getMemoTodoTemplates(clinicId: string): Promise<MemoTodoTe
 
 // 有効なテンプレート一覧取得（サブカルテ・治療計画で使用）
 export async function getActiveMemoTodoTemplates(clinicId: string): Promise<MemoTodoTemplate[]> {
-  // まずローカルストレージから取得
-  const localTemplates = getLocalTemplates()
-  console.log('getActiveMemoTodoTemplates - clinicId:', clinicId)
-  console.log('getActiveMemoTodoTemplates - all localTemplates:', localTemplates)
-  if (localTemplates.length > 0) {
-    const filtered = localTemplates
-      .filter(t => t.clinic_id === clinicId && t.is_active)
-      .sort((a, b) => a.sort_order - b.sort_order)
-    console.log('getActiveMemoTodoTemplates - filtered templates:', filtered)
-    return filtered
-  }
-
-  // ローカルにない場合はDBから取得を試みる
   try {
-    const { data, error } = await supabase
-      .from('memo_todo_templates')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching active memo todo templates:', error)
-      return []
-    }
-
-    console.log('Loaded memo todo templates from DB:', data)
+    const baseUrl = getBaseUrl()
+    const response = await fetch(`${baseUrl}/api/memo-todo-templates?clinic_id=${encodeURIComponent(clinicId)}&active_only=true`)
+    if (!response.ok) return []
+    const data = await response.json()
     return data || []
   } catch (error) {
     console.error('Error fetching active memo todo templates:', error)
@@ -112,98 +61,80 @@ export async function getActiveMemoTodoTemplates(clinicId: string): Promise<Memo
 
 // テンプレート取得
 export async function getMemoTodoTemplate(id: string): Promise<MemoTodoTemplate | null> {
-  // ローカルから検索
-  const localTemplates = getLocalTemplates()
-  const localTemplate = localTemplates.find(t => t.id === id)
-  if (localTemplate) return localTemplate
-
-  // DBから取得を試みる
   try {
-    const { data, error } = await supabase
-      .from('memo_todo_templates')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      console.error('Error fetching memo todo template:', error)
-      return null
-    }
-
-    return data
+    const baseUrl = getBaseUrl()
+    const response = await fetch(`${baseUrl}/api/memo-todo-templates?id=${encodeURIComponent(id)}`)
+    if (!response.ok) return null
+    return await response.json()
   } catch {
     return null
   }
 }
 
-// テンプレート作成（ローカルストレージに保存）
+// テンプレート作成
 export async function createMemoTodoTemplate(input: CreateMemoTodoTemplateInput): Promise<MemoTodoTemplate> {
-  const now = new Date().toISOString()
-  const newTemplate: MemoTodoTemplate = {
-    id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    clinic_id: input.clinic_id,
-    name: input.name,
-    items: input.items,
-    sort_order: input.sort_order ?? 0,
-    is_active: input.is_active ?? true,
-    created_at: now,
-    updated_at: now,
+  const baseUrl = getBaseUrl()
+  const response = await fetch(`${baseUrl}/api/memo-todo-templates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to create memo todo template: ${error}`)
   }
 
-  console.log('createMemoTodoTemplate - new template:', newTemplate)
-  const templates = getLocalTemplates()
-  console.log('createMemoTodoTemplate - existing templates:', templates)
-  templates.push(newTemplate)
-  saveLocalTemplates(templates)
-  console.log('createMemoTodoTemplate - saved templates:', templates)
-
-  return newTemplate
+  return await response.json()
 }
 
-// テンプレート更新（ローカルストレージ）
+// テンプレート更新
 export async function updateMemoTodoTemplate(
   id: string,
   input: UpdateMemoTodoTemplateInput
 ): Promise<MemoTodoTemplate> {
-  const templates = getLocalTemplates()
-  const index = templates.findIndex(t => t.id === id)
+  const baseUrl = getBaseUrl()
+  const response = await fetch(`${baseUrl}/api/memo-todo-templates`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...input }),
+  })
 
-  if (index === -1) {
-    throw new Error('Template not found')
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to update memo todo template: ${error}`)
   }
 
-  templates[index] = {
-    ...templates[index],
-    ...input,
-    updated_at: new Date().toISOString(),
-  }
-
-  saveLocalTemplates(templates)
-  return templates[index]
+  return await response.json()
 }
 
-// テンプレート削除（ローカルストレージ）
+// テンプレート削除
 export async function deleteMemoTodoTemplate(id: string): Promise<void> {
-  const templates = getLocalTemplates()
-  const filtered = templates.filter(t => t.id !== id)
-  saveLocalTemplates(filtered)
+  const baseUrl = getBaseUrl()
+  const response = await fetch(`${baseUrl}/api/memo-todo-templates?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to delete memo todo template: ${error}`)
+  }
 }
 
 // 並び順更新
 export async function updateMemoTodoTemplateOrder(
   updates: { id: string; sort_order: number }[]
 ): Promise<void> {
-  const templates = getLocalTemplates()
-
-  updates.forEach(({ id, sort_order }) => {
-    const template = templates.find(t => t.id === id)
-    if (template) {
-      template.sort_order = sort_order
-      template.updated_at = new Date().toISOString()
-    }
-  })
-
-  saveLocalTemplates(templates)
+  const baseUrl = getBaseUrl()
+  await Promise.all(
+    updates.map(({ id, sort_order }) =>
+      fetch(`${baseUrl}/api/memo-todo-templates`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, sort_order }),
+      })
+    )
+  )
 }
 
 // テンプレートのTODO項目を配列として取得

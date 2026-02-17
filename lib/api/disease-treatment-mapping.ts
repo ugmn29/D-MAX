@@ -1,3 +1,5 @@
+// Migrated to Prisma API Routes
+
 /**
  * 病名と診療行為のマッピング
  * Disease-Treatment Mapping (Dentis/Julea style)
@@ -5,8 +7,28 @@
  * 病名を選択すると、その病名に対応する適切な処置を提案
  */
 
-import { supabase } from '@/lib/utils/supabase-client'
 import type { TreatmentSuggestion } from './treatment-suggestions'
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
+/**
+ * キーワードで処置コードを検索するヘルパー
+ */
+async function fetchTreatmentsByKeyword(keyword: string, limit: number = 3): Promise<any[]> {
+  try {
+    const params = new URLSearchParams({
+      keyword,
+      limit: String(limit),
+    })
+    const response = await fetch(`${baseUrl}/api/emr/treatment-codes?${params}`)
+    if (!response.ok) return []
+    return await response.json()
+  } catch {
+    return []
+  }
+}
 
 /**
  * 病名コードから推奨される診療行為を提案
@@ -25,13 +47,9 @@ export async function suggestTreatmentsByDisease(
 
   // パターンに基づいて処置を検索
   for (const keyword of treatmentPattern.keywords) {
-    const { data: treatments, error } = await supabase
-      .from('treatment_codes')
-      .select('code, name, points')
-      .ilike('name', `%${keyword}%`)
-      .limit(3)
+    const treatments = await fetchTreatmentsByKeyword(keyword, 3)
 
-    if (!error && treatments) {
+    if (treatments) {
       for (const t of treatments) {
         // 除外キーワードチェック
         const shouldExclude = treatmentPattern.excludeKeywords?.some(ex =>
@@ -57,7 +75,7 @@ export async function suggestTreatmentsByDisease(
 }
 
 /**
- * 病名から治療パターンを識別
+ * 病名から治療パターンを識別（純粋関数）
  */
 interface TreatmentPattern {
   keywords: string[]
@@ -65,7 +83,7 @@ interface TreatmentPattern {
   excludeKeywords?: string[]
 }
 
-function identifyTreatmentPattern(diseaseName: string): TreatmentPattern | null {
+export function identifyTreatmentPattern(diseaseName: string): TreatmentPattern | null {
   // う蝕（虫歯）関連
   if (diseaseName.includes('う蝕') || diseaseName.includes('齲') || diseaseName.includes('C')) {
     // う蝕の程度を判定
@@ -213,7 +231,7 @@ export async function suggestTreatmentsByMultipleDiseases(
 }
 
 /**
- * 病名・歯式・処置の組み合わせをバリデーション
+ * 病名・歯式・処置の組み合わせをバリデーション（純粋関数）
  */
 export function validateDiseaseToothTreatment(
   diseaseName: string,

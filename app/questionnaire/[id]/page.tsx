@@ -3,12 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { getQuestionnaires, type Questionnaire } from '@/lib/api/questionnaires'
+import { type Questionnaire } from '@/lib/api/questionnaires'
 import { QuestionnaireForm } from '@/components/forms/questionnaire-form'
 import { CheckCircle } from 'lucide-react'
-
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 export default function QuestionnaireDetailPage() {
   const params = useParams()
@@ -19,16 +16,19 @@ export default function QuestionnaireDetailPage() {
   const [showThankYouMessage, setShowThankYouMessage] = useState(false)
   const [submittedResponseId, setSubmittedResponseId] = useState<string | null>(null)
 
-  // 問診票データの読み込み
+  // 問診票データの読み込み（IDで直接取得）
   useEffect(() => {
     const loadQuestionnaire = async () => {
       try {
         setLoading(true)
-        const data = await getQuestionnaires(DEMO_CLINIC_ID)
-        const targetQuestionnaire = data.find(q => q.id === questionnaireId && q.is_active)
-
-        if (targetQuestionnaire) {
-          setQuestionnaire(targetQuestionnaire)
+        const response = await fetch(`/api/questionnaires/${questionnaireId}`)
+        if (!response.ok) {
+          console.error('問診票取得エラー:', response.status)
+          return
+        }
+        const data = await response.json()
+        if (data && data.is_active) {
+          setQuestionnaire(data)
         }
       } catch (error) {
         console.error('問診票データの読み込みエラー:', error)
@@ -124,7 +124,7 @@ export default function QuestionnaireDetailPage() {
               </div>
 
               <QuestionnaireForm
-                clinicId={DEMO_CLINIC_ID}
+                clinicId={questionnaire.clinic_id}
                 questionnaireId={questionnaire.id}
                 onCancel={() => {}}
                 onSave={handleSubmit}

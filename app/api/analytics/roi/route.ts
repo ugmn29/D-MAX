@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 interface ROIData {
   source: string
@@ -26,66 +26,58 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 広告費データを取得
-    let adSpendQuery = supabase
-      .from('ad_spend_records')
-      .select('*')
-      .eq('clinic_id', clinic_id)
-
+    const adSpendWhere: any = { clinic_id }
     if (start_date) {
-      adSpendQuery = adSpendQuery.gte('spend_date', start_date)
+      adSpendWhere.spend_date = { ...adSpendWhere.spend_date, gte: new Date(start_date) }
     }
     if (end_date) {
-      adSpendQuery = adSpendQuery.lte('spend_date', end_date)
+      adSpendWhere.spend_date = { ...adSpendWhere.spend_date, lte: new Date(end_date) }
     }
 
-    const { data: adSpendData, error: adSpendError } = await adSpendQuery
-
-    if (adSpendError) {
-      console.error('広告費データ取得エラー:', adSpendError)
-      return NextResponse.json(
-        { error: 'Failed to fetch ad spend data' },
-        { status: 500 }
-      )
-    }
+    const adSpendData = await prisma.ad_spend_records.findMany({
+      where: adSpendWhere,
+    })
 
     // 獲得経路データを取得
-    let acquisitionQuery = supabase
-      .from('patient_acquisition_sources')
-      .select('patient_id, final_source, utm_source, utm_medium, booking_completed_at')
-      .eq('clinic_id', clinic_id)
-
+    const acquisitionWhere: any = { clinic_id }
     if (start_date) {
-      acquisitionQuery = acquisitionQuery.gte('booking_completed_at', start_date)
+      acquisitionWhere.booking_completed_at = { ...acquisitionWhere.booking_completed_at, gte: new Date(start_date) }
     }
     if (end_date) {
-      acquisitionQuery = acquisitionQuery.lte('booking_completed_at', end_date)
+      acquisitionWhere.booking_completed_at = { ...acquisitionWhere.booking_completed_at, lte: new Date(end_date) }
     }
 
-    const { data: acquisitionData, error: acquisitionError } = await acquisitionQuery
-
-    if (acquisitionError) {
-      console.error('獲得経路データ取得エラー:', acquisitionError)
-      return NextResponse.json(
-        { error: 'Failed to fetch acquisition data' },
-        { status: 500 }
-      )
-    }
+    const acquisitionData = await prisma.patient_acquisition_sources.findMany({
+      where: acquisitionWhere,
+      select: {
+        patient_id: true,
+        final_source: true,
+        utm_source: true,
+        utm_medium: true,
+        booking_completed_at: true,
+      },
+    })
 
     // 患者IDリストを取得
     const patientIds = acquisitionData?.map(a => a.patient_id) || []
 
-    // 各患者の会計データを取得
-    const { data: payments, error: paymentsError } = await supabase
-      .from('payments')
-      .select('patient_id, amount, payment_date')
-      .eq('clinic_id', clinic_id)
-      .in('patient_id', patientIds)
-
-    if (paymentsError) {
-      console.error('会計データ取得エラー:', paymentsError)
+    // 各患者の会計データを取得（salesテーブルを使用）
+    let salesData: any[] = []
+    if (patientIds.length > 0) {
+      salesData = await prisma.sales.findMany({
+        where: {
+          clinic_id,
+          patient_id: { in: patientIds },
+        },
+        select: {
+          patient_id: true,
+          amount: true,
+          sale_date: true,
+        },
+      })
     }
 
     // プラットフォーム別に広告費を集計
@@ -129,8 +121,8 @@ export async function GET(request: NextRequest) {
       stats.patient_ids.push(acquisition.patient_id)
 
       // 患者の売上を加算
-      const patientPayments = payments?.filter(p => p.patient_id === acquisition.patient_id) || []
-      const patientRevenue = patientPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
+      const patientSales = salesData?.filter(p => p.patient_id === acquisition.patient_id) || []
+      const patientRevenue = patientSales.reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
       stats.total_revenue += patientRevenue
     })
 

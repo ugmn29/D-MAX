@@ -38,7 +38,7 @@ export default function DashboardPage() {
       console.log('ダッシュボード: 最終的な時間設定値:', numericTimeSlotMinutes)
 
       setTimeSlotMinutes(numericTimeSlotMinutes)
-      setDisplayItems(settings.display_items || [])
+      setDisplayItems(Array.isArray(settings.display_items) ? settings.display_items : [])
       setCellHeight(settings.cell_height || 40)
       setSettingsLoaded(true)
 

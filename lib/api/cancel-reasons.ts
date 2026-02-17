@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 
 export interface CancelReason {
   id: string
@@ -11,33 +11,30 @@ export interface CancelReason {
   updated_at: string
 }
 
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
 // キャンセル理由一覧を取得
 export async function getCancelReasons(clinicId: string): Promise<CancelReason[]> {
-  // モックモードの場合は設定画面で選択されたキャンセル理由のみを返す
-  const { MOCK_MODE } = await import('@/lib/utils/mock-mode')
-  if (MOCK_MODE) {
-    console.log('モックモード: キャンセル理由を取得します')
-    
-    const { getMockCancelReasons } = await import('@/lib/utils/mock-mode')
-    const reasons = getMockCancelReasons()
-    
-    console.log('モックモード: 取得したキャンセル理由:', reasons)
-    return reasons
-  }
+  try {
+    const response = await fetch(`${baseUrl}/api/cancel-reasons?clinic_id=${clinicId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  const { data, error } = await supabase
-    .from('cancel_reasons')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'キャンセル理由の取得に失敗しました')
+    }
 
-  if (error) {
+    return await response.json()
+  } catch (error) {
     console.error('キャンセル理由取得エラー:', error)
-    throw error
+    return []
   }
-
-  return data || []
 }
 
 // キャンセル理由を作成
@@ -45,44 +42,25 @@ export async function createCancelReason(clinicId: string, reasonData: {
   name: string
   is_active?: boolean
 }): Promise<CancelReason> {
-  // モックモードの場合は設定画面で選択されたキャンセル理由のみを返す
-  const { MOCK_MODE } = await import('@/lib/utils/mock-mode')
-  if (MOCK_MODE) {
-    console.log('モックモード: キャンセル理由を作成します')
-    
-    const { getMockCancelReasons, saveToStorage } = await import('@/lib/utils/mock-mode')
-    const existingReasons = getMockCancelReasons()
-    
-    const newReason = {
-      id: `cancel-reason-${Date.now()}`,
-      clinic_id: clinicId,
-      name: reasonData.name,
-      is_active: reasonData.is_active ?? true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-    
-    const updatedReasons = [...existingReasons, newReason]
-    saveToStorage('mock_cancel_reasons', updatedReasons)
-    
-    return newReason
-  }
-
-  const { data, error } = await supabase
-    .from('cancel_reasons')
-    .insert({
-      clinic_id: clinicId,
-      ...reasonData
+  try {
+    const response = await fetch(`${baseUrl}/api/cancel-reasons?clinic_id=${clinicId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(reasonData)
     })
-    .select()
-    .single()
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'キャンセル理由の作成に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('キャンセル理由作成エラー:', error)
     throw error
   }
-
-  return data
 }
 
 // キャンセル理由を更新
@@ -90,67 +68,42 @@ export async function updateCancelReason(clinicId: string, id: string, reasonDat
   name?: string
   is_active?: boolean
 }): Promise<CancelReason> {
-  // モックモードの場合は設定画面で選択されたキャンセル理由のみを返す
-  const { MOCK_MODE } = await import('@/lib/utils/mock-mode')
-  if (MOCK_MODE) {
-    console.log('モックモード: キャンセル理由を更新します')
-    
-    const { getMockCancelReasons, saveToStorage } = await import('@/lib/utils/mock-mode')
-    const existingReasons = getMockCancelReasons()
-    
-    const updatedReasons = existingReasons.map(reason => 
-      reason.id === id 
-        ? { ...reason, ...reasonData, updated_at: new Date().toISOString() }
-        : reason
-    )
-    
-    saveToStorage('mock_cancel_reasons', updatedReasons)
-    
-    const updatedReason = updatedReasons.find(reason => reason.id === id)
-    if (!updatedReason) {
-      throw new Error('キャンセル理由が見つかりません')
+  try {
+    const response = await fetch(`${baseUrl}/api/cancel-reasons?id=${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(reasonData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'キャンセル理由の更新に失敗しました')
     }
-    
-    return updatedReason
-  }
 
-  const { data, error } = await supabase
-    .from('cancel_reasons')
-    .update(reasonData)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
+    return await response.json()
+  } catch (error) {
     console.error('キャンセル理由更新エラー:', error)
     throw error
   }
-
-  return data
 }
 
 // キャンセル理由を削除（論理削除）
 export async function deleteCancelReason(clinicId: string, id: string): Promise<void> {
-  // モックモードの場合は設定画面で選択されたキャンセル理由のみを返す
-  const { MOCK_MODE } = await import('@/lib/utils/mock-mode')
-  if (MOCK_MODE) {
-    console.log('モックモード: キャンセル理由を削除します')
-    
-    const { getMockCancelReasons, saveToStorage } = await import('@/lib/utils/mock-mode')
-    const existingReasons = getMockCancelReasons()
-    
-    const updatedReasons = existingReasons.filter(reason => reason.id !== id)
-    saveToStorage('mock_cancel_reasons', updatedReasons)
-    
-    return
-  }
+  try {
+    const response = await fetch(`${baseUrl}/api/cancel-reasons?id=${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  const { error } = await supabase
-    .from('cancel_reasons')
-    .update({ is_active: false })
-    .eq('id', id)
-
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'キャンセル理由の削除に失敗しました')
+    }
+  } catch (error) {
     console.error('キャンセル理由削除エラー:', error)
     throw error
   }

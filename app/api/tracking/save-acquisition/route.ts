@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
+
+const DATE_FIELDS = ['first_visit_at', 'booking_completed_at', 'created_at'] as const
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +23,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // UTMデータまたはアンケート回答のどちらかが必要
     const hasUTM = utm_data && Object.keys(utm_data.utm || {}).length > 0
@@ -50,9 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 獲得経路を記録
-    const { data, error } = await supabase
-      .from('patient_acquisition_sources')
-      .insert({
+    const data = await prisma.patient_acquisition_sources.create({
+      data: {
         patient_id,
         clinic_id,
         utm_source: utm_data?.utm.utm_source || null,
@@ -67,21 +69,12 @@ export async function POST(request: NextRequest) {
         questionnaire_detail: questionnaire_detail || null,
         final_source,
         tracking_method,
-        first_visit_at: utm_data?.first_visit_at || null,
-        booking_completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
+        first_visit_at: utm_data?.first_visit_at ? new Date(utm_data.first_visit_at) : null,
+        booking_completed_at: new Date(),
+      },
+    })
 
-    if (error) {
-      console.error('獲得経路記録エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to save acquisition source' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, data: convertDatesToStrings(data, [...DATE_FIELDS]) })
   } catch (error) {
     console.error('獲得経路APIエラー:', error)
     return NextResponse.json(

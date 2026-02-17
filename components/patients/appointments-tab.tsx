@@ -335,7 +335,7 @@ export function AppointmentsTab({ patientId }: AppointmentsTabProps) {
                             <div>{formattedDate}</div>
                             <div className="flex items-center gap-2">
                               <span>{appointment.start_time}</span>
-                              {appointment.status === 'cancelled' && (
+                              {appointment.status === 'キャンセル' && (
                                 <span className="text-red-600" style={{ fontSize: "10px" }}>キャンセル</span>
                               )}
                             </div>

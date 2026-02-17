@@ -1,4 +1,5 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 import { NextRequest, NextResponse } from 'next/server'
 
 // GET - 最新の視診検査を取得
@@ -14,34 +15,31 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    const { data: exam, error: examError } = await supabase
-      .from('visual_examinations')
-      .select('*')
-      .eq('patient_id', patientId)
-      .order('examination_date', { ascending: false })
-      .limit(1)
-      .single()
+    const exam = await prisma.visual_examinations.findFirst({
+      where: { patient_id: patientId },
+      orderBy: { examination_date: 'desc' },
+    })
 
-    if (examError) {
-      if (examError.code === 'PGRST116') {
-        // No rows found
-        return NextResponse.json(null)
-      }
-      console.error('Error fetching latest visual examination:', examError)
-      return NextResponse.json({ error: examError.message }, { status: 500 })
+    if (!exam) {
+      // No rows found
+      return NextResponse.json(null)
     }
 
-    const { data: toothData } = await supabase
-      .from('visual_tooth_data')
-      .select('*')
-      .eq('examination_id', exam.id)
-      .order('tooth_number')
+    const toothData = await prisma.visual_tooth_data.findMany({
+      where: { examination_id: exam.id },
+      orderBy: { tooth_number: 'asc' },
+    })
+
+    const examConverted = convertDatesToStrings(exam, ['examination_date', 'created_at', 'updated_at'])
+    const toothConverted = toothData.map(t =>
+      convertDatesToStrings(t, ['created_at'])
+    )
 
     return NextResponse.json({
-      ...exam,
-      tooth_data: toothData || [],
+      ...examConverted,
+      tooth_data: toothConverted,
     })
   } catch (error) {
     console.error('Error in GET /api/visual-examinations/latest:', error)

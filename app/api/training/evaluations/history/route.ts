@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 // GET /api/training/evaluations/history?patient_id=xxx
 // タイムライン形式の評価履歴を取得
 export async function GET(req: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const { searchParams } = new URL(req.url)
     const patient_id = searchParams.get('patient_id')
 
@@ -15,25 +17,33 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const { data: evaluations, error } = await supabase
-      .from('training_evaluations')
-      .select(`
-        *,
-        training:trainings(*)
-      `)
-      .eq('patient_id', patient_id)
-      .order('evaluated_at', { ascending: false })
+    const evaluations = await prisma.training_evaluations.findMany({
+      where: {
+        patient_id,
+      },
+      include: {
+        trainings: true,
+      },
+      orderBy: {
+        evaluated_at: 'desc',
+      },
+    })
 
-    if (error) {
-      console.error('評価履歴取得エラー:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    // 日付を変換してシリアライズ
+    const serialized = evaluations.map((ev: any) => ({
+      ...ev,
+      evaluated_at: ev.evaluated_at?.toISOString() || null,
+      created_at: ev.created_at?.toISOString() || null,
+      training: ev.trainings ? convertDatesToStrings(ev.trainings) : null,
+    }))
 
     // 日付ごとにグループ化
     const timeline: { [date: string]: any[] } = {}
 
-    evaluations?.forEach((evaluation) => {
-      const date = new Date(evaluation.evaluated_at).toISOString().split('T')[0]
+    serialized.forEach((evaluation: any) => {
+      const date = evaluation.evaluated_at
+        ? new Date(evaluation.evaluated_at).toISOString().split('T')[0]
+        : 'unknown'
       if (!timeline[date]) {
         timeline[date] = []
       }

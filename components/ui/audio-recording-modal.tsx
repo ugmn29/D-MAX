@@ -29,6 +29,8 @@ interface AudioRecordingModalProps {
   isOpen: boolean
   onClose: () => void
   patientId: string
+  clinicId?: string
+  staffId?: string
 }
 
 interface AudioSegment {
@@ -45,7 +47,7 @@ interface SummaryTemplate {
   prompt: string
 }
 
-export function AudioRecordingModal({ isOpen, onClose, patientId }: AudioRecordingModalProps) {
+export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staffId }: AudioRecordingModalProps) {
   // 録音関連の状態
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
@@ -219,7 +221,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId }: AudioRecordi
         },
         body: JSON.stringify({
           text: transcription,
-          templateId: selectedTemplate
+          templateId: selectedTemplate,
+          clinicId: clinicId,
+          operatorId: staffId,
         })
       })
       

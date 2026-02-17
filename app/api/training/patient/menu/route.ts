@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function GET(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const { searchParams } = new URL(request.url)
     const patientId = searchParams.get('patientId')
 
@@ -19,50 +15,65 @@ export async function GET(request: NextRequest) {
     }
 
     // アクティブなトレーニングメニューを取得
-    const { data: menuData, error: menuError } = await supabaseAdmin
-      .from('training_menus')
-      .select(`
-        id,
-        menu_trainings (
-          id,
-          sort_order,
-          action_seconds,
-          rest_seconds,
-          sets,
-          trainings (
-            id,
-            training_name
-          )
-        )
-      `)
-      .eq('patient_id', patientId)
-      .eq('is_active', true)
-      .eq('is_deleted', false)
-      .single()
+    const menuData = await prisma.training_menus.findFirst({
+      where: {
+        patient_id: patientId,
+        is_active: true,
+        is_deleted: false,
+      },
+      select: {
+        id: true,
+        menu_trainings: {
+          select: {
+            id: true,
+            sort_order: true,
+            action_seconds: true,
+            rest_seconds: true,
+            sets: true,
+            trainings: {
+              select: {
+                id: true,
+                training_name: true,
+              },
+            },
+          },
+          orderBy: {
+            sort_order: 'asc',
+          },
+        },
+      },
+    })
 
-    if (menuError) {
-      console.error('Menu fetch error:', menuError)
+    if (!menuData) {
       return NextResponse.json(
-        { error: 'メニューが見つかりません', details: menuError },
+        { error: 'メニューが見つかりません' },
         { status: 404 }
       )
     }
 
     // 今日の完了記録を取得
     const today = new Date().toISOString().split('T')[0]
-    const { data: recordsData } = await supabaseAdmin
-      .from('training_records')
-      .select('training_id')
-      .eq('patient_id', patientId)
-      .eq('completed', true)
-      .gte('performed_at', `${today}T00:00:00`)
-      .lte('performed_at', `${today}T23:59:59`)
+    const todayStart = new Date(`${today}T00:00:00`)
+    const todayEnd = new Date(`${today}T23:59:59`)
 
-    const completedIds = new Set(recordsData?.map(r => r.training_id) || [])
+    const recordsData = await prisma.training_records.findMany({
+      where: {
+        patient_id: patientId,
+        completed: true,
+        performed_at: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      select: {
+        training_id: true,
+      },
+    })
+
+    const completedIds = new Set(recordsData.map(r => r.training_id))
 
     // トレーニングリストを作成
     const trainingList = (menuData.menu_trainings || [])
-      .sort((a: any, b: any) => a.sort_order - b.sort_order)
       .map((mt: any, index: number) => ({
         id: mt.trainings.id,
         training_name: mt.trainings.training_name,

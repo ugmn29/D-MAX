@@ -101,7 +101,7 @@ node run-migration-pg-api.mjs
 $ node run-migration-pg-api.mjs
 
 🚀 マイグレーション実行開始
-環境: https://dmax-mu.vercel.app
+環境: https://shikabot-mu.vercel.app
 ファイル: 20251210000004_add_original_patient_data_to_questionnaire_responses.sql
 エンドポイント: /api/migrations/run-pg (pgライブラリ使用)
 

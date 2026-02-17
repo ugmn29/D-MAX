@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getPrismaClient } from '@/lib/prisma-client'
 import bcrypt from 'bcryptjs'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
 interface SetPasswordRequest {
   patientId: string
@@ -21,6 +16,7 @@ interface SetPasswordResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const body: SetPasswordRequest = await request.json()
     const { patientId, newPassword, currentCredential } = body
 
@@ -41,13 +37,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 患者情報を取得
-    const { data: patient, error: fetchError } = await supabaseAdmin
-      .from('patients')
-      .select('id, birth_date, password_hash, password_set')
-      .eq('id', patientId)
-      .single()
+    const patient = await prisma.patients.findUnique({
+      where: { id: patientId },
+      select: {
+        id: true,
+        birth_date: true,
+        password_hash: true,
+        password_set: true,
+      },
+    })
 
-    if (fetchError || !patient) {
+    if (!patient) {
       return NextResponse.json(
         { success: false, error: '患者情報が見つかりません' },
         { status: 404 }
@@ -60,8 +60,10 @@ export async function POST(request: NextRequest) {
 
       if (!isValid) {
         // パスワードが違う場合、生年月日でも試す
-        const birthDate = patient.birth_date?.replace(/-/g, '')
-        if (currentCredential !== birthDate) {
+        const birthDateStr = patient.birth_date instanceof Date
+          ? patient.birth_date.toISOString().split('T')[0].replace(/-/g, '')
+          : patient.birth_date?.toString().replace(/-/g, '') || ''
+        if (currentCredential !== birthDateStr) {
           return NextResponse.json(
             { success: false, error: '現在の認証情報が正しくありません' },
             { status: 401 }
@@ -75,22 +77,14 @@ export async function POST(request: NextRequest) {
     const passwordHash = await bcrypt.hash(newPassword, salt)
 
     // パスワードを更新
-    const { error: updateError } = await supabaseAdmin
-      .from('patients')
-      .update({
+    await prisma.patients.update({
+      where: { id: patientId },
+      data: {
         password_hash: passwordHash,
         password_set: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', patientId)
-
-    if (updateError) {
-      console.error('Password update error:', updateError)
-      return NextResponse.json(
-        { success: false, error: 'パスワードの設定に失敗しました' },
-        { status: 500 }
-      )
-    }
+        updated_at: new Date(),
+      },
+    })
 
     return NextResponse.json({
       success: true,

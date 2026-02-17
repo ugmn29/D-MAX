@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 
 interface CalendarDay {
   date: Date
@@ -27,44 +26,46 @@ export default function ProgressPage() {
   const loadProgressData = async () => {
     const patient = JSON.parse(localStorage.getItem('patient_data') || '{}')
 
-    // 完了記録を取得
-    const { data: records, error } = await supabase
-      .from('training_records')
-      .select('performed_at, training_id, trainings(training_name)')
-      .eq('patient_id', patient.id)
-      .eq('completed', true)
-      .order('performed_at', { ascending: false })
+    try {
+      // 完了記録をAPI経由で取得
+      const response = await fetch(`/api/training/patient/progress?patientId=${patient.id}`)
+      const data = await response.json()
 
-    if (error) {
+      if (!response.ok) {
+        console.error('進捗データ取得エラー:', data)
+        return
+      }
+
+      const records = data.records || []
+
+      // 日付ごとに集計
+      const dates = new Set<string>()
+      records.forEach((record: any) => {
+        const date = new Date(record.performed_at).toISOString().split('T')[0]
+        dates.add(date)
+      })
+
+      setCompletedDates(dates)
+
+      // カレンダー生成
+      generateCalendar(dates)
+
+      // サマリー計算
+      calculateSummary(records)
+
+      // トレーニング別サマリー
+      calculateTrainingSummary(records)
+    } catch (error) {
       console.error('進捗データ取得エラー:', error)
-      return
     }
-
-    // 日付ごとに集計
-    const dates = new Set<string>()
-    records?.forEach((record) => {
-      const date = new Date(record.performed_at).toISOString().split('T')[0]
-      dates.add(date)
-    })
-
-    setCompletedDates(dates)
-
-    // カレンダー生成
-    generateCalendar()
-
-    // サマリー計算
-    calculateSummary(records || [])
-
-    // トレーニング別サマリー
-    calculateTrainingSummary(records || [])
   }
 
-  const generateCalendar = () => {
+  const generateCalendar = (dates?: Set<string>) => {
+    const activeDates = dates || completedDates
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
 
     const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
     const startDate = new Date(firstDay)
     startDate.setDate(startDate.getDate() - firstDay.getDay()) // 日曜日から開始
 
@@ -76,7 +77,7 @@ export default function ProgressPage() {
       const dateStr = currentDate.toISOString().split('T')[0]
       days.push({
         date: new Date(currentDate),
-        hasTraining: completedDates.has(dateStr),
+        hasTraining: activeDates.has(dateStr),
         isCurrentMonth: currentDate.getMonth() === month,
         isToday:
           currentDate.toISOString().split('T')[0] ===
@@ -97,11 +98,11 @@ export default function ProgressPage() {
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
     const thisWeek = records.filter(
-      (r) => new Date(r.performed_at) >= thisWeekStart
+      (r: any) => new Date(r.performed_at) >= thisWeekStart
     ).length
 
     const thisMonth = records.filter(
-      (r) => new Date(r.performed_at) >= thisMonthStart
+      (r: any) => new Date(r.performed_at) >= thisMonthStart
     ).length
 
     setSummary({ thisWeek, thisMonth })
@@ -122,15 +123,15 @@ export default function ProgressPage() {
     }
 
     const filteredRecords = records.filter(
-      (r) => new Date(r.performed_at) >= startDate
+      (r: any) => new Date(r.performed_at) >= startDate
     )
 
     // トレーニング別に集計
     const summary: { [key: string]: { name: string; count: number } } = {}
 
-    filteredRecords.forEach((record) => {
+    filteredRecords.forEach((record: any) => {
       const id = record.training_id
-      const name = record.trainings?.training_name || '不明'
+      const name = record.training_name || '不明'
 
       if (!summary[id]) {
         summary[id] = { name, count: 0 }

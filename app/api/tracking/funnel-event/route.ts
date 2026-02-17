@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
+
+const DATE_FIELDS = ['event_timestamp', 'created_at'] as const
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,19 +28,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Database not configured' },
-        { status: 500 }
-      )
-    }
-
-    const supabase = supabaseAdmin
+    const prisma = getPrismaClient()
 
     // ファネルイベントを記録
-    const { data, error } = await supabase
-      .from('web_booking_funnel_events')
-      .insert({
+    const data = await prisma.web_booking_funnel_events.create({
+      data: {
         session_id,
         clinic_id,
         step_name,
@@ -47,20 +42,11 @@ export async function POST(request: NextRequest) {
         utm_medium,
         utm_campaign,
         device_type,
-        metadata,
-      })
-      .select()
-      .single()
+        metadata: metadata || undefined,
+      },
+    })
 
-    if (error) {
-      console.error('ファネルイベント記録エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to record funnel event' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, data: convertDatesToStrings(data, [...DATE_FIELDS]) })
   } catch (error) {
     console.error('ファネルイベントAPI エラー:', error)
     return NextResponse.json(

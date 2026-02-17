@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import { getPrismaClient } from '@/lib/prisma-client'
 
 interface DeviceAccountsRequest {
   deviceId: string
@@ -25,6 +20,7 @@ interface DeviceAccountsResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const body: DeviceAccountsRequest = await request.json()
     const { deviceId } = body
 
@@ -36,36 +32,34 @@ export async function POST(request: NextRequest) {
     }
 
     // デバイスに紐づくアカウント一覧を取得（最大5件）
-    const { data: deviceAccounts, error: fetchError } = await supabaseAdmin
-      .from('device_accounts')
-      .select(`
-        patient_id,
-        last_login_at,
-        patients (
-          patient_number,
-          last_name,
-          first_name
-        )
-      `)
-      .eq('device_identifier', deviceId)
-      .order('last_login_at', { ascending: false })
-      .limit(5)
-
-    if (fetchError) {
-      console.error('Fetch device accounts error:', fetchError)
-      return NextResponse.json(
-        { success: false, error: 'アカウント取得に失敗しました' },
-        { status: 500 }
-      )
-    }
+    const deviceAccounts = await prisma.device_accounts.findMany({
+      where: {
+        device_identifier: deviceId,
+      },
+      include: {
+        patients: {
+          select: {
+            patient_number: true,
+            last_name: true,
+            first_name: true,
+          },
+        },
+      },
+      orderBy: {
+        last_login_at: 'desc',
+      },
+      take: 5,
+    })
 
     // レスポンス整形
-    const accounts: DeviceAccount[] = deviceAccounts?.map((da: any) => ({
+    const accounts: DeviceAccount[] = deviceAccounts.map((da) => ({
       patientId: da.patient_id,
-      patientNumber: da.patients.patient_number,
+      patientNumber: da.patients.patient_number!,
       name: `${da.patients.last_name} ${da.patients.first_name}`,
-      lastLoginAt: da.last_login_at
-    })) || []
+      lastLoginAt: da.last_login_at instanceof Date
+        ? da.last_login_at.toISOString()
+        : da.last_login_at?.toString() || ''
+    }))
 
     return NextResponse.json({
       success: true,
@@ -84,6 +78,7 @@ export async function POST(request: NextRequest) {
 // アカウント削除API
 export async function DELETE(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const { searchParams } = new URL(request.url)
     const deviceId = searchParams.get('deviceId')
     const patientId = searchParams.get('patientId')
@@ -96,19 +91,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     // デバイスアカウントを削除
-    const { error: deleteError } = await supabaseAdmin
-      .from('device_accounts')
-      .delete()
-      .eq('device_identifier', deviceId)
-      .eq('patient_id', patientId)
-
-    if (deleteError) {
-      console.error('Delete device account error:', deleteError)
-      return NextResponse.json(
-        { success: false, error: 'アカウント削除に失敗しました' },
-        { status: 500 }
-      )
-    }
+    await prisma.device_accounts.deleteMany({
+      where: {
+        device_identifier: deviceId,
+        patient_id: patientId,
+      },
+    })
 
     return NextResponse.json({
       success: true,

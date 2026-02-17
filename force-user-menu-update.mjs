@@ -16,7 +16,7 @@ console.log('方法2: デフォルトメニューをいったん削除して再�
 console.log('  実行中...\n');
 
 // デフォルトメニューをいったん削除
-const unlinkResponse = await fetch('https://dmax-mu.vercel.app/api/line/set-default-rich-menu', {
+const unlinkResponse = await fetch('https://shikabot-mu.vercel.app/api/line/set-default-rich-menu', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -33,7 +33,7 @@ if (unlinkResponse.ok) {
 
 console.log('\n方法3: Webhookイベントを手動でトリガー');
 console.log('  以下のURLにアクセスしてテストイベントを送信:');
-console.log('  https://dmax-mu.vercel.app/api/line/webhook\n');
+console.log('  https://shikabot-mu.vercel.app/api/line/webhook\n');
 
 console.log('\n📱 重要: LINEの仕様により、リッチメニューの更新には以下が必要です:\n');
 console.log('1. LINEアプリを完全に終了（バックグラウンドからも削除）');

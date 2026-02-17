@@ -1,7 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
-import { supabaseAdmin } from '@/lib/supabase'
-
-const supabase = getSupabaseClient()
+// Migrated to Prisma API Routes
 
 export interface NotificationSettings {
   email: {
@@ -38,51 +35,28 @@ export interface NotificationSettings {
  * 通知設定を取得
  */
 export async function getNotificationSettings(clinicId: string): Promise<NotificationSettings | null> {
-  const { data, error } = await supabase
-    .from('clinic_settings')
-    .select('setting_value')
-    .eq('clinic_id', clinicId)
-    .eq('setting_key', 'notification_settings')
-    .single()
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // データが存在しない場合はデフォルト値を返す
-      return {
-        email: {
-          enabled: false,
-          smtp_host: '',
-          smtp_port: 587,
-          smtp_user: '',
-          smtp_password: '',
-          from_address: '',
-          from_name: ''
-        },
-        sms: {
-          enabled: false,
-          provider: 'twilio',
-          api_key: '',
-          api_secret: '',
-          sender_number: ''
-        },
-        line: {
-          enabled: false,
-          channel_id: '',
-          channel_secret: '',
-          channel_access_token: '',
-          webhook_url: '',
-          liff_id_initial_link: '',
-          liff_id_qr_code: '',
-          liff_id_family_register: '',
-          liff_id_appointments: '',
-          liff_id_web_booking: ''
-        }
+    const response = await fetch(`${baseUrl}/api/notification-settings?clinic_id=${clinicId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    }
-    throw error
-  }
+    })
 
-  return data.setting_value as NotificationSettings
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知設定の取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('通知設定取得エラー:', error)
+    return null
+  }
 }
 
 /**
@@ -93,87 +67,24 @@ export async function saveNotificationSettings(
   settings: NotificationSettings
 ): Promise<void> {
   try {
-    // 既存の設定を確認
-    const { data: existing, error: selectError } = await supabase
-      .from('clinic_settings')
-      .select('id')
-      .eq('clinic_id', clinicId)
-      .eq('setting_key', 'notification_settings')
-      .single()
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
 
-    if (selectError && selectError.code !== 'PGRST116') {
-      throw new Error(`設定の確認に失敗: ${selectError.message} (code: ${selectError.code})`)
-    }
-
-    if (existing) {
-      // 更新
-      const { error } = await supabase
-        .from('clinic_settings')
-        .update({
-          setting_value: settings,
-          updated_at: new Date().toISOString()
-        })
-        .eq('clinic_id', clinicId)
-        .eq('setting_key', 'notification_settings')
-
-      if (error) throw new Error(`設定の更新に失敗: ${error.message} (code: ${error.code})`)
-    } else {
-      // 新規作成
-      const { error } = await supabase
-        .from('clinic_settings')
-        .insert({
-          clinic_id: clinicId,
-          setting_key: 'notification_settings',
-          setting_value: settings
-        })
-
-      if (error) throw new Error(`設定の作成に失敗: ${error.message} (code: ${error.code})`)
-    }
-
-    // LINE設定が有効な場合、line キーにも同期保存（getLineSettings関数用）
-    if (settings.line.enabled && settings.line.channel_access_token && settings.line.channel_secret) {
-      console.log('🔄 LINE基本設定を同期中...')
-
-      // Service Role Keyを使用してRLSをバイパス
-      const adminClient = supabaseAdmin || supabase
-
-      // LIFF IDも含めて保存
-      const lineSettings: Record<string, any> = {
-        channel_access_token: settings.line.channel_access_token,
-        channel_secret: settings.line.channel_secret,
-        channel_id: settings.line.channel_id || undefined,
-        webhook_url: settings.line.webhook_url || 'https://dmax-mu.vercel.app/api/line/webhook'
-      }
-
-      // LIFF IDを追加（存在する場合）
-      if (settings.line.liff_id_initial_link) lineSettings.liff_id_initial_link = settings.line.liff_id_initial_link
-      if (settings.line.liff_id_qr_code) lineSettings.liff_id_qr_code = settings.line.liff_id_qr_code
-      if (settings.line.liff_id_family_register) lineSettings.liff_id_family_register = settings.line.liff_id_family_register
-      if (settings.line.liff_id_appointments) lineSettings.liff_id_appointments = settings.line.liff_id_appointments
-      if (settings.line.liff_id_web_booking) lineSettings.liff_id_web_booking = settings.line.liff_id_web_booking
-
-      console.log('📊 保存するLINE設定:', {
-        ...lineSettings,
-        channel_access_token: lineSettings.channel_access_token ? '***設定済み***' : undefined,
-        channel_secret: lineSettings.channel_secret ? '***設定済み***' : undefined
+    const response = await fetch(`${baseUrl}/api/notification-settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        clinic_id: clinicId,
+        settings
       })
+    })
 
-      const { error: lineError } = await adminClient
-        .from('clinic_settings')
-        .upsert({
-          clinic_id: clinicId,
-          setting_key: 'line',
-          setting_value: lineSettings
-        }, {
-          onConflict: 'clinic_id,setting_key'
-        })
-
-      if (lineError) {
-        console.error('⚠️ LINE基本設定の同期に失敗:', lineError)
-        // エラーでも通知設定は保存されているので継続
-      } else {
-        console.log('✅ LINE基本設定を同期しました（LIFF ID含む）')
-      }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知設定の保存に失敗しました')
     }
   } catch (error) {
     console.error('saveNotificationSettings error:', error)

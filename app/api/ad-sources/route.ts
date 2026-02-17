@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings, convertArrayDatesToStrings } from '@/lib/prisma-helpers'
+
+const DATE_FIELDS = ['created_at', 'updated_at'] as const
 
 // 広告媒体マスター一覧を取得
 export async function GET(request: NextRequest) {
@@ -7,36 +10,34 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const clinic_id = searchParams.get('clinic_id')
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // システム共通の媒体とクリニック固有の媒体を取得
-    let query = supabase
-      .from('ad_sources_master')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
+    const where: any = {
+      is_active: true,
+    }
 
     if (clinic_id) {
       // クリニック固有 OR システム共通（clinic_id = NULL）
-      query = query.or(`clinic_id.eq.${clinic_id},clinic_id.is.null`)
+      where.OR = [
+        { clinic_id },
+        { clinic_id: null },
+      ]
     } else {
       // システム共通のみ
-      query = query.is('clinic_id', null)
+      where.clinic_id = null
     }
 
-    const { data, error } = await query
+    const data = await prisma.ad_sources_master.findMany({
+      where,
+      orderBy: { sort_order: 'asc' },
+    })
 
-    if (error) {
-      console.error('広告媒体取得エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch ad sources' },
-        { status: 500 }
-      )
-    }
+    const converted = convertArrayDatesToStrings(data, [...DATE_FIELDS])
 
     // カテゴリ別にグループ化
     const categories = new Map<string, any[]>()
-    data?.forEach((source) => {
+    converted.forEach((source) => {
       if (!categories.has(source.category)) {
         categories.set(source.category, [])
       }
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        sources: data,
+        sources: converted,
         by_category: Object.fromEntries(categories),
       },
     })
@@ -72,15 +73,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 同じutm_sourceが既に存在するか確認
-    const { data: existing } = await supabase
-      .from('ad_sources_master')
-      .select('id')
-      .eq('clinic_id', clinic_id)
-      .eq('utm_source', utm_source)
-      .single()
+    const existing = await prisma.ad_sources_master.findFirst({
+      where: {
+        clinic_id,
+        utm_source,
+      },
+      select: { id: true },
+    })
 
     if (existing) {
       return NextResponse.json(
@@ -90,19 +92,21 @@ export async function POST(request: NextRequest) {
     }
 
     // 最大sort_orderを取得
-    const { data: maxOrder } = await supabase
-      .from('ad_sources_master')
-      .select('sort_order')
-      .or(`clinic_id.eq.${clinic_id},clinic_id.is.null`)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single()
+    const maxOrderRecord = await prisma.ad_sources_master.findFirst({
+      where: {
+        OR: [
+          { clinic_id },
+          { clinic_id: null },
+        ],
+      },
+      orderBy: { sort_order: 'desc' },
+      select: { sort_order: true },
+    })
 
-    const newSortOrder = (maxOrder?.sort_order || 0) + 1
+    const newSortOrder = (maxOrderRecord?.sort_order || 0) + 1
 
-    const { data, error } = await supabase
-      .from('ad_sources_master')
-      .insert({
+    const data = await prisma.ad_sources_master.create({
+      data: {
         clinic_id,
         name,
         category,
@@ -111,21 +115,12 @@ export async function POST(request: NextRequest) {
         description,
         is_system: false,
         sort_order: newSortOrder,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('広告媒体追加エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to add ad source' },
-        { status: 500 }
-      )
-    }
+      },
+    })
 
     return NextResponse.json({
       success: true,
-      data,
+      data: convertDatesToStrings(data, [...DATE_FIELDS]),
     })
   } catch (error) {
     console.error('広告媒体追加API エラー:', error)
@@ -149,14 +144,13 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // システム媒体は編集不可
-    const { data: source } = await supabase
-      .from('ad_sources_master')
-      .select('is_system')
-      .eq('id', id)
-      .single()
+    const source = await prisma.ad_sources_master.findUnique({
+      where: { id },
+      select: { is_system: true },
+    })
 
     if (source?.is_system) {
       return NextResponse.json(
@@ -165,7 +159,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updateData: any = { updated_at: new Date().toISOString() }
+    const updateData: any = { updated_at: new Date() }
     if (name !== undefined) updateData.name = name
     if (category !== undefined) updateData.category = category
     if (utm_source !== undefined) updateData.utm_source = utm_source
@@ -173,24 +167,14 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description
     if (is_active !== undefined) updateData.is_active = is_active
 
-    const { data, error } = await supabase
-      .from('ad_sources_master')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('広告媒体更新エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to update ad source' },
-        { status: 500 }
-      )
-    }
+    const data = await prisma.ad_sources_master.update({
+      where: { id },
+      data: updateData,
+    })
 
     return NextResponse.json({
       success: true,
-      data,
+      data: convertDatesToStrings(data, [...DATE_FIELDS]),
     })
   } catch (error) {
     console.error('広告媒体更新API エラー:', error)
@@ -214,14 +198,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // システム媒体は削除不可
-    const { data: source } = await supabase
-      .from('ad_sources_master')
-      .select('is_system')
-      .eq('id', id)
-      .single()
+    const source = await prisma.ad_sources_master.findUnique({
+      where: { id },
+      select: { is_system: true },
+    })
 
     if (source?.is_system) {
       return NextResponse.json(
@@ -230,18 +213,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const { error } = await supabase
-      .from('ad_sources_master')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      console.error('広告媒体削除エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to delete ad source' },
-        { status: 500 }
-      )
-    }
+    await prisma.ad_sources_master.delete({
+      where: { id },
+    })
 
     return NextResponse.json({
       success: true,

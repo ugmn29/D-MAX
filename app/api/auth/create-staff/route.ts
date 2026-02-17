@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth/verify-request'
 import { getFirebaseAdmin } from '@/lib/firebase-admin'
-import { createClient } from '@supabase/supabase-js'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,24 +34,21 @@ export async function POST(request: NextRequest) {
       displayName: name,
     })
 
-    // Supabaseにスタッフレコード作成
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    // DBにスタッフレコード作成
+    const prisma = getPrismaClient()
 
-    const { data: staff, error: staffError } = await supabase
-      .from('staff')
-      .insert({
-        clinic_id: admin.clinicId,
-        name,
-        email,
-        role: role === 'admin' ? 'admin' : 'staff',
-        is_active: true,
+    let staff
+    try {
+      staff = await prisma.staff.create({
+        data: {
+          clinic_id: admin.clinicId,
+          name,
+          email,
+          role: role === 'admin' ? 'admin' : 'staff',
+          is_active: true,
+        },
       })
-      .select()
-      .single()
-
-    if (staffError) {
+    } catch (staffError: any) {
       // ロールバック: Firebaseユーザーを削除
       await adminAuth.deleteUser(firebaseUser.uid)
       return NextResponse.json(

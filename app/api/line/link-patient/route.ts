@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Database } from '@/types/database'
 import { normalizeInvitationCode, validateInvitationCodeFormat } from '@/lib/line/invitation-code'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { jsonToObject } from '@/lib/prisma-helpers'
 
 /**
  * POST /api/line/link-patient
@@ -9,16 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase'
  */
 export async function POST(request: NextRequest) {
   try {
-    // Service Role Keyを使用してRLSをバイパス（LINE連携は認証前の操作のため）
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      console.error('Supabase Admin clientが初期化されていません')
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     // リクエストボディを取得
     const body = await request.json()
@@ -59,21 +50,20 @@ export async function POST(request: NextRequest) {
     }
 
     // 招待コードを検索
-    const currentTime = new Date().toISOString()
+    const currentTime = new Date()
 
-    const { data: invitationData, error: invitationError } = await supabase
-      .from('line_invitation_codes')
-      .select('*')
-      .eq('invitation_code', normalizedCode)
-      .eq('status', 'pending')
-      .gt('expires_at', currentTime)
-      .single()
+    const invitationData = await prisma.line_invitation_codes.findFirst({
+      where: {
+        invitation_code: normalizedCode,
+        status: 'pending',
+        expires_at: { gt: currentTime }
+      }
+    })
 
 
-    if (invitationError || !invitationData) {
+    if (!invitationData) {
       console.error('❌ 招待コード検索失敗:', {
         code: normalizedCode,
-        error: invitationError
       })
 
       return NextResponse.json(
@@ -83,16 +73,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 患者情報を取得
-    const { data: patient, error: patientError } = await supabase
-      .from('patients')
-      .select('*')
-      .eq('id', invitationData.patient_id)
-      .single()
+    const patient = await prisma.patients.findUnique({
+      where: { id: invitationData.patient_id }
+    })
 
-    if (patientError || !patient) {
+    if (!patient) {
       console.error('❌ 患者情報取得失敗:', {
         patient_id: invitationData.patient_id,
-        error: patientError
       })
       return NextResponse.json(
         { error: '患者情報が見つかりません' },
@@ -100,9 +87,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (patient.birth_date !== birth_date) {
+    // 生年月日の比較（Prismaは Date オブジェクトを返すので文字列に変換して比較）
+    const patientBirthDate = patient.birth_date
+      ? patient.birth_date.toISOString().split('T')[0]
+      : null
+
+    if (patientBirthDate !== birth_date) {
       console.error('❌ 生年月日不一致:', {
-        expected: patient.birth_date,
+        expected: patientBirthDate,
         received: birth_date
       })
       return NextResponse.json(
@@ -112,12 +104,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 既に連携されているかチェック
-    const { data: existingLinkage } = await supabase
-      .from('line_patient_linkages')
-      .select('id')
-      .eq('line_user_id', line_user_id)
-      .eq('patient_id', patient.id)
-      .single()
+    const existingLinkage = await prisma.line_patient_linkages.findFirst({
+      where: {
+        line_user_id,
+        patient_id: patient.id,
+      },
+      select: { id: true }
+    })
 
     if (existingLinkage) {
       return NextResponse.json(
@@ -127,54 +120,36 @@ export async function POST(request: NextRequest) {
     }
 
     // このLINEユーザーの連携数を確認
-    const { data: existingLinkages, error: countError } = await supabase
-      .from('line_patient_linkages')
-      .select('id')
-      .eq('line_user_id', line_user_id)
-
-    if (countError) {
-      console.error('連携数確認エラー:', countError)
-      return NextResponse.json(
-        { error: '連携状況の確認に失敗しました' },
-        { status: 500 }
-      )
-    }
+    const existingLinkages = await prisma.line_patient_linkages.findMany({
+      where: { line_user_id },
+      select: { id: true }
+    })
 
     // 初回連携の場合はis_primary=true
     const is_primary = existingLinkages.length === 0
 
     // 患者連携を作成
-    const { data: linkage, error: linkageError } = await supabase
-      .from('line_patient_linkages')
-      .insert({
+    const linkage = await prisma.line_patient_linkages.create({
+      data: {
         line_user_id,
         patient_id: patient.id,
         clinic_id: patient.clinic_id,
         relationship: is_primary ? 'self' : 'other',
         is_primary,
-        linked_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
-
-    if (linkageError) {
-      console.error('患者連携エラー:', linkageError)
-      return NextResponse.json(
-        { error: '患者連携に失敗しました' },
-        { status: 500 }
-      )
-    }
+        linked_at: new Date(),
+      }
+    })
 
     // 招待コードを使用済みに更新
-    const { error: updateError } = await supabase
-      .from('line_invitation_codes')
-      .update({
-        status: 'used',
-        used_at: new Date().toISOString(),
+    try {
+      await prisma.line_invitation_codes.update({
+        where: { id: invitationData.id },
+        data: {
+          status: 'used',
+          used_at: new Date(),
+        }
       })
-      .eq('id', invitationData.id)
-
-    if (updateError) {
+    } catch (updateError) {
       console.error('招待コード更新エラー:', updateError)
       // エラーでも連携は成功しているので継続
     }
@@ -182,17 +157,17 @@ export async function POST(request: NextRequest) {
     // QRコードを自動生成
     const qr_token = `${patient.clinic_id}-${patient.id}-${Date.now()}`
 
-    const { error: qrError } = await supabase
-      .from('patient_qr_codes')
-      .insert({
-        patient_id: patient.id,
-        clinic_id: patient.clinic_id,
-        qr_token,
-        expires_at: null, // 無期限
-        usage_count: 0,
+    try {
+      await prisma.patient_qr_codes.create({
+        data: {
+          patient_id: patient.id,
+          clinic_id: patient.clinic_id,
+          qr_token,
+          expires_at: null, // 無期限
+          usage_count: 0,
+        }
       })
-
-    if (qrError) {
+    } catch (qrError) {
       console.error('QRコード生成エラー:', qrError)
       // QRコード生成エラーは無視（後で生成可能）
     }
@@ -235,29 +210,30 @@ export async function POST(request: NextRequest) {
       console.log('📨 LINE連携完了通知送信開始')
 
       // クリニック情報を取得
-      const { data: clinic } = await supabase
-        .from('clinics')
-        .select('name')
-        .eq('id', patient.clinic_id)
-        .single()
+      const clinic = await prisma.clinics.findUnique({
+        where: { id: patient.clinic_id },
+        select: { name: true }
+      })
 
       // 通知テンプレートを取得（line_linkage_completeタイプ）
-      const { data: template } = await supabase
-        .from('notification_templates')
-        .select('line_message')
-        .eq('clinic_id', patient.clinic_id)
-        .eq('notification_type', 'line_linkage_complete')
-        .single()
+      const template = await prisma.notification_templates.findFirst({
+        where: {
+          clinic_id: patient.clinic_id,
+          notification_type: 'line_linkage_complete',
+        },
+        select: { line_message: true }
+      })
 
       // LINE設定を取得
-      const { data: lineSettings } = await supabase
-        .from('clinic_settings')
-        .select('setting_value')
-        .eq('clinic_id', patient.clinic_id)
-        .eq('setting_key', 'line')
-        .single()
+      const lineSettings = await prisma.clinic_settings.findFirst({
+        where: {
+          clinic_id: patient.clinic_id,
+          setting_key: 'line',
+        },
+        select: { setting_value: true }
+      })
 
-      const channelAccessToken = lineSettings?.setting_value?.channel_access_token
+      const channelAccessToken = jsonToObject<any>(lineSettings?.setting_value)?.channel_access_token
 
       if (channelAccessToken) {
         // テンプレートのメッセージを使用（変数を置換）
@@ -311,7 +287,7 @@ export async function POST(request: NextRequest) {
           patient_number: patient.patient_number,
         },
         is_primary,
-        linked_at: linkage.linked_at,
+        linked_at: linkage.linked_at?.toISOString() || null,
       },
     })
 
@@ -332,16 +308,7 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔍 GET /api/line/link-patient - 開始')
 
-    // Service Role Keyを使用してRLSをバイパス
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      console.error('❌ supabaseAdmin未初期化')
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const searchParams = request.nextUrl.searchParams
     const line_user_id = searchParams.get('line_user_id')
@@ -356,29 +323,21 @@ export async function GET(request: NextRequest) {
     }
 
     // 連携データを取得
-    const { data: linkages, error } = await supabase
-      .from('line_patient_linkages')
-      .select('*')
-      .eq('line_user_id', line_user_id)
-      .order('is_primary', { ascending: false })
-      .order('linked_at', { ascending: false })
+    const linkages = await prisma.line_patient_linkages.findMany({
+      where: { line_user_id },
+      orderBy: [
+        { is_primary: 'desc' },
+        { linked_at: 'desc' }
+      ]
+    })
 
     console.log('📊 連携データ取得結果:', {
-      linkages_count: linkages?.length || 0,
-      error: error?.message || null,
+      linkages_count: linkages.length,
       line_user_id
     })
 
-    if (error) {
-      console.error('❌ 連携データ取得エラー:', error)
-      return NextResponse.json(
-        { error: '連携患者の取得に失敗しました', details: error.message },
-        { status: 500 }
-      )
-    }
-
     // 連携がない場合は空配列を返す
-    if (!linkages || linkages.length === 0) {
+    if (linkages.length === 0) {
       console.log('ℹ️ 連携データなし')
       return NextResponse.json({ linkages: [] })
     }
@@ -386,22 +345,34 @@ export async function GET(request: NextRequest) {
     // 各連携の患者情報を取得
     const linkagesWithPatients = await Promise.all(
       linkages.map(async (linkage) => {
-        const { data: patient, error: patientError } = await supabase
-          .from('patients')
-          .select('id, patient_number, last_name, first_name, last_name_kana, first_name_kana, birth_date, gender, phone, email')
-          .eq('id', linkage.patient_id)
-          .single()
+        const patient = await prisma.patients.findUnique({
+          where: { id: linkage.patient_id },
+          select: {
+            id: true,
+            patient_number: true,
+            last_name: true,
+            first_name: true,
+            last_name_kana: true,
+            first_name_kana: true,
+            birth_date: true,
+            gender: true,
+            phone: true,
+            email: true,
+          }
+        })
 
-        if (patientError) {
-          console.warn('⚠️ 患者情報取得エラー:', {
-            patient_id: linkage.patient_id,
-            error: patientError.message
-          })
-        }
+        // birth_date を文字列に変換
+        const patientData = patient ? {
+          ...patient,
+          birth_date: patient.birth_date ? patient.birth_date.toISOString().split('T')[0] : null,
+        } : null
 
         return {
           ...linkage,
-          patients: patient || null
+          linked_at: linkage.linked_at?.toISOString() || null,
+          created_at: linkage.created_at?.toISOString() || null,
+          updated_at: linkage.updated_at?.toISOString() || null,
+          patients: patientData
         }
       })
     )
@@ -424,15 +395,7 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // Service Role Keyを使用してRLSをバイパス
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const searchParams = request.nextUrl.searchParams
     const linkage_id = searchParams.get('linkage_id')
@@ -445,13 +408,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 連携を削除
-    const { error } = await supabase
-      .from('line_patient_linkages')
-      .delete()
-      .eq('id', linkage_id)
-
-    if (error) {
-      console.error('連携解除エラー:', error)
+    try {
+      await prisma.line_patient_linkages.delete({
+        where: { id: linkage_id }
+      })
+    } catch (deleteError) {
+      console.error('連携解除エラー:', deleteError)
       return NextResponse.json(
         { error: '連携解除に失敗しました' },
         { status: 500 }

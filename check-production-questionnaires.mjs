@@ -2,7 +2,7 @@
  * 本番環境の問診票データを確認するスクリプト
  */
 
-const PRODUCTION_URL = 'https://dmax-mu.vercel.app'
+const PRODUCTION_URL = 'https://shikabot-mu.vercel.app'
 
 async function checkQuestionnaireData() {
   try {

@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface Stats {
@@ -54,126 +53,18 @@ export default function AnalyticsPage() {
   const loadAnalytics = async () => {
     setIsLoading(true)
     try {
-      // 全体統計
-      const { data: patients } = await supabase
-        .from('patients')
-        .select('id')
-        .eq('clinic_id', clinicId)
-        .eq('is_deleted', false)
+      const response = await fetch(`/api/training/clinic/analytics?clinic_id=${clinicId}`)
+      const data = await response.json()
 
-      const { data: activeMenus } = await supabase
-        .from('training_menus')
-        .select('patient_id')
-        .eq('is_active', true)
+      if (!response.ok) {
+        console.error('分析データ取得エラー:', data.error)
+        return
+      }
 
-      // 今月の処方数
-      const startOfMonth = new Date()
-      startOfMonth.setDate(1)
-      startOfMonth.setHours(0, 0, 0, 0)
-
-      const { data: monthlyMenus } = await supabase
-        .from('training_menus')
-        .select('id')
-        .gte('prescribed_at', startOfMonth.toISOString())
-
-      // 今月の評価数
-      const { data: monthlyEvals } = await supabase
-        .from('training_evaluations')
-        .select('id')
-        .gte('evaluated_at', startOfMonth.toISOString())
-
-      setStats({
-        totalPatients: patients?.length || 0,
-        activePatients: activeMenus?.length || 0,
-        monthlyPrescriptions: monthlyMenus?.length || 0,
-        monthlyEvaluations: monthlyEvals?.length || 0
-      })
-
-      // トレーニング統計
-      const { data: allMenuTrainings } = await supabase
-        .from('menu_trainings')
-        .select(`
-          training_id,
-          trainings(training_name)
-        `)
-
-      const { data: allEvaluations } = await supabase
-        .from('training_evaluations')
-        .select('training_id, evaluation_level')
-
-      // トレーニング別に集計
-      const trainingMap = new Map<string, { name: string, prescriptions: number, level3: number, total: number }>()
-
-      allMenuTrainings?.forEach((mt: any) => {
-        const trainingId = mt.training_id
-        const trainingName = mt.trainings?.training_name || '不明'
-        if (!trainingMap.has(trainingId)) {
-          trainingMap.set(trainingId, { name: trainingName, prescriptions: 0, level3: 0, total: 0 })
-        }
-        trainingMap.get(trainingId)!.prescriptions++
-      })
-
-      allEvaluations?.forEach((ev: any) => {
-        const trainingId = ev.training_id
-        if (trainingMap.has(trainingId)) {
-          trainingMap.get(trainingId)!.total++
-          if (ev.evaluation_level === 3) {
-            trainingMap.get(trainingId)!.level3++
-          }
-        }
-      })
-
-      const trainingStatsArray: TrainingStats[] = Array.from(trainingMap.entries()).map(([id, data]) => ({
-        training_name: data.name,
-        prescription_count: data.prescriptions,
-        level3_count: data.level3,
-        total_evaluations: data.total,
-        achievement_rate: data.total > 0 ? (data.level3 / data.total) * 100 : 0
-      }))
-
-      setTrainingStats(trainingStatsArray)
-
-      // 評価レベル分布
-      const distribution = [
-        { level: 1, count: 0 },
-        { level: 2, count: 0 },
-        { level: 3, count: 0 }
-      ]
-
-      allEvaluations?.forEach((ev: any) => {
-        const idx = distribution.findIndex(d => d.level === ev.evaluation_level)
-        if (idx !== -1) distribution[idx].count++
-      })
-
-      setEvaluationDist(distribution)
-
-      // 課題統計
-      const { data: patientIssues } = await supabase
-        .from('patient_issues')
-        .select(`
-          issue_id,
-          issues(issue_name)
-        `)
-
-      const issueMap = new Map<string, { name: string, count: number }>()
-
-      patientIssues?.forEach((pi: any) => {
-        const issueName = pi.issues?.issue_name || '不明'
-        if (!issueMap.has(issueName)) {
-          issueMap.set(issueName, { name: issueName, count: 0 })
-        }
-        issueMap.get(issueName)!.count++
-      })
-
-      const issueStatsArray: IssueStats[] = Array.from(issueMap.entries())
-        .map(([name, data]) => ({
-          issue_name: data.name,
-          patient_count: data.count
-        }))
-        .sort((a, b) => b.patient_count - a.patient_count)
-
-      setIssueStats(issueStatsArray)
-
+      setStats(data.stats)
+      setTrainingStats(data.trainingStats)
+      setEvaluationDist(data.evaluationDist)
+      setIssueStats(data.issueStats)
     } catch (error) {
       console.error('分析データ取得エラー:', error)
     } finally {
@@ -274,7 +165,6 @@ export default function AnalyticsPage() {
         {/* トレーニング実施状況タブ */}
         {activeTab === 'trainings' && (
           <div className="space-y-6">
-            {/* よく処方されるトレーニング TOP10 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-4">よく処方されるトレーニング TOP10</h2>
               <div className="space-y-2">
@@ -296,7 +186,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* 達成率の高いトレーニング TOP10 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-4">達成率の高いトレーニング TOP10</h2>
               <div className="space-y-2">
@@ -324,7 +213,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* 達成率の低いトレーニング ワースト10 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-4">達成率の低いトレーニング ワースト10</h2>
               <div className="space-y-2">
@@ -392,7 +280,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* トレーニング別評価レベル分布 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-4">トレーニング別の評価レベル分布</h2>
               <div className="space-y-4">

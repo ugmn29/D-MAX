@@ -48,3 +48,8 @@ types/supabase.ts
 Thumbs.dbgoogle-cloud-key.json
 google-cloud-key.json
 .env.remote
+
+/generated/prisma
+*.bak
+.backups/
+.master-data/

@@ -3,7 +3,7 @@
  */
 
 const patientId = '4cc15d6a-32e3-45be-a434-292b0a17316e'
-const url = `https://dmax-mu.vercel.app/api/appointments?clinicId=11111111-1111-1111-1111-111111111111&date=2025-12-11`
+const url = `https://shikabot-mu.vercel.app/api/appointments?clinicId=11111111-1111-1111-1111-111111111111&date=2025-12-11`
 
 console.log('🔍 予約データを確認中...')
 console.log('')

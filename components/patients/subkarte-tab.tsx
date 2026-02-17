@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useClinicId } from '@/hooks/use-clinic-id'
+import { useAuth } from '@/components/providers/auth-provider'
+import { getClinicSetting } from '@/lib/api/clinic'
+import {
+  getSubKarteEntries,
+  createSubKarteEntry,
+  updateSubKarteEntry,
+  deleteSubKarteEntry
+} from '@/lib/api/subkarte'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -51,7 +59,7 @@ import {
 
 interface SubKarteEntry {
   id: string
-  type: 'text' | 'handwriting' | 'audio' | 'file' | 'template'
+  type: 'text' | 'handwriting' | 'audio' | 'file' | 'template' | 'mixed'
   content: string
   metadata: any
   createdAt: string
@@ -65,6 +73,16 @@ interface SubKarteTabProps {
 
 export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps) {
   const clinicId = useClinicId()
+  const { staff: authStaff } = useAuth()
+  // authStaffのIDがUUID形式でない場合（fallback-staff等）はstaffListの最初のスタッフをフォールバックとして使う
+  const getCurrentStaffId = () => {
+    const authId = authStaff?.id || ''
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authId)) {
+      return authId
+    }
+    // フォールバック: staffListの最初のスタッフID
+    return staffList[0]?.id || ''
+  }
   const [entries, setEntries] = useState<SubKarteEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [activeInputType, setActiveInputType] = useState<'text' | 'handwriting' | 'audio' | 'file'>('text')
@@ -125,27 +143,28 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
   const treatmentMemoTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // 古い録音機能のrefは削除 - 新しいAudioRecordingModalを使用
 
-  // ローカルストレージからデータを読み込み
+  // DBからサブカルテエントリを読み込み
   useEffect(() => {
     const loadEntries = async () => {
       setLoading(true)
-
-      // ローカルストレージから保存されたエントリを読み込み
-      const savedEntries = localStorage.getItem(`subkarte_entries_${patientId}`)
-      if (savedEntries) {
-        try {
-          const parsedEntries = JSON.parse(savedEntries)
-          setEntries(parsedEntries)
-        } catch (error) {
-          console.error('保存されたエントリの読み込みに失敗:', error)
-          setEntries([])
-        }
-      } else {
-        // データがない場合は空配列
+      try {
+        const dbEntries = await getSubKarteEntries(patientId)
+        // DB形式 → コンポーネント形式にマッピング
+        const mappedEntries: SubKarteEntry[] = dbEntries.map((e: any) => ({
+          id: e.id,
+          type: e.entry_type || 'text',
+          content: e.content || '',
+          metadata: e.metadata || {},
+          createdAt: e.created_at || new Date().toISOString(),
+          staffName: e.staff?.name || '不明'
+        }))
+        setEntries(mappedEntries)
+      } catch (error) {
+        console.error('サブカルテエントリの読み込みに失敗:', error)
         setEntries([])
+      } finally {
+        setLoading(false)
       }
-
-      setLoading(false)
     }
 
     loadEntries()
@@ -212,19 +231,14 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
   useEffect(() => {
     const loadMemoTodoTemplates = async () => {
       try {
-        console.log('SubKarteTab: Loading memo todo templates for clinic:', clinicId)
-        // デバッグ: localStorageの生データを確認
-        const rawData = localStorage.getItem('memo_todo_templates')
-        console.log('SubKarteTab: Raw localStorage data:', rawData)
         const templates = await getActiveMemoTodoTemplates(clinicId)
-        console.log('SubKarteTab: Loaded templates:', templates)
         setMemoTodoTemplates(templates)
       } catch (error) {
         console.error('メモTODOテンプレートの読み込みに失敗:', error)
       }
     }
     loadMemoTodoTemplates()
-  }, [])
+  }, [clinicId])
 
   // テンプレートドロップダウンの外側クリックで閉じる
   useEffect(() => {
@@ -407,22 +421,24 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
     saveTreatmentMemoData(newData)
   }
 
-  // デフォルトテキストの読み込み
+  // デフォルトテキストの読み込み（clinic_settingsから取得）
   useEffect(() => {
-    const savedTexts = localStorage.getItem('default_texts')
-    console.log('ローカルストレージから取得したデフォルトテキスト:', savedTexts)
-    if (savedTexts) {
+    const loadDefaultTexts = async () => {
       try {
-        const parsedTexts = JSON.parse(savedTexts)
-        setDefaultTexts(parsedTexts)
-        console.log('読み込んだデフォルトテキスト:', parsedTexts)
+        const savedTexts = await getClinicSetting(clinicId, 'default_texts')
+        console.log('clinic_settingsから取得したデフォルトテキスト:', savedTexts)
+        if (savedTexts && Array.isArray(savedTexts)) {
+          setDefaultTexts(savedTexts)
+          console.log('読み込んだデフォルトテキスト:', savedTexts)
+        } else {
+          console.log('デフォルトテキストが見つかりません')
+        }
       } catch (error) {
         console.error('デフォルトテキストの読み込みエラー:', error)
       }
-    } else {
-      console.log('デフォルトテキストが見つかりません')
     }
-  }, [])
+    loadDefaultTexts()
+  }, [clinicId])
 
   // スタッフ選択の処理
   const handleStaffSelect = (staffId: string) => {
@@ -587,8 +603,8 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
     canvas.addEventListener('mouseup', handleMouseUp)
   }
 
-  // ファイルアップロード
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ファイルアップロード（DB経由）
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     const validFiles = files.filter(file => {
       if (file.size > 5 * 1024 * 1024) { // 5MB制限
@@ -597,31 +613,40 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
       }
       return true
     })
-    
+
     if (validFiles.length > 0) {
       setUploadedFiles(prev => [...prev, ...validFiles])
-      // ファイル選択後、すぐにエントリとして保存
-      validFiles.forEach(file => {
-        const entry: SubKarteEntry = {
-          id: `entry_${Date.now()}_${Math.random()}`,
-          type: 'file',
-          content: file.name,
-          staffName: selectedStaff.length > 0 ? getSelectedStaffNames() : '現在のスタッフ',
-          createdAt: new Date().toISOString(),
-          metadata: {
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type
+      // ファイル選択後、すぐにDBエントリとして保存
+      for (const file of validFiles) {
+        try {
+          const created = await createSubKarteEntry({
+            patient_id: patientId,
+            staff_id: getCurrentStaffId(),
+            entry_type: 'file',
+            content: file.name,
+            metadata: {
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type
+            },
+          })
+
+          const entry: SubKarteEntry = {
+            id: created.id,
+            type: 'file',
+            content: file.name,
+            staffName: authStaff?.name || '現在のスタッフ',
+            createdAt: created.created_at || new Date().toISOString(),
+            metadata: created.metadata || { fileName: file.name, fileSize: file.size, fileType: file.type },
           }
+          setEntries(prev => [entry, ...prev])
+        } catch (error) {
+          console.error('ファイルエントリ保存エラー:', error)
+          alert(`${file.name}の保存に失敗しました`)
         }
-        setEntries(prev => [entry, ...prev])
-        
-        // ローカルストレージに保存
-        const newEntries = [entry, ...entries]
-        localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(newEntries))
-      })
+      }
     }
-    
+
     // ファイル入力をリセット
     e.target.value = ''
   }
@@ -647,29 +672,27 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
     setShowEditModal(true)
   }
 
-  // エントリ編集保存
+  // エントリ編集保存（DB経由）
   const saveEditEntry = async (entryId: string) => {
     try {
       // HTMLコンテンツをそのまま保存（色情報はHTMLに含まれている）
       const content = editRichTextContent
-      setEntries(prev => {
-        const newEntries = prev.map(entry => 
-          entry.id === entryId 
-            ? { 
-                ...entry, 
-                content: content,
-                metadata: {
-                  ...entry.metadata,
-                  color: editTextColor,
-                  markerColor: editMarkerColor
-                }
-              }
+      const newMetadata = { color: editTextColor, markerColor: editMarkerColor }
+
+      // DB更新
+      await updateSubKarteEntry(entryId, {
+        content,
+        metadata: newMetadata,
+      })
+
+      // ローカルステートを更新
+      setEntries(prev =>
+        prev.map(entry =>
+          entry.id === entryId
+            ? { ...entry, content, metadata: { ...entry.metadata, ...newMetadata } }
             : entry
         )
-        // ローカルストレージに保存
-        localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(newEntries))
-        return newEntries
-      })
+      )
       setEditingEntry(null)
       setEditContent('')
       setEditRichTextContent('')
@@ -899,14 +922,10 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
   // エントリ削除
   const deleteEntry = async (entryId: string) => {
     if (!confirm('このエントリを削除しますか？')) return
-    
+
     try {
-      setEntries(prev => {
-        const newEntries = prev.filter(entry => entry.id !== entryId)
-        // ローカルストレージに保存
-        localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(newEntries))
-        return newEntries
-      })
+      await deleteSubKarteEntry(entryId)
+      setEntries(prev => prev.filter(entry => entry.id !== entryId))
     } catch (error) {
       console.error('削除エラー:', error)
       alert('削除に失敗しました')
@@ -1076,40 +1095,55 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
     return rendered
   }
 
-  // 手書きモーダル保存処理
-  const handleHandwritingSave = (content: string, type: 'handwriting' | 'text' | 'mixed', staffName?: string) => {
-    if (editingHandwritingEntry) {
-      // 編集モード
-      const updatedEntries = entries.map(entry => 
-        entry.id === editingHandwritingEntry 
-          ? { ...entry, content, type, staffName: staffName || entry.staffName, metadata: type === 'handwriting' ? { brushSize, color: selectedColor } : { color: textColor, markerColor: markerColor } }
-          : entry
-      )
-      setEntries(updatedEntries)
-      localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(updatedEntries))
-      setEditingHandwritingEntry(null)
-    } else {
-      // 新規作成モード
-      const newEntry: SubKarteEntry = {
-        id: Date.now().toString(),
-        type: type,
-        content: content,
-        metadata: type === 'handwriting' ? { brushSize, color: selectedColor } : { color: textColor, markerColor: markerColor },
-        createdAt: new Date().toISOString(),
-        staffName: staffName || (selectedStaff.length > 0 ? getSelectedStaffNames() : '現在のスタッフ')
+  // 手書きモーダル保存処理（DB経由）
+  const handleHandwritingSave = async (content: string, type: 'handwriting' | 'text' | 'mixed', _staffName?: string) => {
+    try {
+      const metadata = type === 'handwriting' ? { brushSize, color: selectedColor } : { color: textColor, markerColor: markerColor }
+
+      if (editingHandwritingEntry) {
+        // 編集モード - DB更新
+        await updateSubKarteEntry(editingHandwritingEntry, {
+          content,
+          entry_type: type as any,
+          metadata,
+        })
+        setEntries(prev =>
+          prev.map(entry =>
+            entry.id === editingHandwritingEntry
+              ? { ...entry, content, type, metadata }
+              : entry
+          )
+        )
+        setEditingHandwritingEntry(null)
+      } else {
+        // 新規作成モード - DB作成
+        const created = await createSubKarteEntry({
+          patient_id: patientId,
+          staff_id: getCurrentStaffId(),
+          entry_type: type as any,
+          content,
+          metadata,
+        })
+
+        const newEntry: SubKarteEntry = {
+          id: created.id,
+          type: (created.entry_type as SubKarteEntry['type']) || type,
+          content: created.content || content,
+          metadata: created.metadata || metadata,
+          createdAt: created.created_at || new Date().toISOString(),
+          staffName: authStaff?.name || '現在のスタッフ',
+        }
+        setEntries(prev => [...prev, newEntry])
       }
-      
-      console.log('手書きエントリ保存:', { newEntry, selectedStaff, getSelectedStaffNames: getSelectedStaffNames() })
-      
-      const newEntries = [...entries, newEntry]
-      setEntries(newEntries)
-      localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(newEntries))
+    } catch (error) {
+      console.error('手書き保存エラー:', error)
+      alert('手書きの保存に失敗しました')
     }
-    
+
     setShowHandwritingModal(false)
   }
 
-  // エントリ保存
+  // エントリ保存（DB経由）
   const saveEntry = async () => {
     try {
       let content = ''
@@ -1118,7 +1152,6 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
       switch (activeInputType) {
         case 'text':
           content = richTextContent.replace(/\n/g, '<br>')
-          console.log('Rich text content:', content) // デバッグ用
           if (!content || content.trim() === '' || content === '<br>') {
             alert('テキストを入力してください')
             return
@@ -1142,33 +1175,38 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
           break
       }
 
-      const newEntry: SubKarteEntry = {
-        id: Date.now().toString(),
-        type: activeInputType,
+      // DB にエントリを作成
+      const created = await createSubKarteEntry({
+        patient_id: patientId,
+        staff_id: getCurrentStaffId(),
+        entry_type: activeInputType,
         content,
         metadata,
-        createdAt: new Date().toISOString(),
-        staffName: selectedStaff.length > 0 ? getSelectedStaffNames() : '現在のスタッフ' // 選択されたスタッフ名またはデフォルト
+      })
+
+      // DB形式 → コンポーネント形式にマッピングしてステートに追加
+      const newEntry: SubKarteEntry = {
+        id: created.id,
+        type: (created.entry_type as SubKarteEntry['type']) || activeInputType,
+        content: created.content || content,
+        metadata: created.metadata || metadata,
+        createdAt: created.created_at || new Date().toISOString(),
+        staffName: authStaff?.name || '現在のスタッフ',
       }
 
-      setEntries(prev => {
-        const newEntries = [newEntry, ...prev]
-        // ローカルストレージに保存
-        localStorage.setItem(`subkarte_entries_${patientId}`, JSON.stringify(newEntries))
-        return newEntries
-      })
-      
+      setEntries(prev => [newEntry, ...prev])
+
       // フォームリセット
       setTextContent('')
       setRichTextContentState('')
       setUploadedFiles([])
-      
+
       // リッチテキストエディタをクリア
       const editor = document.getElementById('rich-text-editor') as HTMLDivElement
       if (editor) {
         editor.innerHTML = 'テキストを入力してください...'
       }
-      
+
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d')
         if (ctx) {
@@ -1656,6 +1694,8 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
         isOpen={showAudioRecordingModal}
         onClose={() => setShowAudioRecordingModal(false)}
         patientId={patientId}
+        clinicId={clinicId}
+        staffId={getCurrentStaffId()}
       />
 
       {/* 手書きモーダル */}
@@ -2294,6 +2334,8 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
         isOpen={showAudioRecordingModal}
         onClose={() => setShowAudioRecordingModal(false)}
         patientId={patientId}
+        clinicId={clinicId}
+        staffId={getCurrentStaffId()}
       />
 
       <HandwritingModal

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 interface FunnelStepData {
   step_number: number
@@ -34,30 +34,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // ファネルイベントを取得
-    let query = supabase
-      .from('web_booking_funnel_events')
-      .select('*')
-      .eq('clinic_id', clinic_id)
-
+    const funnelWhere: any = { clinic_id }
     if (start_date) {
-      query = query.gte('event_timestamp', start_date)
+      funnelWhere.event_timestamp = { ...funnelWhere.event_timestamp, gte: new Date(start_date) }
     }
     if (end_date) {
-      query = query.lte('event_timestamp', end_date)
+      funnelWhere.event_timestamp = { ...funnelWhere.event_timestamp, lte: new Date(end_date) }
     }
 
-    const { data, error } = await query.order('event_timestamp', { ascending: true })
-
-    if (error) {
-      console.error('ファネルデータ取得エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch funnel data' },
-        { status: 500 }
-      )
-    }
+    const data = await prisma.web_booking_funnel_events.findMany({
+      where: funnelWhere,
+      orderBy: { event_timestamp: 'asc' },
+    })
 
     // セッションごとに到達したステップを集計
     const sessionSteps = new Map<string, Set<number>>()

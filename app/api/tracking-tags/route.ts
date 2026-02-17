@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
+
+const DATE_FIELDS = ['created_at', 'updated_at'] as const
 
 // GET: トラッキングタグ設定を取得
 export async function GET(request: NextRequest) {
@@ -14,29 +17,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Database not configured' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
-    const supabase = supabaseAdmin
-
-    const { data, error } = await supabase
-      .from('tracking_tags')
-      .select('*')
-      .eq('clinic_id', clinic_id)
-      .single()
-
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 = レコードが見つからない（初回アクセス時は正常）
-      console.error('トラッキングタグ取得エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch tracking tags' },
-        { status: 500 }
-      )
-    }
+    const data = await prisma.tracking_tags.findUnique({
+      where: { clinic_id },
+    })
 
     // データがない場合はデフォルト値を返す
     if (!data) {
@@ -62,7 +47,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, data: convertDatesToStrings(data, [...DATE_FIELDS]) })
   } catch (error) {
     console.error('トラッキングタグ取得APIエラー:', error)
     return NextResponse.json(
@@ -101,50 +86,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Database not configured' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
-    const supabase = supabaseAdmin
+    const upsertData = {
+      gtm_container_id: gtm_container_id || null,
+      gtm_enabled: gtm_enabled || false,
+      ga4_measurement_id: ga4_measurement_id || null,
+      ga4_enabled: ga4_enabled || false,
+      google_ads_conversion_id: google_ads_conversion_id || null,
+      google_ads_conversion_label: google_ads_conversion_label || null,
+      google_ads_enabled: google_ads_enabled || false,
+      meta_pixel_id: meta_pixel_id || null,
+      meta_pixel_enabled: meta_pixel_enabled || false,
+      yahoo_ads_account_id: yahoo_ads_account_id || null,
+      yahoo_ads_enabled: yahoo_ads_enabled || false,
+      line_tag_id: line_tag_id || null,
+      line_tag_enabled: line_tag_enabled || false,
+      custom_tags: custom_tags || [],
+      updated_at: new Date(),
+    }
 
     // UPSERT（存在すれば更新、なければ作成）
-    const { data, error } = await supabase
-      .from('tracking_tags')
-      .upsert({
+    const data = await prisma.tracking_tags.upsert({
+      where: { clinic_id },
+      create: {
         clinic_id,
-        gtm_container_id: gtm_container_id || null,
-        gtm_enabled: gtm_enabled || false,
-        ga4_measurement_id: ga4_measurement_id || null,
-        ga4_enabled: ga4_enabled || false,
-        google_ads_conversion_id: google_ads_conversion_id || null,
-        google_ads_conversion_label: google_ads_conversion_label || null,
-        google_ads_enabled: google_ads_enabled || false,
-        meta_pixel_id: meta_pixel_id || null,
-        meta_pixel_enabled: meta_pixel_enabled || false,
-        yahoo_ads_account_id: yahoo_ads_account_id || null,
-        yahoo_ads_enabled: yahoo_ads_enabled || false,
-        line_tag_id: line_tag_id || null,
-        line_tag_enabled: line_tag_enabled || false,
-        custom_tags: custom_tags || [],
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'clinic_id'
-      })
-      .select()
-      .single()
+        ...upsertData,
+      },
+      update: upsertData,
+    })
 
-    if (error) {
-      console.error('トラッキングタグ保存エラー:', error)
-      return NextResponse.json(
-        { error: 'Failed to save tracking tags' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, data: convertDatesToStrings(data, [...DATE_FIELDS]) })
   } catch (error) {
     console.error('トラッキングタグ保存APIエラー:', error)
     return NextResponse.json(

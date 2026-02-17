@@ -97,7 +97,7 @@ export default function NewPatientPage() {
         {/* フォーム */}
         {isSubmitting ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-shikabot-primary"></div>
             <p className="mt-4 text-gray-600">患者情報を登録しています...</p>
           </div>
         ) : (

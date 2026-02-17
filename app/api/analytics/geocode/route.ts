@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY
 
 // 住所をジオコーディングする
@@ -87,17 +86,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
-    // 既にキャッシュがあるか確認
-    const { data: existingCache } = await supabase
-      .from('patient_geocode_cache')
-      .select('*')
-      .eq('patient_id', patient_id)
-      .single()
+    // 既にキャッシュがあるか確認（patient_idはunique）
+    const existingCache = await prisma.patient_geocode_cache.findUnique({
+      where: { patient_id },
+    })
 
     if (existingCache && existingCache.geocode_status === 'success') {
-      return NextResponse.json({ data: existingCache, cached: true })
+      const serialized = convertDatesToStrings(existingCache, ['geocoded_at', 'created_at', 'updated_at'])
+      return NextResponse.json({ data: serialized, cached: true })
     }
 
     // ジオコーディング実行
@@ -105,20 +103,25 @@ export async function POST(request: NextRequest) {
 
     if (!geocodeResult) {
       // 失敗した場合もキャッシュに記録
-      const { data, error } = await supabase
-        .from('patient_geocode_cache')
-        .upsert({
+      const data = await prisma.patient_geocode_cache.upsert({
+        where: { patient_id },
+        create: {
           patient_id,
           clinic_id,
           original_address: address,
           geocode_status: 'failed',
           geocode_error: 'Geocoding failed',
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'patient_id' })
-        .select()
-        .single()
+        },
+        update: {
+          original_address: address,
+          geocode_status: 'failed',
+          geocode_error: 'Geocoding failed',
+          updated_at: new Date(),
+        },
+      })
 
-      return NextResponse.json({ data, error: 'Geocoding failed' }, { status: 400 })
+      const serialized = convertDatesToStrings(data, ['geocoded_at', 'created_at', 'updated_at'])
+      return NextResponse.json({ data: serialized, error: 'Geocoding failed' }, { status: 400 })
     }
 
     // クリニックからの距離を計算
@@ -133,9 +136,9 @@ export async function POST(request: NextRequest) {
     }
 
     // キャッシュに保存
-    const { data, error } = await supabase
-      .from('patient_geocode_cache')
-      .upsert({
+    const data = await prisma.patient_geocode_cache.upsert({
+      where: { patient_id },
+      create: {
         patient_id,
         clinic_id,
         original_address: address,
@@ -146,17 +149,25 @@ export async function POST(request: NextRequest) {
         longitude: geocodeResult.longitude,
         geocode_status: 'success',
         distance_from_clinic: distanceFromClinic,
-        geocoded_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'patient_id' })
-      .select()
-      .single()
+        geocoded_at: new Date(),
+      },
+      update: {
+        original_address: address,
+        prefecture: geocodeResult.prefecture,
+        city: geocodeResult.city,
+        district: geocodeResult.district,
+        latitude: geocodeResult.latitude,
+        longitude: geocodeResult.longitude,
+        geocode_status: 'success',
+        geocode_error: null,
+        distance_from_clinic: distanceFromClinic,
+        geocoded_at: new Date(),
+        updated_at: new Date(),
+      },
+    })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ data, cached: false })
+    const serialized = convertDatesToStrings(data, ['geocoded_at', 'created_at', 'updated_at'])
+    return NextResponse.json({ data: serialized, cached: false })
   } catch (error) {
     console.error('Geocode API error:', error)
     return NextResponse.json(
@@ -180,14 +191,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const prisma = getPrismaClient()
 
     // クリニック情報を取得（緯度経度がある場合）
-    const { data: clinic } = await supabase
-      .from('clinics')
-      .select('prefecture, city, address_line')
-      .eq('id', clinicId)
-      .single()
+    const clinic = await prisma.clinics.findUnique({
+      where: { id: clinicId },
+      select: { prefecture: true, city: true, address_line: true },
+    })
 
     // クリニックの住所をジオコーディング（距離計算用）
     let clinicCoords: { latitude: number; longitude: number } | null = null
@@ -200,31 +210,31 @@ export async function GET(request: NextRequest) {
     }
 
     // 未処理の患者を取得
-    const { data: patients, error: patientsError } = await supabase
-      .from('patients')
-      .select(`
-        id,
-        prefecture,
-        city,
-        address
-      `)
-      .eq('clinic_id', clinicId)
-      .not('prefecture', 'is', null)
-      .limit(limit)
-
-    if (patientsError) {
-      return NextResponse.json({ error: patientsError.message }, { status: 500 })
-    }
+    const patients = await prisma.patients.findMany({
+      where: {
+        clinic_id: clinicId,
+        prefecture: { not: null },
+      },
+      select: {
+        id: true,
+        prefecture: true,
+        city: true,
+        address: true,
+      },
+      take: limit,
+    })
 
     // 既にキャッシュされている患者を除外
-    const { data: cached } = await supabase
-      .from('patient_geocode_cache')
-      .select('patient_id')
-      .eq('clinic_id', clinicId)
-      .eq('geocode_status', 'success')
+    const cached = await prisma.patient_geocode_cache.findMany({
+      where: {
+        clinic_id: clinicId,
+        geocode_status: 'success',
+      },
+      select: { patient_id: true },
+    })
 
-    const cachedIds = new Set(cached?.map(c => c.patient_id) || [])
-    const uncachedPatients = patients?.filter(p => !cachedIds.has(p.id)) || []
+    const cachedIds = new Set(cached.map(c => c.patient_id))
+    const uncachedPatients = patients.filter(p => !cachedIds.has(p.id))
 
     // 各患者をジオコーディング
     const results = []
@@ -244,9 +254,9 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      const { data, error } = await supabase
-        .from('patient_geocode_cache')
-        .upsert({
+      const data = await prisma.patient_geocode_cache.upsert({
+        where: { patient_id: patient.id },
+        create: {
           patient_id: patient.id,
           clinic_id: clinicId,
           original_address: address,
@@ -258,14 +268,26 @@ export async function GET(request: NextRequest) {
           geocode_status: geocodeResult ? 'success' : 'failed',
           geocode_error: geocodeResult ? null : 'Geocoding failed',
           distance_from_clinic: distanceFromClinic,
-          geocoded_at: geocodeResult ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'patient_id' })
-        .select()
-        .single()
+          geocoded_at: geocodeResult ? new Date() : null,
+        },
+        update: {
+          original_address: address,
+          prefecture: geocodeResult?.prefecture || patient.prefecture,
+          city: geocodeResult?.city || patient.city,
+          district: geocodeResult?.district || '',
+          latitude: geocodeResult?.latitude,
+          longitude: geocodeResult?.longitude,
+          geocode_status: geocodeResult ? 'success' : 'failed',
+          geocode_error: geocodeResult ? null : 'Geocoding failed',
+          distance_from_clinic: distanceFromClinic,
+          geocoded_at: geocodeResult ? new Date() : null,
+          updated_at: new Date(),
+        },
+      })
 
       if (data) {
-        results.push(data)
+        const serialized = convertDatesToStrings(data, ['geocoded_at', 'created_at', 'updated_at'])
+        results.push(serialized)
       }
 
       // レートリミット対策（1秒に10リクエストまで）

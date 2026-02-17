@@ -118,7 +118,7 @@ node test-fix-linked-fields.mjs
 または、直接curlで実行:
 
 ```bash
-curl -X POST https://dmax-mu.vercel.app/api/questionnaires/fix-linked-fields
+curl -X POST https://shikabot-mu.vercel.app/api/questionnaires/fix-linked-fields
 ```
 
 **期待される出力:**
@@ -133,7 +133,7 @@ curl -X POST https://dmax-mu.vercel.app/api/questionnaires/fix-linked-fields
 
 ### ステップ3: 動作確認
 
-1. 本番環境 `https://dmax-mu.vercel.app` にアクセス
+1. 本番環境 `https://shikabot-mu.vercel.app` にアクセス
 2. ブラウザのコンソールを開く（F12）
 3. 問診票連携を実行
 4. 以下のログが表示されることを確認:

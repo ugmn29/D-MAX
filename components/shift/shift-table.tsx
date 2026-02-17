@@ -8,8 +8,7 @@ import { Download, Printer, Calendar, ChevronLeft, ChevronRight } from 'lucide-r
 import { ShiftPattern, StaffShift } from '@/types/database'
 import { getShiftPatterns } from '@/lib/api/shift-patterns'
 import { getStaffShifts, upsertStaffShift } from '@/lib/api/shifts'
-import { getStaff, saveStaffWeeklySchedule, getStaffWeeklySchedule, WeeklySchedule } from '@/lib/api/staff'
-import { getStaffPositions } from '@/lib/api/staff-positions'
+import { getStaff, saveStaffWeeklySchedule, getStaffWeeklySchedule, WeeklySchedule, getStaffPositions } from '@/lib/api/staff'
 import { getHolidays, setClinicSetting } from '@/lib/api/clinic'
 import { getIndividualHolidays, setIndividualHoliday } from '@/lib/api/individual-holidays'
 import { formatDateForDB } from '@/lib/utils/date'
@@ -527,7 +526,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
 
   // セルの背景色を取得
   const getCellBackgroundColor = (shift: StaffShift | undefined, date: Date) => {
-    if (isHoliday(date)) return 'bg-gray-200' // 休診日はグレー
+    if (isHoliday(date) && !shift?.shift_pattern_id) return 'bg-gray-200' // 休診日でシフト未設定はグレー
     if (shift?.is_holiday) return 'bg-gray-200' // 個別の休日はグレー
     if (shift?.shift_pattern_id === null) return 'bg-gray-100' // 勤務なしは薄いグレー
     if (shift?.shift_pattern_id) return 'bg-blue-50' // シフトがある場合は薄い青
@@ -677,7 +676,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
                             }`}
                             onClick={() => !isPastDate && handleCellClick(staffMember.id, day.dateString)}
                           >
-                            {isHolidayDay ? (
+                            {isHolidayDay && !shift?.shift_pattern_id ? (
                               <span className="text-gray-500">休</span>
                             ) : shift?.is_holiday ? (
                               <span className="text-gray-500">休み</span>

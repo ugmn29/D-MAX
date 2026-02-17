@@ -1,9 +1,11 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings, convertArrayDatesToStrings } from '@/lib/prisma-helpers'
 import { DEFAULT_DOCUMENT_TEMPLATES } from '@/lib/data/default-document-templates'
 
 // デフォルトテンプレートを初期化
-async function initializeDefaultTemplates(supabase: ReturnType<typeof getSupabaseClient>) {
+async function initializeDefaultTemplates() {
+  const prisma = getPrismaClient()
   console.log('Initializing default document templates...')
 
   const insertData = DEFAULT_DOCUMENT_TEMPLATES.map(template => ({
@@ -15,17 +17,16 @@ async function initializeDefaultTemplates(supabase: ReturnType<typeof getSupabas
     is_active: true
   }))
 
-  const { error } = await supabase
-    .from('document_templates')
-    .insert(insertData)
-
-  if (error) {
+  try {
+    await prisma.document_templates.createMany({
+      data: insertData
+    })
+    console.log(`Initialized ${insertData.length} default document templates`)
+    return true
+  } catch (error) {
     console.error('Error initializing default templates:', error)
     return false
   }
-
-  console.log(`✓ Initialized ${insertData.length} default document templates`)
-  return true
 }
 
 // GET - テンプレート一覧取得
@@ -33,36 +34,29 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const documentType = searchParams.get('documentType')
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // まず全件数をチェック（初期化が必要かどうか）
-    const { count: totalCount } = await supabase
-      .from('document_templates')
-      .select('*', { count: 'exact', head: true })
+    const totalCount = await prisma.document_templates.count()
 
     // テーブルが空の場合、デフォルトテンプレートを初期化
     if (totalCount === 0) {
-      await initializeDefaultTemplates(supabase)
+      await initializeDefaultTemplates()
     }
 
-    let query = supabase
-      .from('document_templates')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })
-
+    const where: any = { is_active: true }
     if (documentType) {
-      query = query.eq('document_type', documentType)
+      where.document_type = documentType
     }
 
-    const { data, error } = await query
+    const data = await prisma.document_templates.findMany({
+      where,
+      orderBy: { display_order: 'asc' }
+    })
 
-    if (error) {
-      console.error('Error fetching templates:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const result = convertArrayDatesToStrings(data, ['created_at', 'updated_at'])
 
-    return NextResponse.json(data)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error in GET /api/document-templates:', error)
     return NextResponse.json(
@@ -76,26 +70,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    const { data, error } = await supabase
-      .from('document_templates')
-      .insert({
+    const data = await prisma.document_templates.create({
+      data: {
         document_type: body.document_type,
         template_key: body.template_key,
         template_name: body.template_name,
         template_data: body.template_data,
         display_order: body.display_order || 0
-      })
-      .select()
-      .single()
+      }
+    })
 
-    if (error) {
-      console.error('Error creating template:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const result = convertDatesToStrings(data, ['created_at', 'updated_at'])
 
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(result, { status: 201 })
   } catch (error) {
     console.error('Error in POST /api/document-templates:', error)
     return NextResponse.json(

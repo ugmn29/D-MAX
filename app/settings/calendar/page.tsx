@@ -177,7 +177,7 @@ export default function CalendarSettingsPage() {
         setTimeSlotMinutes(numericTimeSlotValue)
 
         // displayItemsを設定
-        const loadedDisplayItems = settings.display_items || []
+        const loadedDisplayItems = Array.isArray(settings.display_items) ? settings.display_items : []
         console.log('設定ページ: 読み込んだdisplayItems:', loadedDisplayItems)
         setDisplayItems(loadedDisplayItems)
 
@@ -231,7 +231,7 @@ export default function CalendarSettingsPage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-shikabot-primary"></div>
         </div>
       </MainLayout>
     )

@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,15 +13,22 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 医院情報を取得
-    const { data: clinic, error } = await supabaseAdmin
-      .from('clinics')
-      .select('id, name, phone, address, email')
-      .eq('id', clinicId)
-      .single()
+    const prisma = getPrismaClient()
 
-    if (error || !clinic) {
-      console.error('医院情報取得エラー:', error)
+    // 医院情報を取得
+    const clinic = await prisma.clinics.findUnique({
+      where: { id: clinicId },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        address_line: true,
+        email: true,
+      },
+    })
+
+    if (!clinic) {
+      console.error('医院情報取得エラー: 該当する医院が見つかりません')
 
       // デフォルトの医院情報を返す（開発用）
       return NextResponse.json({
@@ -43,7 +45,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      clinic
+      clinic: {
+        id: clinic.id,
+        name: clinic.name,
+        phone: clinic.phone,
+        address: clinic.address_line,
+        email: clinic.email,
+      }
     })
 
   } catch (error) {

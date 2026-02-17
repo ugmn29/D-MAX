@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Training } from '@/types/training'
 import { EvaluationProgressSummary } from '@/types/evaluation'
 
@@ -72,30 +71,15 @@ export default function IntegratedTrainingManagement({
   const loadAllData = async () => {
     setIsLoading(true)
     try {
-      // 全トレーニングを取得
-      const { data: trainingsData, error: trainingsError } = await supabase
-        .from('trainings')
-        .select('*')
-        .eq('is_deleted', false)
-        .is('clinic_id', null)
-        .order('category')
-        .order('training_name')
+      // API経由で全データを一括取得
+      const response = await fetch(`/api/training/training-management?patientId=${patientId}&clinicId=${clinicId}`)
+      const result = await response.json()
 
-      if (trainingsError) throw trainingsError
+      if (!response.ok) {
+        throw new Error(result.error || 'データ取得に失敗しました')
+      }
 
-      // アクティブなメニューを取得
-      const { data: activeMenuData } = await supabase
-        .from('training_menus')
-        .select(`
-          id,
-          menu_trainings(
-            id,
-            training_id
-          )
-        `)
-        .eq('patient_id', patientId)
-        .eq('is_active', true)
-        .single()
+      const { trainings: trainingsData, activeMenu: activeMenuData, progress: progressData, records: recordsData } = result
 
       setActiveMenuId(activeMenuData?.id || null)
 
@@ -106,16 +90,9 @@ export default function IntegratedTrainingManagement({
         activeMenuData?.menu_trainings?.map((mt: any) => [mt.training_id, mt.id]) || []
       )
 
-      // 評価進捗を取得
-      const { data: progressData } = await supabase
-        .from('training_evaluations')
-        .select('training_id, evaluation_level, evaluated_at')
-        .eq('patient_id', patientId)
-        .order('evaluated_at', { ascending: false })
-
       // トレーニングごとの評価情報を集計
       const evaluationMap = new Map<string, EvaluationProgressSummary>()
-      progressData?.forEach((evaluation) => {
+      progressData?.forEach((evaluation: any) => {
         if (!evaluationMap.has(evaluation.training_id)) {
           evaluationMap.set(evaluation.training_id, {
             training_id: evaluation.training_id,
@@ -137,7 +114,7 @@ export default function IntegratedTrainingManagement({
       })
 
       // トレーニングデータと評価情報を統合
-      const trainingsWithStatus: TrainingWithStatus[] = (trainingsData || []).map((training) => {
+      const trainingsWithStatus: TrainingWithStatus[] = (trainingsData || []).map((training: any) => {
         const evalInfo = evaluationMap.get(training.id)
         return {
           ...training,
@@ -151,18 +128,6 @@ export default function IntegratedTrainingManagement({
       })
 
       setAllTrainings(trainingsWithStatus)
-
-      // 実施記録を取得
-      const { data: recordsData } = await supabase
-        .from('training_records')
-        .select(`
-          *,
-          training:trainings(*)
-        `)
-        .eq('patient_id', patientId)
-        .order('performed_at', { ascending: false })
-        .limit(50)
-
       setTrainingRecords(recordsData || [])
     } catch (error) {
       console.error('データ取得エラー:', error)
@@ -180,57 +145,34 @@ export default function IntegratedTrainingManagement({
   // トレーニングの処方
   const handlePrescribe = async (trainingId: string) => {
     try {
-      if (!activeMenuId) {
-        // 新しいメニューを作成
-        const { data: menuData, error: menuError } = await supabase
-          .from('training_menus')
-          .insert({
-            patient_id: patientId,
-            clinic_id: clinicId,
-            menu_name: `トレーニングメニュー`,
-            is_active: true,
-          })
-          .select()
-          .single()
+      const response = await fetch('/api/training/training-management', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'prescribe',
+          patientId,
+          clinicId,
+          trainingId,
+          activeMenuId,
+        }),
+      })
 
-        if (menuError) throw menuError
-        setActiveMenuId(menuData.id)
+      const result = await response.json()
 
-        // トレーニングを追加
-        const { error: mtError } = await supabase.from('menu_trainings').insert({
-          menu_id: menuData.id,
-          training_id: trainingId,
-          sort_order: 1,
-          action_seconds: 10,
-          rest_seconds: 5,
-          sets: 3,
-          auto_progress: true,
-        })
+      if (!response.ok) {
+        throw new Error(result.error || '処方に失敗しました')
+      }
 
-        if (mtError) throw mtError
-      } else {
-        // 既存メニューにトレーニングを追加
-        const prescribedCount = allTrainings.filter((t) => t.is_prescribed).length
-
-        const { error } = await supabase.from('menu_trainings').insert({
-          menu_id: activeMenuId,
-          training_id: trainingId,
-          sort_order: prescribedCount + 1,
-          action_seconds: 10,
-          rest_seconds: 5,
-          sets: 3,
-          auto_progress: true,
-        })
-
-        if (error) throw error
+      if (result.menuId) {
+        setActiveMenuId(result.menuId)
       }
 
       alert('トレーニングを処方しました')
       loadAllData()
       setShowActionMenu(null)
-    } catch (error) {
+    } catch (error: any) {
       console.error('処方エラー:', error)
-      alert('処方に失敗しました')
+      alert(error.message || '処方に失敗しました')
     }
   }
 
@@ -239,19 +181,26 @@ export default function IntegratedTrainingManagement({
     if (!confirm('このトレーニングの処方を解除しますか？')) return
 
     try {
-      const { error } = await supabase
-        .from('menu_trainings')
-        .delete()
-        .eq('id', menuTrainingId)
+      const response = await fetch('/api/training/training-management', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'unprescribe',
+          menuTrainingId,
+        }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || '処方解除に失敗しました')
+      }
 
       alert('処方を解除しました')
       loadAllData()
       setShowActionMenu(null)
-    } catch (error) {
+    } catch (error: any) {
       console.error('処方解除エラー:', error)
-      alert('処方解除に失敗しました')
+      alert(error.message || '処方解除に失敗しました')
     }
   }
 

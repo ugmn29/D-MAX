@@ -53,7 +53,7 @@ const { error: lineError } = await supabase
     setting_value: {
       channel_access_token: channelAccessToken,
       channel_secret: channelSecret,
-      webhook_url: `https://dmax-mu.vercel.app/api/line/webhook`
+      webhook_url: `https://shikabot-mu.vercel.app/api/line/webhook`
     }
   }, {
     onConflict: 'clinic_id,setting_key'

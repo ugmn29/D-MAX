@@ -15,7 +15,6 @@ import { createAppointment } from '@/lib/api/appointments'
 import { getWeeklySlots, getWeeklySlotsForReschedule } from '@/lib/api/web-booking'
 import { authenticateReturningPatient, getPatientById } from '@/lib/api/patients'
 import { getPatientWebBookingSettings } from '@/lib/api/patient-web-booking-settings'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
 import { validateWebBookingToken, markTokenAsUsed } from '@/lib/api/web-booking-tokens'
 import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight, Phone } from 'lucide-react'
 import { format, addDays, startOfWeek, addWeeks } from 'date-fns'
@@ -289,15 +288,16 @@ function WebBookingPageInner() {
         setBusinessHours(clinic || {})
 
         // クリニック電話番号を取得
-        const supabase = getSupabaseClient()
-        const { data: clinicData } = await supabase
-          .from('clinics')
-          .select('phone')
-          .eq('id', DEMO_CLINIC_ID)
-          .single()
-
-        if (clinicData?.phone) {
-          setClinicPhone(clinicData.phone)
+        try {
+          const clinicRes = await fetch(`/api/clinics/${DEMO_CLINIC_ID}`)
+          if (clinicRes.ok) {
+            const clinicData = await clinicRes.json()
+            if (clinicData?.phone) {
+              setClinicPhone(clinicData.phone)
+            }
+          }
+        } catch (e) {
+          console.error('クリニック電話番号取得エラー:', e)
         }
       } catch (error) {
         console.error('データ読み込みエラー:', error)
@@ -1061,7 +1061,7 @@ function WebBookingPageInner() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-shikabot-primary"></div>
       </div>
     )
   }

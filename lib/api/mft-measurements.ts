@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+// Migrated to Prisma API Routes
 
 export interface MftMeasurement {
   id: string
@@ -42,6 +42,10 @@ export interface UpdateMftMeasurementInput {
   updated_by?: string | null
 }
 
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
+
 /**
  * BMIを計算する
  */
@@ -55,18 +59,24 @@ export function calculateBmi(height?: number | null, weight?: number | null): nu
  * 患者のMFT測定記録一覧を取得
  */
 export async function getMftMeasurements(patientId: string): Promise<MftMeasurement[]> {
-  const { data, error } = await supabase
-    .from('mft_measurements')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('measurement_date', { ascending: false })
+  try {
+    const response = await fetch(`${baseUrl}/api/mft-measurements?patient_id=${patientId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
-    console.log('Error fetching MFT measurements:', error)
-    throw new Error(`Failed to fetch measurements: ${error.message}`)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to fetch measurements')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching MFT measurements:', error)
+    throw error
   }
-
-  return data || []
 }
 
 /**
@@ -75,24 +85,25 @@ export async function getMftMeasurements(patientId: string): Promise<MftMeasurem
 export async function createMftMeasurement(
   input: CreateMftMeasurementInput
 ): Promise<MftMeasurement> {
-  // BMIを自動計算
-  const bmi = calculateBmi(input.height, input.weight)
-
-  const { data, error } = await supabase
-    .from('mft_measurements')
-    .insert({
-      ...input,
-      bmi,
+  try {
+    const response = await fetch(`${baseUrl}/api/mft-measurements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(input)
     })
-    .select()
-    .single()
 
-  if (error) {
-    console.log('Error creating MFT measurement:', error)
-    throw new Error(`Failed to create measurement: ${error.message}`)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to create measurement')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error creating MFT measurement:', error)
+    throw error
   }
-
-  return data
 }
 
 /**
@@ -102,45 +113,45 @@ export async function updateMftMeasurement(
   id: string,
   input: UpdateMftMeasurementInput
 ): Promise<MftMeasurement> {
-  // 身長・体重が更新された場合はBMIを再計算
-  let updateData: any = { ...input }
+  try {
+    const response = await fetch(`${baseUrl}/api/mft-measurements`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id, ...input })
+    })
 
-  if (input.height !== undefined || input.weight !== undefined) {
-    // 現在のデータを取得
-    const { data: current } = await supabase
-      .from('mft_measurements')
-      .select('height, weight')
-      .eq('id', id)
-      .single()
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to update measurement')
+    }
 
-    const height = input.height !== undefined ? input.height : current?.height
-    const weight = input.weight !== undefined ? input.weight : current?.weight
-    updateData.bmi = calculateBmi(height, weight)
+    return await response.json()
+  } catch (error) {
+    console.error('Error updating MFT measurement:', error)
+    throw error
   }
-
-  const { data, error } = await supabase
-    .from('mft_measurements')
-    .update(updateData)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
-    console.log('Error updating MFT measurement:', error)
-    throw new Error(`Failed to update measurement: ${error.message}`)
-  }
-
-  return data
 }
 
 /**
  * MFT測定記録を削除
  */
 export async function deleteMftMeasurement(id: string): Promise<void> {
-  const { error } = await supabase.from('mft_measurements').delete().eq('id', id)
+  try {
+    const response = await fetch(`${baseUrl}/api/mft-measurements?id=${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
 
-  if (error) {
-    console.log('Error deleting MFT measurement:', error)
-    throw new Error(`Failed to delete measurement: ${error.message}`)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to delete measurement')
+    }
+  } catch (error) {
+    console.error('Error deleting MFT measurement:', error)
+    throw error
   }
 }

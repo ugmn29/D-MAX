@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 import {
   getLineSettings,
   sendFlexMessage,
@@ -14,7 +14,7 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
     const body = await request.json()
     const {
       clinic_id,
@@ -47,30 +47,33 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. 患者のLINE連携情報を取得
-    const { data: linkages, error: linkageError } = await supabase
-      .from('line_patient_linkages')
-      .select('line_user_id, is_primary')
-      .eq('patient_id', patient_id)
-      .eq('is_primary', true)
-      .single()
+    const linkage = await prisma.line_patient_linkages.findFirst({
+      where: {
+        patient_id,
+        is_primary: true
+      },
+      select: {
+        line_user_id: true,
+        is_primary: true
+      }
+    })
 
-    if (linkageError || !linkages) {
+    if (!linkage) {
       return NextResponse.json(
         { error: 'この患者はLINE連携されていません' },
         { status: 404 }
       )
     }
 
-    const lineUserId = linkages.line_user_id
+    const lineUserId = linkage.line_user_id
 
     // 2. 患者情報を取得
-    const { data: patient, error: patientError } = await supabase
-      .from('patients')
-      .select('last_name, first_name')
-      .eq('id', patient_id)
-      .single()
+    const patient = await prisma.patients.findUnique({
+      where: { id: patient_id },
+      select: { last_name: true, first_name: true }
+    })
 
-    if (patientError || !patient) {
+    if (!patient) {
       return NextResponse.json(
         { error: '患者情報が見つかりません' },
         { status: 404 }
@@ -80,13 +83,12 @@ export async function POST(request: NextRequest) {
     const patientName = `${patient.last_name} ${patient.first_name}`
 
     // 3. クリニック情報を取得
-    const { data: clinic, error: clinicError } = await supabase
-      .from('clinics')
-      .select('name')
-      .eq('id', clinic_id)
-      .single()
+    const clinic = await prisma.clinics.findUnique({
+      where: { id: clinic_id },
+      select: { name: true }
+    })
 
-    if (clinicError || !clinic) {
+    if (!clinic) {
       return NextResponse.json(
         { error: 'クリニック情報が見つかりません' },
         { status: 404 }
@@ -97,15 +99,11 @@ export async function POST(request: NextRequest) {
     const lineSettings = await getLineSettings(clinic_id)
 
     // 5. 通知テンプレートを取得（template_idが指定されている場合）
-    let template = null
+    let template: any = null
     if (template_id) {
-      const { data: templateData } = await supabase
-        .from('notification_templates')
-        .select('*')
-        .eq('id', template_id)
-        .single()
-
-      template = templateData
+      template = await prisma.notification_templates.findUnique({
+        where: { id: template_id }
+      })
     }
 
     // 6. 通知タイプに応じてメッセージを生成

@@ -198,6 +198,10 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   const timeAxisRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
+  // 自動ステータス更新タイマー用のref（依存配列にappointmentsを入れない為）
+  const appointmentsRef = useRef<Appointment[]>(appointments)
+  useEffect(() => { appointmentsRef.current = appointments }, [appointments])
+
   // 現在時刻の状態（今日の日付のみ表示）
   const [currentTime, setCurrentTime] = useState(new Date())
 
@@ -927,6 +931,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
   // 出勤スタッフデータを取得する関数
   const loadWorkingStaff = async (date: Date) => {
+    if (!clinicId) return
+
     const dateString = formatDateForDB(date) // 日本時間で日付を処理
 
     console.log('MainCalendar: スタッフシフト取得開始:', {
@@ -1242,65 +1248,113 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     // setSelectionEnd(null)
   }
 
-  // データを読み込み
+  // クリニック設定データの読み込み（clinicId変更時のみ）
+  const clinicDataLoadedRef = useRef(false)
+  const lastLoadedMonthRef = useRef<string>('')
+
   useEffect(() => {
-    const loadData = async () => {
+    if (!clinicId) return
+    clinicDataLoadedRef.current = false // clinicId変更時にリセット
+  }, [clinicId])
+
+  useEffect(() => {
+    if (!clinicId) return
+
+    const loadClinicData = async () => {
       try {
-        setLoading(true)
-        
-        // モックデータを初期化
-        initializeMockData()
-        
-        const dateString = formatDateForDB(selectedDate) // 日本時間で日付を処理
-        const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof BusinessHours
-        
-        const [appointmentsData, businessHoursData, breakTimesData, holidaysData, unitsData, staffUnitPrioritiesData, individualHolidaysData, allStaffData] = await Promise.all([
-          getAppointmentsByDate(clinicId, dateString),
+        const results = await Promise.allSettled([
           getBusinessHours(clinicId),
           getBreakTimes(clinicId),
           getHolidays(clinicId),
           getUnits(clinicId),
           getStaffUnitPriorities(clinicId),
-          getIndividualHolidays(clinicId, selectedDate.getFullYear(), selectedDate.getMonth() + 1),
           getStaff(clinicId)
         ])
 
-        console.log('取得した予約データ:', appointmentsData)
-        console.log('予約データの詳細:', appointmentsData.map(apt => ({
-          id: apt.id,
-          start_time: apt.start_time,
-          end_time: apt.end_time,
-          patient: (apt as any).patient,
-          hasPatient: !!(apt as any).patient,
-          patientName: (apt as any).patient ? `${(apt as any).patient.last_name} ${(apt as any).patient.first_name}` : 'なし'
-        })))
-        
-        setAppointments(appointmentsData)
-        setBusinessHours(businessHoursData)
-        setBreakTimes(breakTimesData)
-        setHolidays(holidaysData)
-        setUnits(unitsData)
-        setStaffUnitPriorities(staffUnitPrioritiesData)
-        setIndividualHolidays(individualHolidaysData)
+        const getValue = <T,>(result: PromiseSettledResult<T>, fallback: T): T =>
+          result.status === 'fulfilled' ? result.value : fallback
+
+        setBusinessHours(getValue(results[0], {} as BusinessHours))
+        setBreakTimes(getValue(results[1], {} as BreakTimes))
+        setHolidays(getValue(results[2], holidays))
+        setUnits(getValue(results[3], [] as any[]))
+        setStaffUnitPriorities(getValue(results[4], [] as any[]))
+        const allStaffData = getValue(results[5], [] as any[])
         setAllStaff(allStaffData.map((s: any) => ({ id: s.id, name: s.name, position: s.position?.name || s.position || '' })))
-        
-        console.log('カレンダー: 取得した予約データ:', appointmentsData)
-        console.log('カレンダー: 取得した休診日:', holidaysData)
-        console.log('カレンダー: クリニックID:', clinicId)
+
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            const names = ['businessHours', 'breakTimes', 'holidays', 'units', 'staffUnitPriorities', 'staff']
+            console.warn(`カレンダー: ${names[i]}の取得に失敗:`, r.reason)
+          }
+        })
+
+        clinicDataLoadedRef.current = true
+      } catch (error) {
+        console.error('クリニックデータ読み込みエラー:', error)
+      }
+    }
+
+    loadClinicData()
+  }, [clinicId])
+
+  // 日付依存データの読み込み（selectedDate変更時）
+  const isInitialLoadRef = useRef(true)
+
+  useEffect(() => {
+    if (!clinicId) return
+
+    const loadDateData = async () => {
+      try {
+        // 初回のみフルローディング表示。日付変更時は既存表示を維持
+        if (isInitialLoadRef.current) {
+          setLoading(true)
+        }
+        // スタッフデータはクリアせず、新しいデータが来たら差し替える
+
+        // モックデータを初期化
+        initializeMockData()
+
+        const dateString = formatDateForDB(selectedDate)
+        const monthKey = `${selectedDate.getFullYear()}-${selectedDate.getMonth()}`
+
+        // 予約データは毎回取得、個別休診日は月が変わった時のみ取得
+        const fetchPromises: Promise<any>[] = [
+          getAppointmentsByDate(clinicId, dateString)
+        ]
+        const needMonthData = lastLoadedMonthRef.current !== monthKey
+        if (needMonthData) {
+          fetchPromises.push(
+            getIndividualHolidays(clinicId, selectedDate.getFullYear(), selectedDate.getMonth() + 1)
+          )
+        }
+
+        const results = await Promise.allSettled(fetchPromises)
+
+        const getValue = <T,>(result: PromiseSettledResult<T>, fallback: T): T =>
+          result.status === 'fulfilled' ? result.value : fallback
+
+        setAppointments(getValue(results[0], [] as Appointment[]))
+
+        if (needMonthData && results[1]) {
+          setIndividualHolidays(getValue(results[1], individualHolidays))
+          lastLoadedMonthRef.current = monthKey
+        }
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
         setLoading(false)
+        isInitialLoadRef.current = false
       }
     }
 
-    loadData()
+    loadDateData()
   }, [clinicId, selectedDate])
 
   // 自動ステータス更新タイマー（30秒ごとに遅刻チェック）
   useEffect(() => {
     const cleanup = startAutoStatusUpdateTimer(
-      () => appointments,
+      () => appointmentsRef.current,
       clinicId,
       async () => {
         // ステータス更新後、予約データを再読み込み
@@ -1312,7 +1366,30 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
 
     // コンポーネントのアンマウント時にタイマーをクリア
     return cleanup
-  }, [clinicId, selectedDate, appointments])
+  }, [clinicId, selectedDate])
+
+  // 60秒ごとに予約データを自動ポーリング（新しい予約の反映）
+  useEffect(() => {
+    if (!clinicId) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const dateString = formatDateForDB(selectedDate)
+        const latestAppointments = await getAppointmentsByDate(clinicId, dateString)
+        // 件数が変わった場合、または内容が変わった場合のみ更新
+        const currentIds = appointmentsRef.current.map(a => a.id + a.status + a.updated_at).sort().join(',')
+        const newIds = latestAppointments.map((a: Appointment) => a.id + a.status + a.updated_at).sort().join(',')
+        if (currentIds !== newIds) {
+          console.log('自動ポーリング: 予約データに変更を検出、更新します')
+          setAppointments(latestAppointments)
+        }
+      } catch (error) {
+        console.warn('自動ポーリングエラー（無視）:', error)
+      }
+    }, 60000) // 60秒
+
+    return () => clearInterval(pollInterval)
+  }, [clinicId, selectedDate])
 
   // スタッフデータを読み込み（日付変更時）
   useEffect(() => {
@@ -1357,23 +1434,8 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
     }
   }, [clinicId, selectedDate])
 
-  // ページが再び表示された時にデータを再取得（連携解除後にカレンダーに戻った時など）
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        console.log('カレンダー: ページが表示されました - 最新データを取得します')
-        const dateString = formatDateForDB(selectedDate)
-        const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
-        setAppointments(updatedAppointments)
-        console.log('カレンダー: 最新データの取得完了')
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [clinicId, selectedDate])
+  // 注意: visibilitychangeハンドラは親コンポーネント(page.tsx)がrefreshKeyで
+  // カレンダーを再マウントするため、ここでは不要（重複API呼び出し防止）
 
   // 個別休診日設定の変更を監視
   useEffect(() => {
@@ -1717,13 +1779,13 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dmax-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-shikabot-primary"></div>
       </div>
     )
   }
 
-  // 休診日の場合の表示
-  if (isHoliday(selectedDate)) {
+  // 休診日の場合の表示（出勤スタッフがいる場合はカレンダーを表示）
+  if (isHoliday(selectedDate) && workingStaff.length === 0) {
     return (
       <div className="flex items-center justify-center h-96 bg-gray-100">
         <div className="text-center">

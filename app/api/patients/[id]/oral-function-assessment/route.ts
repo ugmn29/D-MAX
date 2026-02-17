@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
-const createClient = getSupabaseClient
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,29 +10,40 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient()
-    const patientId = params.id
+    const { id: patientId } = await params
+    const prisma = getPrismaClient()
+
+    // 1. 習慣チェック表のquestionnaire_idを特定
+    const habitQuestionnaire = await prisma.questionnaires.findFirst({
+      where: { name: '習慣チェック表' },
+      select: { id: true },
+    })
+
+    if (!habitQuestionnaire) {
+      return NextResponse.json(
+        { error: '習慣チェック表の回答が見つかりません' },
+        { status: 404 }
+      )
+    }
 
     // 1. 最新の習慣チェック表の回答を取得
-    const { data: latestResponse, error: responseError } = await supabase
-      .from('questionnaire_responses')
-      .select(`
-        id,
-        response_data,
-        completed_at,
-        questionnaire_id,
-        questionnaires!inner(name)
-      `)
-      .eq('patient_id', patientId)
-      .eq('questionnaires.name', '習慣チェック表')
-      .order('completed_at', { ascending: false })
-      .limit(1)
-      .single()
+    const latestResponse = await prisma.questionnaire_responses.findFirst({
+      where: {
+        patient_id: patientId,
+        questionnaire_id: habitQuestionnaire.id,
+      },
+      orderBy: { completed_at: 'desc' },
+      include: {
+        questionnaires: {
+          select: { name: true },
+        },
+      },
+    })
 
-    if (responseError || !latestResponse) {
+    if (!latestResponse) {
       return NextResponse.json(
         { error: '習慣チェック表の回答が見つかりません' },
         { status: 404 }
@@ -40,12 +51,12 @@ export async function POST(
     }
 
     // 2. 習慣チェック表の質問定義を取得
-    const { data: questions, error: questionsError } = await supabase
-      .from('questionnaire_questions')
-      .select('id, section_name, question_text')
-      .eq('questionnaire_id', latestResponse.questionnaire_id)
+    const questions = await prisma.questionnaire_questions.findMany({
+      where: { questionnaire_id: latestResponse.questionnaire_id },
+      select: { id: true, section_name: true, question_text: true },
+    })
 
-    if (questionsError || !questions) {
+    if (!questions || questions.length === 0) {
       return NextResponse.json(
         { error: '質問定義の取得に失敗しました' },
         { status: 500 }
@@ -53,13 +64,14 @@ export async function POST(
     }
 
     // 3. C分類マッピング情報を取得
-    const { data: mappings, error: mappingError } = await supabase
-      .from('c_classification_question_mapping')
-      .select('*')
-      .order('c_classification_item')
-      .order('priority', { ascending: false })
+    const mappings = await prisma.c_classification_question_mapping.findMany({
+      orderBy: [
+        { c_classification_item: 'asc' },
+        { priority: 'desc' },
+      ],
+    })
 
-    if (mappingError || !mappings) {
+    if (!mappings || mappings.length === 0) {
       return NextResponse.json(
         { error: 'マッピング情報の取得に失敗しました' },
         { status: 500 }
@@ -73,30 +85,25 @@ export async function POST(
     // 5. 評価結果を保存
     const assessmentData = {
       patient_id: patientId,
-      assessment_date: new Date().toISOString().split('T')[0],
+      assessment_date: new Date(),
       assessment_type: '離乳完了後',
       questionnaire_response_id: latestResponse.id,
       ...evaluation.results,
     }
 
-    const { data: assessment, error: saveError } = await supabase
-      .from('oral_function_assessments')
-      .insert(assessmentData)
-      .select()
-      .single()
+    const assessment = await prisma.oral_function_assessments.create({
+      data: assessmentData,
+    })
 
-    if (saveError) {
-      return NextResponse.json(
-        { error: '評価結果の保存に失敗しました', details: saveError },
-        { status: 500 }
-      )
-    }
+    const assessmentConverted = convertDatesToStrings(assessment, ['assessment_date', 'confirmed_at', 'created_at', 'updated_at'])
 
     return NextResponse.json({
       success: true,
-      assessment,
+      assessment: assessmentConverted,
       evaluation_details: evaluation.details,
-      questionnaire_date: latestResponse.completed_at,
+      questionnaire_date: latestResponse.completed_at instanceof Date
+        ? latestResponse.completed_at.toISOString()
+        : latestResponse.completed_at,
     })
   } catch (error) {
     console.error('口腔機能発達不全症評価エラー:', error)
@@ -112,30 +119,39 @@ export async function POST(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient()
-    const patientId = params.id
+    const { id: patientId } = await params
+    const prisma = getPrismaClient()
 
-    const { data: assessments, error } = await supabase
-      .from('oral_function_assessments')
-      .select(`
-        *,
-        questionnaire_responses(completed_at),
-        staff(name)
-      `)
-      .eq('patient_id', patientId)
-      .order('assessment_date', { ascending: false })
+    const assessments = await prisma.oral_function_assessments.findMany({
+      where: { patient_id: patientId },
+      include: {
+        questionnaire_responses: {
+          select: { completed_at: true },
+        },
+        staff: {
+          select: { name: true },
+        },
+      },
+      orderBy: { assessment_date: 'desc' },
+    })
 
-    if (error) {
-      return NextResponse.json(
-        { error: '評価結果の取得に失敗しました' },
-        { status: 500 }
-      )
-    }
+    const assessmentsConverted = assessments.map(a => {
+      const converted = convertDatesToStrings(a, ['assessment_date', 'confirmed_at', 'created_at', 'updated_at'])
+      return {
+        ...converted,
+        questionnaire_responses: a.questionnaire_responses ? {
+          completed_at: a.questionnaire_responses.completed_at instanceof Date
+            ? a.questionnaire_responses.completed_at.toISOString()
+            : a.questionnaire_responses.completed_at,
+        } : null,
+        staff: a.staff ? { name: a.staff.name } : null,
+      }
+    })
 
-    return NextResponse.json({ assessments })
+    return NextResponse.json({ assessments: assessmentsConverted })
   } catch (error) {
     console.error('評価結果取得エラー:', error)
     return NextResponse.json(
@@ -150,35 +166,38 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient()
+    const { id: patientId } = await params
+    const prisma = getPrismaClient()
     const body = await request.json()
     const { assessment_id, updates, staff_id } = body
 
     const updateData = {
       ...updates,
       evaluated_by_staff_id: staff_id,
-      confirmed_at: new Date().toISOString(),
+      confirmed_at: new Date(),
     }
 
-    const { data: assessment, error } = await supabase
-      .from('oral_function_assessments')
-      .update(updateData)
-      .eq('id', assessment_id)
-      .eq('patient_id', params.id)
-      .select()
-      .single()
+    const assessment = await prisma.oral_function_assessments.update({
+      where: {
+        id: assessment_id,
+      },
+      data: updateData,
+    })
 
-    if (error) {
+    // Verify the assessment belongs to this patient
+    if (assessment.patient_id !== patientId) {
       return NextResponse.json(
         { error: '評価結果の更新に失敗しました' },
-        { status: 500 }
+        { status: 403 }
       )
     }
 
-    return NextResponse.json({ success: true, assessment })
+    const assessmentConverted = convertDatesToStrings(assessment, ['assessment_date', 'confirmed_at', 'created_at', 'updated_at'])
+
+    return NextResponse.json({ success: true, assessment: assessmentConverted })
   } catch (error) {
     console.error('評価結果更新エラー:', error)
     return NextResponse.json(

@@ -1,5 +1,13 @@
+// Migrated to Prisma API Routes
 import { NextRequest, NextResponse } from 'next/server'
-import { getAppointments, createAppointment, updateAppointment, deleteAppointment, updateAppointmentStatus } from '@/lib/api/appointments'
+import {
+  getAppointments,
+  getAppointmentById,
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
+  cancelAppointment
+} from '@/lib/api/appointments-prisma'
 import {
   createAppointmentReminderNotification,
   createAppointmentChangeNotification,
@@ -12,6 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const clinicId = searchParams.get('clinic_id')
+    const appointmentId = searchParams.get('appointment_id')
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
 
@@ -19,6 +28,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'clinic_id is required' }, { status: 400 })
     }
 
+    // 単一予約の取得
+    if (appointmentId) {
+      const appointment = await getAppointmentById(clinicId, appointmentId)
+      if (!appointment) {
+        return NextResponse.json({ error: '予約が見つかりません' }, { status: 404 })
+      }
+      return NextResponse.json(appointment)
+    }
+
+    // 予約一覧の取得
     const appointments = await getAppointments(clinicId, startDate || undefined, endDate || undefined)
     return NextResponse.json(appointments)
   } catch (error) {
@@ -47,9 +66,9 @@ export async function POST(request: NextRequest) {
           clinicId,
           appointment.start_time
         )
-        console.log('✅ 予約リマインド通知をスケジュールしました')
+        console.log('予約リマインド通知をスケジュールしました')
       } catch (notificationError) {
-        console.error('⚠️ 予約リマインド通知のスケジュールに失敗:', notificationError)
+        console.error('予約リマインド通知のスケジュールに失敗:', notificationError)
         // 通知エラーは予約作成の成功を妨げない
       }
     }
@@ -64,12 +83,37 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { appointmentId, oldStartTime, ...appointmentData } = body
+    const { appointmentId, oldStartTime, action, cancel_reason_id, cancelled_by, additional_memo, ...appointmentData } = body
 
     if (!appointmentId) {
       return NextResponse.json({ error: 'appointmentId is required' }, { status: 400 })
     }
 
+    // キャンセルアクションの処理
+    if (action === 'cancel') {
+      if (!cancel_reason_id) {
+        return NextResponse.json({ error: 'cancel_reason_id is required for cancel action' }, { status: 400 })
+      }
+
+      const cancelledAppointment = await cancelAppointment(
+        appointmentId,
+        cancel_reason_id,
+        cancelled_by || undefined,
+        additional_memo || undefined
+      )
+
+      // 予約に紐づく通知をキャンセル
+      try {
+        await cancelAppointmentNotifications(appointmentId)
+        console.log('予約に紐づく通知をキャンセルしました')
+      } catch (notificationError) {
+        console.error('通知キャンセルに失敗:', notificationError)
+      }
+
+      return NextResponse.json(cancelledAppointment)
+    }
+
+    // 通常の更新
     const appointment = await updateAppointment(appointmentId, appointmentData)
 
     // 日時が変更された場合は変更通知を送信
@@ -87,7 +131,7 @@ export async function PUT(request: NextRequest) {
             oldStartTime,
             appointment.start_time
           )
-          console.log('✅ 予約変更通知を作成しました')
+          console.log('予約変更通知を作成しました')
 
           // 新しいリマインド通知をスケジュール
           await createAppointmentReminderNotification(
@@ -96,10 +140,10 @@ export async function PUT(request: NextRequest) {
             appointment.clinic_id,
             appointment.start_time
           )
-          console.log('✅ 新しいリマインド通知をスケジュールしました')
+          console.log('新しいリマインド通知をスケジュールしました')
         }
       } catch (notificationError) {
-        console.error('⚠️ 予約変更通知の処理に失敗:', notificationError)
+        console.error('予約変更通知の処理に失敗:', notificationError)
       }
     }
 
@@ -107,7 +151,7 @@ export async function PUT(request: NextRequest) {
     if (appointmentData.status === 'confirmed' && appointment.patient_id && appointment.clinic_id) {
       try {
         await handleAppointmentConfirmed(appointment.patient_id, appointment.clinic_id)
-        console.log('✅ 予約確定処理完了（自動リマインドをキャンセル）')
+        console.log('予約確定処理完了（自動リマインドをキャンセル）')
 
         // 予約確定通知を送信
         if (appointment.start_time) {
@@ -117,10 +161,10 @@ export async function PUT(request: NextRequest) {
             appointment.clinic_id,
             appointment.start_time
           )
-          console.log('✅ 予約確定通知を作成しました')
+          console.log('予約確定通知を作成しました')
         }
       } catch (notificationError) {
-        console.error('⚠️ 予約確定通知の処理に失敗:', notificationError)
+        console.error('予約確定通知の処理に失敗:', notificationError)
       }
     }
 
@@ -143,9 +187,9 @@ export async function DELETE(request: NextRequest) {
     // 予約に紐づく通知をキャンセル
     try {
       await cancelAppointmentNotifications(appointmentId)
-      console.log('✅ 予約に紐づく通知をキャンセルしました')
+      console.log('予約に紐づく通知をキャンセルしました')
     } catch (notificationError) {
-      console.error('⚠️ 通知キャンセルに失敗:', notificationError)
+      console.error('通知キャンセルに失敗:', notificationError)
     }
 
     await deleteAppointment(appointmentId)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 期間の日数を計算
     const startDate = new Date(start_date)
@@ -32,61 +33,61 @@ export async function GET(request: NextRequest) {
     const prevEndStr = prevEndDate.toISOString().split('T')[0]
 
     // 当期間のデータ取得
-    const { data: currentData, error: currentError } = await supabase
-      .from('patient_acquisition_sources')
-      .select('*')
-      .eq('clinic_id', clinic_id)
-      .gte('booking_completed_at', start_date)
-      .lte('booking_completed_at', end_date + 'T23:59:59')
-
-    if (currentError) {
-      console.error('当期間データ取得エラー:', currentError)
-      throw currentError
-    }
+    const currentData = await prisma.patient_acquisition_sources.findMany({
+      where: {
+        clinic_id,
+        booking_completed_at: {
+          gte: new Date(start_date),
+          lte: new Date(end_date + 'T23:59:59'),
+        },
+      },
+    })
 
     // 前期間のデータ取得
-    const { data: previousData, error: previousError } = await supabase
-      .from('patient_acquisition_sources')
-      .select('*')
-      .eq('clinic_id', clinic_id)
-      .gte('booking_completed_at', prevStartStr)
-      .lte('booking_completed_at', prevEndStr + 'T23:59:59')
-
-    if (previousError) {
-      console.error('前期間データ取得エラー:', previousError)
-      throw previousError
-    }
+    const previousData = await prisma.patient_acquisition_sources.findMany({
+      where: {
+        clinic_id,
+        booking_completed_at: {
+          gte: new Date(prevStartStr),
+          lte: new Date(prevEndStr + 'T23:59:59'),
+        },
+      },
+    })
 
     // 予約データを取得（キャンセル分析用）
-    const { data: appointments, error: appointmentsError } = await supabase
-      .from('appointments')
-      .select(`
-        id,
-        patient_id,
-        start_time,
-        status,
-        treatment_menu_id,
-        treatment_menus(id, display_name)
-      `)
-      .eq('clinic_id', clinic_id)
-      .gte('start_time', start_date)
-      .lte('start_time', end_date + 'T23:59:59')
-
-    if (appointmentsError) {
-      console.error('予約データ取得エラー:', appointmentsError)
-    }
+    const appointments = await prisma.appointments.findMany({
+      where: {
+        clinic_id,
+        start_time: {
+          gte: new Date(start_date),
+          lte: new Date(end_date + 'T23:59:59'),
+        },
+      },
+      select: {
+        id: true,
+        patient_id: true,
+        start_time: true,
+        status: true,
+        menu1_id: true,
+        treatment_menus_appointments_menu1_idTotreatment_menus: {
+          select: { id: true, name: true },
+        },
+      },
+    })
 
     // 患者の来院履歴を取得（リピート分析用）
     const patientIds = currentData?.map(d => d.patient_id).filter(Boolean) || []
     let patientVisitCounts: Record<string, number> = {}
 
     if (patientIds.length > 0) {
-      const { data: visitData } = await supabase
-        .from('appointments')
-        .select('patient_id')
-        .eq('clinic_id', clinic_id)
-        .in('patient_id', patientIds)
-        .in('status', ['completed', 'confirmed'])
+      const visitData = await prisma.appointments.findMany({
+        where: {
+          clinic_id,
+          patient_id: { in: patientIds },
+          status: { in: ['COMPLETED', 'NOT_YET_ARRIVED'] },
+        },
+        select: { patient_id: true },
+      })
 
       visitData?.forEach(v => {
         patientVisitCounts[v.patient_id] = (patientVisitCounts[v.patient_id] || 0) + 1
@@ -258,7 +259,7 @@ function analyzeCancellations(acquisitionData: any[], appointments: any[]) {
 
     patientAppointments.forEach(apt => {
       stats.total++
-      if (apt.status === 'cancelled') {
+      if (apt.status === 'CANCELLED') {
         stats.cancelled++
       } else if (apt.status === 'no_show') {
         stats.no_show++

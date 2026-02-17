@@ -4,7 +4,7 @@ console.log('=' .repeat(60));
 
 // 1. データベースに保存されているメニューIDを確認
 console.log('\n【1. データベースの設定】');
-const dbResponse = await fetch('https://dmax-mu.vercel.app/api/line/diagnose?clinic_id=11111111-1111-1111-1111-111111111111');
+const dbResponse = await fetch('https://shikabot-mu.vercel.app/api/line/diagnose?clinic_id=11111111-1111-1111-1111-111111111111');
 const dbData = await dbResponse.json();
 
 console.log('未連携メニューID:', dbData.richMenuSettings.unregisteredMenuId);
@@ -14,7 +14,7 @@ const dbUnregisteredId = dbData.richMenuSettings.unregisteredMenuId;
 
 // 2. 現在のデフォルトリッチメニューを確認
 console.log('\n【2. 現在のデフォルトメニュー】');
-const defaultCheckResponse = await fetch('https://dmax-mu.vercel.app/api/line/check-user-menu?clinic_id=11111111-1111-1111-1111-111111111111');
+const defaultCheckResponse = await fetch('https://shikabot-mu.vercel.app/api/line/check-user-menu?clinic_id=11111111-1111-1111-1111-111111111111');
 
 if (defaultCheckResponse.ok) {
   const defaultData = await defaultCheckResponse.json();
@@ -33,7 +33,7 @@ if (defaultCheckResponse.ok) {
 
 // 3. データベースのメニューIDの画像が存在するか確認
 console.log('\n【3. データベースのメニューIDの画像確認】');
-const imageCheckResponse = await fetch(`https://dmax-mu.vercel.app/api/line/check-menu-image?clinic_id=11111111-1111-1111-1111-111111111111&rich_menu_id=${dbUnregisteredId}`);
+const imageCheckResponse = await fetch(`https://shikabot-mu.vercel.app/api/line/check-menu-image?clinic_id=11111111-1111-1111-1111-111111111111&rich_menu_id=${dbUnregisteredId}`);
 
 if (imageCheckResponse.ok) {
   const imageData = await imageCheckResponse.json();
@@ -47,7 +47,7 @@ if (imageCheckResponse.ok) {
 
 // 4. すべてのリッチメニューから該当IDを検索
 console.log('\n【4. 全リッチメニュー中の該当ID検索】');
-const listResponse = await fetch('https://dmax-mu.vercel.app/api/line/list-rich-menus?clinic_id=11111111-1111-1111-1111-111111111111');
+const listResponse = await fetch('https://shikabot-mu.vercel.app/api/line/list-rich-menus?clinic_id=11111111-1111-1111-1111-111111111111');
 const listData = await listResponse.json();
 
 const targetMenu = listData.richmenus?.find(m => m.richMenuId === dbUnregisteredId);

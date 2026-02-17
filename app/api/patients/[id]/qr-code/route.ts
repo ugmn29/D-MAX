@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 import QRCode from 'qrcode'
 
 /**
@@ -11,29 +12,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      console.error('❌ supabaseAdmin未初期化')
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const { id: patientId } = await params
-    console.log('🔍 QRコード取得:', patientId)
+    console.log('QRコード取得:', patientId)
     const searchParams = request.nextUrl.searchParams
     const format = searchParams.get('format') || 'data-url' // data-url | svg | terminal
 
     // 患者が存在するか確認
-    const { data: patient, error: patientError } = await supabase
-      .from('patients')
-      .select('id, clinic_id, patient_number, last_name, first_name')
-      .eq('id', patientId)
-      .single()
+    const patient = await prisma.patients.findUnique({
+      where: { id: patientId },
+      select: { id: true, clinic_id: true, patient_number: true, last_name: true, first_name: true }
+    })
 
-    if (patientError || !patient) {
+    if (!patient) {
       return NextResponse.json(
         { error: '患者が見つかりません' },
         { status: 404 }
@@ -41,37 +33,31 @@ export async function GET(
     }
 
     // 既存のQRコードを取得
-    let { data: qrCodeData, error: qrError } = await supabase
-      .from('patient_qr_codes')
-      .select('*')
-      .eq('patient_id', patientId)
-      .single()
+    let qrCodeData = await prisma.patient_qr_codes.findUnique({
+      where: { patient_id: patientId }
+    })
 
     // QRコードが存在しない場合は生成
-    if (qrError || !qrCodeData) {
+    if (!qrCodeData) {
       const qr_token = `${patient.clinic_id}-${patient.id}-${Date.now()}`
 
-      const { data: newQrCode, error: insertError } = await supabase
-        .from('patient_qr_codes')
-        .insert({
-          patient_id: patientId,
-          clinic_id: patient.clinic_id,
-          qr_token,
-          expires_at: null, // 無期限
-          usage_count: 0,
+      try {
+        qrCodeData = await prisma.patient_qr_codes.create({
+          data: {
+            patient_id: patientId,
+            clinic_id: patient.clinic_id,
+            qr_token,
+            expires_at: null, // 無期限
+            usage_count: 0,
+          }
         })
-        .select()
-        .single()
-
-      if (insertError) {
+      } catch (insertError) {
         console.error('QRコード生成エラー:', insertError)
         return NextResponse.json(
           { error: 'QRコードの生成に失敗しました' },
           { status: 500 }
         )
       }
-
-      qrCodeData = newQrCode
     }
 
     // QRコードの内容（JSON形式）
@@ -116,13 +102,16 @@ export async function GET(
     }
 
     // 使用回数を更新
-    await supabase
-      .from('patient_qr_codes')
-      .update({
-        last_used_at: new Date().toISOString(),
+    await prisma.patient_qr_codes.update({
+      where: { id: qrCodeData.id },
+      data: {
+        last_used_at: new Date(),
         usage_count: (qrCodeData.usage_count || 0) + 1
-      })
-      .eq('id', qrCodeData.id)
+      }
+    })
+
+    // Date型を文字列に変換
+    const qrDataConverted = convertDatesToStrings(qrCodeData, ['created_at', 'last_used_at'])
 
     return NextResponse.json({
       qr_code: qrCodeImage,
@@ -134,8 +123,8 @@ export async function GET(
       },
       qr_data: {
         token: qrCodeData.qr_token,
-        created_at: qrCodeData.created_at,
-        last_used_at: qrCodeData.last_used_at,
+        created_at: qrDataConverted.created_at,
+        last_used_at: qrDataConverted.last_used_at,
         usage_count: (qrCodeData.usage_count || 0) + 1
       }
     })
@@ -158,28 +147,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const { id: patientId } = await params
 
-    const { error } = await supabase
-      .from('patient_qr_codes')
-      .delete()
-      .eq('patient_id', patientId)
+    // patient_idでレコードが存在するか確認してから削除
+    const existing = await prisma.patient_qr_codes.findUnique({
+      where: { patient_id: patientId }
+    })
 
-    if (error) {
-      console.error('QRコード削除エラー:', error)
-      return NextResponse.json(
-        { error: 'QRコードの削除に失敗しました' },
-        { status: 500 }
-      )
+    if (existing) {
+      await prisma.patient_qr_codes.delete({
+        where: { patient_id: patientId }
+      })
     }
 
     return NextResponse.json({ success: true })

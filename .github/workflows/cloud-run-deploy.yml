@@ -81,6 +81,10 @@ jobs:
             --set-env-vars "GOOGLE_CLOUD_PROJECT_ID=${{ env.PROJECT_ID }}" \
             --set-env-vars "GOOGLE_CLOUD_REGION=${{ env.REGION }}" \
             --set-env-vars "NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}" \
+            --set-env-vars "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --set-env-vars "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            --set-env-vars "AWS_REGION=ap-northeast-1" \
+            --set-env-vars "AWS_BEDROCK_MODEL_ID=jp.anthropic.claude-sonnet-4-5-20250929-v1:0" \
             --project ${{ env.PROJECT_ID }}
 
       - name: Show deployed URL

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import {
   PatientNotificationSchedule,
   PatientNotificationScheduleInsert,
@@ -9,7 +9,10 @@ import {
 import { replaceTemplateVariables } from './notification-templates'
 import { canReceiveNotification } from './patient-notification-preferences'
 import { generateWebBookingToken, generateWebBookingUrl } from './web-booking-tokens'
-import crypto from 'crypto'
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 /**
  * クリニックの全通知スケジュールを取得
@@ -23,38 +26,28 @@ export async function getClinicNotificationSchedules(
     send_date_to?: string
   }
 ): Promise<PatientNotificationSchedule[]> {
-  const client = getSupabaseClient()
-  let query = client
-    .from('patient_notification_schedules')
-    .select('*')
-    .eq('clinic_id', clinicId)
+  try {
+    const params = new URLSearchParams({ clinic_id: clinicId })
+    if (filters?.status) params.append('status', filters.status)
+    if (filters?.notification_type) params.append('notification_type', filters.notification_type)
+    if (filters?.send_date_from) params.append('send_date_from', filters.send_date_from)
+    if (filters?.send_date_to) params.append('send_date_to', filters.send_date_to)
 
-  if (filters?.status) {
-    query = query.eq('status', filters.status)
-  }
+    const response = await fetch(`${baseUrl}/api/notification-schedules?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
 
-  if (filters?.notification_type) {
-    query = query.eq('notification_type', filters.notification_type)
-  }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知スケジュールの取得に失敗しました')
+    }
 
-  if (filters?.send_date_from) {
-    query = query.gte('send_datetime', filters.send_date_from)
-  }
-
-  if (filters?.send_date_to) {
-    query = query.lte('send_datetime', filters.send_date_to)
-  }
-
-  query = query.order('send_datetime', { ascending: true })
-
-  const { data, error } = await query
-
-  if (error) {
+    return await response.json()
+  } catch (error) {
     console.error('通知スケジュール取得エラー:', error)
-    throw new Error('通知スケジュールの取得に失敗しました')
+    throw error
   }
-
-  return data || []
 }
 
 /**
@@ -70,41 +63,46 @@ export async function getPatientNotificationSchedules(
     return []
   }
 
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('patient_notification_schedules')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('send_datetime', { ascending: true })
+  try {
+    const params = new URLSearchParams({ patient_id: patientId })
 
-  if (error) {
+    const response = await fetch(`${baseUrl}/api/notification-schedules?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '患者の通知スケジュールの取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('患者通知スケジュール取得エラー:', error)
-    throw new Error('患者の通知スケジュールの取得に失敗しました')
+    throw error
   }
-
-  return data || []
 }
 
 /**
  * 通知スケジュールをIDで取得
  */
 export async function getNotificationSchedule(id: string): Promise<PatientNotificationSchedule | null> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('patient_notification_schedules')
-    .select('*')
-    .eq('id', id)
-    .single()
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-schedules/${id}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知スケジュールの取得に失敗しました')
     }
-    console.error('通知スケジュール取得エラー:', error)
-    throw new Error('通知スケジュールの取得に失敗しました')
-  }
 
-  return data
+    return await response.json()
+  } catch (error) {
+    console.error('通知スケジュール取得エラー:', error)
+    throw error
+  }
 }
 
 /**
@@ -113,8 +111,6 @@ export async function getNotificationSchedule(id: string): Promise<PatientNotifi
 export async function createNotificationSchedule(
   params: CreateNotificationScheduleParams
 ): Promise<PatientNotificationSchedule> {
-  const client = getSupabaseClient()
-
   // 患者の通知受信設定をチェック
   const canReceive = await canReceiveNotification(
     params.patient_id,
@@ -206,18 +202,23 @@ export async function createNotificationSchedule(
     updated_at: new Date().toISOString()
   }
 
-  const { data, error } = await client
-    .from('patient_notification_schedules')
-    .insert(insertData)
-    .select()
-    .single()
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-schedules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(insertData)
+    })
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知スケジュールの作成に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('通知スケジュール作成エラー:', error)
-    throw new Error('通知スケジュールの作成に失敗しました')
+    throw error
   }
-
-  return data
 }
 
 /**
@@ -227,38 +228,42 @@ export async function updateNotificationSchedule(
   id: string,
   updates: PatientNotificationScheduleUpdate
 ): Promise<PatientNotificationSchedule> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('patient_notification_schedules')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-schedules/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
     })
-    .eq('id', id)
-    .select()
-    .single()
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知スケジュールの更新に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('通知スケジュール更新エラー:', error)
-    throw new Error('通知スケジュールの更新に失敗しました')
+    throw error
   }
-
-  return data
 }
 
 /**
  * 通知スケジュールを削除
  */
 export async function deleteNotificationSchedule(id: string): Promise<void> {
-  const client = getSupabaseClient()
-  const { error } = await client
-    .from('patient_notification_schedules')
-    .delete()
-    .eq('id', id)
+  try {
+    const response = await fetch(`${baseUrl}/api/notification-schedules/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    })
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '通知スケジュールの削除に失敗しました')
+    }
+  } catch (error) {
     console.error('通知スケジュール削除エラー:', error)
-    throw new Error('通知スケジュールの削除に失敗しました')
+    throw error
   }
 }
 
@@ -269,21 +274,28 @@ export async function getScheduledNotifications(
   fromDatetime: string,
   toDatetime: string
 ): Promise<PatientNotificationSchedule[]> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('patient_notification_schedules')
-    .select('*')
-    .eq('status', 'scheduled')
-    .gte('send_datetime', fromDatetime)
-    .lte('send_datetime', toDatetime)
-    .order('send_datetime', { ascending: true })
+  try {
+    const params = new URLSearchParams({
+      status: 'scheduled',
+      send_date_from: fromDatetime,
+      send_date_to: toDatetime
+    })
 
-  if (error) {
+    const response = await fetch(`${baseUrl}/api/notification-schedules?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || '送信予定通知の取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('送信予定通知取得エラー:', error)
-    throw new Error('送信予定通知の取得に失敗しました')
+    throw error
   }
-
-  return data || []
 }
 
 /**
@@ -366,33 +378,25 @@ function calculateTokenExpiry(sendDatetime: string): string {
 }
 
 /**
- * セキュアなトークンを生成（レガシー - 後方互換性のために残す）
- */
-function generateSecureToken(): string {
-  return crypto.randomBytes(32).toString('base64url')
-}
-
-/**
  * 患者の最適な送信時刻を取得（分析データから）
  */
 export async function getOptimalSendTime(patientId: string): Promise<number | null> {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('patient_notification_analytics')
-    .select('hour_of_day, response_rate')
-    .eq('patient_id', patientId)
-    .eq('response_rate', true)
-    .order('hour_of_day', { ascending: false })
-    .limit(10)
+  try {
+    const params = new URLSearchParams({ patient_id: patientId })
 
-  if (error || !data || data.length === 0) {
+    const response = await fetch(`${baseUrl}/api/notification-schedules/optimal-send-time?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const data = await response.json()
+    return data.optimal_hour ?? null
+  } catch (error) {
+    console.error('最適送信時刻取得エラー:', error)
     return null
   }
-
-  // 反応率の高い時間帯の平均を計算
-  const hours = data.map(d => d.hour_of_day).filter(h => h !== null) as number[]
-  if (hours.length === 0) return null
-
-  const avgHour = Math.round(hours.reduce((sum, h) => sum + h, 0) / hours.length)
-  return avgHour
 }

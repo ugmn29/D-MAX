@@ -102,13 +102,11 @@ import {
   createStaff,
   updateStaff,
   deleteStaff,
-} from "@/lib/api/staff";
-import {
   getStaffPositions,
   createStaffPosition,
   updateStaffPosition,
   deleteStaffPosition,
-} from "@/lib/api/staff-positions";
+} from "@/lib/api/staff";
 import {
   getPatientNoteTypes,
   createPatientNoteType,
@@ -163,7 +161,7 @@ import {
   CreateUnitData,
   UpdateUnitData,
 } from "@/lib/api/units";
-import { useClinicId } from '@/hooks/use-clinic-id';
+import { useAuth } from '@/components/providers/auth-provider';
 
 const WEEKDAYS = [
   { id: "monday", name: "月曜日" },
@@ -388,7 +386,8 @@ interface CSVData {
 }
 
 export default function SettingsPage() {
-  const clinicId = useClinicId();
+  const { clinicId: authClinicId, loading: authLoading } = useAuth();
+  const clinicId = authClinicId || '11111111-1111-1111-1111-111111111111';
   const router = useRouter();
   const pathname = usePathname();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
@@ -642,7 +641,8 @@ export default function SettingsPage() {
   const treatmentMenusLoadedRef = useRef(false); // 診療メニューの初回読み込み完了フラグ
 
   // カレンダー設定の状態
-  const [displayItems, setDisplayItems] = useState<string[]>([]);
+  const [displayItemsRaw, setDisplayItems] = useState<string[] | any>([]);
+  const displayItems: string[] = Array.isArray(displayItemsRaw) ? displayItemsRaw : [];
   const [cellHeight, setCellHeight] = useState(40);
 
   // ユニット管理の状態
@@ -1293,7 +1293,7 @@ export default function SettingsPage() {
   }, [])
 
   // デフォルトテキストの保存
-  const saveDefaultTexts = (
+  const saveDefaultTexts = async (
     texts: Array<{
       id: string;
       title: string;
@@ -1303,7 +1303,11 @@ export default function SettingsPage() {
     }>,
   ) => {
     setDefaultTexts(texts);
-    localStorage.setItem("default_texts", JSON.stringify(texts));
+    try {
+      await setClinicSetting(clinicId, "default_texts", texts);
+    } catch (error) {
+      console.error("デフォルトテキスト保存エラー:", error);
+    }
   };
 
   // デフォルトテキストの追加
@@ -1559,13 +1563,7 @@ export default function SettingsPage() {
     }
   }, [unitsActiveTab]); // selectedCategoryを依存配列から削除
 
-  // デフォルトテキストの読み込み
-  useEffect(() => {
-    const savedTexts = localStorage.getItem("default_texts");
-    if (savedTexts) {
-      setDefaultTexts(JSON.parse(savedTexts));
-    }
-  }, []);
+  // デフォルトテキストはloadClinicSettings内で読み込み済み
 
   // 問診票利用設定の読み込み
   useEffect(() => {
@@ -1710,11 +1708,17 @@ export default function SettingsPage() {
     loadNotificationSettings();
   }, [selectedCategory]);
 
-  // 初期データの設定
+  // 初期データの設定（認証完了後にclinicIdで読み込み）
   useEffect(() => {
+    if (authLoading) return; // 認証が完了するまで待機
+
+    // clinicId変更時に初期データRefをリセット
+    initialClinicDataRef.current = null;
+    treatmentMenusLoadedRef.current = false;
+
     const loadClinicSettings = async () => {
       try {
-        console.log("クリニック設定読み込み開始");
+        console.log("クリニック設定読み込み開始, clinicId:", clinicId);
         const settings = await getClinicSettings(clinicId);
         console.log("読み込んだ設定:", settings);
 
@@ -1801,7 +1805,8 @@ export default function SettingsPage() {
         // カレンダー設定を読み込み
         if (settings.display_items) {
           console.log("displayItems読み込み:", settings.display_items);
-          setDisplayItems(settings.display_items);
+          const items = Array.isArray(settings.display_items) ? settings.display_items : [];
+          setDisplayItems(items);
         }
 
         // cell_heightとtimeSlotMinutesの整合性をチェック
@@ -1849,6 +1854,12 @@ export default function SettingsPage() {
           };
           setWebSettings(webReservationSettings);
           setWebBookingMenus(settings.web_reservation.booking_menus || []);
+        }
+
+        // デフォルトテキストを読み込み
+        if (settings.default_texts) {
+          const texts = Array.isArray(settings.default_texts) ? settings.default_texts : [];
+          setDefaultTexts(texts);
         }
       } catch (error) {
         console.error("クリニック設定読み込みエラー:", error);
@@ -1986,7 +1997,7 @@ export default function SettingsPage() {
     };
 
     loadTreatmentMenus();
-  }, []);
+  }, [authLoading, clinicId]);
 
   // clinicInfo.website_urlが変更されたら、リッチメニューのWebサイトボタンのURLを更新
   useEffect(() => {
@@ -3226,12 +3237,12 @@ export default function SettingsPage() {
         for (const member of staff) {
           if (member._deleted) {
             // 削除フラグが立っているスタッフを削除
-            if (!member.id.startsWith('temp-')) {
+            if (!member.id.startsWith('temp-') && !member.id.startsWith('mock-staff-')) {
               await deleteStaff(clinicId, member.id);
               console.log(`✓ スタッフ削除: ${member.name}`);
             }
-          } else if (member.id.startsWith('temp-')) {
-            // 一時IDのスタッフを新規作成
+          } else if (member.id.startsWith('temp-') || member.id.startsWith('mock-staff-')) {
+            // 一時IDまたはモックIDのスタッフを新規作成
             const { id, _deleted, position, created_at, ...memberData } = member;
             const result = await createStaff(clinicId, memberData);
             console.log(`✓ スタッフ作成: ${member.name}`, result);
@@ -4187,6 +4198,12 @@ export default function SettingsPage() {
   // スタッフ追加
   const handleAddStaff = () => {
     // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
+    console.log('=== スタッフ追加デバッグ ===');
+    console.log('newStaff.position_id:', newStaff.position_id);
+    console.log('staffPositions:', staffPositions);
+    const foundPosition = staffPositions.find(p => p.id === newStaff.position_id);
+    console.log('見つかった役職:', foundPosition);
+
     const newStaffMember = {
       id: `temp-staff-${Date.now()}`,
       clinic_id: clinicId,
@@ -4194,9 +4211,10 @@ export default function SettingsPage() {
       is_active: true,
       created_at: new Date().toISOString(),
       // position情報を追加（表示用）
-      position: staffPositions.find(p => p.id === newStaff.position_id) || null,
+      position: foundPosition || null,
     };
 
+    console.log('追加するスタッフ:', newStaffMember);
     setStaff([...staff, newStaffMember]);
 
     setNewStaff({
@@ -6753,7 +6771,7 @@ export default function SettingsPage() {
                 onClick={() => setTrainingSubTab(tab.id)}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   trainingSubTab === tab.id
-                    ? 'border-dmax-primary text-dmax-primary'
+                    ? 'border-shikabot-primary text-shikabot-primary'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -13741,6 +13759,15 @@ export default function SettingsPage() {
       </div>
   );
   };
+
+  // 認証中はローディング表示
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-gray-50">

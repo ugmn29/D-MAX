@@ -7,14 +7,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-dmax-primary text-white hover:bg-dmax-primary-dark",
-        destructive: "bg-dmax-error text-white hover:bg-dmax-error/90",
-        outline: "border border-dmax-border bg-white hover:bg-gray-50 hover:text-gray-900",
+        default: "bg-shikabot-primary text-white hover:bg-shikabot-primary-dark",
+        destructive: "bg-shikabot-error text-white hover:bg-shikabot-error/90",
+        outline: "border border-shikabot-border bg-white hover:bg-gray-50 hover:text-gray-900",
         secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
         ghost: "hover:bg-gray-100 hover:text-gray-900",
-        link: "text-dmax-primary underline-offset-4 hover:underline",
-        success: "bg-dmax-success text-white hover:bg-dmax-success/90",
-        warning: "bg-dmax-warning text-white hover:bg-dmax-warning/90",
+        link: "text-shikabot-primary underline-offset-4 hover:underline",
+        success: "bg-shikabot-success text-white hover:bg-shikabot-success/90",
+        warning: "bg-shikabot-warning text-white hover:bg-shikabot-warning/90",
       },
       size: {
         default: "h-10 px-4 py-2",

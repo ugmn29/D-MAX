@@ -22,7 +22,7 @@ console.log('');
 
 // 2. データベースの設定を確認
 console.log('【データベース設定】');
-const dbResponse = await fetch('https://dmax-mu.vercel.app/api/line/get-default-menu?clinic_id=11111111-1111-1111-1111-111111111111');
+const dbResponse = await fetch('https://shikabot-mu.vercel.app/api/line/get-default-menu?clinic_id=11111111-1111-1111-1111-111111111111');
 
 if (dbResponse.ok) {
   const dbResult = await dbResponse.json();

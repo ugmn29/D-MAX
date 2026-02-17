@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getPrismaClient } from '@/lib/prisma-client'
 import bcrypt from 'bcryptjs'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-// Service Role クライアント（RLSバイパス用）
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import crypto from 'crypto'
 
 interface PatientLoginRequest {
   clinicId: string
@@ -30,6 +25,7 @@ interface PatientLoginResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const body: PatientLoginRequest = await request.json()
     const { clinicId, patientNumber, credential, deviceId } = body
 
@@ -45,32 +41,33 @@ export async function POST(request: NextRequest) {
     }
 
     // 患者情報を取得（本登録済みのみ）
-    const { data: patient, error: fetchError } = await supabaseAdmin
-      .from('patients')
-      .select('id, patient_number, last_name, first_name, birth_date, password_hash, password_set, clinic_id')
-      .eq('clinic_id', clinicId)
-      .eq('patient_number', patientNumber)
-      .eq('is_registered', true)
-      .single()
+    const patient = await prisma.patients.findFirst({
+      where: {
+        clinic_id: clinicId,
+        patient_number: patientNumber,
+        is_registered: true,
+      },
+      select: {
+        id: true,
+        patient_number: true,
+        last_name: true,
+        first_name: true,
+        birth_date: true,
+        password_hash: true,
+        password_set: true,
+        clinic_id: true,
+      },
+    })
 
-    console.log('Patient fetch result:', { patient: !!patient, error: fetchError })
+    console.log('Patient fetch result:', { patient: !!patient })
 
-    // モック患者対応: データベースにない場合、患者IDをモック形式と仮定
-    if (fetchError && fetchError.code === 'PGRST116') {
-      console.log('Patient not found in database - returning mock mode error')
+    if (!patient) {
+      console.log('Patient not found in database')
       return NextResponse.json(
         {
           success: false,
           error: '患者情報が見つかりません。本登録済みの患者のみログイン可能です。'
         },
-        { status: 404 }
-      )
-    }
-
-    if (fetchError || !patient) {
-      console.log('Patient not found:', fetchError)
-      return NextResponse.json(
-        { success: false, error: '患者情報が見つかりません' },
         { status: 404 }
       )
     }
@@ -83,8 +80,10 @@ export async function POST(request: NextRequest) {
       isAuthenticated = await bcrypt.compare(credential, patient.password_hash)
     } else {
       // 生年月日認証（YYYYMMDD形式）
-      const birthDate = patient.birth_date?.replace(/-/g, '') // 2015-04-15 → 20150415
-      isAuthenticated = credential === birthDate
+      const birthDateStr = patient.birth_date instanceof Date
+        ? patient.birth_date.toISOString().split('T')[0].replace(/-/g, '')
+        : patient.birth_date?.toString().replace(/-/g, '') || ''
+      isAuthenticated = credential === birthDateStr
     }
 
     if (!isAuthenticated) {
@@ -94,51 +93,49 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // カスタムトークン生成（Supabase Admin API使用）
-    const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: `patient-${patient.id}@training.local`, // ダミーメールアドレス
-      options: {
-        data: {
-          patient_id: patient.id,
-          patient_number: patient.patient_number,
-          clinic_id: patient.clinic_id,
-          role: 'patient'
-        }
-      }
-    })
-
-    if (tokenError || !tokenData) {
-      console.error('Token generation error:', tokenError)
-      return NextResponse.json(
-        { success: false, error: 'トークン生成に失敗しました' },
-        { status: 500 }
-      )
+    // トークン生成（Supabase Auth の代わりにcryptoベースのトークンを使用）
+    const tokenPayload = {
+      patient_id: patient.id,
+      patient_number: patient.patient_number,
+      clinic_id: patient.clinic_id,
+      role: 'patient',
+      iat: Date.now(),
     }
+    const token = crypto
+      .createHash('sha256')
+      .update(JSON.stringify(tokenPayload) + crypto.randomBytes(16).toString('hex'))
+      .digest('hex')
 
     // 最終ログイン日時を更新
-    await supabaseAdmin
-      .from('patients')
-      .update({ training_last_login_at: new Date().toISOString() })
-      .eq('id', patient.id)
+    await prisma.patients.update({
+      where: { id: patient.id },
+      data: { training_last_login_at: new Date() },
+    })
 
     // デバイスアカウント情報を保存（アカウント切り替え機能用）
     if (deviceId) {
-      await supabaseAdmin
-        .from('device_accounts')
-        .upsert({
+      await prisma.device_accounts.upsert({
+        where: {
+          device_identifier_patient_id: {
+            device_identifier: deviceId,
+            patient_id: patient.id,
+          },
+        },
+        update: {
+          last_login_at: new Date(),
+        },
+        create: {
           device_identifier: deviceId,
           patient_id: patient.id,
-          last_login_at: new Date().toISOString()
-        }, {
-          onConflict: 'device_identifier,patient_id'
-        })
+          last_login_at: new Date(),
+        },
+      })
     }
 
     // レスポンス
     return NextResponse.json({
       success: true,
-      token: tokenData.properties.hashed_token,
+      token,
       patient: {
         id: patient.id,
         patientNumber: patient.patient_number,

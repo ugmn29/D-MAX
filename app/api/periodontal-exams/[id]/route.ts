@@ -1,4 +1,5 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 import { NextRequest, NextResponse } from 'next/server'
 
 // GET - 特定の歯周検査を取得
@@ -8,35 +9,31 @@ export async function GET(
 ) {
   try {
     const { id: examId } = await params
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 検査レコードを取得
-    const { data: exam, error: examError } = await supabase
-      .from('periodontal_examinations')
-      .select('*')
-      .eq('id', examId)
-      .single()
+    const exam = await prisma.periodontal_examinations.findUnique({
+      where: { id: examId },
+    })
 
-    if (examError) {
-      console.error('Error fetching periodontal examination:', examError)
-      return NextResponse.json({ error: examError.message }, { status: 500 })
+    if (!exam) {
+      return NextResponse.json({ error: 'Periodontal examination not found' }, { status: 404 })
     }
 
     // 歯牙データを取得
-    const { data: toothData, error: toothError } = await supabase
-      .from('periodontal_tooth_data')
-      .select('*')
-      .eq('examination_id', examId)
-      .order('tooth_number')
+    const toothData = await prisma.periodontal_tooth_data.findMany({
+      where: { examination_id: examId },
+      orderBy: { tooth_number: 'asc' },
+    })
 
-    if (toothError) {
-      console.error('Error fetching tooth data:', toothError)
-      return NextResponse.json({ error: toothError.message }, { status: 500 })
-    }
+    const examConverted = convertDatesToStrings(exam, ['examination_date', 'created_at', 'updated_at'])
+    const toothConverted = toothData.map(t =>
+      convertDatesToStrings(t, ['created_at', 'updated_at'])
+    )
 
     return NextResponse.json({
-      ...exam,
-      tooth_data: toothData || [],
+      ...examConverted,
+      tooth_data: toothConverted,
     })
   } catch (error) {
     console.error('Error in GET /api/periodontal-exams/[id]:', error)
@@ -56,51 +53,38 @@ export async function PUT(
     const { id: examId } = await params
     const body = await request.json()
     const { examination_date, measurement_type, notes, tooth_data } = body
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 検査レコードを更新（更新項目がある場合のみ）
     const updateData: any = {}
-    if (examination_date !== undefined) updateData.examination_date = examination_date
+    if (examination_date !== undefined) updateData.examination_date = new Date(examination_date)
     if (measurement_type !== undefined) updateData.measurement_type = measurement_type
     if (notes !== undefined) updateData.notes = notes
 
     let exam
     if (Object.keys(updateData).length > 0) {
       // 更新項目がある場合は更新
-      const { data, error: examError } = await supabase
-        .from('periodontal_examinations')
-        .update(updateData)
-        .eq('id', examId)
-        .select()
-        .single()
-
-      if (examError) {
-        console.error('Error updating periodontal examination:', examError)
-        return NextResponse.json({ error: examError.message }, { status: 500 })
-      }
-      exam = data
+      exam = await prisma.periodontal_examinations.update({
+        where: { id: examId },
+        data: updateData,
+      })
     } else {
       // 更新項目がない場合は既存のレコードを取得
-      const { data, error: examError } = await supabase
-        .from('periodontal_examinations')
-        .select()
-        .eq('id', examId)
-        .single()
+      exam = await prisma.periodontal_examinations.findUnique({
+        where: { id: examId },
+      })
 
-      if (examError) {
-        console.error('Error fetching periodontal examination:', examError)
-        return NextResponse.json({ error: examError.message }, { status: 500 })
+      if (!exam) {
+        return NextResponse.json({ error: 'Periodontal examination not found' }, { status: 404 })
       }
-      exam = data
     }
 
     // 歯牙データを更新
     if (tooth_data) {
       // 既存のデータを削除
-      await supabase
-        .from('periodontal_tooth_data')
-        .delete()
-        .eq('examination_id', examId)
+      await prisma.periodontal_tooth_data.deleteMany({
+        where: { examination_id: examId },
+      })
 
       // 新しいデータを挿入
       if (tooth_data.length > 0) {
@@ -109,18 +93,16 @@ export async function PUT(
           examination_id: examId,
         }))
 
-        const { error: toothError } = await supabase
-          .from('periodontal_tooth_data')
-          .insert(toothDataWithExamId)
-
-        if (toothError) {
-          console.error('Error updating tooth data:', toothError)
-          return NextResponse.json({ error: toothError.message }, { status: 500 })
-        }
+        await Promise.all(
+          toothDataWithExamId.map((tooth: any) =>
+            prisma.periodontal_tooth_data.create({ data: tooth })
+          )
+        )
       }
     }
 
-    return NextResponse.json(exam)
+    const examConverted = convertDatesToStrings(exam, ['examination_date', 'created_at', 'updated_at'])
+    return NextResponse.json(examConverted)
   } catch (error) {
     console.error('Error in PUT /api/periodontal-exams/[id]:', error)
     return NextResponse.json(
@@ -137,17 +119,11 @@ export async function DELETE(
 ) {
   try {
     const { id: examId } = await params
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
-    const { error } = await supabase
-      .from('periodontal_examinations')
-      .delete()
-      .eq('id', examId)
-
-    if (error) {
-      console.error('Error deleting periodontal examination:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    await prisma.periodontal_examinations.delete({
+      where: { id: examId },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
+import { useClinicId } from '@/hooks/use-clinic-id';
+import { getClinicSetting, setClinicSetting } from '@/lib/api/clinic';
 
 interface DefaultText {
   id: string;
@@ -16,6 +18,7 @@ interface DefaultText {
 }
 
 export default function SubkarteSettingsPage() {
+  const clinicId = useClinicId();
   const [defaultTexts, setDefaultTexts] = useState<DefaultText[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -25,18 +28,29 @@ export default function SubkarteSettingsPage() {
     content: ''
   });
 
-  // ローカルストレージからデフォルトテキストを読み込み
+  // clinic_settingsからデフォルトテキストを読み込み
   useEffect(() => {
-    const savedTexts = localStorage.getItem('default_texts');
-    if (savedTexts) {
-      setDefaultTexts(JSON.parse(savedTexts));
-    }
-  }, []);
+    const loadDefaultTexts = async () => {
+      try {
+        const savedTexts = await getClinicSetting(clinicId, 'default_texts');
+        if (savedTexts && Array.isArray(savedTexts)) {
+          setDefaultTexts(savedTexts);
+        }
+      } catch (error) {
+        console.error('デフォルトテキスト読み込みエラー:', error);
+      }
+    };
+    loadDefaultTexts();
+  }, [clinicId]);
 
   // デフォルトテキストを保存
-  const saveDefaultTexts = (texts: DefaultText[]) => {
+  const saveDefaultTexts = async (texts: DefaultText[]) => {
     setDefaultTexts(texts);
-    localStorage.setItem('default_texts', JSON.stringify(texts));
+    try {
+      await setClinicSetting(clinicId, 'default_texts', texts);
+    } catch (error) {
+      console.error('デフォルトテキスト保存エラー:', error);
+    }
   };
 
   // 新規追加

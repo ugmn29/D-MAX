@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { jsonToObject } from '@/lib/prisma-helpers'
 
 // LINE Messaging APIのベースURL
 const LINE_MESSAGING_API_BASE = 'https://api.line.me/v2/bot'
@@ -10,6 +11,8 @@ const LINE_MESSAGING_API_BASE = 'https://api.line.me/v2/bot'
  */
 export async function POST(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
+
     const body = await request.json()
     const { clinic_id, line_user_id, is_linked } = body
 
@@ -36,30 +39,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!supabaseAdmin) {
-      console.error('❌ supabaseAdmin が初期化されていません')
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
-
-    // LINE基本設定を取得（supabaseAdminを直接使用）
+    // LINE基本設定を取得
     console.log('📖 LINE設定を取得中...')
-    const { data: lineSettings, error: lineError } = await supabaseAdmin
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinic_id)
-      .eq('setting_key', 'line')
-      .maybeSingle()
-
-    if (lineError) {
-      console.error('❌ LINE設定取得エラー:', lineError)
-      return NextResponse.json(
-        { error: `LINE設定取得エラー: ${lineError.message}` },
-        { status: 500 }
-      )
-    }
+    const lineSettings = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id,
+        setting_key: 'line',
+      },
+      select: { setting_value: true }
+    })
 
     if (!lineSettings || !lineSettings.setting_value) {
       console.error('❌ LINE設定が見つかりません', { clinic_id })
@@ -69,8 +57,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const line = lineSettings.setting_value
-    const channelAccessToken = line.channel_access_token
+    const line = jsonToObject<any>(lineSettings.setting_value)
+    const channelAccessToken = line?.channel_access_token
 
     if (!channelAccessToken) {
       console.error('❌ Channel Access Token が未設定')
@@ -83,18 +71,15 @@ export async function POST(request: NextRequest) {
 
     // リッチメニュー設定を取得
     console.log('📖 リッチメニュー設定を取得中...')
-    const { data: richMenuSettings, error: richMenuError } = await supabaseAdmin
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', clinic_id)
-      .eq('setting_key', 'line_rich_menu')
-      .maybeSingle()
+    const richMenuSettings = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id,
+        setting_key: 'line_rich_menu',
+      },
+      select: { setting_value: true }
+    })
 
-    if (richMenuError) {
-      console.error('❌ リッチメニュー設定取得エラー:', richMenuError)
-    }
-
-    const richMenu = richMenuSettings?.setting_value || {}
+    const richMenu = jsonToObject<any>(richMenuSettings?.setting_value) || {}
 
     console.log('📊 リッチメニューID:', {
       registered: richMenu.line_registered_rich_menu_id,

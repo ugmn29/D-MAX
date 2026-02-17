@@ -85,7 +85,7 @@ Vercelのダッシュボードで最新のデプロイ状況を確認:
 #### 2. デプロイ完了後、再度問診票連携をテスト
 
 1. ブラウザのコンソールを開く (F12)
-2. 本番環境 `https://dmax-mu.vercel.app` にアクセス
+2. 本番環境 `https://shikabot-mu.vercel.app` にアクセス
 3. 問診票連携を実行
 4. 以下のログが出ることを確認:
    ```
@@ -110,7 +110,7 @@ Vercelのダッシュボードで最新のデプロイ状況を確認:
 以下のコマンドでVercelの最新デプロイのGitコミットを確認:
 
 ```bash
-curl -s https://dmax-mu.vercel.app/_vercel/commit.txt
+curl -s https://shikabot-mu.vercel.app/_vercel/commit.txt
 ```
 
 これが `3670770` またはそれ以降であれば、修正がデプロイされています。
@@ -204,7 +204,7 @@ A: ローカル環境 (`.env.local` が `127.0.0.1:54321` を指している) �
 本番環境とは別のデータベースです。
 
 本番環境の動作を確認するには:
-- `https://dmax-mu.vercel.app` で直接テスト
+- `https://shikabot-mu.vercel.app` で直接テスト
 - または `.env.local` を本番のSupabase URLに変更してローカルテスト
 
 ### 📅 作業ログ

@@ -119,7 +119,7 @@ export default function HPEmbedCodeGenerator({ clinicId, clinicSlug }: HPEmbedCo
     const textColor = getTextColor()
 
     return `<style>
-.dmax-floating-btn {
+.shikabot-floating-btn {
   position: fixed;
   bottom: 20px;
   right: 20px;
@@ -139,16 +139,16 @@ export default function HPEmbedCodeGenerator({ clinicId, clinicSlug }: HPEmbedCo
   align-items: center;
   gap: 8px;
 }
-.dmax-floating-btn:hover {
+.shikabot-floating-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(0,0,0,0.2);
 }
-.dmax-floating-btn svg {
+.shikabot-floating-btn svg {
   width: 20px;
   height: 20px;
 }
 </style>
-<a href="${url}" target="_blank" rel="noopener noreferrer" class="dmax-floating-btn">
+<a href="${url}" target="_blank" rel="noopener noreferrer" class="shikabot-floating-btn">
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
   </svg>

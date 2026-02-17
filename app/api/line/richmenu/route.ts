@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Client } from '@line/bot-sdk'
 import { generateRichMenuImage, RichMenuButton } from '@/lib/line/richmenu-image-generator'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 interface RichMenuRequest {
   channelAccessToken: string
@@ -176,8 +177,7 @@ export async function POST(request: NextRequest) {
     console.log('Uploaded rich menu image')
 
     // 5. リッチメニューIDをデータベースに保存
-    const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     const columnName = menuType === 'registered'
       ? 'line_registered_rich_menu_id'
@@ -185,48 +185,21 @@ export async function POST(request: NextRequest) {
 
     console.log(`データベース保存開始: clinic_id=${DEMO_CLINIC_ID}, ${columnName}=${richMenuId}`)
 
-    // 既存レコードをチェック（clinic_id + setting_keyの組み合わせ）
-    const { data: existingData } = await supabase
-      .from('clinic_settings')
-      .select('clinic_id')
-      .eq('clinic_id', DEMO_CLINIC_ID)
-      .eq('setting_key', 'line_rich_menu')
-      .maybeSingle()
-
-    let saveResult
-    if (existingData) {
-      // 既存レコードがあればUPDATE
-      console.log('既存レコードを更新します')
-      const { data, error } = await supabase
-        .from('clinic_settings')
-        .update({ [columnName]: richMenuId })
-        .eq('clinic_id', DEMO_CLINIC_ID)
-        .eq('setting_key', 'line_rich_menu')
-        .select()
-
-      if (error) {
-        console.error('データベース更新エラー:', error)
-        throw new Error(`Failed to update rich menu ID: ${error.message}`)
-      }
-      saveResult = data
-    } else {
-      // 新規レコードを作成
-      console.log('新規レコードを作成します')
-      const { data, error } = await supabase
-        .from('clinic_settings')
-        .insert({
+    // Prisma upsertで既存レコードがあれば更新、なければ新規作成
+    const saveResult = await prisma.clinic_settings.upsert({
+      where: {
+        clinic_id_setting_key: {
           clinic_id: DEMO_CLINIC_ID,
-          setting_key: 'line_rich_menu', // NOT NULL制約のため必須
-          [columnName]: richMenuId
-        })
-        .select()
-
-      if (error) {
-        console.error('データベース挿入エラー:', error)
-        throw new Error(`Failed to insert rich menu ID: ${error.message}`)
+          setting_key: 'line_rich_menu'
+        }
+      },
+      update: { [columnName]: richMenuId },
+      create: {
+        clinic_id: DEMO_CLINIC_ID,
+        setting_key: 'line_rich_menu',
+        [columnName]: richMenuId
       }
-      saveResult = data
-    }
+    })
 
     console.log(`リッチメニューID保存完了: ${columnName} = ${richMenuId}`)
     console.log('保存結果:', saveResult)
@@ -242,7 +215,6 @@ export async function POST(request: NextRequest) {
       menuType,
       message: `${menuType === 'registered' ? '連携済み' : '未連携'}用リッチメニューを作成しました`,
       debug: {
-        existingRecordFound: !!existingData,
         saveResult: saveResult,
         columnName: columnName,
         clinicId: DEMO_CLINIC_ID

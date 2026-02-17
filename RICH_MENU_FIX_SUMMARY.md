@@ -140,13 +140,13 @@ cellHeight = 1686 / rows
 ### 画像アップロード確認
 ```bash
 # リッチメニューに画像があるか確認
-curl -X GET https://dmax-mu.vercel.app/api/line/check-menu-image?rich_menu_id=richmenu-xxxxx
+curl -X GET https://shikabot-mu.vercel.app/api/line/check-menu-image?rich_menu_id=richmenu-xxxxx
 ```
 
 ### ユーザーメニュー確認
 ```bash
 # ユーザーに紐付いているメニュー確認
-curl -X GET "https://dmax-mu.vercel.app/api/line/check-user-menu?line_user_id=Uxxxxx"
+curl -X GET "https://shikabot-mu.vercel.app/api/line/check-user-menu?line_user_id=Uxxxxx"
 ```
 
 ### デフォルトメニュー確認
@@ -192,7 +192,7 @@ node check-default-richmenu.mjs
 
 1. 診断APIで状態確認
 ```bash
-curl https://dmax-mu.vercel.app/api/line/diagnose
+curl https://shikabot-mu.vercel.app/api/line/diagnose
 ```
 
 2. 必要に応じてメニュー再作成

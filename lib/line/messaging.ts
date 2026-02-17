@@ -2,7 +2,7 @@
  * LINE Messaging API ヘルパー関数
  */
 
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 
 // LINE Messaging APIのベースURL
 const LINE_MESSAGING_API_BASE = 'https://api.line.me/v2/bot'
@@ -11,19 +11,25 @@ const LINE_MESSAGING_API_BASE = 'https://api.line.me/v2/bot'
  * LINE設定を取得
  */
 export async function getLineSettings(clinicId: string) {
-  const supabase = getSupabaseClient()
+  const baseUrl = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
 
   // LINE基本設定を取得
-  const { data: lineSettings, error: lineError } = await supabase
-    .from('clinic_settings')
-    .select('setting_value')
-    .eq('clinic_id', clinicId)
-    .eq('setting_key', 'line')
-    .maybeSingle()
+  const lineResponse = await fetch(
+    `${baseUrl}/api/clinic/settings?clinic_id=${clinicId}&setting_key=line`,
+    {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    }
+  )
 
-  if (lineError) {
-    throw new Error(`LINE設定取得エラー: ${lineError.message}`)
+  if (!lineResponse.ok) {
+    throw new Error('LINE設定取得エラー')
   }
+
+  const lineData = await lineResponse.json()
+  const lineSettings = lineData.settings?.[0]
 
   if (!lineSettings || !lineSettings.setting_value) {
     throw new Error('LINE設定が見つかりません')
@@ -36,14 +42,19 @@ export async function getLineSettings(clinicId: string) {
   }
 
   // リッチメニュー設定を取得
-  const { data: richMenuSettings } = await supabase
-    .from('clinic_settings')
-    .select('setting_value')
-    .eq('clinic_id', clinicId)
-    .eq('setting_key', 'line_rich_menu')
-    .maybeSingle()
+  const richMenuResponse = await fetch(
+    `${baseUrl}/api/clinic/settings?clinic_id=${clinicId}&setting_key=line_rich_menu`,
+    {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    }
+  )
 
-  const richMenu = richMenuSettings?.setting_value || {}
+  let richMenu: any = {}
+  if (richMenuResponse.ok) {
+    const richMenuData = await richMenuResponse.json()
+    richMenu = richMenuData.settings?.[0]?.setting_value || {}
+  }
 
   return {
     channelAccessToken: line.channel_access_token,

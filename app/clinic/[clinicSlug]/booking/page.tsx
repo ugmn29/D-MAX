@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 import { notFound, redirect } from 'next/navigation'
 
 interface BookingPageProps {
@@ -9,14 +9,13 @@ interface BookingPageProps {
 
 // clinic_slugからclinic_idを取得
 async function getClinicBySlug(slug: string) {
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase
-    .from('clinics')
-    .select('id, name, slug')
-    .eq('slug', slug)
-    .single()
+  const prisma = getPrismaClient()
+  const data = await prisma.clinics.findFirst({
+    where: { slug },
+    select: { id: true, name: true, slug: true },
+  })
 
-  if (error || !data) {
+  if (!data) {
     return null
   }
 

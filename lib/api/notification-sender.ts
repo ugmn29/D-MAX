@@ -1,7 +1,11 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import { getNotificationSettings } from './notification-settings'
 import { PatientNotificationSchedule } from '@/types/notification'
 import { canReceiveNotification } from './patient-notification-preferences'
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 /**
  * テンプレートからチャネル別のメッセージを取得
@@ -111,33 +115,122 @@ export async function getScheduledNotifications(
   clinicId: string,
   limit = 100
 ): Promise<PatientNotificationSchedule[]> {
-  const client = getSupabaseClient()
-  const now = new Date().toISOString()
+  const params = new URLSearchParams({
+    clinic_id: clinicId,
+    limit: String(limit)
+  })
 
-  const { data, error } = await client
-    .from('patient_notification_schedules')
-    .select(`
-      *,
-      patients:patient_id (
-        id,
-        name,
-        email,
-        phone,
-        preferred_contact_method
-      )
-    `)
-    .eq('clinic_id', clinicId)
-    .eq('status', 'scheduled')
-    .lte('send_datetime', now)
-    .order('send_datetime', { ascending: true })
-    .limit(limit)
+  const response = await fetch(`${baseUrl}/api/notification-sender/scheduled?${params}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' }
+  })
 
-  if (error) {
-    console.error('通知スケジュール取得エラー:', error)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    console.error('通知スケジュール取得エラー:', errorData)
     throw new Error('通知スケジュールの取得に失敗しました')
   }
 
-  return data || []
+  const data: PatientNotificationSchedule[] = await response.json()
+  return data
+}
+
+/**
+ * LINE User IDを患者IDから取得（API経由）
+ */
+async function getLineUserIdForPatient(patientId: string): Promise<string | null> {
+  const response = await fetch(`${baseUrl}/api/notification-sender/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'get_line_user_id',
+      patient_id: patientId
+    })
+  })
+
+  if (!response.ok) {
+    return null
+  }
+
+  const data = await response.json()
+  return data.line_user_id || null
+}
+
+/**
+ * スケジュールを送信済みとしてマーク（API経由）
+ */
+async function markScheduleSent(
+  scheduleId: string,
+  patientId: string,
+  clinicId: string,
+  sendChannel: string
+): Promise<void> {
+  const response = await fetch(`${baseUrl}/api/notification-sender/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'mark_sent',
+      schedule_id: scheduleId,
+      patient_id: patientId,
+      clinic_id: clinicId,
+      send_channel: sendChannel
+    })
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    console.error('通知送信済みマーク失敗:', errorData)
+  }
+}
+
+/**
+ * スケジュールを失敗としてマーク（API経由）
+ */
+async function markScheduleFailed(
+  scheduleId: string,
+  patientId: string,
+  clinicId: string,
+  sendChannel: string,
+  failureReason: string,
+  retryCount: number
+): Promise<void> {
+  const response = await fetch(`${baseUrl}/api/notification-sender/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'mark_failed',
+      schedule_id: scheduleId,
+      patient_id: patientId,
+      clinic_id: clinicId,
+      send_channel: sendChannel,
+      failure_reason: failureReason,
+      retry_count: retryCount
+    })
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    console.error('通知失敗マーク失敗:', errorData)
+  }
+}
+
+/**
+ * スケジュールをキャンセルとしてマーク（API経由）
+ */
+async function markScheduleCancelled(scheduleId: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/api/notification-sender/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'mark_cancelled',
+      schedule_id: scheduleId
+    })
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    console.error('通知キャンセルマーク失敗:', errorData)
+  }
 }
 
 /**
@@ -147,8 +240,6 @@ export async function sendNotification(
   schedule: any,
   clinicId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
-
   try {
     // 患者の通知受信設定をチェック
     const canReceive = await canReceiveNotification(
@@ -160,14 +251,7 @@ export async function sendNotification(
     if (!canReceive) {
       console.log(`患者 ${schedule.patient_id} は ${schedule.notification_type} の受信を拒否しています`)
       // ステータスをキャンセルに更新
-      await client
-        .from('patient_notification_schedules')
-        .update({
-          status: 'cancelled',
-          cancelled_reason: '患者が通知受信を拒否',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', schedule.id)
+      await markScheduleCancelled(schedule.id)
 
       return { success: false, error: '患者が通知受信を拒否' }
     }
@@ -186,16 +270,12 @@ export async function sendNotification(
       if (!settings.line.enabled || !settings.line.channel_access_token) {
         failureReason = 'LINE設定が無効です'
       } else {
-        // LINE User IDを取得（line_patient_linkagesテーブルから）
-        const { data: lineLink } = await client
-          .from('line_patient_linkages')
-          .select('line_user_id')
-          .eq('patient_id', schedule.patient_id)
-          .single()
+        // LINE User IDを取得
+        const lineUserId = await getLineUserIdForPatient(schedule.patient_id)
 
-        if (lineLink) {
+        if (lineUserId) {
           success = await sendLineNotification(
-            lineLink.line_user_id,
+            lineUserId,
             schedule.message,
             settings.line.channel_access_token
           )
@@ -232,53 +312,25 @@ export async function sendNotification(
 
     // ステータス更新
     if (success) {
-      await client
-        .from('patient_notification_schedules')
-        .update({
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', schedule.id)
-
-      // 分析データ記録
-      await client
-        .from('patient_notification_analytics')
-        .insert({
-          patient_id: schedule.patient_id,
-          clinic_id: schedule.clinic_id,
-          notification_schedule_id: schedule.id,
-          sent_at: new Date().toISOString(),
-          send_channel: schedule.send_channel,
-          notification_type: schedule.notification_type
-        })
+      await markScheduleSent(
+        schedule.id,
+        schedule.patient_id,
+        schedule.clinic_id,
+        schedule.send_channel
+      )
 
       return { success: true }
     } else {
-      // 失敗記録
       const retryCount = schedule.retry_count || 0
 
-      await client
-        .from('patient_notification_schedules')
-        .update({
-          status: retryCount >= 3 ? 'failed' : 'scheduled',
-          failure_reason: failureReason || '送信に失敗しました',
-          retry_count: retryCount + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', schedule.id)
-
-      // 失敗ログに記録
-      await client
-        .from('notification_failure_logs')
-        .insert({
-          notification_schedule_id: schedule.id,
-          patient_id: schedule.patient_id,
-          clinic_id: schedule.clinic_id,
-          send_channel: schedule.send_channel,
-          error_message: failureReason || '送信に失敗しました',
-          retry_count: retryCount + 1
-        })
+      await markScheduleFailed(
+        schedule.id,
+        schedule.patient_id,
+        schedule.clinic_id,
+        schedule.send_channel,
+        failureReason || '送信に失敗しました',
+        retryCount
+      )
 
       return { success: false, error: failureReason }
     }
@@ -286,14 +338,14 @@ export async function sendNotification(
     console.error('通知送信エラー:', error)
 
     // エラー記録
-    await client
-      .from('patient_notification_schedules')
-      .update({
-        status: 'failed',
-        failure_reason: error.message,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', schedule.id)
+    await markScheduleFailed(
+      schedule.id,
+      schedule.patient_id,
+      schedule.clinic_id,
+      schedule.send_channel,
+      error.message,
+      schedule.retry_count || 0
+    )
 
     return { success: false, error: error.message }
   }
@@ -332,75 +384,18 @@ export async function processPendingNotifications(clinicId: string): Promise<{
  * 自動リマインド候補を検出して通知を作成
  */
 export async function processAutoReminders(clinicId: string): Promise<number> {
-  const client = getSupabaseClient()
+  const response = await fetch(`${baseUrl}/api/notification-sender/auto-reminders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clinic_id: clinicId })
+  })
 
-  // 自動リマインドルールを取得
-  const { data: rule } = await client
-    .from('auto_reminder_rules')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .eq('enabled', true)
-    .single()
-
-  if (!rule) {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    console.error('自動リマインド処理エラー:', errorData)
     return 0
   }
 
-  // 候補患者を検出（最終来院日から指定期間経過）
-  const intervals = rule.intervals || []
-  let created = 0
-
-  for (const interval of intervals) {
-    const monthsAgo = interval.months
-    const targetDate = new Date()
-    targetDate.setMonth(targetDate.getMonth() - monthsAgo)
-
-    // 最終来院日が対象期間の患者を取得
-    const { data: candidates } = await client
-      .from('appointments')
-      .select('patient_id, MAX(start_time) as last_visit')
-      .eq('clinic_id', clinicId)
-      .eq('status', 'completed')
-      .gte('start_time', targetDate.toISOString())
-      .group('patient_id')
-
-    if (!candidates) continue
-
-    for (const candidate of candidates) {
-      // 既に通知スケジュールが存在しないか確認
-      const { data: existing } = await client
-        .from('patient_notification_schedules')
-        .select('id')
-        .eq('patient_id', candidate.patient_id)
-        .eq('is_auto_reminder', true)
-        .eq('auto_reminder_sequence', interval.sequence)
-        .in('status', ['scheduled', 'sent'])
-        .single()
-
-      if (existing) continue
-
-      // 通知スケジュールを作成
-      const sendDate = new Date()
-      sendDate.setHours(rule.default_send_hour || 18, 0, 0, 0)
-
-      await client
-        .from('patient_notification_schedules')
-        .insert({
-          patient_id: candidate.patient_id,
-          clinic_id: clinicId,
-          template_id: interval.template_id,
-          notification_type: 'periodic_checkup',
-          message: interval.message || '定期検診のお知らせです',
-          send_datetime: sendDate.toISOString(),
-          send_channel: interval.channel || 'line',
-          status: 'scheduled',
-          is_auto_reminder: true,
-          auto_reminder_sequence: interval.sequence
-        })
-
-      created++
-    }
-  }
-
-  return created
+  const data = await response.json()
+  return data.created || 0
 }

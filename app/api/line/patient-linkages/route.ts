@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 /**
  * GET /api/line/patient-linkages?patient_id=xxx
@@ -8,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase'
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
     const searchParams = request.nextUrl.searchParams
     const patient_id = searchParams.get('patient_id')
 
@@ -20,20 +19,13 @@ export async function GET(request: NextRequest) {
     }
 
     // 患者に紐づく LINE連携情報を取得
-    const { data: linkages, error } = await supabase
-      .from('line_patient_linkages')
-      .select('*')
-      .eq('patient_id', patient_id)
-      .order('is_primary', { ascending: false })
-      .order('linked_at', { ascending: false })
-
-    if (error) {
-      console.error('LINE連携情報の取得エラー:', error)
-      return NextResponse.json(
-        { error: 'LINE連携情報の取得に失敗しました' },
-        { status: 500 }
-      )
-    }
+    const linkages = await prisma.line_patient_linkages.findMany({
+      where: { patient_id },
+      orderBy: [
+        { is_primary: 'desc' },
+        { linked_at: 'desc' }
+      ]
+    })
 
     return NextResponse.json({ linkages: linkages || [] })
 
@@ -52,14 +44,7 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
+    const prisma = getPrismaClient()
 
     const searchParams = request.nextUrl.searchParams
     const linkage_id = searchParams.get('linkage_id')
@@ -72,14 +57,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 連携情報を取得（リッチメニュー切り替え用）
-    const { data: linkage, error: linkageError } = await supabase
-      .from('line_patient_linkages')
-      .select('line_user_id, patient_id, clinic_id')
-      .eq('id', linkage_id)
-      .single()
+    const linkage = await prisma.line_patient_linkages.findUnique({
+      where: { id: linkage_id },
+      select: { line_user_id: true, patient_id: true, clinic_id: true }
+    })
 
-    if (linkageError || !linkage) {
-      console.error('❌ 連携情報取得失敗:', linkageError)
+    if (!linkage) {
+      console.error('❌ 連携情報取得失敗')
       return NextResponse.json(
         { error: '連携情報が見つかりません' },
         { status: 404 }
@@ -94,12 +78,11 @@ export async function DELETE(request: NextRequest) {
     })
 
     // 連携を削除
-    const { error: deleteError } = await supabase
-      .from('line_patient_linkages')
-      .delete()
-      .eq('id', linkage_id)
-
-    if (deleteError) {
+    try {
+      await prisma.line_patient_linkages.delete({
+        where: { id: linkage_id }
+      })
+    } catch (deleteError) {
       console.error('❌ 連携解除エラー:', deleteError)
       return NextResponse.json(
         { error: '連携解除に失敗しました' },
@@ -110,20 +93,16 @@ export async function DELETE(request: NextRequest) {
     console.log('✅ 連携削除成功')
 
     // このLINEユーザーに他の連携があるかチェック
-    const { data: remainingLinkages, error: countError } = await supabase
-      .from('line_patient_linkages')
-      .select('id')
-      .eq('line_user_id', linkage.line_user_id)
+    const remainingLinkages = await prisma.line_patient_linkages.findMany({
+      where: { line_user_id: linkage.line_user_id },
+      select: { id: true }
+    })
 
-    if (countError) {
-      console.error('❌ 残存連携確認エラー:', countError)
-    }
-
-    const hasOtherLinkages = remainingLinkages && remainingLinkages.length > 0
+    const hasOtherLinkages = remainingLinkages.length > 0
 
     console.log('🔍 残存連携チェック:', {
       line_user_id: linkage.line_user_id,
-      remaining_count: remainingLinkages?.length || 0,
+      remaining_count: remainingLinkages.length,
       has_other_linkages: hasOtherLinkages
     })
 

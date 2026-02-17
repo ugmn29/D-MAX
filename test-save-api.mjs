@@ -27,7 +27,7 @@ console.log(`   unregistered_menu_id: ${testUnregisteredId}`);
 console.log('');
 
 // 本番環境のAPIを呼び出し
-const apiUrl = 'https://dmax-mu.vercel.app/api/line/save-rich-menu-ids';
+const apiUrl = 'https://shikabot-mu.vercel.app/api/line/save-rich-menu-ids';
 
 console.log(`📡 APIを呼び出し中: ${apiUrl}\n`);
 

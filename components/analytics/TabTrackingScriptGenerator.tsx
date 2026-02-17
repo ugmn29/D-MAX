@@ -24,32 +24,32 @@ export default function TabTrackingScriptGenerator({ clinicId }: TabTrackingScri
 
   const exampleHTML = `<!-- 例1: ヘッダーの予約ボタン -->
 <a href="予約ページURL"
-   data-dmax-tab="header_button"
-   data-dmax-position="header"
+   data-shikabot-tab="header_button"
+   data-shikabot-position="header"
    class="booking-button">
   予約する
 </a>
 
 <!-- 例2: サイドバーの予約ボタン -->
 <a href="予約ページURL"
-   data-dmax-tab="sidebar_button"
-   data-dmax-position="sidebar"
+   data-shikabot-tab="sidebar_button"
+   data-shikabot-position="sidebar"
    class="booking-button">
   今すぐ予約
 </a>
 
 <!-- 例3: フッターの予約ボタン -->
 <a href="予約ページURL"
-   data-dmax-tab="footer_button"
-   data-dmax-position="footer"
+   data-shikabot-tab="footer_button"
+   data-shikabot-position="footer"
    class="booking-button">
   Web予約はこちら
 </a>
 
 <!-- 例4: 料金ページの予約ボタン -->
 <a href="予約ページURL"
-   data-dmax-tab="price_page_button"
-   data-dmax-position="content"
+   data-shikabot-tab="price_page_button"
+   data-shikabot-position="content"
    class="booking-button">
   この料金で予約する
 </a>`
@@ -92,7 +92,7 @@ export default function TabTrackingScriptGenerator({ clinicId }: TabTrackingScri
 
           {/* Step 2: ボタンにdata属性を追加 */}
           <div>
-            <h3 className="font-medium text-gray-900 mb-2">Step 2: 予約ボタンに data-dmax-tab 属性を追加</h3>
+            <h3 className="font-medium text-gray-900 mb-2">Step 2: 予約ボタンに data-shikabot-tab 属性を追加</h3>
             <div className="bg-gray-900 text-gray-100 p-4 rounded font-mono text-xs overflow-x-auto">
               <pre>{exampleHTML}</pre>
             </div>
@@ -101,10 +101,10 @@ export default function TabTrackingScriptGenerator({ clinicId }: TabTrackingScri
           {/* 説明 */}
           <Alert className="bg-blue-50 border-blue-200">
             <AlertDescription>
-              <strong>data-dmax-tab 属性について:</strong>
+              <strong>data-shikabot-tab 属性について:</strong>
               <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                <li><strong>data-dmax-tab</strong>: タブの識別ID（header_button, sidebar_button など）</li>
-                <li><strong>data-dmax-position</strong>: タブの位置（header, sidebar, footer, content など）</li>
+                <li><strong>data-shikabot-tab</strong>: タブの識別ID（header_button, sidebar_button など）</li>
+                <li><strong>data-shikabot-position</strong>: タブの位置（header, sidebar, footer, content など）</li>
                 <li>これらの属性を追加するだけで、自動的にクリックが記録されます</li>
               </ul>
             </AlertDescription>

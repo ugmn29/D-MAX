@@ -1,7 +1,7 @@
 // 設定ページと全く同じロジックでリッチメニューを作成
 console.log('🎨 設定ページのロジックでリッチメニューを作成\n');
 
-const baseUrl = 'https://dmax-mu.vercel.app';
+const baseUrl = 'https://shikabot-mu.vercel.app';
 const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111';
 
 // 未連携用のデフォルトボタン（設定ページと同じ）

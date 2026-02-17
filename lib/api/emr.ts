@@ -1,10 +1,15 @@
+// Migrated to Prisma API Routes
+
 /**
  * EMR API Functions
  * 電子カルテAPI関数
  */
 
-import { supabase } from '@/lib/utils/supabase-client'
 import { DiseaseCode, TreatmentCode, MedicalRecord } from '@/types/emr'
+
+const baseUrl = typeof window === 'undefined'
+  ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+  : ''
 
 /**
  * 病名コードを検索
@@ -16,51 +21,21 @@ export async function searchDiseaseCodes(
   dentalOnly: boolean = false
 ): Promise<DiseaseCode[]> {
   try {
-    // C1/C2/C3などの入力を正式名称に変換
-    let searchQuery = query
-    const cariesMap: { [key: string]: string } = {
-      'c1': 'う蝕第１度',
-      'c2': 'う蝕第２度',
-      'c3': 'う蝕第３度',
-      'c4': 'う蝕第４度',
-      'C1': 'う蝕第１度',
-      'C2': 'う蝕第２度',
-      'C3': 'う蝕第３度',
-      'C4': 'う蝕第４度'
-    }
-
-    // クエリがC1～C4の場合、正式名称も検索対象に含める
-    const expandedQueries: string[] = [query]
-    if (cariesMap[query]) {
-      expandedQueries.push(cariesMap[query])
-    }
-
-    // 複数の検索条件でOR検索
-    const orConditions = expandedQueries.flatMap(q => [
-      `name.ilike.%${q}%`,
-      `kana.ilike.%${q}%`,
-      `code.ilike.%${q}%`
-    ]).join(',')
-
-    let queryBuilder = supabase
-      .from('disease_codes')
-      .select('*')
-      .or(orConditions)
-      .limit(limit)
-
-    // 歯科関連のみフィルタ（オプション）
+    const params = new URLSearchParams({
+      query,
+      limit: String(limit),
+    })
     if (dentalOnly) {
-      queryBuilder = queryBuilder.eq('is_dental', true)
+      params.set('dental_only', 'true')
     }
 
-    const { data, error } = await queryBuilder
-
-    if (error) {
-      console.error('病名検索エラー:', error)
-      throw error
+    const response = await fetch(`${baseUrl}/api/emr/disease-codes?${params}`)
+    if (!response.ok) {
+      console.error('病名検索エラー:', response.statusText)
+      return []
     }
 
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('病名検索エラー:', error)
     return []
@@ -76,18 +51,18 @@ export async function searchTreatmentCodes(
   limit: number = 20
 ): Promise<TreatmentCode[]> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_codes')
-      .select('*')
-      .or(`name.ilike.%${query}%,code.ilike.%${query}%`)
-      .limit(limit)
+    const params = new URLSearchParams({
+      query,
+      limit: String(limit),
+    })
 
-    if (error) {
-      console.error('診療行為検索エラー:', error)
-      throw error
+    const response = await fetch(`${baseUrl}/api/emr/treatment-codes?${params}`)
+    if (!response.ok) {
+      console.error('診療行為検索エラー:', response.statusText)
+      return []
     }
 
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('診療行為検索エラー:', error)
     return []
@@ -100,18 +75,13 @@ export async function searchTreatmentCodes(
  */
 export async function getDiseaseCodeById(id: string): Promise<DiseaseCode | null> {
   try {
-    const { data, error } = await supabase
-      .from('disease_codes')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      console.error('病名取得エラー:', error)
+    const response = await fetch(`${baseUrl}/api/emr/disease-codes?id=${encodeURIComponent(id)}`)
+    if (!response.ok) {
+      console.error('病名取得エラー:', response.statusText)
       return null
     }
 
-    return data
+    return await response.json()
   } catch (error) {
     console.error('病名取得エラー:', error)
     return null
@@ -124,18 +94,13 @@ export async function getDiseaseCodeById(id: string): Promise<DiseaseCode | null
  */
 export async function getTreatmentCodeById(id: string): Promise<TreatmentCode | null> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_codes')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      console.error('診療行為取得エラー:', error)
+    const response = await fetch(`${baseUrl}/api/emr/treatment-codes?id=${encodeURIComponent(id)}`)
+    if (!response.ok) {
+      console.error('診療行為取得エラー:', response.statusText)
       return null
     }
 
-    return data
+    return await response.json()
   } catch (error) {
     console.error('診療行為取得エラー:', error)
     return null
@@ -152,24 +117,22 @@ export async function saveMedicalRecord(
   record: Partial<MedicalRecord>
 ): Promise<MedicalRecord | null> {
   try {
-    const { data, error } = await supabase
-      .from('medical_records')
-      .insert({
+    const response = await fetch(`${baseUrl}/api/emr/medical-records`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         clinic_id: clinicId,
         patient_id: patientId,
         ...record,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
+      }),
+    })
 
-    if (error) {
-      console.error('カルテ保存エラー:', error)
-      throw error
+    if (!response.ok) {
+      console.error('カルテ保存エラー:', response.statusText)
+      return null
     }
 
-    return data
+    return await response.json()
   } catch (error) {
     console.error('カルテ保存エラー:', error)
     return null
@@ -185,22 +148,21 @@ export async function updateMedicalRecord(
   updates: Partial<MedicalRecord>
 ): Promise<MedicalRecord | null> {
   try {
-    const { data, error } = await supabase
-      .from('medical_records')
-      .update({
+    const response = await fetch(`${baseUrl}/api/emr/medical-records`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: recordId,
         ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', recordId)
-      .select()
-      .single()
+      }),
+    })
 
-    if (error) {
-      console.error('カルテ更新エラー:', error)
-      throw error
+    if (!response.ok) {
+      console.error('カルテ更新エラー:', response.statusText)
+      return null
     }
 
-    return data
+    return await response.json()
   } catch (error) {
     console.error('カルテ更新エラー:', error)
     return null
@@ -216,19 +178,18 @@ export async function getPatientMedicalRecords(
   limit: number = 50
 ): Promise<MedicalRecord[]> {
   try {
-    const { data, error } = await supabase
-      .from('medical_records')
-      .select('*')
-      .eq('patient_id', patientId)
-      .order('visit_date', { ascending: false })
-      .limit(limit)
+    const params = new URLSearchParams({
+      patient_id: patientId,
+      limit: String(limit),
+    })
 
-    if (error) {
-      console.error('カルテ記録取得エラー:', error)
-      throw error
+    const response = await fetch(`${baseUrl}/api/emr/medical-records?${params}`)
+    if (!response.ok) {
+      console.error('カルテ記録取得エラー:', response.statusText)
+      return []
     }
 
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('カルテ記録取得エラー:', error)
     return []
@@ -241,13 +202,13 @@ export async function getPatientMedicalRecords(
  */
 export async function deleteMedicalRecord(recordId: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('medical_records')
-      .delete()
-      .eq('id', recordId)
+    const response = await fetch(
+      `${baseUrl}/api/emr/medical-records?id=${encodeURIComponent(recordId)}`,
+      { method: 'DELETE' }
+    )
 
-    if (error) {
-      console.error('カルテ削除エラー:', error)
+    if (!response.ok) {
+      console.error('カルテ削除エラー:', response.statusText)
       return false
     }
 
@@ -430,18 +391,16 @@ export function calculatePointsWithAdditions(
  */
 export async function getTreatmentDetailedRules(treatmentId: string): Promise<any> {
   try {
-    const { data, error } = await supabase
-      .from('treatment_codes')
-      .select('metadata')
-      .eq('id', treatmentId)
-      .single()
+    const response = await fetch(
+      `${baseUrl}/api/emr/treatment-codes?id=${encodeURIComponent(treatmentId)}&metadata_only=true`
+    )
 
-    if (error) {
-      console.error('詳細ルール取得エラー:', error)
+    if (!response.ok) {
+      console.error('詳細ルール取得エラー:', response.statusText)
       return null
     }
 
-    return data?.metadata || null
+    return await response.json()
   } catch (error) {
     console.error('詳細ルール取得エラー:', error)
     return null

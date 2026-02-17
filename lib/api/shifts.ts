@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import { StaffShift, StaffShiftInsert, StaffShiftUpdate } from '@/types/database'
 import { MOCK_MODE, getMockStaffShifts, addMockStaffShift, removeMockStaffShift, getMockStaff, getMockStaffPositions, getMockShiftPatterns } from '@/lib/utils/mock-mode'
 
@@ -10,61 +10,49 @@ export async function getStaffShifts(clinicId: string, year: number, month: numb
     return getMockStaffShifts().filter(item => item.clinic_id === clinicId)
   }
 
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-  // 月末日を正しく計算
-  const lastDay = new Date(year, month, 0).getDate()
-  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-  
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('staff_shifts')
-    .select(`
-      *,
-      shift_patterns (
-        abbreviation,
-        name,
-        start_time,
-        end_time,
-        break_start,
-        break_end
-      )
-    `)
-    .eq('clinic_id', clinicId)
-    .gte('date', startDate)
-    .lte('date', endDate)
-    .order('date')
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}&year=${year}&month=${month}`)
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('シフトデータ取得エラー (API):', errorData)
+      throw new Error(errorData.error || 'シフトデータ取得に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
     console.error('シフトデータ取得エラー:', error)
     throw error
   }
-
-  return data || []
 }
 
 // シフトデータの作成・更新
 export async function upsertStaffShift(clinicId: string, shift: StaffShiftInsert): Promise<StaffShift> {
   console.log('upsertStaffShift呼び出し:', { clinicId, shift })
-  
+
   // モックモードの場合はモックデータを生成して返す
   if (MOCK_MODE) {
     console.log('モックモード: シフトデータを作成・更新します', { clinicId, shift })
-    
+
     // スタッフ情報とシフトパターン情報を取得
     const staffData = getMockStaff().find(s => s.id === shift.staff_id)
     const positions = getMockStaffPositions()
     const patterns = getMockShiftPatterns()
-    
+
     console.log('シフト保存時のデバッグ:', {
       staff_id: shift.staff_id,
       staffData,
       positions: positions.length,
       patterns: patterns.length
     })
-    
+
     const staffPosition = positions.find(p => p.id === staffData?.position_id)
     const shiftPattern = patterns.find(p => p.id === shift.shift_pattern_id)
-    
+
     const newShift: StaffShift = {
       id: `mock-shift-${Date.now()}`,
       clinic_id: clinicId,
@@ -104,37 +92,34 @@ export async function upsertStaffShift(clinicId: string, shift: StaffShiftInsert
     addMockStaffShift(newShift)
     return newShift
   }
-  
-  const upsertData = {
-    ...shift,
-    clinic_id: clinicId,
-    shift_pattern_id: shift.shift_pattern_id === 'none' ? null : shift.shift_pattern_id, // "none"の場合はnullに変換
-    updated_at: new Date().toISOString()
-  }
-  
-  console.log('Supabaseに送信するデータ:', upsertData)
-  
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('staff_shifts')
-    .upsert(upsertData, { onConflict: 'clinic_id,staff_id,date' })
-    .select()
-    .single()
 
-  console.log('upsertStaffShiftレスポンス:', { data, error })
-
-  if (error) {
-    console.error('シフトデータ作成・更新エラー:', error)
-    console.error('エラーの詳細:', {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(shift)
     })
+
+    console.log('upsertStaffShiftレスポンス:', response.status)
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('シフトデータ作成・更新エラー (API):', errorData)
+      console.error('エラーの詳細:', errorData)
+      throw new Error(errorData.error || 'シフトデータの作成・更新に失敗しました')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('シフトデータ作成・更新エラー:', error)
     throw error
   }
-
-  return data
 }
 
 // シフトデータの削除
@@ -146,14 +131,21 @@ export async function deleteStaffShift(clinicId: string, shiftId: string): Promi
     return
   }
 
-  const client = getSupabaseClient()
-  const { error } = await client
-    .from('staff_shifts')
-    .delete()
-    .eq('id', shiftId)
-    .eq('clinic_id', clinicId)
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}&shift_id=${shiftId}`, {
+      method: 'DELETE'
+    })
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('シフトデータ削除エラー (API):', errorData)
+      throw new Error(errorData.error || 'シフトデータの削除に失敗しました')
+    }
+  } catch (error) {
     console.error('シフトデータ削除エラー:', error)
     throw error
   }
@@ -165,17 +157,17 @@ export async function getStaffShiftsByDate(clinicId: string, date: string): Prom
   if (MOCK_MODE) {
     console.log('モックモード: 日付単位シフトデータを返します', { clinicId, date })
     const shifts = getMockStaffShifts().filter(item => item.clinic_id === clinicId && item.date === date)
-    
+
     // スタッフ情報とシフトパターン情報を含める
     const staffData = getMockStaff()
     const positions = getMockStaffPositions()
     const patterns = getMockShiftPatterns()
-    
+
     return shifts.map(shift => {
       const staff = staffData.find(s => s.id === shift.staff_id)
       const position = positions.find(p => p.id === staff?.position_id)
       const pattern = patterns.find(p => p.id === shift.shift_pattern_id)
-      
+
       return {
         ...shift,
         staff: staff ? {
@@ -203,49 +195,22 @@ export async function getStaffShiftsByDate(clinicId: string, date: string): Prom
     })
   }
 
-  const client = getSupabaseClient()
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}&date=${date}`)
 
-  console.log('shifts.ts: データベースクエリ実行:', { clinicId, date })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('日付別シフトデータ取得エラー (API):', errorData)
+      throw new Error(errorData.error || '日付別シフトデータ取得に失敗しました')
+    }
 
-  const { data, error } = await client
-    .from('staff_shifts')
-    .select(`
-      *,
-      staff:staff_id (
-        id,
-        name,
-        name_kana,
-        position_id,
-        role,
-        is_active,
-        position:staff_positions (
-          id,
-          name,
-          sort_order
-        )
-      ),
-      shift_patterns (
-        abbreviation,
-        name,
-        start_time,
-        end_time,
-        break_start,
-        break_end
-      )
-    `)
-    .eq('clinic_id', clinicId)
-    .eq('date', date)
-
-  console.log('shifts.ts: データベースレスポンス:', {
-    dataCount: data?.length || 0,
-    data,
-    error
-  })
-
-  if (error) {
+    return await response.json()
+  } catch (error) {
     console.error('日付別シフトデータ取得エラー:', error)
     throw error
   }
-
-  return data || []
 }

@@ -104,7 +104,7 @@ async function enableWebBooking() {
     if (verification.setting_value.isEnabled === true) {
       console.log('\n🎉 成功！Web予約が有効になりました。')
       console.log('📱 以下のURLでアクセスできます:')
-      console.log('   https://dmax-mu.vercel.app/web-booking')
+      console.log('   https://shikabot-mu.vercel.app/web-booking')
     } else {
       console.log('\n⚠️  警告: 設定は保存されましたが、isEnabledがtrueになっていません')
     }

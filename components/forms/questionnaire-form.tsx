@@ -224,27 +224,25 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
       [questionId]: formattedPostalCode
     }))
     
-    // 郵便番号が7桁の場合、住所を自動取得（開発環境では無効化）
+    // 郵便番号が7桁の場合、住所を自動取得
     if (validatePostalCode(formattedPostalCode)) {
       try {
         const addressData = await getAddressFromPostalCode(formattedPostalCode)
         if (addressData) {
-          // 住所フィールドを自動入力
-          const addressQuestionId = questions.find(q => 
-            q.question_text === '住所' && 
-            q.sort_order === questions.find(q => q.id === questionId)?.sort_order! + 1
-          )?.id
-          
-          if (addressQuestionId) {
+          // 住所フィールドを自動入力（linked_field='address' または question_text='住所' で検索）
+          const addressQuestion = questions.find(q =>
+            q.linked_field === 'address' || q.question_text === '住所'
+          )
+
+          if (addressQuestion) {
             setFormData(prev => ({
               ...prev,
-              [addressQuestionId]: addressData.full_address
+              [addressQuestion.id]: addressData.full_address
             }))
           }
         }
       } catch (error) {
-        // エラーを無視（開発環境では郵便番号APIが無効化されているため）
-        console.log('住所自動入力は開発環境では無効化されています')
+        console.warn('住所自動入力エラー:', error)
       }
     }
   }

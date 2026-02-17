@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 
 interface Training {
@@ -46,20 +45,19 @@ export default function TrainingsPage() {
     try {
       console.log('トレーニングデータ取得開始')
 
-      const { data, error } = await supabase
-        .from('trainings')
-        .select('*')
-        .eq('is_deleted', false)
-        .order('category', { ascending: true })
+      const response = await fetch('/api/training/clinic/trainings')
+      const result = await response.json()
 
-      if (error) {
-        console.error('Supabaseエラー:', error)
+      if (!response.ok) {
+        console.error('API エラー:', result)
         setTrainings(getMockTrainings())
         setIsLoading(false)
         return
       }
 
-      if (!data || data.length === 0) {
+      const data = result.data || []
+
+      if (data.length === 0) {
         console.log('データが0件のため、モックデータを使用')
         setTrainings(getMockTrainings())
       } else {
@@ -86,7 +84,13 @@ export default function TrainingsPage() {
         default_rest_seconds: 10,
         default_sets: 3,
         instructions: ['唇を軽く閉じる', '5秒間保持', 'ゆっくりと開く'],
-        precautions: ['無理をしない', '痛みがある場合は中止']
+        precautions: ['無理をしない', '痛みがある場合は中止'],
+        evaluation_level_1_label: '',
+        evaluation_level_1_criteria: '',
+        evaluation_level_2_label: '',
+        evaluation_level_2_criteria: '',
+        evaluation_level_3_label: '',
+        evaluation_level_3_criteria: '',
       },
       {
         id: '2',
@@ -97,7 +101,13 @@ export default function TrainingsPage() {
         default_rest_seconds: 5,
         default_sets: 5,
         instructions: ['舌を前に出す', '左右に動かす', '上に上げる'],
-        precautions: ['ゆっくりと行う', '疲れたら休む']
+        precautions: ['ゆっくりと行う', '疲れたら休む'],
+        evaluation_level_1_label: '',
+        evaluation_level_1_criteria: '',
+        evaluation_level_2_label: '',
+        evaluation_level_2_criteria: '',
+        evaluation_level_3_label: '',
+        evaluation_level_3_criteria: '',
       },
       {
         id: '3',
@@ -108,7 +118,13 @@ export default function TrainingsPage() {
         default_rest_seconds: 30,
         default_sets: 3,
         instructions: ['柔らかい食べ物を用意', 'ゆっくりと噛む', '左右均等に'],
-        precautions: ['硬いものは避ける', '飲み込む前に十分噛む']
+        precautions: ['硬いものは避ける', '飲み込む前に十分噛む'],
+        evaluation_level_1_label: '',
+        evaluation_level_1_criteria: '',
+        evaluation_level_2_label: '',
+        evaluation_level_2_criteria: '',
+        evaluation_level_3_label: '',
+        evaluation_level_3_criteria: '',
       }
     ]
   }
@@ -122,12 +138,14 @@ export default function TrainingsPage() {
     if (!confirm('このトレーニングを削除しますか？')) return
 
     try {
-      const { error } = await supabase
-        .from('trainings')
-        .delete()
-        .eq('id', trainingId)
+      const response = await fetch(`/api/training/clinic/trainings?id=${trainingId}`, {
+        method: 'DELETE',
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || '削除に失敗しました')
+      }
 
       alert('削除しました')
       loadTrainings()
@@ -165,20 +183,31 @@ export default function TrainingsPage() {
 
       if (isNew) {
         // 新規作成
-        const { error } = await supabase
-          .from('trainings')
-          .insert(trainingData)
+        const response = await fetch('/api/training/clinic/trainings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(trainingData),
+        })
 
-        if (error) throw error
+        if (!response.ok) {
+          const result = await response.json()
+          throw new Error(result.error || '作成に失敗しました')
+        }
+
         alert('トレーニングを追加しました')
       } else {
         // 更新
-        const { error } = await supabase
-          .from('trainings')
-          .update(trainingData)
-          .eq('id', editingTraining.id)
+        const response = await fetch('/api/training/clinic/trainings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...trainingData, id: editingTraining.id }),
+        })
 
-        if (error) throw error
+        if (!response.ok) {
+          const result = await response.json()
+          throw new Error(result.error || '更新に失敗しました')
+        }
+
         alert('保存しました')
       }
 

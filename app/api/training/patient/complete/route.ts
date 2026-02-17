@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+import { getPrismaClient } from '@/lib/prisma-client'
+import { convertDatesToStrings } from '@/lib/prisma-helpers'
 
 export async function POST(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
     const body = await request.json()
     const { patientId, clinicId, trainingId, menuId, completed, actualDurationSeconds } = body
 
@@ -26,9 +23,8 @@ export async function POST(request: NextRequest) {
     else if (hour >= 21 || hour < 6) timeOfDay = 'night'
 
     // トレーニング記録を保存
-    const { data, error } = await supabaseAdmin
-      .from('training_records')
-      .insert({
+    const data = await prisma.training_records.create({
+      data: {
         patient_id: patientId,
         clinic_id: clinicId,
         training_id: trainingId,
@@ -37,22 +33,15 @@ export async function POST(request: NextRequest) {
         interrupted: !completed,
         time_of_day: timeOfDay,
         actual_duration_seconds: actualDurationSeconds,
-        performed_at: new Date().toISOString()
-      })
-      .select()
-      .single()
+        performed_at: new Date(),
+      },
+    })
 
-    if (error) {
-      console.error('Record insert error:', error)
-      return NextResponse.json(
-        { error: '記録の保存に失敗しました', details: error },
-        { status: 500 }
-      )
-    }
+    const record = convertDatesToStrings(data, ['performed_at', 'created_at'])
 
     return NextResponse.json({
       success: true,
-      record: data
+      record
     })
 
   } catch (error) {

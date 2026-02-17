@@ -1,9 +1,9 @@
+// Migrated to Prisma API Routes
 import { NextRequest, NextResponse } from 'next/server'
 import { generateQRToken, generateQRCodeImage } from '@/lib/api/line-qr'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
 
 /**
- * QRコード画像を生成してURLを返す
+ * QRコード画像を生成してBase64データURLを返す
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,43 +29,10 @@ export async function POST(request: NextRequest) {
     // QRコード画像を生成
     const qrImageDataUrl = await generateQRCodeImage(qrToken.token)
 
-    // Base64データを抽出
-    const base64Data = qrImageDataUrl.replace(/^data:image\/\w+;base64,/, '')
-    const buffer = Buffer.from(base64Data, 'base64')
-
-    // Supabase Storageにアップロード
-    const client = getSupabaseClient()
-    const fileName = `qr-${qrToken.id}-${Date.now()}.png`
-    const { data: uploadData, error: uploadError } = await client
-      .storage
-      .from('line-qr-codes')
-      .upload(fileName, buffer, {
-        contentType: 'image/png',
-        cacheControl: '300' // 5分間キャッシュ
-      })
-
-    if (uploadError) {
-      console.error('QR画像アップロードエラー:', uploadError)
-
-      // アップロード失敗の場合、base64データURLをそのまま返す
-      return NextResponse.json({
-        success: true,
-        imageUrl: qrImageDataUrl,
-        isDataUrl: true,
-        token: qrToken.token
-      })
-    }
-
-    // 公開URLを取得
-    const { data: urlData } = client
-      .storage
-      .from('line-qr-codes')
-      .getPublicUrl(fileName)
-
     return NextResponse.json({
       success: true,
-      imageUrl: urlData.publicUrl,
-      isDataUrl: false,
+      imageUrl: qrImageDataUrl,
+      isDataUrl: true,
       token: qrToken.token
     })
   } catch (error) {

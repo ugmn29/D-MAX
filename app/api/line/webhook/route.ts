@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/line'
 import { processQRCodeCheckIn } from '@/lib/api/line-qr'
 import { getNotificationSettings } from '@/lib/api/notification-settings'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 // LINE Messaging APIのイベント型
 interface LineEvent {
@@ -390,8 +391,6 @@ async function handleQRCodeRequest(
   channelAccessToken: string,
   clinicId: string
 ) {
-  const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
-
   try {
     const patientId = state.context?.current_patient_id
     if (!patientId) {
@@ -404,12 +403,10 @@ async function handleQRCodeRequest(
     }
 
     // 患者情報を取得
-    const client = getSupabaseClient()
-    const { data: patient } = await client
-      .from('patients')
-      .select('*')
-      .eq('id', patientId)
-      .single()
+    const prisma = getPrismaClient()
+    const patient = await prisma.patients.findUnique({
+      where: { id: patientId }
+    })
 
     if (!patient) {
       await sendLineMessage(
@@ -477,8 +474,6 @@ async function handleAppointmentCheck(
   channelAccessToken: string,
   clinicId: string
 ) {
-  const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
-
   try {
     const patientId = state.context?.current_patient_id
     if (!patientId) {
@@ -491,14 +486,15 @@ async function handleAppointmentCheck(
     }
 
     // 今後の予約を取得
-    const client = getSupabaseClient()
-    const { data: appointments } = await client
-      .from('appointments')
-      .select('*')
-      .eq('patient_id', patientId)
-      .gte('start_time', new Date().toISOString())
-      .order('start_time', { ascending: true })
-      .limit(5)
+    const prisma = getPrismaClient()
+    const appointments = await prisma.appointments.findMany({
+      where: {
+        patient_id: patientId,
+        start_time: { gte: new Date() }
+      },
+      orderBy: { start_time: 'asc' },
+      take: 5
+    })
 
     if (!appointments || appointments.length === 0) {
       await sendLineMessage(
@@ -584,15 +580,11 @@ async function handleFollow(
  * 未連携用リッチメニューIDを取得（clinic_settingsから）
  */
 async function getUnregisteredRichMenuId(channelAccessToken: string): Promise<string | null> {
-  const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
-  const client = getSupabaseClient()
+  const prisma = getPrismaClient()
 
-  const { data } = await client
-    .from('clinic_settings')
-    .select('line_unregistered_rich_menu_id')
-    .eq('setting_key', 'line_rich_menu')
-    .limit(1)
-    .maybeSingle()
+  const data = await prisma.clinic_settings.findFirst({
+    where: { setting_key: 'line_rich_menu' }
+  })
 
   return data?.line_unregistered_rich_menu_id || null
 }
@@ -601,15 +593,11 @@ async function getUnregisteredRichMenuId(channelAccessToken: string): Promise<st
  * 連携済み用リッチメニューIDを取得（clinic_settingsから）
  */
 async function getRegisteredRichMenuId(channelAccessToken: string): Promise<string | null> {
-  const { getSupabaseClient } = await import('@/lib/utils/supabase-client')
-  const client = getSupabaseClient()
+  const prisma = getPrismaClient()
 
-  const { data } = await client
-    .from('clinic_settings')
-    .select('line_registered_rich_menu_id')
-    .eq('setting_key', 'line_rich_menu')
-    .limit(1)
-    .maybeSingle()
+  const data = await prisma.clinic_settings.findFirst({
+    where: { setting_key: 'line_rich_menu' }
+  })
 
   return data?.line_registered_rich_menu_id || null
 }

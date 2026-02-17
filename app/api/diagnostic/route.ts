@@ -1,47 +1,70 @@
 import { NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+import { getPrismaClient } from '@/lib/prisma-client'
 
 export async function GET() {
   try {
-    const supabase = getSupabaseClient()
+    const prisma = getPrismaClient()
 
     // 環境変数チェック
     const envCheck = {
-      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      supabaseUrlPrefix: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30),
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      databaseUrlPrefix: process.env.DATABASE_URL?.substring(0, 30),
       isMockMode: process.env.NEXT_PUBLIC_MOCK_MODE === 'true'
     }
 
     // データベース接続チェック
-    const { data: settings, error: settingsError } = await supabase
-      .from('clinic_settings')
-      .select('setting_key, setting_value')
-      .eq('clinic_id', '11111111-1111-1111-1111-111111111111')
-      .eq('setting_key', 'web_reservation')
-      .single()
+    let dbCheck: any
+    try {
+      const settings = await prisma.clinic_settings.findFirst({
+        where: {
+          clinic_id: '11111111-1111-1111-1111-111111111111',
+          setting_key: 'web_reservation'
+        },
+        select: { setting_key: true, setting_value: true }
+      })
 
-    const dbCheck = {
-      canConnect: !settingsError || settingsError.code === 'PGRST116',
-      hasWebReservationSettings: !!settings,
-      isEnabled: settings?.setting_value?.isEnabled,
-      error: settingsError ? {
-        code: settingsError.code,
-        message: settingsError.message
-      } : null
-    }
+      const settingValue = settings?.setting_value as any
 
-    return NextResponse.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      environment: {
-        ...envCheck
-      },
-      database: {
-        ...dbCheck,
-        webReservationSettings: settings?.setting_value
+      dbCheck = {
+        canConnect: true,
+        hasWebReservationSettings: !!settings,
+        isEnabled: settingValue?.isEnabled,
+        error: null
       }
-    })
+
+      return NextResponse.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: {
+          ...envCheck
+        },
+        database: {
+          ...dbCheck,
+          webReservationSettings: settingValue
+        }
+      })
+    } catch (dbError: any) {
+      dbCheck = {
+        canConnect: false,
+        hasWebReservationSettings: false,
+        isEnabled: false,
+        error: {
+          message: dbError.message
+        }
+      }
+
+      return NextResponse.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: {
+          ...envCheck
+        },
+        database: {
+          ...dbCheck,
+          webReservationSettings: null
+        }
+      })
+    }
   } catch (error: any) {
     return NextResponse.json({
       status: 'error',

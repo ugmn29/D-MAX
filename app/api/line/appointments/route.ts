@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getPrismaClient } from '@/lib/prisma-client'
+import { jsonToObject } from '@/lib/prisma-helpers'
 
 /**
  * LINE予約管理API
@@ -15,54 +16,55 @@ const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
  * 患者のWeb予約設定を取得
  */
 async function getPatientWebBookingSettings(patientId: string, clinicId: string) {
-  const supabase = supabaseAdmin
-  if (!supabase) return null
+  const prisma = getPrismaClient()
 
-  const { data, error } = await supabase
-    .from('patient_web_booking_settings')
-    .select('*')
-    .eq('patient_id', patientId)
-    .eq('clinic_id', clinicId)
-    .single()
-
-  if (error) {
+  try {
+    const data = await prisma.patient_web_booking_settings.findFirst({
+      where: {
+        patient_id: patientId,
+        clinic_id: clinicId,
+      }
+    })
+    return data
+  } catch {
     // テーブルが存在しない場合やレコードがない場合はnullを返す
     return null
   }
-
-  return data
 }
 
 /**
  * 患者のキャンセル履歴数を取得（過去30日間）
  */
 async function getPatientCancelCount(patientId: string, clinicId: string): Promise<number> {
-  const supabase = supabaseAdmin
-  if (!supabase) return 0
+  const prisma = getPrismaClient()
 
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+  try {
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  const { count, error } = await supabase
-    .from('appointments')
-    .select('*', { count: 'exact', head: true })
-    .eq('patient_id', patientId)
-    .eq('status', 'キャンセル')
-    .gte('cancelled_at', thirtyDaysAgoStr)
-    .not('memo', 'is', null)
-    .like('memo', '%LINE経由キャンセル%')
+    const count = await prisma.appointments.count({
+      where: {
+        patient_id: patientId,
+        status: 'CANCELLED',
+        cancelled_at: { gte: thirtyDaysAgo },
+        memo: {
+          not: null,
+          contains: 'LINE経由キャンセル',
+        }
+      }
+    })
 
-  if (error) {
+    return count
+  } catch (error) {
     console.error('キャンセル数取得エラー:', error)
     return 0
   }
-
-  return count || 0
 }
 
 export async function GET(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
+
     const { searchParams } = new URL(request.url)
     const line_user_id = searchParams.get('line_user_id')
 
@@ -75,58 +77,38 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      console.error('❌ supabaseAdmin未初期化 - SUPABASE_SERVICE_ROLE_KEY が設定されていない可能性があります')
-      return NextResponse.json(
-        { error: 'サーバー設定エラー', details: 'supabaseAdmin未初期化 (SUPABASE_SERVICE_ROLE_KEY未設定)' },
-        { status: 500 }
-      )
-    }
-
     // クリニック情報を取得（電話番号）- clinic_settingsテーブルのclinic_infoから取得
     let clinicPhone: string | null = null
-    const { data: clinicInfoSetting } = await supabase
-      .from('clinic_settings')
-      .select('setting_value')
-      .eq('clinic_id', DEMO_CLINIC_ID)
-      .eq('setting_key', 'clinic_info')
-      .single()
+    const clinicInfoSetting = await prisma.clinic_settings.findFirst({
+      where: {
+        clinic_id: DEMO_CLINIC_ID,
+        setting_key: 'clinic_info',
+      },
+      select: { setting_value: true }
+    })
 
-    if (clinicInfoSetting?.setting_value?.phone) {
-      clinicPhone = clinicInfoSetting.setting_value.phone
+    const clinicInfoValue = jsonToObject<any>(clinicInfoSetting?.setting_value)
+    if (clinicInfoValue?.phone) {
+      clinicPhone = clinicInfoValue.phone
     } else {
       // フォールバック: clinicsテーブルからも確認
-      const { data: clinic } = await supabase
-        .from('clinics')
-        .select('phone')
-        .eq('id', DEMO_CLINIC_ID)
-        .single()
+      const clinic = await prisma.clinics.findUnique({
+        where: { id: DEMO_CLINIC_ID },
+        select: { phone: true }
+      })
       clinicPhone = clinic?.phone || null
     }
 
-    // LINE連携患者を取得（JOINなしで）
+    // LINE連携患者を取得
     console.log('📊 連携データ取得開始...')
-    const { data: linkages, error: linkageError } = await supabase
-      .from('line_patient_linkages')
-      .select('*')
-      .eq('line_user_id', line_user_id)
-
-    console.log('📊 連携データ取得完了:', {
-      count: linkages?.length || 0,
-      linkages: linkages,
-      error: linkageError?.message,
-      errorCode: linkageError?.code
+    const linkages = await prisma.line_patient_linkages.findMany({
+      where: { line_user_id }
     })
 
-    if (linkageError) {
-      console.error('連携情報取得エラー:', linkageError)
-      return NextResponse.json(
-        { error: '連携情報の取得に失敗しました', details: linkageError.message, code: linkageError.code },
-        { status: 500 }
-      )
-    }
+    console.log('📊 連携データ取得完了:', {
+      count: linkages.length,
+      linkages: linkages,
+    })
 
     if (!linkages || linkages.length === 0) {
       return NextResponse.json({
@@ -141,11 +123,10 @@ export async function GET(request: NextRequest) {
     // 各連携の患者情報を取得
     const linkagesWithPatients = await Promise.all(
       linkages.map(async (linkage) => {
-        const { data: patient } = await supabase
-          .from('patients')
-          .select('id, last_name, first_name, patient_number')
-          .eq('id', linkage.patient_id)
-          .single()
+        const patient = await prisma.patients.findUnique({
+          where: { id: linkage.patient_id },
+          select: { id: true, last_name: true, first_name: true, patient_number: true }
+        })
 
         return {
           ...linkage,
@@ -157,7 +138,7 @@ export async function GET(request: NextRequest) {
     // 連携患者のIDリストを取得
     const patientIds = linkages.map(l => l.patient_id)
 
-    // 予約を取得（今日以降の予約のみ）- JOINなしで
+    // 予約を取得（今日以降の予約のみ）
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayStr = today.toISOString().split('T')[0]
@@ -165,57 +146,53 @@ export async function GET(request: NextRequest) {
     console.log('📅 予約取得開始:', { patientIds, date: todayStr })
 
     // まず全ての未来予約を取得（デバッグ用）
-    const { data: allFutureAppointments } = await supabase
-      .from('appointments')
-      .select('id, patient_id, appointment_date')
-      .gte('appointment_date', todayStr)
-      .limit(20)
+    const allFutureAppointments = await prisma.appointments.findMany({
+      where: {
+        appointment_date: { gte: today }
+      },
+      select: { id: true, patient_id: true, appointment_date: true },
+      take: 20
+    })
 
-    console.log('📅 全未来予約:', allFutureAppointments?.map(a => ({
+    console.log('📅 全未来予約:', allFutureAppointments.map(a => ({
       patient_id: a.patient_id,
       patient_id_type: typeof a.patient_id,
       date: a.appointment_date
     })))
     console.log('📅 連携患者ID:', patientIds.map(id => ({ id, type: typeof id })))
 
-    const { data: appointments, error: appointmentError } = await supabase
-      .from('appointments')
-      .select('*')
-      .in('patient_id', patientIds)
-      .gte('appointment_date', todayStr)
-      .order('appointment_date', { ascending: true })
-      .order('start_time', { ascending: true })
-
-    console.log('📅 予約取得完了:', {
-      count: appointments?.length || 0,
-      error: appointmentError?.message
+    const appointments = await prisma.appointments.findMany({
+      where: {
+        patient_id: { in: patientIds },
+        appointment_date: { gte: today }
+      },
+      orderBy: [
+        { appointment_date: 'asc' },
+        { start_time: 'asc' }
+      ]
     })
 
-    if (appointmentError) {
-      console.error('予約取得エラー:', appointmentError)
-      return NextResponse.json(
-        { error: '予約情報の取得に失敗しました', details: appointmentError.message },
-        { status: 500 }
-      )
-    }
+    console.log('📅 予約取得完了:', {
+      count: appointments.length,
+    })
 
     // スタッフ情報を取得（staff1_id を使用）
-    const staffIds = [...new Set((appointments || []).map(a => a.staff1_id).filter(Boolean))]
+    const staffIds = [...new Set(appointments.map(a => a.staff1_id).filter(Boolean))] as string[]
     let staffMap: Record<string, any> = {}
     if (staffIds.length > 0) {
-      const { data: staffList } = await supabase
-        .from('staff')
-        .select('id, last_name, first_name')
-        .in('id', staffIds)
+      const staffList = await prisma.staff.findMany({
+        where: { id: { in: staffIds } },
+        select: { id: true, name: true }
+      })
 
-      staffMap = (staffList || []).reduce((acc, s) => {
+      staffMap = staffList.reduce((acc, s) => {
         acc[s.id] = s
         return acc
       }, {} as Record<string, any>)
     }
 
     // 予約データを整形
-    const formattedAppointments = (appointments || []).map(apt => {
+    const formattedAppointments = appointments.map(apt => {
       // 患者情報はlinkagesWithPatientsから取得
       const linkedPatient = linkagesWithPatients.find(l => l.patient_id === apt.patient_id)
       const patient = linkedPatient?.patients
@@ -224,10 +201,18 @@ export async function GET(request: NextRequest) {
       // start_timeとend_timeからdurationを計算（分）
       let duration = 30 // デフォルト
       if (apt.start_time && apt.end_time) {
-        const [startH, startM] = apt.start_time.split(':').map(Number)
-        const [endH, endM] = apt.end_time.split(':').map(Number)
-        duration = (endH * 60 + endM) - (startH * 60 + startM)
+        // Prisma returns Time fields as Date objects
+        const startDate = new Date(apt.start_time)
+        const endDate = new Date(apt.end_time)
+        const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
+        const endMinutes = endDate.getHours() * 60 + endDate.getMinutes()
+        duration = endMinutes - startMinutes
       }
+
+      // start_time を HH:MM 形式に変換
+      const startTimeStr = apt.start_time
+        ? `${String(new Date(apt.start_time).getHours()).padStart(2, '0')}:${String(new Date(apt.start_time).getMinutes()).padStart(2, '0')}`
+        : null
 
       return {
         id: apt.id,
@@ -240,18 +225,18 @@ export async function GET(request: NextRequest) {
           name: '不明',
           patient_number: 0
         },
-        appointment_date: apt.appointment_date,
-        appointment_time: apt.start_time, // start_timeを使用
+        appointment_date: apt.appointment_date ? apt.appointment_date.toISOString().split('T')[0] : null,
+        appointment_time: startTimeStr, // start_timeを使用
         duration: duration,
         status: apt.status,
         treatment_type: apt.menu1_id || apt.menu2_id ? '診療予約' : null, // menu_idから推定
         notes: apt.memo,
         staff: staff ? {
           id: staff.id,
-          name: `${staff.last_name} ${staff.first_name}`
+          name: staff.name
         } : null,
         cancellation_reason: apt.cancel_reason_id ? 'キャンセル' : null,
-        cancelled_at: apt.cancelled_at,
+        cancelled_at: apt.cancelled_at?.toISOString() || null,
         // 予約変更用に元の診療メニューと担当者IDを保持
         menu1_id: apt.menu1_id || null,
         menu2_id: apt.menu2_id || null,
@@ -331,13 +316,13 @@ export async function GET(request: NextRequest) {
       // デバッグ情報
       debug: {
         linkage_patient_ids: patientIds,
-        raw_appointments_count: appointments?.length || 0,
+        raw_appointments_count: appointments.length,
         linkages_with_patients: linkagesWithPatients.map(l => ({
           patient_id: l.patient_id,
           has_patient_info: !!l.patients
         })),
         // 全未来予約のpatient_id一覧（比較用）
-        all_future_appointment_patient_ids: allFutureAppointments?.map(a => a.patient_id) || [],
+        all_future_appointment_patient_ids: allFutureAppointments.map(a => a.patient_id),
         today_date: todayStr
       }
     })
@@ -359,6 +344,8 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const prisma = getPrismaClient()
+
     const { appointment_id, line_user_id, cancellation_reason } = await request.json()
 
     if (!appointment_id || !line_user_id) {
@@ -368,32 +355,21 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const supabase = supabaseAdmin
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'サーバー設定エラー' },
-        { status: 500 }
-      )
-    }
-
     // 予約情報を取得
-    const { data: appointment, error: appointmentError } = await supabase
-      .from('appointments')
-      .select('id, patient_id, appointment_date, start_time, status, memo')
-      .eq('id', appointment_id)
-      .single()
+    const appointment = await prisma.appointments.findUnique({
+      where: { id: appointment_id },
+      select: { id: true, patient_id: true, appointment_date: true, start_time: true, status: true, memo: true }
+    })
 
-    if (appointmentError || !appointment) {
+    if (!appointment) {
       return NextResponse.json(
         { error: '予約が見つかりません' },
         { status: 404 }
       )
     }
 
-    // 既にキャンセル済みか確認（statusがキャンセル系の値かチェック）
-    const cancelledStatuses = ['cancelled', 'キャンセル', 'キャンセル（様々）']
-    if (cancelledStatuses.includes(appointment.status)) {
+    // 既にキャンセル済みか確認
+    if (appointment.status === 'CANCELLED') {
       return NextResponse.json(
         { error: 'この予約は既にキャンセルされています' },
         { status: 400 }
@@ -401,7 +377,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 過去の予約かチェック
-    const appointmentDateTime = new Date(`${appointment.appointment_date}T${appointment.start_time}`)
+    // Prisma returns Date for appointment_date and Time for start_time
+    const appointmentDateStr = appointment.appointment_date.toISOString().split('T')[0]
+    const startTimeDate = new Date(appointment.start_time)
+    const startTimeStr = `${String(startTimeDate.getHours()).padStart(2, '0')}:${String(startTimeDate.getMinutes()).padStart(2, '0')}`
+    const appointmentDateTime = new Date(`${appointmentDateStr}T${startTimeStr}`)
     const now = new Date()
 
     if (appointmentDateTime < now) {
@@ -412,12 +392,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     // LINE連携を確認（患者が連携されているか）
-    const { data: linkage } = await supabase
-      .from('line_patient_linkages')
-      .select('id')
-      .eq('line_user_id', line_user_id)
-      .eq('patient_id', appointment.patient_id)
-      .single()
+    const linkage = await prisma.line_patient_linkages.findFirst({
+      where: {
+        line_user_id,
+        patient_id: appointment.patient_id,
+      },
+      select: { id: true }
+    })
 
     if (!linkage) {
       return NextResponse.json(
@@ -468,32 +449,22 @@ export async function PATCH(request: NextRequest) {
       : '[LINE経由キャンセル]'
     const newMemo = existingMemo ? `${existingMemo}\n${cancelNote}` : cancelNote
 
-    const { data: updatedAppointment, error: updateError } = await supabase
-      .from('appointments')
-      .update({
-        status: 'キャンセル', // enum値に合わせる
+    const updatedAppointment = await prisma.appointments.update({
+      where: { id: appointment_id },
+      data: {
+        status: 'CANCELLED',
         memo: newMemo,
-        cancelled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', appointment_id)
-      .select()
-      .single()
-
-    if (updateError) {
-      console.error('予約キャンセルエラー:', updateError)
-      return NextResponse.json(
-        { error: '予約のキャンセルに失敗しました', details: updateError.message },
-        { status: 500 }
-      )
-    }
+        cancelled_at: new Date(),
+        updated_at: new Date()
+      }
+    })
 
     return NextResponse.json({
       success: true,
       appointment: {
         id: updatedAppointment.id,
         status: updatedAppointment.status,
-        cancelled_at: updatedAppointment.cancelled_at
+        cancelled_at: updatedAppointment.cancelled_at?.toISOString() || null
       },
       message: '予約をキャンセルしました'
     })

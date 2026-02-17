@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/utils/supabase-client'
+// Migrated to Prisma API Routes
 import { MOCK_MODE, getMockStaff, addMockStaff, removeMockStaff, updateMockStaff, getMockStaffPositions, initializeMockData } from '@/lib/utils/mock-mode'
 
 export interface Staff {
@@ -8,6 +8,7 @@ export interface Staff {
   email?: string
   phone?: string
   position_id?: string
+  position?: StaffPosition
   role: string
   is_active: boolean
   created_at: string
@@ -80,70 +81,23 @@ export async function getAllStaff(clinicId: string): Promise<Staff[]> {
     }))
   }
 
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const client = getSupabaseClient()
-    const { data, error } = await client
-      .from('staff')
-      .select(`
-        *,
-        position:staff_positions(*)
-      `)
-      .eq('clinic_id', clinicId)
-      .order('name')
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff?clinic_id=${clinicId}&active_only=false`)
 
-    if (error) {
-      console.error('全スタッフ取得エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('全スタッフ取得エラー (API):', errorData)
+      throw new Error(errorData.error || '全スタッフ取得に失敗しました')
     }
 
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('全スタッフ取得エラー:', error)
-    // エラー時はダミーデータを返す
-    return [
-      {
-        id: '1',
-        name: '田中太郎',
-        name_kana: 'タナカタロウ',
-        email: 'tanaka@example.com',
-        phone: '03-1234-5678',
-        position_id: '1',
-        role: 'doctor',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        clinic_id: clinicId,
-        position: {
-          id: '1',
-          name: '院長',
-          sort_order: 1,
-          clinic_id: clinicId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      },
-      {
-        id: '2',
-        name: '佐藤花子',
-        name_kana: 'サトウハナコ',
-        email: 'sato@example.com',
-        phone: '03-1234-5679',
-        position_id: '2',
-        role: 'staff',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        clinic_id: clinicId,
-        position: {
-          id: '2',
-          name: '看護師',
-          sort_order: 2,
-          clinic_id: clinicId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      }
-    ]
+    throw error
   }
 }
 
@@ -173,77 +127,23 @@ export async function getStaff(clinicId: string): Promise<Staff[]> {
     }))
   }
 
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const client = getSupabaseClient()
-  const { data, error } = await client
-      .from('staff')
-      .select(`
-        *,
-        position:staff_positions(*)
-      `)
-      .eq('clinic_id', clinicId)
-      .eq('is_active', true)
-      .order('name')
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff?clinic_id=${clinicId}&active_only=true`)
 
-    if (error) {
-      console.error('スタッフ取得エラー詳細:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-        clinicId: clinicId
-      })
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ取得エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ取得に失敗しました')
     }
 
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('スタッフ取得エラー:', error)
-    // エラー時はダミーデータを返す
-    return [
-      {
-        id: '1',
-        name: '田中太郎',
-        name_kana: 'タナカタロウ',
-        email: 'tanaka@example.com',
-        phone: '03-1234-5678',
-        position_id: '1',
-        role: 'doctor',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        clinic_id: clinicId,
-        position: {
-          id: '1',
-          name: '院長',
-          sort_order: 1,
-          clinic_id: clinicId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      },
-      {
-        id: '2',
-        name: '佐藤花子',
-        name_kana: 'サトウハナコ',
-        email: 'sato@example.com',
-        phone: '03-1234-5679',
-        position_id: '2',
-        role: 'staff',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        clinic_id: clinicId,
-        position: {
-          id: '2',
-          name: '看護師',
-          sort_order: 2,
-          clinic_id: clinicId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      }
-    ]
+    throw error
   }
 }
 
@@ -269,64 +169,54 @@ export async function createStaff(clinicId: string, data: CreateStaffData): Prom
     return newStaff
   }
 
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const client = getSupabaseClient()
-    const { data: newStaff, error } = await client
-      .from('staff')
-      .insert({
-        ...data,
-        clinic_id: clinicId,
-        is_active: data.is_active ?? true
-      })
-      .select()
-      .single()
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff?clinic_id=${clinicId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
 
-    if (error) {
-      console.error('スタッフ作成エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ作成エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ作成に失敗しました')
     }
 
-    return newStaff
+    return await response.json()
   } catch (error) {
     console.error('スタッフ作成エラー:', error)
-    // エラー時はダミーデータを返す
-    return {
-      id: Date.now().toString(),
-      name: data.name,
-      name_kana: data.name_kana,
-      email: data.email,
-      phone: data.phone,
-      position_id: data.position_id,
-      role: data.role,
-      is_active: data.is_active ?? true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      clinic_id: clinicId
-    }
+    throw error
   }
 }
 
 // スタッフ更新
 export async function updateStaff(clinicId: string, staffId: string, data: UpdateStaffData): Promise<Staff> {
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const client = getSupabaseClient()
-    const { data: updatedStaff, error } = await client
-      .from('staff')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', staffId)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff/${staffId}?clinic_id=${clinicId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
 
-    if (error) {
-      console.error('スタッフ更新エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ更新エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ更新に失敗しました')
     }
 
-    return updatedStaff
+    return await response.json()
   } catch (error) {
     console.error('スタッフ更新エラー:', error)
     throw error
@@ -335,20 +225,19 @@ export async function updateStaff(clinicId: string, staffId: string, data: Updat
 
 // スタッフ削除（論理削除）
 export async function deleteStaff(clinicId: string, staffId: string): Promise<void> {
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const client = getSupabaseClient()
-    const { error } = await client
-      .from('staff')
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', staffId)
-      .eq('clinic_id', clinicId)
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff/${staffId}?clinic_id=${clinicId}`, {
+      method: 'DELETE'
+    })
 
-    if (error) {
-      console.error('スタッフ削除エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ削除エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ削除に失敗しました')
     }
   } catch (error) {
     console.error('スタッフ削除エラー:', error)
@@ -358,104 +247,76 @@ export async function deleteStaff(clinicId: string, staffId: string): Promise<vo
 
 // スタッフ役職一覧取得
 export async function getStaffPositions(clinicId: string): Promise<StaffPosition[]> {
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const client = getSupabaseClient()
-  const { data, error } = await client
-      .from('staff_positions')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .order('sort_order')
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-positions?clinic_id=${clinicId}`)
 
-    if (error) {
-      console.error('スタッフ役職取得エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ役職取得エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ役職取得に失敗しました')
     }
 
-    return data || []
+    return await response.json()
   } catch (error) {
     console.error('スタッフ役職取得エラー:', error)
-    // エラー時はダミーデータを返す
-    return [
-      {
-        id: '1',
-        name: '院長',
-        sort_order: 1,
-        clinic_id: clinicId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: '2',
-        name: '看護師',
-        sort_order: 2,
-        clinic_id: clinicId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: '3',
-        name: '受付',
-        sort_order: 3,
-        clinic_id: clinicId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-    ]
+    throw error
   }
 }
 
 // スタッフ役職作成
 export async function createStaffPosition(clinicId: string, data: CreateStaffPositionData): Promise<StaffPosition> {
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const { data: newPosition, error } = await supabase
-      .from('staff_positions')
-      .insert({
-        ...data,
-        clinic_id: clinicId
-      })
-      .select()
-      .single()
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-positions?clinic_id=${clinicId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
 
-    if (error) {
-      console.error('スタッフ役職作成エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ役職作成エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ役職作成に失敗しました')
     }
 
-    return newPosition
+    return await response.json()
   } catch (error) {
     console.error('スタッフ役職作成エラー:', error)
-    // エラー時はダミーデータを返す
-    return {
-      id: Date.now().toString(),
-      name: data.name,
-      sort_order: data.sort_order,
-      clinic_id: clinicId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
+    throw error
   }
 }
 
 // スタッフ役職更新
 export async function updateStaffPosition(clinicId: string, positionId: string, data: UpdateStaffPositionData): Promise<StaffPosition> {
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const { data: updatedPosition, error } = await supabase
-      .from('staff_positions')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', positionId)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-positions/${positionId}?clinic_id=${clinicId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
 
-    if (error) {
-      console.error('スタッフ役職更新エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ役職更新エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ役職更新に失敗しました')
     }
 
-    return updatedPosition
+    return await response.json()
   } catch (error) {
     console.error('スタッフ役職更新エラー:', error)
     throw error
@@ -464,16 +325,19 @@ export async function updateStaffPosition(clinicId: string, positionId: string, 
 
 // スタッフ役職削除
 export async function deleteStaffPosition(clinicId: string, positionId: string): Promise<void> {
+  // API Route経由でPrismaを使用（サーバーサイド・クライアントサイド両方）
   try {
-    const { error } = await supabase
-      .from('staff_positions')
-      .delete()
-      .eq('id', positionId)
-      .eq('clinic_id', clinicId)
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : '' // クライアントサイドでは相対パスを使用
+    const response = await fetch(`${baseUrl}/api/staff-positions/${positionId}?clinic_id=${clinicId}`, {
+      method: 'DELETE'
+    })
 
-    if (error) {
-      console.error('スタッフ役職削除エラー:', error)
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('スタッフ役職削除エラー (API):', errorData)
+      throw new Error(errorData.error || 'スタッフ役職削除に失敗しました')
     }
   } catch (error) {
     console.error('スタッフ役職削除エラー:', error)

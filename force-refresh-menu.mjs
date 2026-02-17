@@ -5,7 +5,7 @@ const newMenuId = 'richmenu-e0a7d82120f985f18a8d26d6c5b5be32';
 
 // 1. デフォルトメニューを解除
 console.log('📌 ステップ1: デフォルトメニューを解除');
-const unlinkResponse = await fetch('https://dmax-mu.vercel.app/api/line/unlink-default-menu', {
+const unlinkResponse = await fetch('https://shikabot-mu.vercel.app/api/line/unlink-default-menu', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -28,7 +28,7 @@ await new Promise(resolve => setTimeout(resolve, 2000));
 
 // 2. 新しいメニューをデフォルトに設定
 console.log('\n📌 ステップ2: 新しいメニューをデフォルトに設定');
-const setResponse = await fetch('https://dmax-mu.vercel.app/api/line/set-default-rich-menu', {
+const setResponse = await fetch('https://shikabot-mu.vercel.app/api/line/set-default-rich-menu', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
