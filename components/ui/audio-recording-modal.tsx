@@ -25,8 +25,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
   const recognitionRef = useRef<any>(null)
   const wantRecordingRef = useRef(false)
+  const lastToggleRef = useRef(0)
 
-  // 録音を停止する内部関数（React要素のpropsに渡さない）
+  // 録音を停止する内部関数
   const doStop = () => {
     wantRecordingRef.current = false
     if (recognitionRef.current) {
@@ -36,8 +37,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     setInterimText('')
   }
 
-  const startRecording = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
+  const doStart = (e: React.MouseEvent) => {
     console.log('[STT] startRecording')
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -146,18 +146,26 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       setIsRecording(false)
       recognitionRef.current = null
     }
-  }, [])
+  }
 
-  // 停止ボタンのハンドラ（直接インライン - React effectsに参照されない）
-  const handleStopClick = useCallback((e: React.MouseEvent) => {
+  // トグルボタン: 開始/停止を1つのボタンで制御（DOM再利用問題を回避）
+  const handleToggleRecording = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    // ユーザーが明示的にクリックした場合のみ実行
-    if (!e.isTrusted) {
-      console.warn('[STT] 非ユーザーイベント - 無視')
+    // debounce: 500ms以内の連続クリックを無視
+    const now = Date.now()
+    if (now - lastToggleRef.current < 500) {
+      console.log('[STT] debounce - クリック無視')
       return
     }
-    console.log('[STT] ユーザーが停止ボタンをクリック')
-    doStop()
+    lastToggleRef.current = now
+
+    if (wantRecordingRef.current) {
+      console.log('[STT] toggle → 停止')
+      doStop()
+    } else {
+      console.log('[STT] toggle → 開始')
+      doStart(e)
+    }
   }, [])
 
   const generateSummary = async () => {
@@ -238,25 +246,20 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">会話内容</h3>
             <div className="flex items-center gap-2">
-              {!isRecording ? (
-                <Button
-                  onClick={startRecording}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-1"
-                  size="sm"
-                >
-                  <Mic className="w-4 h-4 mr-1" />
-                  録音開始
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleStopClick}
-                  className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-1 animate-pulse"
-                  size="sm"
-                >
-                  <Square className="w-4 h-4 mr-1" />
-                  録音停止
-                </Button>
-              )}
+              <Button
+                onClick={handleToggleRecording}
+                className={isRecording
+                  ? "bg-gray-700 hover:bg-gray-800 text-white px-4 py-1 animate-pulse"
+                  : "bg-red-500 hover:bg-red-600 text-white px-4 py-1"
+                }
+                size="sm"
+              >
+                {isRecording ? (
+                  <><Square className="w-4 h-4 mr-1" />録音停止</>
+                ) : (
+                  <><Mic className="w-4 h-4 mr-1" />録音開始</>
+                )}
+              </Button>
               <Button
                 onClick={clearAll}
                 variant="outline"
