@@ -24,14 +24,21 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const [interimText, setInterimText] = useState('')
 
   const recognitionRef = useRef<any>(null)
-  // ユーザーが録音を望んでいるかどうか（stopRecordingで明示的にfalseにする）
   const wantRecordingRef = useRef(false)
 
-  const startRecording = useCallback((e?: React.MouseEvent) => {
-    // イベントバブリング防止
-    e?.stopPropagation()
+  // 録音を停止する内部関数（React要素のpropsに渡さない）
+  const doStop = () => {
+    wantRecordingRef.current = false
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+    }
+    setIsRecording(false)
+    setInterimText('')
+  }
 
-    console.log('[STT] startRecording呼び出し, wantRecording:', wantRecordingRef.current)
+  const startRecording = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    console.log('[STT] startRecording')
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) {
@@ -39,15 +46,14 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       return
     }
 
-    // 既存のrecognitionがあれば停止
     if (recognitionRef.current) {
-      console.log('[STT] 既存recognition停止')
       try { recognitionRef.current.abort() } catch {}
       recognitionRef.current = null
     }
 
-    // ユーザーの意図: 録音したい
     wantRecordingRef.current = true
+    // setIsRecordingは同期的に設定（onstartではなくここで）
+    setIsRecording(true)
 
     const recognition = new SpeechRecognition()
     recognition.lang = 'ja-JP'
@@ -56,8 +62,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     recognition.maxAlternatives = 1
 
     recognition.onstart = () => {
-      console.log('[STT] onstart - 音声認識開始')
-      setIsRecording(true)
+      console.log('[STT] onstart')
     }
 
     recognition.onaudiostart = () => {
@@ -69,15 +74,15 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     recognition.onspeechend = () => {
-      console.log('[STT] onspeechend - 音声検出終了')
+      console.log('[STT] onspeechend')
     }
 
     recognition.onaudioend = () => {
-      console.log('[STT] onaudioend - マイク音声受信終了')
+      console.log('[STT] onaudioend')
     }
 
     recognition.onresult = (event: any) => {
-      console.log('[STT] onresult - results:', event.results.length, ', resultIndex:', event.resultIndex)
+      console.log('[STT] onresult - results:', event.results.length)
       let interim = ''
       let finalTranscript = ''
 
@@ -85,7 +90,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         const result = event.results[i]
         if (result.isFinal) {
           finalTranscript += result[0].transcript
-          console.log('[STT] final:', result[0].transcript, ', confidence:', result[0].confidence)
+          console.log('[STT] final:', result[0].transcript)
         } else {
           interim += result[0].transcript
         }
@@ -95,17 +100,18 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         setTranscription(prev => prev + (prev ? '\n' : '') + finalTranscript)
         setInterimText('')
       } else if (interim) {
-        console.log('[STT] interim:', interim)
         setInterimText(interim)
       }
     }
 
     recognition.onerror = (event: any) => {
-      console.error('[STT] onerror:', event.error, ', wantRecording:', wantRecordingRef.current)
+      console.error('[STT] onerror:', event.error)
       if (event.error === 'not-allowed') {
         alert('マイクへのアクセスが許可されていません。ブラウザの設定を確認してください。')
         wantRecordingRef.current = false
+        setIsRecording(false)
       }
+      // no-speech/aborted以外のエラーは録音停止
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
         wantRecordingRef.current = false
         setIsRecording(false)
@@ -114,8 +120,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     recognition.onend = () => {
-      console.log('[STT] onend - wantRecording:', wantRecordingRef.current, ', refMatch:', recognitionRef.current === recognition)
-      // ユーザーがまだ録音を望んでいれば自動再起動
+      console.log('[STT] onend - wantRecording:', wantRecordingRef.current)
       if (wantRecordingRef.current && recognitionRef.current === recognition) {
         console.log('[STT] 自動再起動...')
         try {
@@ -143,18 +148,16 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   }, [])
 
-  const stopRecording = useCallback((e?: React.MouseEvent) => {
-    e?.stopPropagation()
-    // コールスタックを出力して何がstopRecordingを呼んでいるか追跡
-    console.trace('[STT] stopRecording呼び出し')
-    wantRecordingRef.current = false
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch {}
+  // 停止ボタンのハンドラ（直接インライン - React effectsに参照されない）
+  const handleStopClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    // ユーザーが明示的にクリックした場合のみ実行
+    if (!e.isTrusted) {
+      console.warn('[STT] 非ユーザーイベント - 無視')
+      return
     }
-    setIsRecording(false)
-    setInterimText('')
+    console.log('[STT] ユーザーが停止ボタンをクリック')
+    doStop()
   }, [])
 
   const generateSummary = async () => {
@@ -189,7 +192,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   }
 
   const clearAll = () => {
-    if (isRecording) stopRecording()
+    doStop()
     setTranscription('')
     setSummary('')
     setInterimText('')
@@ -246,7 +249,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
                 </Button>
               ) : (
                 <Button
-                  onClick={stopRecording}
+                  onClick={handleStopClick}
                   className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-1 animate-pulse"
                   size="sm"
                 >
