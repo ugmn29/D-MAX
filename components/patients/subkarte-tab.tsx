@@ -2329,14 +2329,7 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
         </div>
       </div>
 
-      {/* モーダル群 */}
-      <AudioRecordingModal
-        isOpen={showAudioRecordingModal}
-        onClose={() => setShowAudioRecordingModal(false)}
-        patientId={patientId}
-        clinicId={clinicId}
-        staffId={getCurrentStaffId()}
-      />
+      {/* モーダル群（AudioRecordingModalは1693行目で既にレンダリング済み） */}
 
       <HandwritingModal
         isOpen={showHandwritingModal}
