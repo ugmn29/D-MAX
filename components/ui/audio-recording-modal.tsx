@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Modal } from './modal'
 import { Button } from './button'
 import { Textarea } from './textarea'
@@ -25,19 +25,19 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
   const recognitionRef = useRef<any>(null)
   const wantRecordingRef = useRef(false)
-  const lastToggleRef = useRef(0)
+  const toggleButtonRef = useRef<HTMLButtonElement>(null)
 
   // 録音を停止する内部関数
-  const doStop = () => {
+  const doStopRef = useRef(() => {
     wantRecordingRef.current = false
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
     setIsRecording(false)
     setInterimText('')
-  }
+  })
 
-  const doStart = (e: React.MouseEvent) => {
+  const doStartRef = useRef(() => {
     console.log('[STT] startRecording')
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -52,7 +52,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     wantRecordingRef.current = true
-    // setIsRecordingは同期的に設定（onstartではなくここで）
     setIsRecording(true)
 
     const recognition = new SpeechRecognition()
@@ -111,7 +110,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         wantRecordingRef.current = false
         setIsRecording(false)
       }
-      // no-speech/aborted以外のエラーは録音停止
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
         wantRecordingRef.current = false
         setIsRecording(false)
@@ -146,35 +144,32 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       setIsRecording(false)
       recognitionRef.current = null
     }
-  }
+  })
 
-  // トグルボタン: onPointerDownで制御（onClick phantom call回避）
-  const handleToggleRecording = useCallback((e: React.PointerEvent) => {
-    e.stopPropagation()
-    e.preventDefault()
+  // ネイティブDOMイベントリスナーでトグル制御
+  // Reactの合成イベントシステムを完全にバイパス
+  useEffect(() => {
+    const button = toggleButtonRef.current
+    if (!button) return
 
-    // primary button（左クリック/タッチ）のみ
-    if (e.button !== 0) return
+    const handler = (e: PointerEvent) => {
+      if (e.button !== 0) return
+      e.stopPropagation()
+      e.preventDefault()
 
-    const now = Date.now()
-    const diff = now - lastToggleRef.current
-    const target = (e.target as HTMLElement)
-    console.log('[STT] handleToggle: wantRec=' + wantRecordingRef.current + ' diff=' + diff + 'ms lastToggle=' + lastToggleRef.current + ' type=' + e.type + ' pointerId=' + e.pointerId + ' target=' + target.tagName + ' isRec=' + isRecording)
-    console.trace('[STT] toggle call stack')
+      console.log('[STT] native pointerdown: wantRec=' + wantRecordingRef.current)
 
-    if (wantRecordingRef.current) {
-      // 開始後3秒以内は停止を無視（phantom call対策）
-      if (diff < 3000) {
-        console.log('[STT] 開始直後の停止を無視 (' + diff + 'ms)')
-        return
+      if (wantRecordingRef.current) {
+        console.log('[STT] toggle → 停止 (native)')
+        doStopRef.current()
+      } else {
+        console.log('[STT] toggle → 開始 (native)')
+        doStartRef.current()
       }
-      console.log('[STT] toggle → 停止')
-      doStop()
-    } else {
-      console.log('[STT] toggle → 開始')
-      lastToggleRef.current = now
-      doStart(e as unknown as React.MouseEvent)
     }
+
+    button.addEventListener('pointerdown', handler)
+    return () => button.removeEventListener('pointerdown', handler)
   }, [])
 
   const generateSummary = async () => {
@@ -209,7 +204,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   }
 
   const clearAll = () => {
-    doStop()
+    doStopRef.current()
     setTranscription('')
     setSummary('')
     setInterimText('')
@@ -256,7 +251,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
             <h3 className="text-lg font-semibold">会話内容</h3>
             <div className="flex items-center gap-2">
               <Button
-                onPointerDown={handleToggleRecording}
+                ref={toggleButtonRef}
                 className={isRecording
                   ? "bg-gray-700 hover:bg-gray-800 text-white px-4 py-1 animate-pulse"
                   : "bg-red-500 hover:bg-red-600 text-white px-4 py-1"
