@@ -149,6 +149,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   // ネイティブDOMイベントリスナーでトグル制御
   // Reactの合成イベントシステムを完全にバイパス
   useEffect(() => {
+    if (!isOpen) return
     const button = toggleButtonRef.current
     if (!button) return
 
@@ -170,7 +171,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
     button.addEventListener('pointerdown', handler)
     return () => button.removeEventListener('pointerdown', handler)
-  }, [])
+  }, [isOpen])
 
   const generateSummary = async () => {
     if (!transcription.trim()) {
