@@ -148,9 +148,13 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   }
 
-  // トグルボタン: 開始/停止を1つのボタンで制御
-  const handleToggleRecording = useCallback((e: React.MouseEvent) => {
+  // トグルボタン: onPointerDownで制御（onClick phantom call回避）
+  const handleToggleRecording = useCallback((e: React.PointerEvent) => {
     e.stopPropagation()
+    e.preventDefault()
+
+    // primary button（左クリック/タッチ）のみ
+    if (e.button !== 0) return
 
     if (wantRecordingRef.current) {
       // 開始後3秒以内は停止を無視（phantom call対策）
@@ -164,7 +168,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     } else {
       console.log('[STT] toggle → 開始')
       lastToggleRef.current = Date.now()
-      doStart(e)
+      doStart(e as unknown as React.MouseEvent)
     }
   }, [])
 
@@ -247,7 +251,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
             <h3 className="text-lg font-semibold">会話内容</h3>
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleToggleRecording}
+                onPointerDown={handleToggleRecording}
                 className={isRecording
                   ? "bg-gray-700 hover:bg-gray-800 text-white px-4 py-1 animate-pulse"
                   : "bg-red-500 hover:bg-red-600 text-white px-4 py-1"
