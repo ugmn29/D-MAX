@@ -148,22 +148,22 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   }
 
-  // トグルボタン: 開始/停止を1つのボタンで制御（DOM再利用問題を回避）
+  // トグルボタン: 開始/停止を1つのボタンで制御
   const handleToggleRecording = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    // debounce: 500ms以内の連続クリックを無視
-    const now = Date.now()
-    if (now - lastToggleRef.current < 500) {
-      console.log('[STT] debounce - クリック無視')
-      return
-    }
-    lastToggleRef.current = now
 
     if (wantRecordingRef.current) {
+      // 開始後3秒以内は停止を無視（phantom call対策）
+      if (Date.now() - lastToggleRef.current < 3000) {
+        console.log('[STT] 開始直後の停止を無視 (' + (Date.now() - lastToggleRef.current) + 'ms)')
+        console.trace('[STT] phantom stop trace')
+        return
+      }
       console.log('[STT] toggle → 停止')
       doStop()
     } else {
       console.log('[STT] toggle → 開始')
+      lastToggleRef.current = Date.now()
       doStart(e)
     }
   }, [])
