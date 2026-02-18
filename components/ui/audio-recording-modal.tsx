@@ -73,13 +73,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   // ハイライト関連の状態
   const [highlightColor, setHighlightColor] = useState<string | null>(null)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const playIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const recognitionRef = useRef<any>(null)
-  const isRecordingRef = useRef(false)
 
   // 要約テンプレート
   const summaryTemplates: SummaryTemplate[] = [
@@ -100,13 +95,18 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   ]
 
-  // 音声認識開始（Web Speech API）
-  const startSpeechRecognition = () => {
+  // 録音開始（同期関数 - async/awaitなし）
+  const startRecording = () => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    console.log('🎙️ SpeechRecognition API:', SpeechRecognitionAPI ? '利用可能' : '未対応')
     if (!SpeechRecognitionAPI) {
       alert('このブラウザは音声認識に対応していません。Chrome、Safari、またはEdgeをお使いください。')
       return
+    }
+
+    // 前のインスタンスがあれば停止
+    if (recognitionRef.current) {
+      recognitionRef.current.abort()
+      recognitionRef.current = null
     }
 
     const recognition = new SpeechRecognitionAPI()
@@ -114,9 +114,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     recognition.continuous = true
     recognition.interimResults = true
 
-    recognition.onstart = () => {
-      console.log('🎙️ 音声認識開始')
-    }
+    recognition.onaudiostart = () => console.log('🎙️ onaudiostart - マイク取得OK')
+    recognition.onspeechstart = () => console.log('🎙️ onspeechstart - 音声検出')
 
     recognition.onresult = (event: any) => {
       let interim = ''
@@ -139,122 +138,70 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     recognition.onend = () => {
-      console.log('🎙️ 音声認識終了 (録音中:', isRecordingRef.current, ')')
+      console.log('🎙️ onend - recognitionRef一致:', recognitionRef.current === recognition)
       setInterimText('')
-      if (isRecordingRef.current) {
+      // stopRecordingで recognitionRef.current = null にされていなければ再開
+      if (recognitionRef.current === recognition) {
         try {
           recognition.start()
-          console.log('🎙️ 音声認識を再開')
+          console.log('🎙️ 自動再開')
         } catch (e) {
-          console.warn('音声認識の再開に失敗:', e)
+          console.warn('再開失敗:', e)
+          setIsTranscribing(false)
         }
       } else {
         setIsTranscribing(false)
       }
     }
 
-    try {
-      recognition.start()
-      recognitionRef.current = recognition
-      setIsTranscribing(true)
-      console.log('🎙️ recognition.start() 呼び出し完了')
-    } catch (e) {
-      console.error('🔴 recognition.start() 失敗:', e)
-    }
-  }
+    // 認識開始（同期呼び出し - ユーザージェスチャーコンテキスト内）
+    recognition.start()
+    recognitionRef.current = recognition
+    setIsRecording(true)
+    setIsTranscribing(true)
+    setRecordingTime(0)
+    console.log('🎙️ 音声認識 & 録音開始')
 
-  // 音声認識停止
-  const stopSpeechRecognition = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      recognitionRef.current = null
-    }
-    setInterimText('')
-    setIsTranscribing(false)
-  }
-
-  // 録音開始
-  const startRecording = async () => {
-    try {
-      // awaitの前に状態とrefをセット + 音声認識を開始
-      // （awaitの後はユーザージェスチャーのコンテキストが失われるため）
-      isRecordingRef.current = true
-      setIsRecording(true)
-      setRecordingTime(0)
-
-      if (autoTranscription) {
-        startSpeechRecognition()
-      }
-
-      // 録音時間のカウント
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1)
-      }, 1000)
-
-      // MediaRecorderを開始（awaitはここで発生）
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true
-        }
-      })
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      })
-      mediaRecorderRef.current = mediaRecorder
-      audioChunksRef.current = []
-
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data)
-      }
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-
-        // セグメントを作成（30秒ごと）
-        const segmentDuration = 30
-        const totalSegments = Math.ceil(recordingTime / segmentDuration)
-        const newSegments: AudioSegment[] = []
-
-        for (let i = 0; i < totalSegments; i++) {
-          newSegments.push({
-            id: `segment_${Date.now()}_${i}`,
-            startTime: i * segmentDuration,
-            endTime: Math.min((i + 1) * segmentDuration, recordingTime),
-            transcription: '',
-            isSelected: false
-          })
-        }
-
-        setAudioSegments(prev => [...prev, ...newSegments])
-        setSegmentCount(prev => prev + totalSegments)
-      }
-
-      mediaRecorder.start()
-    } catch (error) {
-      console.error('録音開始エラー:', error)
-      isRecordingRef.current = false
-      setIsRecording(false)
-      stopSpeechRecognition()
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current)
-      }
-      alert('マイクへのアクセスが許可されていません')
-    }
+    // 録音時間カウント
+    recordingIntervalRef.current = setInterval(() => {
+      setRecordingTime(prev => prev + 1)
+    }, 1000)
   }
 
   // 録音停止
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      setIsRecording(false)
-      isRecordingRef.current = false
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current)
-      }
-      stopSpeechRecognition()
+    if (!isRecording) return
+
+    // recognitionRef を先に null にして onend での再開を防止
+    const recognition = recognitionRef.current
+    recognitionRef.current = null
+    if (recognition) {
+      recognition.stop()
     }
+
+    setIsRecording(false)
+    setIsTranscribing(false)
+    setInterimText('')
+
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current)
+    }
+
+    // セグメント作成
+    const segmentDuration = 30
+    const totalSegments = Math.max(1, Math.ceil(recordingTime / segmentDuration))
+    const newSegments: AudioSegment[] = []
+    for (let i = 0; i < totalSegments; i++) {
+      newSegments.push({
+        id: `segment_${Date.now()}_${i}`,
+        startTime: i * segmentDuration,
+        endTime: Math.min((i + 1) * segmentDuration, recordingTime),
+        transcription: '',
+        isSelected: false
+      })
+    }
+    setAudioSegments(prev => [...prev, ...newSegments])
+    setSegmentCount(prev => prev + totalSegments)
   }
 
   // 要約処理
@@ -374,11 +321,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current)
       }
-      if (playIntervalRef.current) {
-        clearInterval(playIntervalRef.current)
-      }
       if (recognitionRef.current) {
-        recognitionRef.current.stop()
+        recognitionRef.current.abort()
+        recognitionRef.current = null
       }
     }
   }, [])
