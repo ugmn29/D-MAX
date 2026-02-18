@@ -26,24 +26,20 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const recognitionRef = useRef<any>(null)
   const wantRecordingRef = useRef(false)
   const toggleButtonRef = useRef<HTMLButtonElement>(null)
-  const micStreamRef = useRef<MediaStream | null>(null)
+  const restartCountRef = useRef(0)
 
   // 録音を停止する内部関数
   const doStopRef = useRef(() => {
     wantRecordingRef.current = false
+    restartCountRef.current = 0
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
-    }
-    // マイクストリームを解放
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(t => t.stop())
-      micStreamRef.current = null
     }
     setIsRecording(false)
     setInterimText('')
   })
 
-  // SpeechRecognitionセッションを開始（マイクストリーム確保済み前提）
+  // SpeechRecognitionセッションを開始（getUserMedia不要 - SpeechRecognitionが直接マイクにアクセス）
   const startRecognitionSession = useRef(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
@@ -81,6 +77,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       if (finalTranscript) {
         setTranscription(prev => prev + (prev ? '\n' : '') + finalTranscript)
         setInterimText('')
+        // 音声認識が成功したらリスタートカウンタをリセット
+        restartCountRef.current = 0
       } else if (interim) {
         setInterimText(interim)
       }
@@ -98,19 +96,32 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     recognition.onend = () => {
-      console.log('[STT] onend - wantRecording:', wantRecordingRef.current)
-      if (wantRecordingRef.current && micStreamRef.current) {
-        // マイクストリームが生きている限り再起動可能
-        console.log('[STT] 自動再起動...')
-        try {
-          recognition.start()
-          return
-        } catch (e) {
-          console.error('[STT] 同一obj再起動失敗、新規作成...', e)
-          // 新しいセッションで再試行
-          startRecognitionSession.current()
+      console.log('[STT] onend - wantRecording:', wantRecordingRef.current, 'restartCount:', restartCountRef.current)
+      if (wantRecordingRef.current) {
+        // no-speech連続リスタートを制限（最大20回 = 約2分）
+        if (restartCountRef.current >= 20) {
+          console.log('[STT] リスタート上限到達、新規セッション作成...')
+          restartCountRef.current = 0
+          setTimeout(() => {
+            if (wantRecordingRef.current) {
+              startRecognitionSession.current()
+            }
+          }, 500)
           return
         }
+        restartCountRef.current++
+        console.log('[STT] 自動再起動... (#' + restartCountRef.current + ')')
+        // 少し遅延を入れてマイクリソースを確実に解放させてから再開
+        setTimeout(() => {
+          if (!wantRecordingRef.current) return
+          try {
+            recognition.start()
+          } catch (e) {
+            console.error('[STT] 同一obj再起動失敗、新規作成...', e)
+            startRecognitionSession.current()
+          }
+        }, 100)
+        return
       }
       setIsRecording(false)
       setInterimText('')
@@ -128,9 +139,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   })
 
-  // 録音開始: まずgetUserMediaでマイクを確保してからSpeechRecognition開始
+  // 録音開始: SpeechRecognitionが直接マイクにアクセス（getUserMedia不要）
   const doStartRef = useRef(() => {
-    console.log('[STT] startRecording - マイク確保中...')
+    console.log('[STT] startRecording')
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) {
@@ -139,20 +150,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     wantRecordingRef.current = true
+    restartCountRef.current = 0
     setIsRecording(true)
-
-    // getUserMediaでマイクを確保し続ける
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => {
-        console.log('[STT] マイク確保成功')
-        micStreamRef.current = stream
-        startRecognitionSession.current()
-      })
-      .catch(err => {
-        console.error('[STT] マイク確保失敗:', err)
-        alert('マイクへのアクセスが許可されていません。')
-        doStopRef.current()
-      })
+    startRecognitionSession.current()
   })
 
   // ネイティブDOMイベントリスナーでトグル制御
