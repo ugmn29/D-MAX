@@ -120,14 +120,29 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     recognition.onend = () => {
       console.log('[STT] onend - wantRecording:', wantRecordingRef.current)
       if (wantRecordingRef.current) {
-        console.log('[STT] 自動再起動（新規オブジェクト）...')
+        console.log('[STT] 自動再起動: マイク再取得中...')
         recognitionRef.current = null
-        // 少し待ってから新しいSpeechRecognitionオブジェクトで再起動
-        setTimeout(() => {
-          if (wantRecordingRef.current) {
-            doStartRef.current()
-          }
-        }, 300)
+        // getUserMediaでマイクを確保してから再起動
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            console.log('[STT] マイク再取得成功')
+            // ストリームを保持したまま再起動（SpeechRecognitionがマイクを引き継ぐ）
+            setTimeout(() => {
+              // SpeechRecognition開始後にストリームを解放
+              stream.getTracks().forEach(track => track.stop())
+              if (wantRecordingRef.current) {
+                doStartRef.current()
+              }
+            }, 500)
+          })
+          .catch(err => {
+            console.error('[STT] マイク再取得失敗:', err)
+            setTimeout(() => {
+              if (wantRecordingRef.current) {
+                doStartRef.current()
+              }
+            }, 2000)
+          })
         return
       }
       setIsRecording(false)
