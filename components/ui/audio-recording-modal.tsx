@@ -156,18 +156,23 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     // primary button（左クリック/タッチ）のみ
     if (e.button !== 0) return
 
+    const now = Date.now()
+    const diff = now - lastToggleRef.current
+    const target = (e.target as HTMLElement)
+    console.log('[STT] handleToggle: wantRec=' + wantRecordingRef.current + ' diff=' + diff + 'ms lastToggle=' + lastToggleRef.current + ' type=' + e.type + ' pointerId=' + e.pointerId + ' target=' + target.tagName + ' isRec=' + isRecording)
+    console.trace('[STT] toggle call stack')
+
     if (wantRecordingRef.current) {
       // 開始後3秒以内は停止を無視（phantom call対策）
-      if (Date.now() - lastToggleRef.current < 3000) {
-        console.log('[STT] 開始直後の停止を無視 (' + (Date.now() - lastToggleRef.current) + 'ms)')
-        console.trace('[STT] phantom stop trace')
+      if (diff < 3000) {
+        console.log('[STT] 開始直後の停止を無視 (' + diff + 'ms)')
         return
       }
       console.log('[STT] toggle → 停止')
       doStop()
     } else {
       console.log('[STT] toggle → 開始')
-      lastToggleRef.current = Date.now()
+      lastToggleRef.current = now
       doStart(e as unknown as React.MouseEvent)
     }
   }, [])
