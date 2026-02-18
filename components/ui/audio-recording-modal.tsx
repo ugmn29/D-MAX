@@ -5,7 +5,7 @@ import { Modal } from './modal'
 import { Button } from './button'
 import { Textarea } from './textarea'
 import { Select } from './select'
-import { Mic, MicOff, FileText, Trash2, Square } from 'lucide-react'
+import { Mic, FileText, Trash2, Square } from 'lucide-react'
 
 interface AudioRecordingModalProps {
   isOpen: boolean
@@ -15,9 +15,6 @@ interface AudioRecordingModalProps {
   staffId?: string
 }
 
-// SpeechRecognition型定義
-type SpeechRecognitionType = typeof window extends { SpeechRecognition: infer T } ? T : any
-
 export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staffId }: AudioRecordingModalProps) {
   const [transcription, setTranscription] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('soap')
@@ -26,13 +23,16 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
 
-  // recognitionインスタンスをrefで保持
   const recognitionRef = useRef<any>(null)
-  // 意図的な停止かどうかのフラグ
-  const intentionalStopRef = useRef(false)
+  // ユーザーが録音を望んでいるかどうか（stopRecordingで明示的にfalseにする）
+  const wantRecordingRef = useRef(false)
 
-  // Web Speech API で音声認識開始
-  const startRecording = useCallback(() => {
+  const startRecording = useCallback((e?: React.MouseEvent) => {
+    // イベントバブリング防止
+    e?.stopPropagation()
+
+    console.log('[STT] startRecording呼び出し, wantRecording:', wantRecordingRef.current)
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) {
       alert('このブラウザは音声認識に対応していません。Chrome を使用してください。')
@@ -41,10 +41,13 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
     // 既存のrecognitionがあれば停止
     if (recognitionRef.current) {
-      intentionalStopRef.current = true
+      console.log('[STT] 既存recognition停止')
       try { recognitionRef.current.abort() } catch {}
       recognitionRef.current = null
     }
+
+    // ユーザーの意図: 録音したい
+    wantRecordingRef.current = true
 
     const recognition = new SpeechRecognition()
     recognition.lang = 'ja-JP'
@@ -53,7 +56,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     recognition.maxAlternatives = 1
 
     recognition.onstart = () => {
-      console.log('[STT] 音声認識開始')
+      console.log('[STT] onstart - 音声認識開始, wantRecording:', wantRecordingRef.current)
       setIsRecording(true)
     }
 
@@ -79,21 +82,22 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
 
     recognition.onerror = (event: any) => {
-      console.error('[STT] エラー:', event.error)
+      console.error('[STT] onerror:', event.error, ', wantRecording:', wantRecordingRef.current)
       if (event.error === 'not-allowed') {
         alert('マイクへのアクセスが許可されていません。ブラウザの設定を確認してください。')
+        wantRecordingRef.current = false
       }
-      // no-speech エラーの場合は自動再起動に任せる
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        wantRecordingRef.current = false
         setIsRecording(false)
         recognitionRef.current = null
       }
     }
 
     recognition.onend = () => {
-      console.log('[STT] 音声認識終了, intentionalStop:', intentionalStopRef.current)
-      // 意図的な停止でなければ自動再起動（ブラウザが自動停止した場合）
-      if (!intentionalStopRef.current && recognitionRef.current === recognition) {
+      console.log('[STT] onend - wantRecording:', wantRecordingRef.current, ', refMatch:', recognitionRef.current === recognition)
+      // ユーザーがまだ録音を望んでいれば自動再起動
+      if (wantRecordingRef.current && recognitionRef.current === recognition) {
         console.log('[STT] 自動再起動...')
         try {
           recognition.start()
@@ -107,22 +111,24 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       recognitionRef.current = null
     }
 
-    intentionalStopRef.current = false
     recognitionRef.current = recognition
 
     try {
       recognition.start()
-      console.log('[STT] recognition.start() 呼び出し完了')
+      console.log('[STT] recognition.start() 完了')
     } catch (e) {
       console.error('[STT] start失敗:', e)
+      wantRecordingRef.current = false
       setIsRecording(false)
       recognitionRef.current = null
     }
   }, [])
 
-  // 音声認識停止
-  const stopRecording = useCallback(() => {
-    intentionalStopRef.current = true
+  const stopRecording = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    // コールスタックを出力して何がstopRecordingを呼んでいるか追跡
+    console.trace('[STT] stopRecording呼び出し')
+    wantRecordingRef.current = false
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop()
@@ -132,7 +138,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     setInterimText('')
   }, [])
 
-  // 要約処理
   const generateSummary = async () => {
     if (!transcription.trim()) {
       alert('テキストを入力してください')
@@ -164,7 +169,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   }
 
-  // 全クリア
   const clearAll = () => {
     if (isRecording) stopRecording()
     setTranscription('')
@@ -172,7 +176,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     setInterimText('')
   }
 
-  // サブカルテに貼り付け
   const attachToSubKarte = async () => {
     try {
       const response = await fetch('/api/subkarte', {
@@ -200,7 +203,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   }
 
-  // アクティビティに送信
   const sendToActivity = () => {
     alert('アクティビティに送信しました')
     onClose()
@@ -279,7 +281,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         <div className="flex-1 p-6 flex flex-col">
           <h3 className="text-lg font-semibold mb-3">要約（編集可）</h3>
 
-          {/* 要約コントロール */}
           <div className="flex items-center gap-2 mb-3">
             <Select
               value={selectedTemplate}
