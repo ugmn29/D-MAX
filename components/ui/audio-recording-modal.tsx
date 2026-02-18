@@ -119,14 +119,16 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
     recognition.onend = () => {
       console.log('[STT] onend - wantRecording:', wantRecordingRef.current)
-      if (wantRecordingRef.current && recognitionRef.current === recognition) {
-        console.log('[STT] 自動再起動...')
-        try {
-          recognition.start()
-          return
-        } catch (e) {
-          console.error('[STT] 再起動失敗:', e)
-        }
+      if (wantRecordingRef.current) {
+        console.log('[STT] 自動再起動（新規オブジェクト）...')
+        recognitionRef.current = null
+        // 少し待ってから新しいSpeechRecognitionオブジェクトで再起動
+        setTimeout(() => {
+          if (wantRecordingRef.current) {
+            doStartRef.current()
+          }
+        }, 300)
+        return
       }
       setIsRecording(false)
       setInterimText('')
