@@ -2,6 +2,25 @@
 import { StaffShift, StaffShiftInsert, StaffShiftUpdate } from '@/types/database'
 import { MOCK_MODE, getMockStaffShifts, addMockStaffShift, removeMockStaffShift, getMockStaff, getMockStaffPositions, getMockShiftPatterns } from '@/lib/utils/mock-mode'
 
+/**
+ * リトライ付きfetch（DB接続の一時的なエラー対策）
+ */
+async function fetchWithRetry(
+  url: string,
+  options?: RequestInit,
+  maxRetries = 2
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options)
+    if (response.status >= 500 && attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+      continue
+    }
+    return response
+  }
+  return fetch(url, options)
+}
+
 // シフトデータの取得（月単位）
 export async function getStaffShifts(clinicId: string, year: number, month: number): Promise<StaffShift[]> {
   // モックモードの場合はモックデータを返す
@@ -15,7 +34,7 @@ export async function getStaffShifts(clinicId: string, year: number, month: numb
     const baseUrl = typeof window === 'undefined'
       ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
       : '' // クライアントサイドでは相対パスを使用
-    const response = await fetch(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}&year=${year}&month=${month}`)
+    const response = await fetchWithRetry(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}&year=${year}&month=${month}`)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -200,7 +219,7 @@ export async function getStaffShiftsByDate(clinicId: string, date: string): Prom
     const baseUrl = typeof window === 'undefined'
       ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
       : '' // クライアントサイドでは相対パスを使用
-    const response = await fetch(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}&date=${date}`)
+    const response = await fetchWithRetry(`${baseUrl}/api/staff-shifts?clinic_id=${clinicId}&date=${date}`)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))

@@ -6,6 +6,27 @@ const baseUrl = typeof window === 'undefined'
   : ''
 
 /**
+ * リトライ付きfetch（DB接続の一時的なエラー対策）
+ */
+async function fetchWithRetry(
+  url: string,
+  options?: RequestInit,
+  maxRetries = 2
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options)
+    // 500エラー（DB接続エラーなど）かつリトライ残りがある場合はリトライ
+    if (response.status >= 500 && attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+      continue
+    }
+    return response
+  }
+  // ここには到達しないが型安全のため
+  return fetch(url, options)
+}
+
+/**
  * 予約を取得
  */
 export async function getAppointments(
@@ -18,7 +39,7 @@ export async function getAppointments(
     if (startDate) params.append('start_date', startDate)
     if (endDate) params.append('end_date', endDate)
 
-    const response = await fetch(`${baseUrl}/api/appointments?${params.toString()}`, {
+    const response = await fetchWithRetry(`${baseUrl}/api/appointments?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
@@ -60,7 +81,7 @@ export async function getAppointmentById(
       appointment_id: appointmentId
     })
 
-    const response = await fetch(`${baseUrl}/api/appointments?${params.toString()}`, {
+    const response = await fetchWithRetry(`${baseUrl}/api/appointments?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
@@ -157,7 +178,7 @@ export async function getAppointmentStats(clinicId: string, date?: string) {
     const params = new URLSearchParams({ clinic_id: clinicId })
     if (date) params.append('date', date)
 
-    const response = await fetch(`${baseUrl}/api/appointments/stats?${params.toString()}`, {
+    const response = await fetchWithRetry(`${baseUrl}/api/appointments/stats?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'

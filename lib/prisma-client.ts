@@ -26,8 +26,15 @@ function createPgPool(): Pool {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 15, // 最大接続数
-    idleTimeoutMillis: 60000, // アイドル接続のタイムアウト（60秒）
+    idleTimeoutMillis: 30000, // アイドル接続のタイムアウト（30秒 - Cloud SQLの切断より前に解放）
     connectionTimeoutMillis: 10000, // 接続タイムアウト（10秒）
+    keepAlive: true, // TCP KeepAliveで接続の生存確認
+    keepAliveInitialDelayMillis: 10000, // 10秒ごとにKeepAlive送信
+  })
+
+  // 接続エラー時にプールを壊さないようにエラーハンドリング
+  pool.on('error', (err) => {
+    console.error('PostgreSQL接続プールエラー（接続が切断されました）:', err.message)
   })
 
   if (process.env.NODE_ENV !== 'production') {
