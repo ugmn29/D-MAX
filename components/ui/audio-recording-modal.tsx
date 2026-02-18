@@ -153,18 +153,35 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     const button = toggleButtonRef.current
     if (!button) return
 
+    // useEffect内のローカル変数（Reactの再レンダーに影響されない）
+    let startedAt = 0
+
     const handler = (e: PointerEvent) => {
       if (e.button !== 0) return
       e.stopPropagation()
       e.preventDefault()
 
-      console.log('[STT] native pointerdown: wantRec=' + wantRecordingRef.current)
+      const now = Date.now()
+      console.log('[STT] pointerdown: trusted=' + e.isTrusted + ' wantRec=' + wantRecordingRef.current + ' sinceStart=' + (now - startedAt) + 'ms')
+
+      // untrustedイベント（プログラム生成）は無視
+      if (!e.isTrusted) {
+        console.log('[STT] untrusted event → 無視')
+        return
+      }
 
       if (wantRecordingRef.current) {
+        // 録音開始後10秒以内の停止を無視（phantom対策）
+        if (startedAt > 0 && now - startedAt < 10000) {
+          console.log('[STT] cooldown中 → 停止を無視 (' + (now - startedAt) + 'ms)')
+          return
+        }
         console.log('[STT] toggle → 停止 (native)')
         doStopRef.current()
+        startedAt = 0
       } else {
         console.log('[STT] toggle → 開始 (native)')
+        startedAt = now
         doStartRef.current()
       }
     }
