@@ -56,11 +56,28 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     recognition.maxAlternatives = 1
 
     recognition.onstart = () => {
-      console.log('[STT] onstart - 音声認識開始, wantRecording:', wantRecordingRef.current)
+      console.log('[STT] onstart - 音声認識開始')
       setIsRecording(true)
     }
 
+    recognition.onaudiostart = () => {
+      console.log('[STT] onaudiostart - マイク音声受信開始')
+    }
+
+    recognition.onspeechstart = () => {
+      console.log('[STT] onspeechstart - 音声検出')
+    }
+
+    recognition.onspeechend = () => {
+      console.log('[STT] onspeechend - 音声検出終了')
+    }
+
+    recognition.onaudioend = () => {
+      console.log('[STT] onaudioend - マイク音声受信終了')
+    }
+
     recognition.onresult = (event: any) => {
+      console.log('[STT] onresult - results:', event.results.length, ', resultIndex:', event.resultIndex)
       let interim = ''
       let finalTranscript = ''
 
@@ -68,6 +85,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         const result = event.results[i]
         if (result.isFinal) {
           finalTranscript += result[0].transcript
+          console.log('[STT] final:', result[0].transcript, ', confidence:', result[0].confidence)
         } else {
           interim += result[0].transcript
         }
@@ -76,7 +94,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       if (finalTranscript) {
         setTranscription(prev => prev + (prev ? '\n' : '') + finalTranscript)
         setInterimText('')
-      } else {
+      } else if (interim) {
+        console.log('[STT] interim:', interim)
         setInterimText(interim)
       }
     }
