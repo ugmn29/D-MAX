@@ -26,6 +26,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const recognitionRef = useRef<any>(null)
   const wantRecordingRef = useRef(false)
   const toggleButtonRef = useRef<HTMLButtonElement>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
 
   // 録音を停止する内部関数
   const doStopRef = useRef(() => {
@@ -33,26 +34,24 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
+    // マイクストリームを解放
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(t => t.stop())
+      micStreamRef.current = null
+    }
     setIsRecording(false)
     setInterimText('')
   })
 
-  const doStartRef = useRef(() => {
-    console.log('[STT] startRecording')
-
+  // SpeechRecognitionセッションを開始（マイクストリーム確保済み前提）
+  const startRecognitionSession = useRef(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      alert('このブラウザは音声認識に対応していません。Chrome を使用してください。')
-      return
-    }
+    if (!SpeechRecognition) return
 
     if (recognitionRef.current) {
       try { recognitionRef.current.abort() } catch {}
       recognitionRef.current = null
     }
-
-    wantRecordingRef.current = true
-    setIsRecording(true)
 
     const recognition = new SpeechRecognition()
     recognition.lang = 'ja-JP'
@@ -60,31 +59,16 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     recognition.interimResults = true
     recognition.maxAlternatives = 1
 
-    recognition.onstart = () => {
-      console.log('[STT] onstart')
-    }
-
-    recognition.onaudiostart = () => {
-      console.log('[STT] onaudiostart - マイク音声受信開始')
-    }
-
-    recognition.onspeechstart = () => {
-      console.log('[STT] onspeechstart - 音声検出')
-    }
-
-    recognition.onspeechend = () => {
-      console.log('[STT] onspeechend')
-    }
-
-    recognition.onaudioend = () => {
-      console.log('[STT] onaudioend')
-    }
+    recognition.onstart = () => console.log('[STT] onstart')
+    recognition.onaudiostart = () => console.log('[STT] onaudiostart - マイク音声受信開始')
+    recognition.onspeechstart = () => console.log('[STT] onspeechstart - 音声検出')
+    recognition.onspeechend = () => console.log('[STT] onspeechend')
+    recognition.onaudioend = () => console.log('[STT] onaudioend')
 
     recognition.onresult = (event: any) => {
       console.log('[STT] onresult - results:', event.results.length)
       let interim = ''
       let finalTranscript = ''
-
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         if (result.isFinal) {
@@ -94,7 +78,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
           interim += result[0].transcript
         }
       }
-
       if (finalTranscript) {
         setTranscription(prev => prev + (prev ? '\n' : '') + finalTranscript)
         setInterimText('')
@@ -107,25 +90,26 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       console.error('[STT] onerror:', event.error)
       if (event.error === 'not-allowed') {
         alert('マイクへのアクセスが許可されていません。ブラウザの設定を確認してください。')
-        wantRecordingRef.current = false
-        setIsRecording(false)
+        doStopRef.current()
       }
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
-        wantRecordingRef.current = false
-        setIsRecording(false)
-        recognitionRef.current = null
+        doStopRef.current()
       }
     }
 
     recognition.onend = () => {
       console.log('[STT] onend - wantRecording:', wantRecordingRef.current)
-      if (wantRecordingRef.current && recognitionRef.current === recognition) {
-        console.log('[STT] 自動再起動（同一オブジェクト）...')
+      if (wantRecordingRef.current && micStreamRef.current) {
+        // マイクストリームが生きている限り再起動可能
+        console.log('[STT] 自動再起動...')
         try {
           recognition.start()
           return
         } catch (e) {
-          console.error('[STT] 再起動失敗:', e)
+          console.error('[STT] 同一obj再起動失敗、新規作成...', e)
+          // 新しいセッションで再試行
+          startRecognitionSession.current()
+          return
         }
       }
       setIsRecording(false)
@@ -140,10 +124,35 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       console.log('[STT] recognition.start() 完了')
     } catch (e) {
       console.error('[STT] start失敗:', e)
-      wantRecordingRef.current = false
-      setIsRecording(false)
-      recognitionRef.current = null
+      doStopRef.current()
     }
+  })
+
+  // 録音開始: まずgetUserMediaでマイクを確保してからSpeechRecognition開始
+  const doStartRef = useRef(() => {
+    console.log('[STT] startRecording - マイク確保中...')
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      alert('このブラウザは音声認識に対応していません。Chrome を使用してください。')
+      return
+    }
+
+    wantRecordingRef.current = true
+    setIsRecording(true)
+
+    // getUserMediaでマイクを確保し続ける
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        console.log('[STT] マイク確保成功')
+        micStreamRef.current = stream
+        startRecognitionSession.current()
+      })
+      .catch(err => {
+        console.error('[STT] マイク確保失敗:', err)
+        alert('マイクへのアクセスが許可されていません。')
+        doStopRef.current()
+      })
   })
 
   // ネイティブDOMイベントリスナーでトグル制御
