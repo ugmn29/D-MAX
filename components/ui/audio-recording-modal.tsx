@@ -180,8 +180,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       }
 
       if (wantRecordingRef.current) {
-        // 録音開始後10秒以内の停止を無視（phantom対策）
-        if (startedAt > 0 && now - startedAt < 10000) {
+        // 録音開始直後の誤タップ防止（2秒）
+        if (startedAt > 0 && now - startedAt < 2000) {
           console.log('[STT] cooldown中 → 停止を無視 (' + (now - startedAt) + 'ms)')
           return
         }
