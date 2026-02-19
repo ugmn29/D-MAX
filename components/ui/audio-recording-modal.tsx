@@ -164,6 +164,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
     // useEffect内のローカル変数（Reactの再レンダーに影響されない）
     let startedAt = 0
+    let lastBlockedAt = 0 // ダブルタップ検出用
 
     const handler = (e: PointerEvent) => {
       if (e.button !== 0) return
@@ -171,7 +172,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       e.preventDefault()
 
       const now = Date.now()
-      console.log('[STT] pointerdown: trusted=' + e.isTrusted + ' wantRec=' + wantRecordingRef.current + ' sinceStart=' + (now - startedAt) + 'ms')
+      const sinceStart = now - startedAt
+      console.log('[STT] pointerdown: trusted=' + e.isTrusted + ' wantRec=' + wantRecordingRef.current + ' sinceStart=' + sinceStart + 'ms')
 
       // untrustedイベント（プログラム生成）は無視
       if (!e.isTrusted) {
@@ -180,17 +182,27 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       }
 
       if (wantRecordingRef.current) {
-        // 録音開始直後の誤タップ防止（2秒）
-        if (startedAt > 0 && now - startedAt < 2000) {
-          console.log('[STT] cooldown中 → 停止を無視 (' + (now - startedAt) + 'ms)')
-          return
+        // 録音開始後10秒以内のphantom対策
+        // ただし前回ブロックから1秒以内の再タップ（ユーザーの意図的ダブルタップ）は許可
+        if (startedAt > 0 && sinceStart < 10000) {
+          if (lastBlockedAt > 0 && now - lastBlockedAt < 1000) {
+            // ダブルタップ検出 → 停止を許可
+            console.log('[STT] ダブルタップ検出 → 停止 (' + sinceStart + 'ms)')
+          } else {
+            // 初回タップ → ブロック
+            lastBlockedAt = now
+            console.log('[STT] cooldown中 → 停止を無視 (' + sinceStart + 'ms) ※もう一度押すと停止')
+            return
+          }
         }
         console.log('[STT] toggle → 停止 (native)')
         doStopRef.current()
         startedAt = 0
+        lastBlockedAt = 0
       } else {
         console.log('[STT] toggle → 開始 (native)')
         startedAt = now
+        lastBlockedAt = 0
         doStartRef.current()
       }
     }
