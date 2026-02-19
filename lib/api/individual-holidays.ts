@@ -1,5 +1,24 @@
 // Migrated to Prisma API Routes
 
+/**
+ * リトライ付きfetch（DB接続の一時的なエラー対策）
+ */
+async function fetchWithRetry(
+  url: string,
+  options?: RequestInit,
+  maxRetries = 2
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options)
+    if (response.status >= 500 && attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+      continue
+    }
+    return response
+  }
+  return fetch(url, options)
+}
+
 // 個別休診日の取得（月単位）
 export async function getIndividualHolidays(clinicId: string, year: number, month: number): Promise<Record<string, boolean>> {
   try {
@@ -17,20 +36,20 @@ export async function getIndividualHolidays(clinicId: string, year: number, mont
       end_date: endDate
     })
 
-    const response = await fetch(`${baseUrl}/api/individual-holidays?${params.toString()}`, {
+    const response = await fetchWithRetry(`${baseUrl}/api/individual-holidays?${params.toString()}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || '個別休診日の取得に失敗しました')
+      console.error('個別休診日取得: APIエラー', response.status)
+      return {}
     }
 
     return await response.json()
   } catch (error) {
     console.error('個別休診日取得エラー:', error)
-    throw error
+    return {}
   }
 }
 

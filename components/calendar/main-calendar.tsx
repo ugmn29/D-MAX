@@ -58,7 +58,11 @@ interface WorkingStaff {
   is_holiday: boolean
 }
 
-export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems = [], cellHeight = 40, displayMode = 'staff', onDisplayModeChange, privacyMode = false, onCopyStateChange, onAppointmentCancel, initialCopiedAppointment, initialIsPasteMode }: MainCalendarProps) {
+const DEFAULT_DISPLAY_ITEMS = ['reservation_time', 'name', 'treatment_content', 'staff']
+
+export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMinutes, displayItems: displayItemsProp = [], cellHeight = 40, displayMode = 'staff', onDisplayModeChange, privacyMode = false, onCopyStateChange, onAppointmentCancel, initialCopiedAppointment, initialIsPasteMode }: MainCalendarProps) {
+  // displayItemsが空の場合はデフォルト表示項目を使用
+  const displayItems = displayItemsProp.length > 0 ? displayItemsProp : DEFAULT_DISPLAY_ITEMS
   // 背景色の明度を計算して、適切な文字色を返すヘルパー関数
   const getTextColorForBackground = (backgroundColor: string): string => {
     // 16進数カラーコードからRGB値を抽出
