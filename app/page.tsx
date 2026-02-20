@@ -72,11 +72,27 @@ export default function HomePage() {
   }, [])
 
   // 認証完了後に設定を読み込み（authLoadingが解除された時）
+  // SPA遷移でも常にAPIから最新設定を取得
   useEffect(() => {
     if (!authLoading) {
       loadSettings()
     }
   }, [authLoading, clinicId])
+
+  // マウント時にlocalStorageから最新の設定を即座に適用（SPA遷移対応）
+  useEffect(() => {
+    try {
+      const cached = window.localStorage.getItem('clinic_settings_updated')
+      if (cached) {
+        const data = JSON.parse(cached)
+        if (Array.isArray(data.displayItems)) {
+          setDisplayItems(data.displayItems)
+        }
+        if (data.cellHeight) setCellHeight(Number(data.cellHeight))
+        if (data.timeSlotMinutes) setTimeSlotMinutes(Number(data.timeSlotMinutes))
+      }
+    } catch {}
+  }, [])
 
   // ページの可視性変更時に設定を再読み込み（focusイベントと統合して重複呼び出しを防止）
   useEffect(() => {
@@ -94,26 +110,24 @@ export default function HomePage() {
 
   // localStorageの変更を監視して設定を自動更新
   useEffect(() => {
+    const applySettingsUpdate = (data: any) => {
+      if (data.timeSlotMinutes) {
+        const v = Number(data.timeSlotMinutes)
+        if (v !== timeSlotMinutes) setTimeSlotMinutes(v)
+      }
+      if (data.cellHeight) {
+        const v = Number(data.cellHeight)
+        if (v !== cellHeight) setCellHeight(v)
+      }
+      if (Array.isArray(data.displayItems)) {
+        setDisplayItems(data.displayItems)
+      }
+    }
+
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'clinic_settings_updated' && e.newValue) {
         try {
-          const updateData = JSON.parse(e.newValue)
-          if (updateData.timeSlotMinutes) {
-            const numericTimeSlotMinutes = Number(updateData.timeSlotMinutes)
-            console.log('メインページ: localStorageから設定変更を検知:', numericTimeSlotMinutes, '現在の値:', timeSlotMinutes)
-            if (numericTimeSlotMinutes !== timeSlotMinutes) {
-              console.log('メインページ: timeSlotMinutesを更新:', timeSlotMinutes, '→', numericTimeSlotMinutes)
-              setTimeSlotMinutes(numericTimeSlotMinutes)
-            }
-          }
-          if (updateData.cellHeight) {
-            const numericCellHeight = Number(updateData.cellHeight)
-            console.log('メインページ: localStorageからcellHeight変更を検知:', numericCellHeight)
-            if (numericCellHeight !== cellHeight) {
-              console.log('メインページ: cellHeightを更新:', cellHeight, '→', numericCellHeight)
-              setCellHeight(numericCellHeight)
-            }
-          }
+          applySettingsUpdate(JSON.parse(e.newValue))
         } catch (error) {
           console.error('設定更新データの解析エラー:', error)
         }
@@ -121,40 +135,12 @@ export default function HomePage() {
     }
 
     const handleCustomEvent = (e: CustomEvent) => {
-      if (e.detail?.timeSlotMinutes) {
-        const numericTimeSlotMinutes = Number(e.detail.timeSlotMinutes)
-        console.log('メインページ: カスタムイベントから設定変更を検知:', numericTimeSlotMinutes, '現在の値:', timeSlotMinutes)
-        if (numericTimeSlotMinutes !== timeSlotMinutes) {
-          console.log('メインページ: timeSlotMinutesを更新:', timeSlotMinutes, '→', numericTimeSlotMinutes)
-          setTimeSlotMinutes(numericTimeSlotMinutes)
-        }
-      }
-      if (e.detail?.cellHeight) {
-        const numericCellHeight = Number(e.detail.cellHeight)
-        console.log('メインページ: カスタムイベントからcellHeight変更を検知:', numericCellHeight)
-        if (numericCellHeight !== cellHeight) {
-          console.log('メインページ: cellHeightを更新:', cellHeight, '→', numericCellHeight)
-          setCellHeight(numericCellHeight)
-        }
-      }
+      if (e.detail) applySettingsUpdate(e.detail)
     }
 
     const handlePostMessage = (e: MessageEvent) => {
-      if (e.data?.type === 'clinicSettingsUpdated' && e.data?.data?.timeSlotMinutes) {
-        const numericTimeSlotMinutes = Number(e.data.data.timeSlotMinutes)
-        console.log('メインページ: postMessageから設定変更を検知:', numericTimeSlotMinutes, '現在の値:', timeSlotMinutes)
-        if (numericTimeSlotMinutes !== timeSlotMinutes) {
-          console.log('メインページ: timeSlotMinutesを更新:', timeSlotMinutes, '→', numericTimeSlotMinutes)
-          setTimeSlotMinutes(numericTimeSlotMinutes)
-        }
-      }
-      if (e.data?.data?.cellHeight) {
-        const numericCellHeight = Number(e.data.data.cellHeight)
-        console.log('メインページ: postMessageからcellHeight変更を検知:', numericCellHeight)
-        if (numericCellHeight !== cellHeight) {
-          console.log('メインページ: cellHeightを更新:', cellHeight, '→', numericCellHeight)
-          setCellHeight(numericCellHeight)
-        }
+      if (e.data?.type === 'clinicSettingsUpdated' && e.data?.data) {
+        applySettingsUpdate(e.data.data)
       }
     }
 

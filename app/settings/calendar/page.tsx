@@ -55,36 +55,30 @@ export default function CalendarSettingsPage() {
   const penaltySettings: any = {}
   
 
-  // timeSlotMinutesの変更を監視して即座にメインページに通知
+  // 設定変更を監視して即座にメインページに通知
   useEffect(() => {
     if (!isInitialLoad && timeSlotMinutes !== undefined) {
-
-      // 数値として確実に送信
       const numericTimeSlotMinutes = Number(timeSlotMinutes)
-      
-      // localStorageに保存（即座に反映）
+
       const updateData = {
         timestamp: Date.now(),
-        timeSlotMinutes: numericTimeSlotMinutes
+        timeSlotMinutes: numericTimeSlotMinutes,
+        displayItems,
+        cellHeight
       }
       window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
-      // console.log('設定ページ: localStorageに設定更新通知を保存:', updateData)
 
-      // カスタムイベントを発火（即座に反映）
       const customEvent = new CustomEvent('clinicSettingsUpdated', {
-        detail: { timeSlotMinutes: numericTimeSlotMinutes }
+        detail: { timeSlotMinutes: numericTimeSlotMinutes, displayItems, cellHeight }
       })
       window.dispatchEvent(customEvent)
-      // console.log('設定ページ: カスタムイベントを発火:', customEvent.detail)
 
-      // postMessageも発火（追加の通知方法）
       window.postMessage({
         type: 'clinicSettingsUpdated',
-        data: { timeSlotMinutes: numericTimeSlotMinutes }
+        data: { timeSlotMinutes: numericTimeSlotMinutes, displayItems, cellHeight }
       }, window.location.origin)
-      // console.log('設定ページ: postMessageを発火:', { timeSlotMinutes: numericTimeSlotMinutes })
     }
-  }, [timeSlotMinutes, isInitialLoad])
+  }, [timeSlotMinutes, displayItems, cellHeight, isInitialLoad])
 
   // 手動保存関数
   const handleManualSave = useCallback(async () => {
@@ -133,20 +127,22 @@ export default function CalendarSettingsPage() {
       const numericTimeSlotMinutes = Number(timeSlotMinutes)
       const updateData = {
         timestamp: Date.now(),
-        timeSlotMinutes: numericTimeSlotMinutes
+        timeSlotMinutes: numericTimeSlotMinutes,
+        displayItems,
+        cellHeight
       }
       window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
 
       // カスタムイベントを発火
       const customEvent = new CustomEvent('clinicSettingsUpdated', {
-        detail: { timeSlotMinutes: numericTimeSlotMinutes }
+        detail: { timeSlotMinutes: numericTimeSlotMinutes, displayItems, cellHeight }
       })
       window.dispatchEvent(customEvent)
 
       // postMessageも発火（追加の通知方法）
       window.postMessage({
         type: 'clinicSettingsUpdated',
-        data: { timeSlotMinutes: numericTimeSlotMinutes }
+        data: { timeSlotMinutes: numericTimeSlotMinutes, displayItems, cellHeight }
       }, window.location.origin)
     } catch (error) {
       console.error('自動保存エラー:', error)
