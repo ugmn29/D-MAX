@@ -386,10 +386,6 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     }
   }
 
-  const sendToActivity = () => {
-    alert('アクティビティに送信しました')
-    onClose()
-  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="w-[1400px] max-w-[90vw]">
@@ -569,16 +565,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         <Button
           onClick={attachToSubKarte}
           disabled={!summary.trim()}
-          className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2"
-        >
-          サブカルテに貼付
-        </Button>
-        <Button
-          onClick={sendToActivity}
-          disabled={!summary.trim()}
           className="bg-green-500 hover:bg-green-600 text-white px-6 py-2"
         >
-          アクティビティに送信
+          サブカルテに貼付
         </Button>
       </div>
     </Modal>
