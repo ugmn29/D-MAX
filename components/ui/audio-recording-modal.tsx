@@ -28,6 +28,8 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const [micLevel, setMicLevel] = useState(0)
   const [micDeviceName, setMicDeviceName] = useState('')
   const [micDiag, setMicDiag] = useState('')  // 詳細診断
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
   const micStreamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const animFrameRef = useRef<number>(0)
@@ -41,34 +43,46 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const toggleButtonRef = useRef<HTMLButtonElement>(null)
   const restartCountRef = useRef(0)
 
-  // マイクテスト開始
-  const startMicTest = useCallback(async () => {
+  // マイクテスト開始（deviceId指定可能）
+  const startMicTest = useCallback(async (deviceId?: string) => {
+    // 既存のテストを停止
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+    if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop())
+    if (audioContextRef.current) { try { audioContextRef.current.close() } catch {} }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const constraints: MediaStreamConstraints = {
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
       micStreamRef.current = stream
 
       const audioTrack = stream.getAudioTracks()[0]
       const trackInfo = `${audioTrack.label || '不明'} (${audioTrack.readyState}, muted=${audioTrack.muted})`
       setMicDeviceName(trackInfo)
+      // 選択中のデバイスIDを記録
+      const settings = audioTrack.getSettings()
+      if (settings.deviceId) setSelectedDeviceId(settings.deviceId)
 
       const audioContext = new AudioContext()
-      // Chrome: AudioContextがsuspended状態の場合resumeが必要
       if (audioContext.state === 'suspended') {
         await audioContext.resume()
       }
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = 256
       const source = audioContext.createMediaStreamSource(stream)
-      // source → analyser → gain(0) → destination で音声処理パイプラインを完成させる
-      // （destinationに接続しないとChromeがAnalyserNodeを処理しない場合がある）
       const gainNode = audioContext.createGain()
-      gainNode.gain.value = 0 // スピーカーから音を出さない
+      gainNode.gain.value = 0
       source.connect(analyser)
       analyser.connect(gainNode)
       gainNode.connect(audioContext.destination)
       audioContextRef.current = audioContext
 
       setIsMicTesting(true)
+
+      // デバイス一覧も更新
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      setMicDevices(devices.filter(d => d.kind === 'audioinput'))
 
       const freqData = new Uint8Array(analyser.frequencyBinCount)
       const timeData = new Uint8Array(analyser.frequencyBinCount)
@@ -77,12 +91,11 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         analyser.getByteFrequencyData(freqData)
         analyser.getByteTimeDomainData(timeData)
         const freqAvg = freqData.reduce((a, b) => a + b, 0) / freqData.length
-        // timeDomain: 128=無音中心, 128からの偏差で音を検出
-        const timeMax = Math.max(...timeData)
-        const timeMin = Math.min(...timeData)
+        const timeArr = Array.from(timeData)
+        const timeMax = Math.max(...timeArr)
+        const timeMin = Math.min(...timeArr)
         const timeDev = Math.max(timeMax - 128, 128 - timeMin)
         setMicLevel(Math.round(freqAvg / 255 * 100))
-        // 1秒ごとに診断情報を更新
         frameCount++
         if (frameCount % 60 === 1) {
           setMicDiag(
@@ -438,7 +451,25 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
                   テスト終了
                 </Button>
               </div>
-              <div className="text-xs text-green-700 mb-1">デバイス: {micDeviceName}</div>
+              <div className="text-xs text-green-700 mb-1">使用中: {micDeviceName}</div>
+              {micDevices.length > 1 && (
+                <div className="flex items-center gap-1 mb-2">
+                  <span className="text-xs text-green-700">切替:</span>
+                  {micDevices.map(d => (
+                    <button
+                      key={d.deviceId}
+                      onClick={() => startMicTest(d.deviceId)}
+                      className={`text-xs px-2 py-0.5 rounded border ${
+                        selectedDeviceId === d.deviceId
+                          ? 'bg-green-200 border-green-400 font-medium'
+                          : 'bg-white border-gray-300 hover:bg-green-50'
+                      }`}
+                    >
+                      {d.label || d.deviceId.slice(0, 8)}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="w-full bg-gray-200 rounded h-5 overflow-hidden">
                 <div
                   className={`h-5 rounded transition-all duration-75 ${micLevel > 30 ? 'bg-green-500' : micLevel > 5 ? 'bg-yellow-400' : 'bg-gray-400'}`}
@@ -492,7 +523,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
                   <span>「録音開始」ボタンを押すか、テキストエリアをクリックして <strong>Fnキーを2回</strong> で音声入力</span>
                 </div>
                 <Button
-                  onClick={startMicTest}
+                  onClick={() => startMicTest()}
                   variant="outline"
                   size="sm"
                   className="text-xs px-2 py-1 ml-2 shrink-0"
