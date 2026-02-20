@@ -420,6 +420,7 @@ export default function SettingsPage() {
   const initialMenuDataRef = useRef<any>(null);
   const initialUnitDataRef = useRef<any>(null);
   const initialNotificationDataRef = useRef<any>(null);
+  const prevCategoryRef = useRef<string | null>(null);
 
   const isClinicInitialLoadRef = useRef(true);
   const isCalendarInitialLoadRef = useRef(true);
@@ -2070,9 +2071,10 @@ export default function SettingsPage() {
 
     const currentData = { staff, staffUnitPriorities };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
-    if (initialStaffDataRef.current === null) {
+    // タブ切替直後 or 初回は現在のデータを初期値としてキャプチャ
+    if (initialStaffDataRef.current === null || prevCategoryRef.current !== 'staff') {
       initialStaffDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'staff';
       return;
     }
 
@@ -2176,6 +2178,7 @@ export default function SettingsPage() {
   // タブ切り替え時に未保存フラグをリセット
   useEffect(() => {
     setHasUnsavedChanges(false);
+    prevCategoryRef.current = selectedCategory;
   }, [selectedCategory]);
 
   // 未保存の変更がある場合、ページ離脱時に警告を表示
