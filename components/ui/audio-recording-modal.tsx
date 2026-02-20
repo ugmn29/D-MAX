@@ -360,12 +360,13 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
   const attachToSubKarte = async () => {
     try {
-      const response = await fetch('/api/subkarte', {
+      const response = await fetch('/api/subkarte/entries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          patientId,
-          type: 'text',
+          patient_id: patientId,
+          staff_id: staffId,
+          entry_type: 'text',
           content: summary,
           metadata: {
             source: 'audio_recording',
