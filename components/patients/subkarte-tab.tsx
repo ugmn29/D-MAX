@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useClinicId } from '@/hooks/use-clinic-id'
 import { useAuth } from '@/components/providers/auth-provider'
 import { getClinicSetting } from '@/lib/api/clinic'
@@ -144,31 +144,31 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
   // 古い録音機能のrefは削除 - 新しいAudioRecordingModalを使用
 
   // DBからサブカルテエントリを読み込み
-  useEffect(() => {
-    const loadEntries = async () => {
-      setLoading(true)
-      try {
-        const dbEntries = await getSubKarteEntries(patientId)
-        // DB形式 → コンポーネント形式にマッピング
-        const mappedEntries: SubKarteEntry[] = dbEntries.map((e: any) => ({
-          id: e.id,
-          type: e.entry_type || 'text',
-          content: e.content || '',
-          metadata: e.metadata || {},
-          createdAt: e.created_at || new Date().toISOString(),
-          staffName: e.staff?.name || '不明'
-        }))
-        setEntries(mappedEntries)
-      } catch (error) {
-        console.error('サブカルテエントリの読み込みに失敗:', error)
-        setEntries([])
-      } finally {
-        setLoading(false)
-      }
+  const loadEntries = useCallback(async () => {
+    setLoading(true)
+    try {
+      const dbEntries = await getSubKarteEntries(patientId)
+      // DB形式 → コンポーネント形式にマッピング
+      const mappedEntries: SubKarteEntry[] = dbEntries.map((e: any) => ({
+        id: e.id,
+        type: e.entry_type || 'text',
+        content: e.content || '',
+        metadata: e.metadata || {},
+        createdAt: e.created_at || new Date().toISOString(),
+        staffName: e.staff?.name || '不明'
+      }))
+      setEntries(mappedEntries)
+    } catch (error) {
+      console.error('サブカルテエントリの読み込みに失敗:', error)
+      setEntries([])
+    } finally {
+      setLoading(false)
     }
-
-    loadEntries()
   }, [patientId])
+
+  useEffect(() => {
+    loadEntries()
+  }, [loadEntries])
 
   // 毎回表示（重要な注意事項）の読み込みとモーダル表示
   useEffect(() => {
@@ -1692,7 +1692,10 @@ export function SubKarteTab({ patientId, layout = 'vertical' }: SubKarteTabProps
       {/* 音声録音モーダル */}
       <AudioRecordingModal
         isOpen={showAudioRecordingModal}
-        onClose={() => setShowAudioRecordingModal(false)}
+        onClose={() => {
+          setShowAudioRecordingModal(false)
+          loadEntries()
+        }}
         patientId={patientId}
         clinicId={clinicId}
         staffId={getCurrentStaffId()}
