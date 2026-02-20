@@ -97,30 +97,37 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
 
     recognition.onend = () => {
       console.log('[STT] onend - wantRecording:', wantRecordingRef.current, 'restartCount:', restartCountRef.current)
+      // 終了した認識オブジェクトへの参照をクリア
+      recognitionRef.current = null
+
       if (wantRecordingRef.current) {
         // no-speech連続リスタートを制限（最大20回 = 約2分）
         if (restartCountRef.current >= 20) {
           console.log('[STT] リスタート上限到達、新規セッション作成...')
           restartCountRef.current = 0
-          setTimeout(() => {
-            if (wantRecordingRef.current) {
-              startRecognitionSession.current()
-            }
-          }, 500)
-          return
         }
         restartCountRef.current++
-        console.log('[STT] 自動再起動... (#' + restartCountRef.current + ') 新規セッション作成')
-        // 常に新しいSpeechRecognitionオブジェクトを作成（同一オブジェクトの再起動はonaudiostartが発火しない）
-        setTimeout(() => {
-          if (!wantRecordingRef.current) return
-          startRecognitionSession.current()
-        }, 300)
+        console.log('[STT] 自動再起動 #' + restartCountRef.current + ' - マイクリフレッシュ後に新規セッション')
+        // getUserMediaで一瞬マイクを起こしてからSpeechRecognition開始
+        // （Chrome: no-speech後にマイクがスリープする問題への対策）
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            // マイクを即座に解放（SpeechRecognitionと競合させない）
+            stream.getTracks().forEach(t => t.stop())
+            console.log('[STT] マイクリフレッシュ完了、新規セッション開始')
+            if (!wantRecordingRef.current) return
+            startRecognitionSession.current()
+          })
+          .catch(() => {
+            // getUserMedia失敗でもSpeechRecognition開始を試みる
+            console.log('[STT] マイクリフレッシュ失敗、直接開始')
+            if (!wantRecordingRef.current) return
+            startRecognitionSession.current()
+          })
         return
       }
       setIsRecording(false)
       setInterimText('')
-      recognitionRef.current = null
     }
 
     recognitionRef.current = recognition
