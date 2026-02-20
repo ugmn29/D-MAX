@@ -47,9 +47,14 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       micStreamRef.current = stream
 
       const audioTrack = stream.getAudioTracks()[0]
-      setMicDeviceName(audioTrack.label || '不明なマイク')
+      const trackInfo = `${audioTrack.label || '不明'} (${audioTrack.readyState}, muted=${audioTrack.muted})`
+      setMicDeviceName(trackInfo)
 
       const audioContext = new AudioContext()
+      // Chrome: AudioContextがsuspended状態の場合resumeが必要
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume()
+      }
       const analyser = audioContext.createAnalyser()
       const source = audioContext.createMediaStreamSource(stream)
       source.connect(analyser)
@@ -57,6 +62,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       audioContextRef.current = audioContext
 
       setIsMicTesting(true)
+      console.log('[MicTest] stream active:', stream.active, 'track:', trackInfo, 'audioContext:', audioContext.state)
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
       const updateLevel = () => {
