@@ -56,9 +56,15 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
         await audioContext.resume()
       }
       const analyser = audioContext.createAnalyser()
-      const source = audioContext.createMediaStreamSource(stream)
-      source.connect(analyser)
       analyser.fftSize = 256
+      const source = audioContext.createMediaStreamSource(stream)
+      // source → analyser → gain(0) → destination で音声処理パイプラインを完成させる
+      // （destinationに接続しないとChromeがAnalyserNodeを処理しない場合がある）
+      const gainNode = audioContext.createGain()
+      gainNode.gain.value = 0 // スピーカーから音を出さない
+      source.connect(analyser)
+      analyser.connect(gainNode)
+      gainNode.connect(audioContext.destination)
       audioContextRef.current = audioContext
 
       setIsMicTesting(true)
