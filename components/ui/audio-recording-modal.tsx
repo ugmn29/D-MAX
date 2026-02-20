@@ -110,17 +110,12 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
           return
         }
         restartCountRef.current++
-        console.log('[STT] 自動再起動... (#' + restartCountRef.current + ')')
-        // 少し遅延を入れてマイクリソースを確実に解放させてから再開
+        console.log('[STT] 自動再起動... (#' + restartCountRef.current + ') 新規セッション作成')
+        // 常に新しいSpeechRecognitionオブジェクトを作成（同一オブジェクトの再起動はonaudiostartが発火しない）
         setTimeout(() => {
           if (!wantRecordingRef.current) return
-          try {
-            recognition.start()
-          } catch (e) {
-            console.error('[STT] 同一obj再起動失敗、新規作成...', e)
-            startRecognitionSession.current()
-          }
-        }, 100)
+          startRecognitionSession.current()
+        }, 300)
         return
       }
       setIsRecording(false)
