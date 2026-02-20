@@ -27,6 +27,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
   const [isMicTesting, setIsMicTesting] = useState(false)
   const [micLevel, setMicLevel] = useState(0)
   const [micDeviceName, setMicDeviceName] = useState('')
+  const [micDiag, setMicDiag] = useState('')  // 詳細診断
   const micStreamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const animFrameRef = useRef<number>(0)
@@ -68,13 +69,28 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
       audioContextRef.current = audioContext
 
       setIsMicTesting(true)
-      console.log('[MicTest] stream active:', stream.active, 'track:', trackInfo, 'audioContext:', audioContext.state)
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+      const freqData = new Uint8Array(analyser.frequencyBinCount)
+      const timeData = new Uint8Array(analyser.frequencyBinCount)
+      let frameCount = 0
       const updateLevel = () => {
-        analyser.getByteFrequencyData(dataArray)
-        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
-        setMicLevel(Math.round(avg / 255 * 100))
+        analyser.getByteFrequencyData(freqData)
+        analyser.getByteTimeDomainData(timeData)
+        const freqAvg = freqData.reduce((a, b) => a + b, 0) / freqData.length
+        // timeDomain: 128=無音中心, 128からの偏差で音を検出
+        const timeMax = Math.max(...timeData)
+        const timeMin = Math.min(...timeData)
+        const timeDev = Math.max(timeMax - 128, 128 - timeMin)
+        setMicLevel(Math.round(freqAvg / 255 * 100))
+        // 1秒ごとに診断情報を更新
+        frameCount++
+        if (frameCount % 60 === 1) {
+          setMicDiag(
+            `ctx=${audioContext.state} sr=${audioContext.sampleRate} ` +
+            `freq=${freqAvg.toFixed(1)} time=${timeMin}-${timeMax} dev=${timeDev} ` +
+            `stream=${stream.active} tracks=${stream.getAudioTracks().length}`
+          )
+        }
         animFrameRef.current = requestAnimationFrame(updateLevel)
       }
       updateLevel()
@@ -92,6 +108,7 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
     audioContextRef.current = null
     setIsMicTesting(false)
     setMicLevel(0)
+    setMicDiag('')
   }, [])
 
   // 録音を停止する内部関数
@@ -432,6 +449,9 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
                 <span>レベル: {micLevel}%</span>
                 <span>{micLevel > 30 ? '✅ 音声を検出中' : micLevel > 5 ? '⚠️ 音が小さい' : '❌ 音声なし - マイクを確認'}</span>
               </div>
+              {micDiag && (
+                <div className="text-xs text-gray-400 font-mono mt-1 break-all">{micDiag}</div>
+              )}
             </div>
           )}
 
