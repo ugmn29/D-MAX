@@ -22,8 +22,8 @@ import { ja } from 'date-fns/locale'
 import { trackPageView, trackButtonClick, trackFormSubmit } from '@/lib/tracking/funnel-tracker'
 import { getStoredUTMData } from '@/lib/tracking/utm-tracker'
 
-// 仮のクリニックID
-const DEMO_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
+// デフォルトのクリニックID（searchParamsで上書き可能）
+const DEFAULT_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
 
 interface WebBookingSettings {
   isEnabled: boolean
@@ -63,6 +63,7 @@ interface QuestionnaireSettings {
 
 function WebBookingPageInner() {
   const searchParams = useSearchParams()
+  const clinicId = searchParams.get('clinic_id') || DEFAULT_CLINIC_ID
   const [loading, setLoading] = useState(true)
   const [currentStep, setCurrentStep] = useState(1)
   const [webSettings, setWebSettings] = useState<WebBookingSettings | null>(null)
@@ -130,7 +131,7 @@ function WebBookingPageInner() {
   // ページビュートラッキング
   useEffect(() => {
     // ランディングページビューを記録
-    trackPageView(DEMO_CLINIC_ID, 'LANDING', {
+    trackPageView(clinicId, 'LANDING', {
       page: 'web-booking',
       has_utm: getStoredUTMData() !== null
     })
@@ -142,10 +143,10 @@ function WebBookingPageInner() {
       try {
         setLoading(true)
         const [settings, menus, staffData, clinic] = await Promise.all([
-          getClinicSettings(DEMO_CLINIC_ID),
-          getTreatmentMenus(DEMO_CLINIC_ID),
-          getStaff(DEMO_CLINIC_ID),
-          getBusinessHours(DEMO_CLINIC_ID)
+          getClinicSettings(clinicId),
+          getTreatmentMenus(clinicId),
+          getStaff(clinicId),
+          getBusinessHours(clinicId)
         ])
 
         console.log('Web予約: 取得した設定', settings)
@@ -289,7 +290,7 @@ function WebBookingPageInner() {
 
         // クリニック電話番号を取得
         try {
-          const clinicRes = await fetch(`/api/clinics/${DEMO_CLINIC_ID}`)
+          const clinicRes = await fetch(`/api/clinics/${clinicId}`)
           if (clinicRes.ok) {
             const clinicData = await clinicRes.json()
             if (clinicData?.phone) {
@@ -348,8 +349,8 @@ function WebBookingPageInner() {
             duration: originalDuration
           })
 
-          // 患者情報を取得（DEMO_CLINIC_IDを使用）
-          const patient = await getPatientById(DEMO_CLINIC_ID, patientId)
+          // 患者情報を取得（clinicIdを使用）
+          const patient = await getPatientById(clinicId, patientId)
           if (!patient) {
             setTokenError('患者情報が見つかりません。')
             return
@@ -358,7 +359,7 @@ function WebBookingPageInner() {
           console.log('LINE Web予約: 患者情報取得成功', patient)
 
           // Web予約設定をチェック（予約変更モードでは reschedule_enabled をチェック）
-          const webBookingSettings = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+          const webBookingSettings = await getPatientWebBookingSettings(patient.id, clinicId)
           if (webBookingSettings) {
             if (reschedule === 'true' && !webBookingSettings.web_reschedule_enabled) {
               setTokenError('この患者様はWeb予約変更が制限されています。お電話でご連絡ください。')
@@ -507,7 +508,7 @@ function WebBookingPageInner() {
         console.log('トークンベースWeb予約: 患者情報取得成功', patient)
 
         // Web予約設定をチェック
-        const webBookingSettings = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+        const webBookingSettings = await getPatientWebBookingSettings(patient.id, clinicId)
         if (webBookingSettings && !webBookingSettings.web_booking_enabled) {
           setTokenError('この患者様はWeb予約が制限されています。お電話でご予約ください。')
           return
@@ -568,7 +569,7 @@ function WebBookingPageInner() {
           staffId: originalAppointmentData.staff_id
         })
         slots = await getWeeklySlotsForReschedule(
-          DEMO_CLINIC_ID,
+          clinicId,
           originalAppointmentData.duration || 30,
           originalAppointmentData.staff_id || null,
           weekStartDate
@@ -576,7 +577,7 @@ function WebBookingPageInner() {
       } else {
         // 通常モード
         slots = await getWeeklySlots(
-          DEMO_CLINIC_ID,
+          clinicId,
           bookingData.selectedMenu,
           bookingData.isNewPatient,
           weekStartDate
@@ -710,7 +711,7 @@ function WebBookingPageInner() {
       const birthdate = `${authData.birthYear}-${authData.birthMonth.padStart(2, '0')}-${authData.birthDay.padStart(2, '0')}`
 
       // 患者認証APIを呼び出し
-      const patient = await authenticateReturningPatient(DEMO_CLINIC_ID, {
+      const patient = await authenticateReturningPatient(clinicId, {
         patientNumber: authData.patientNumber || undefined,
         phone: authData.phone || undefined,
         email: authData.email || undefined,
@@ -719,7 +720,7 @@ function WebBookingPageInner() {
 
       if (patient) {
         // Web予約設定をチェック
-        const webBookingSettings = await getPatientWebBookingSettings(patient.id, DEMO_CLINIC_ID)
+        const webBookingSettings = await getPatientWebBookingSettings(patient.id, clinicId)
         if (webBookingSettings && !webBookingSettings.web_booking_enabled) {
           // Web予約が許可されていない
           setAuthError('この患者様はWeb予約が制限されています。お電話でご予約ください。')
@@ -751,7 +752,7 @@ function WebBookingPageInner() {
   const handleSlotSelect = (date: string, time: string) => {
     setBookingData(prev => ({ ...prev, selectedDate: date, selectedTime: time }))
     // 時間選択イベントをトラッキング
-    trackButtonClick(DEMO_CLINIC_ID, 'TIME_SELECTION', `${date} ${time}`, {
+    trackButtonClick(clinicId, 'TIME_SELECTION', `${date} ${time}`, {
       date,
       time,
       menu_id: bookingData.selectedMenu
@@ -855,7 +856,7 @@ function WebBookingPageInner() {
 
       // 既存予約を取得（キャンセル除外）
       const { getAppointments } = await import('@/lib/api/appointments')
-      const allAppointments = await getAppointments(DEMO_CLINIC_ID, bookingData.selectedDate, bookingData.selectedDate)
+      const allAppointments = await getAppointments(clinicId, bookingData.selectedDate, bookingData.selectedDate)
       const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
       console.log('Web予約: 既存予約データ', existingAppointments.length, '件')
 
@@ -891,7 +892,7 @@ function WebBookingPageInner() {
         const { createPatient } = await import('@/lib/api/patients')
         const nameParts = bookingData.patientName.split(' ')
 
-        const newPatient = await createPatient(DEMO_CLINIC_ID, {
+        const newPatient = await createPatient(clinicId, {
           last_name: nameParts[0] || bookingData.patientName,
           first_name: nameParts[1] || '',
           last_name_kana: '',
@@ -993,10 +994,10 @@ function WebBookingPageInner() {
       }
 
       console.log('Web予約: 予約作成データ', appointmentData)
-      const createdAppointment = await createAppointment(DEMO_CLINIC_ID, appointmentData)
+      const createdAppointment = await createAppointment(clinicId, appointmentData)
 
       // 予約完了イベントをトラッキング
-      await trackFormSubmit(DEMO_CLINIC_ID, 'COMPLETE', {
+      await trackFormSubmit(clinicId, 'COMPLETE', {
         appointment_id: createdAppointment?.id,
         menu_id: bookingData.selectedMenu,
         is_new_patient: bookingData.isNewPatient
@@ -1010,7 +1011,7 @@ function WebBookingPageInner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             patient_id: patientId,
-            clinic_id: DEMO_CLINIC_ID,
+            clinic_id: clinicId,
             utm_data: utmData,
             questionnaire_source: null, // 問診表からの回答は別途設定
             questionnaire_detail: null
@@ -1470,7 +1471,7 @@ function WebBookingPageInner() {
                           onClick={() => {
                             setBookingData(prev => ({ ...prev, selectedMenu: menu.treatment_menu_id }))
                             // メニュー選択イベントをトラッキング
-                            trackButtonClick(DEMO_CLINIC_ID, 'MENU_SELECTION', menu.display_name || menu.treatment_menu_name, {
+                            trackButtonClick(clinicId, 'MENU_SELECTION', menu.display_name || menu.treatment_menu_name, {
                               menu_id: menu.treatment_menu_id,
                               duration: menu.duration,
                               is_new_patient: bookingData.isNewPatient
