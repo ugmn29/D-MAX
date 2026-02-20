@@ -102,48 +102,21 @@ export default function CalendarSettingsPage() {
     }
   }, [timeSlotMinutes, displayItems, cellHeight, cancelTypes, penaltySettings])
 
-  // 自動保存関数
+  // 自動保存関数（API保存のみ。通知は即時useEffectが担当）
   const autoSave = useCallback(async () => {
     if (isInitialLoad) return // 初期読み込み時は保存しない
-    
+
     try {
-      console.log('設定ページ: 自動保存開始')
-      console.log('設定ページ: displayItems保存値:', displayItems)
       setSaving(true)
-      
+
       // updateClinicSettingsを使用して一括保存
-      console.log('設定ページ: updateClinicSettingsで一括保存中...')
-      const result = await updateClinicSettings(clinicId, {
+      await updateClinicSettings(clinicId, {
         timeSlotMinutes,
         displayItems,
         cellHeight,
         cancelTypes,
         penaltySettings
       })
-      
-      console.log('設定ページ: 自動保存完了', result)
-
-      // メインページに設定変更を通知
-      const numericTimeSlotMinutes = Number(timeSlotMinutes)
-      const updateData = {
-        timestamp: Date.now(),
-        timeSlotMinutes: numericTimeSlotMinutes,
-        displayItems,
-        cellHeight
-      }
-      window.localStorage.setItem('clinic_settings_updated', JSON.stringify(updateData))
-
-      // カスタムイベントを発火
-      const customEvent = new CustomEvent('clinicSettingsUpdated', {
-        detail: { timeSlotMinutes: numericTimeSlotMinutes, displayItems, cellHeight }
-      })
-      window.dispatchEvent(customEvent)
-
-      // postMessageも発火（追加の通知方法）
-      window.postMessage({
-        type: 'clinicSettingsUpdated',
-        data: { timeSlotMinutes: numericTimeSlotMinutes, displayItems, cellHeight }
-      }, window.location.origin)
     } catch (error) {
       console.error('自動保存エラー:', error)
     } finally {
@@ -156,32 +129,18 @@ export default function CalendarSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        console.log('設定ページ: データ読み込み開始')
         const settings = await getClinicSettings(clinicId)
-        console.log('設定ページ: 取得した設定:', settings)
-        console.log('設定ページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
-        console.log('設定ページ: display_items:', settings.display_items)
-        console.log('設定ページ: display_itemsの型:', typeof settings.display_items)
-        console.log('設定ページ: display_itemsはArray?:', Array.isArray(settings.display_items))
 
-        const timeSlotValue = settings.time_slot_minutes || 15
-        console.log('設定ページ: time_slot_minutes設定:', timeSlotValue)
-
-        // 数値に変換してから設定
-        const numericTimeSlotValue = Number(timeSlotValue)
-        console.log('設定ページ: 数値変換後:', numericTimeSlotValue)
+        const numericTimeSlotValue = Number(settings.time_slot_minutes || 15)
         setTimeSlotMinutes(numericTimeSlotValue)
 
-        // displayItemsを設定
         const loadedDisplayItems = Array.isArray(settings.display_items) ? settings.display_items : []
-        console.log('設定ページ: 読み込んだdisplayItems:', loadedDisplayItems)
         setDisplayItems(loadedDisplayItems)
 
         setCellHeight(settings.cell_height || 40)
 
         // 初期読み込み完了
         setIsInitialLoad(false)
-        console.log('設定ページ: 初期読み込み完了 - displayItems:', loadedDisplayItems)
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
@@ -194,17 +153,10 @@ export default function CalendarSettingsPage() {
 
   // 設定値変更時の自動保存
   useEffect(() => {
-    console.log('設定ページ: 自動保存useEffect実行 - isInitialLoad:', isInitialLoad)
-    console.log('設定ページ: displayItems:', displayItems)
-    
-    if (isInitialLoad) {
-      console.log('設定ページ: 初期読み込み中のため自動保存をスキップ')
-      return // 初期読み込み時は保存しない
-    }
-    
+    if (isInitialLoad) return // 初期読み込み時は保存しない
+
     // デバウンス処理（500ms後に保存）
     const timeoutId = setTimeout(() => {
-      console.log('設定ページ: デバウンス処理完了、自動保存実行')
       autoSave()
     }, 500)
     

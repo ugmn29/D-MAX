@@ -149,8 +149,10 @@ export default function ClinicSettingsPage() {
       console.log('全ての設定保存完了')
       alert('設定を保存しました')
       
-      // シフト表に変更を通知
+      // シフト表に変更を通知（既存のカレンダー設定を保持しつつマージ）
+      const existingData = JSON.parse(localStorage.getItem('clinic_settings_updated') || '{}')
       localStorage.setItem('clinic_settings_updated', JSON.stringify({
+        ...existingData,
         timeSlotMinutes,
         businessHours: formattedBusinessHours,
         breakTimes,

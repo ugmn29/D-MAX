@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Settings } from 'lucide-react'
 import { MainCalendar } from '@/components/calendar/main-calendar'
@@ -34,17 +34,42 @@ export default function HomePage() {
   // 更新トリガー（値を変更することで再レンダリングを促す）
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // timeSlotMinutesの変更をログ出力
-  useEffect(() => {
-    console.log('メインページ: timeSlotMinutes変更:', timeSlotMinutes)
-  }, [timeSlotMinutes])
   const [showSettings, setShowSettings] = useState(false)
 
   // カレンダー更新処理
-  const handleRefresh = () => {
-    console.log('カレンダーを更新します')
+  const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1)
-  }
+  }, [])
+
+  // 設定を読み込み
+  const loadSettings = useCallback(async () => {
+    try {
+      const settings = await getClinicSettings(clinicId)
+
+      // 数値に変換、設定がない場合はデフォルト値15
+      const numericTimeSlotMinutes = settings.time_slot_minutes ? Number(settings.time_slot_minutes) : 15
+
+      // cell_heightとtimeSlotMinutesの整合性をチェックして自動調整
+      let finalCellHeight = settings.cell_height || 40
+      if (numericTimeSlotMinutes === 15 && finalCellHeight < 40) {
+        finalCellHeight = 40
+      } else if (numericTimeSlotMinutes === 30 && finalCellHeight < 60) {
+        finalCellHeight = 60
+      }
+
+      setTimeSlotMinutes(numericTimeSlotMinutes)
+      setDisplayItems(Array.isArray(settings.display_items) ? settings.display_items : [])
+      setCellHeight(finalCellHeight)
+      setSettingsLoaded(true)
+    } catch (error) {
+      console.error('設定読み込みエラー:', error)
+      // エラー時もデフォルト値で初期化
+      setTimeSlotMinutes(15)
+      setDisplayItems([])
+      setCellHeight(40)
+      setSettingsLoaded(true)
+    }
+  }, [clinicId])
 
   useEffect(() => {
     setMounted(true)
@@ -56,7 +81,6 @@ export default function HomePage() {
     if (storedIsPasteMode === 'true' && storedCopiedAppointment) {
       try {
         const appointment = JSON.parse(storedCopiedAppointment)
-        console.log('カレンダーページ: ペーストモードを復元', appointment)
         setCopiedAppointment(appointment)
         setIsPasteMode(true)
 
@@ -77,7 +101,7 @@ export default function HomePage() {
     if (!authLoading) {
       loadSettings()
     }
-  }, [authLoading, clinicId])
+  }, [authLoading, loadSettings])
 
   // マウント時にlocalStorageから最新の設定を即座に適用（SPA遷移対応）
   useEffect(() => {
@@ -98,7 +122,6 @@ export default function HomePage() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('メインページ: ページが可視になった - 設定とカレンダーを再読み込み')
         loadSettings()
         handleRefresh()
       }
@@ -106,18 +129,16 @@ export default function HomePage() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
+  }, [loadSettings, handleRefresh])
 
   // localStorageの変更を監視して設定を自動更新
   useEffect(() => {
     const applySettingsUpdate = (data: any) => {
       if (data.timeSlotMinutes) {
-        const v = Number(data.timeSlotMinutes)
-        if (v !== timeSlotMinutes) setTimeSlotMinutes(v)
+        setTimeSlotMinutes(Number(data.timeSlotMinutes))
       }
       if (data.cellHeight) {
-        const v = Number(data.cellHeight)
-        if (v !== cellHeight) setCellHeight(v)
+        setCellHeight(Number(data.cellHeight))
       }
       if (Array.isArray(data.displayItems)) {
         setDisplayItems(data.displayItems)
@@ -147,51 +168,13 @@ export default function HomePage() {
     window.addEventListener('storage', handleStorageChange)
     window.addEventListener('clinicSettingsUpdated', handleCustomEvent as EventListener)
     window.addEventListener('message', handlePostMessage)
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('clinicSettingsUpdated', handleCustomEvent as EventListener)
       window.removeEventListener('message', handlePostMessage)
     }
-  }, [timeSlotMinutes])
-
-  // 設定を読み込み
-  const loadSettings = async () => {
-    try {
-      console.log('メインページ: 設定読み込み開始')
-      const settings = await getClinicSettings(clinicId)
-      console.log('メインページ: 取得した設定:', settings)
-      console.log('メインページ: 取得した設定の詳細:', JSON.stringify(settings, null, 2))
-
-      // 数値に変換、設定がない場合はデフォルト値15
-      const numericTimeSlotMinutes = settings.time_slot_minutes ? Number(settings.time_slot_minutes) : 15
-      console.log('メインページ: 最終的な時間設定値:', numericTimeSlotMinutes)
-
-      // cell_heightとtimeSlotMinutesの整合性をチェックして自動調整
-      let finalCellHeight = settings.cell_height || 40
-      if (numericTimeSlotMinutes === 15 && finalCellHeight < 40) {
-        console.warn(`メインページ: セル高さ（${finalCellHeight}px）が15分スロットに対して低すぎるため、40pxに自動調整します`)
-        finalCellHeight = 40
-      } else if (numericTimeSlotMinutes === 30 && finalCellHeight < 60) {
-        console.warn(`メインページ: セル高さ（${finalCellHeight}px）が30分スロットに対して低すぎるため、60pxに自動調整します`)
-        finalCellHeight = 60
-      }
-
-      setTimeSlotMinutes(numericTimeSlotMinutes)
-      setDisplayItems(Array.isArray(settings.display_items) ? settings.display_items : [])
-      setCellHeight(finalCellHeight)
-      setSettingsLoaded(true)
-
-      console.log('メインページ: 設定読み込み完了')
-    } catch (error) {
-      console.error('設定読み込みエラー:', error)
-      // エラー時もデフォルト値で初期化
-      setTimeSlotMinutes(15)
-      setDisplayItems([])
-      setCellHeight(40)
-      setSettingsLoaded(true)
-    }
-  }
+  }, [])
 
   if (!mounted || authLoading || !settingsLoaded) {
     return (
