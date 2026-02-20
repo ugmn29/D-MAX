@@ -2020,9 +2020,9 @@ export default function SettingsPage() {
 
     const currentData = { clinicInfo, businessHours, breakTimes, holidays };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
-    if (initialClinicDataRef.current === null) {
+    if (initialClinicDataRef.current === null || prevCategoryRef.current !== 'clinic') {
       initialClinicDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'clinic';
       return;
     }
 
@@ -2037,9 +2037,9 @@ export default function SettingsPage() {
 
     const currentData = { displayItems, cellHeight };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
-    if (initialCalendarDataRef.current === null) {
+    if (initialCalendarDataRef.current === null || prevCategoryRef.current !== 'calendar') {
       initialCalendarDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'calendar';
       return;
     }
 
@@ -2054,9 +2054,9 @@ export default function SettingsPage() {
 
     const currentData = { webSettings, webBookingMenus };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
-    if (initialWebDataRef.current === null) {
+    if (initialWebDataRef.current === null || prevCategoryRef.current !== 'web') {
       initialWebDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'web';
       return;
     }
 
@@ -2089,9 +2089,9 @@ export default function SettingsPage() {
 
     const currentData = { treatmentMenus };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
-    if (initialMenuDataRef.current === null) {
+    if (initialMenuDataRef.current === null || prevCategoryRef.current !== 'treatment') {
       initialMenuDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'treatment';
       return;
     }
 
@@ -2106,9 +2106,9 @@ export default function SettingsPage() {
 
     const currentData = { unitsData, staffUnitPriorities };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
-    if (initialUnitDataRef.current === null) {
+    if (initialUnitDataRef.current === null || prevCategoryRef.current !== 'units') {
       initialUnitDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'units';
       return;
     }
 
@@ -2122,30 +2122,17 @@ export default function SettingsPage() {
     if (isSavingRef.current) return;
 
     // 初回ロード中はスキップ（データ読み込み完了後に初期データが設定される）
-    if (isNotificationInitialLoadRef.current) {
-      console.log('🔍 通知タブ: 初回ロード中のためスキップ');
-      return;
-    }
+    if (isNotificationInitialLoadRef.current) return;
 
     const currentData = { notificationSettings };
 
-    // 初期データがnullの場合は何もしない（データ読み込み時に設定される）
-    if (initialNotificationDataRef.current === null) {
-      console.log('🔍 通知タブ: 初期データがnullのためスキップ');
+    if (initialNotificationDataRef.current === null || prevCategoryRef.current !== 'notification') {
+      initialNotificationDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'notification';
       return;
     }
 
-    const currentStr = JSON.stringify(currentData);
-    const initialStr = JSON.stringify(initialNotificationDataRef.current);
-    const hasChanged = currentStr !== initialStr;
-
-    console.log('🔍 通知タブ変更検知:', {
-      hasChanged,
-      isInitialLoad: isNotificationInitialLoadRef.current,
-      currentData,
-      initialData: initialNotificationDataRef.current
-    });
-
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialNotificationDataRef.current);
     setHasUnsavedChanges(hasChanged);
   }, [notificationSettings, selectedCategory]);
   // 注: questionnairesは即座に保存されるため、未保存変更として扱わない
@@ -2165,9 +2152,9 @@ export default function SettingsPage() {
       memoTemplates
     };
 
-    // 初期データがnullの場合のみ初期化（初回ロード時）
-    if (initialMasterDataRef.current === null) {
+    if (initialMasterDataRef.current === null || prevCategoryRef.current !== 'master') {
       initialMasterDataRef.current = JSON.parse(JSON.stringify(currentData));
+      prevCategoryRef.current = 'master';
       return;
     }
 
