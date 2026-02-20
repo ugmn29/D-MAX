@@ -13,17 +13,22 @@ const PUBLIC_PATHS = [
   '/api/auth',
   '/api/tracking-tags',
   '/api/speech-to-text',
-  // Web予約ページが使用するAPI（未認証ユーザーからのアクセスが必要）
+  // Web予約ページが使用するAPI
   '/api/clinic/settings',
+  '/api/clinic/info',
   '/api/clinics',
   '/api/treatment-menus',
   '/api/staff',
   '/api/appointments',
-  '/api/shifts',
+  '/api/staff-shifts',
   '/api/patients',
   '/api/patient-web-booking-settings',
   '/api/web-booking-tokens',
   '/api/tracking/save-acquisition',
+  // 問診票ページが使用するAPI
+  '/api/questionnaire-responses',
+  // トレーニング患者ページが使用するAPI
+  '/api/training',
 ]
 
 function isPublicPath(pathname: string): boolean {
