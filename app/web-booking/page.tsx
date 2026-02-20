@@ -63,7 +63,10 @@ interface QuestionnaireSettings {
 
 function WebBookingPageInner() {
   const searchParams = useSearchParams()
-  const clinicId = searchParams.get('clinic_id') || DEFAULT_CLINIC_ID
+  const clinicIdParam = searchParams.get('clinic_id')
+  const clinicSlugParam = searchParams.get('clinic')
+  const [resolvedClinicId, setResolvedClinicId] = useState<string>(clinicIdParam || DEFAULT_CLINIC_ID)
+  const clinicId = resolvedClinicId
   const [loading, setLoading] = useState(true)
   const [currentStep, setCurrentStep] = useState(1)
   const [webSettings, setWebSettings] = useState<WebBookingSettings | null>(null)
@@ -142,11 +145,29 @@ function WebBookingPageInner() {
     const loadData = async () => {
       try {
         setLoading(true)
+
+        // slugが指定されている場合、APIでclinic_idを解決
+        let effectiveClinicId = clinicId
+        if (clinicSlugParam && !clinicIdParam) {
+          try {
+            const slugRes = await fetch(`/api/clinics/by-slug/${clinicSlugParam}`)
+            if (slugRes.ok) {
+              const clinicData = await slugRes.json()
+              if (clinicData?.id) {
+                effectiveClinicId = clinicData.id
+                setResolvedClinicId(clinicData.id)
+              }
+            }
+          } catch (e) {
+            console.error('クリニックslug解決エラー:', e)
+          }
+        }
+
         const [settings, menus, staffData, clinic] = await Promise.all([
-          getClinicSettings(clinicId),
-          getTreatmentMenus(clinicId),
-          getStaff(clinicId),
-          getBusinessHours(clinicId)
+          getClinicSettings(effectiveClinicId),
+          getTreatmentMenus(effectiveClinicId),
+          getStaff(effectiveClinicId),
+          getBusinessHours(effectiveClinicId)
         ])
 
         console.log('Web予約: 取得した設定', settings)
