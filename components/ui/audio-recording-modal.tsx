@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Modal } from './modal'
 import { Button } from './button'
 import { Textarea } from './textarea'
-import { Select } from './select'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './select'
 import { Mic, FileText, Trash2, Square, Activity } from 'lucide-react'
 
 interface AudioRecordingModalProps {
@@ -531,14 +531,15 @@ export function AudioRecordingModal({ isOpen, onClose, patientId, clinicId, staf
           <h3 className="text-lg font-semibold mb-3">要約（編集可）</h3>
 
           <div className="flex items-center gap-2 mb-3">
-            <Select
-              value={selectedTemplate}
-              onValueChange={setSelectedTemplate}
-              className="w-40 px-3 py-2 border border-gray-300 rounded"
-            >
-              <option value="soap">SOAP形式</option>
-              <option value="simple">簡単要約</option>
-              <option value="detailed">詳細要約</option>
+            <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="soap">SOAP形式</SelectItem>
+                <SelectItem value="simple">簡単要約</SelectItem>
+                <SelectItem value="detailed">詳細要約</SelectItem>
+              </SelectContent>
             </Select>
 
             <Button
