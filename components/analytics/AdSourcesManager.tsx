@@ -169,6 +169,7 @@ export default function AdSourcesManager({ clinicId }: AdSourcesManagerProps) {
   const copyUTMUrl = (source: AdSource) => {
     const baseUrl = `${window.location.origin}/web-booking`
     const params = new URLSearchParams({
+      clinic_id: clinicId,
       utm_source: source.utm_source,
       utm_medium: source.utm_medium || 'none',
     })

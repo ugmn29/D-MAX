@@ -80,7 +80,7 @@ export default function HPEmbedCodeGenerator({ clinicId, clinicSlug }: HPEmbedCo
   const dmaxBaseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://dmax.com'
   const bookingUrl = clinicSlug
     ? `${dmaxBaseUrl}/clinic/${clinicSlug}/booking`
-    : `${dmaxBaseUrl}/web-booking`
+    : `${dmaxBaseUrl}/web-booking?clinic_id=${clinicId}`
 
   const selectedPosition = EMBED_POSITIONS.find(p => p.id === position)
   const selectedStyle = BUTTON_STYLES.find(s => s.id === buttonStyle)

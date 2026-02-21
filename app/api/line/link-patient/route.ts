@@ -349,6 +349,7 @@ export async function GET(request: NextRequest) {
           where: { id: linkage.patient_id },
           select: {
             id: true,
+            clinic_id: true,
             patient_number: true,
             last_name: true,
             first_name: true,

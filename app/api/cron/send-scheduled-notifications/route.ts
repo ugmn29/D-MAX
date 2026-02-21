@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
         const webBookingMenuIds = schedule.web_booking_menu_ids as any
         if (webBookingMenuIds && webBookingMenuIds.length > 0) {
           // TODO: Web予約トークンを生成してLIFF URLを作成
-          webBookingUrl = `${process.env.NEXT_PUBLIC_APP_URL}/liff/web-booking`
+          webBookingUrl = `${process.env.NEXT_PUBLIC_APP_URL}/web-booking?clinic_id=${schedule.clinic_id}`
         }
 
         // 治療メニュー名を取得

@@ -312,6 +312,7 @@ export async function GET(request: NextRequest) {
       appointments_by_patient: appointmentsByPatient,
       total_count: formattedAppointments.length,
       patient_count: linkagesWithPatients.length,
+      clinic_id: DEMO_CLINIC_ID,
       clinic_phone: clinicPhone,
       // デバッグ情報
       debug: {

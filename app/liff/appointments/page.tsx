@@ -102,6 +102,7 @@ export default function AppointmentsPage() {
   // 予約変更関連
   const [showChangeDialog, setShowChangeDialog] = useState(false)
   const [changing, setChanging] = useState(false)
+  const [clinicId, setClinicId] = useState<string | null>(null)
 
   // クリニック電話番号
   const [clinicPhone, setClinicPhone] = useState<string | null>(null)
@@ -190,6 +191,7 @@ export default function AppointmentsPage() {
         setPatientAppointments(data.appointments_by_patient || [])
         setDebugInfo(data.debug || null)
         setClinicPhone(data.clinic_phone || null)
+        if (data.clinic_id) setClinicId(data.clinic_id)
 
         if (data.appointments_by_patient.length === 0) {
           // 連携患者がいるが予約がない場合と、連携患者自体がいない場合を区別
@@ -290,6 +292,9 @@ export default function AppointmentsPage() {
           reschedule: 'true',
           duration: String(selectedAppointment.duration)
         })
+        if (clinicId) {
+          params.set('clinic_id', clinicId)
+        }
 
         // 元の診療メニューIDを追加（設定されている場合）
         if (selectedAppointment.menu1_id) {

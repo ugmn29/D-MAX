@@ -121,7 +121,8 @@ export default function WebBookingLiffPage() {
           name: `${linkage.patients.last_name} ${linkage.patients.first_name}`,
           patient_number: linkage.patients.patient_number,
           birth_date: linkage.patients.birth_date,
-          phone: linkage.patients.phone
+          phone: linkage.patients.phone,
+          clinic_id: linkage.patients.clinic_id
         }))
 
         setPatients(patientList)
@@ -156,6 +157,9 @@ export default function WebBookingLiffPage() {
       birth_date: selectedPatient.birth_date,
       from_line: 'true'
     })
+    if ((selectedPatient as any).clinic_id) {
+      params.set('clinic_id', (selectedPatient as any).clinic_id)
+    }
 
     const webBookingUrl = `${baseUrl}/web-booking?${params.toString()}`
 

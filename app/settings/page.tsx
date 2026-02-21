@@ -2068,10 +2068,15 @@ export default function SettingsPage() {
   useEffect(() => {
     if (selectedCategory !== 'staff') return;
     if (isSavingRef.current) return;
+    // データ読み込み中は比較をスキップ（読み込み完了後に初期データを再キャプチャ）
+    if (staffLoading) {
+      initialStaffDataRef.current = null;
+      return;
+    }
 
     const currentData = { staff, staffUnitPriorities };
 
-    // タブ切替直後 or 初回は現在のデータを初期値としてキャプチャ
+    // タブ切替直後 or 初回 or データ読み込み完了後は現在のデータを初期値としてキャプチャ
     if (initialStaffDataRef.current === null || prevCategoryRef.current !== 'staff') {
       initialStaffDataRef.current = JSON.parse(JSON.stringify(currentData));
       prevCategoryRef.current = 'staff';
@@ -2080,7 +2085,7 @@ export default function SettingsPage() {
 
     const hasChanged = JSON.stringify(currentData) !== JSON.stringify(initialStaffDataRef.current);
     setHasUnsavedChanges(hasChanged);
-  }, [staff, staffUnitPriorities, selectedCategory]);
+  }, [staff, staffUnitPriorities, selectedCategory, staffLoading]);
 
   // 診療メニュータブの変更検知
   useEffect(() => {
@@ -2949,6 +2954,7 @@ export default function SettingsPage() {
   // Web予約設定を保存
   const handleSaveWebSettings = async () => {
     try {
+      isSavingRef.current = true;
       console.log("Web予約設定保存開始");
       console.log("保存するwebSettings:", webSettings);
       console.log("保存するwebBookingMenus:", webBookingMenus);
@@ -2977,10 +2983,13 @@ export default function SettingsPage() {
       }
 
       // 保存成功時に未保存フラグをクリアし、初期データを更新
+      // 注意: setWebSettings/setWebBookingMenusは非同期なので、reloadedSettingsから直接取得する
+      const savedWebSettings = reloadedSettings.web_reservation || webSettings;
+      const savedWebBookingMenus = reloadedSettings.web_reservation?.booking_menus || webBookingMenus;
       setHasUnsavedChanges(false);
       initialWebDataRef.current = JSON.parse(JSON.stringify({
-        webSettings,
-        webBookingMenus
+        webSettings: savedWebSettings,
+        webBookingMenus: savedWebBookingMenus
       }));
 
       showAlert("Web予約設定を保存しました", "success");
@@ -3344,11 +3353,6 @@ export default function SettingsPage() {
         initialCalendarDataRef.current = JSON.parse(JSON.stringify({
           displayItems,
           cellHeight
-        }));
-      } else if (selectedCategory === "web") {
-        initialWebDataRef.current = JSON.parse(JSON.stringify({
-          webSettings,
-          webBookingMenus
         }));
       } else if (selectedCategory === "staff") {
         initialStaffDataRef.current = JSON.parse(JSON.stringify({
@@ -8061,8 +8065,8 @@ export default function SettingsPage() {
                       id="web_page_url"
                         value={
                           typeof window !== "undefined"
-                            ? `${window.location.origin}/web-booking`
-                            : "/web-booking"
+                            ? `${window.location.origin}/web-booking?clinic_id=${clinicId}`
+                            : `/web-booking?clinic_id=${clinicId}`
                         }
                       readOnly
                       className="flex-1 bg-gray-50"
@@ -8073,8 +8077,8 @@ export default function SettingsPage() {
                       onClick={() => {
                           const url =
                             typeof window !== "undefined"
-                              ? `${window.location.origin}/web-booking`
-                              : "/web-booking";
+                              ? `${window.location.origin}/web-booking?clinic_id=${clinicId}`
+                              : `/web-booking?clinic_id=${clinicId}`;
                           navigator.clipboard.writeText(url);
                           showAlert("URLをコピーしました", "success");
                       }}

@@ -190,8 +190,8 @@ const LINK_DESTINATIONS = [
     label: 'DAX予約システム',
     description: 'DAXのWeb予約に直接飛ばす',
     icon: Calendar,
-    getUrl: (_: string, dmaxBaseUrl: string, clinicSlug?: string) =>
-      clinicSlug ? `${dmaxBaseUrl}/clinic/${clinicSlug}/booking` : `${dmaxBaseUrl}/web-booking`,
+    getUrl: (_: string, dmaxBaseUrl: string, clinicSlug?: string, clinicId?: string) =>
+      clinicSlug ? `${dmaxBaseUrl}/clinic/${clinicSlug}/booking` : `${dmaxBaseUrl}/web-booking?clinic_id=${clinicId}`,
   },
   {
     id: 'custom',
@@ -245,7 +245,7 @@ export default function SNSLinkGenerator({ clinicId, clinicSlug }: SNSLinkGenera
     }
     const dest = LINK_DESTINATIONS.find(d => d.id === destination)
     if (!dest) return ''
-    return dest.getUrl(hpBaseUrl, dmaxBaseUrl, clinicSlug)
+    return dest.getUrl(hpBaseUrl, dmaxBaseUrl, clinicSlug, clinicId)
   }
 
   const getSelectedPlatform = () => SNS_PLATFORMS.find(p => p.id === platform)
