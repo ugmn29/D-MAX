@@ -1570,27 +1570,28 @@ function WebBookingPageInner() {
                   </div>
                 )}
 
-                {/* 1週間分のカレンダー */}
+                {/* 1週間分のカレンダー（今日以降のみ表示） */}
+                {(() => {
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  const visibleDayOffsets = [0, 1, 2, 3, 4, 5, 6].filter(dayOffset => {
+                    const date = addDays(weekStartDate, dayOffset)
+                    return date >= today
+                  })
+                  return (
                 <div className="-mx-2 sm:mx-0">
                   {/* ヘッダー（固定） */}
                   <div className="overflow-hidden">
                     <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} className="sm:w-16" />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
+                        {visibleDayOffsets.map(i => <col key={i} />)}
                       </colgroup>
                       <thead>
                         <tr>
                           <th className="border p-1 sm:p-2 bg-gray-50 font-medium">時間</th>
-                          {[0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
+                          {visibleDayOffsets.map(dayOffset => {
                             const date = addDays(weekStartDate, dayOffset)
-                            const dateString = format(date, 'yyyy-MM-dd')
                             const dayName = format(date, 'E', { locale: ja })
                             return (
                               <th key={dayOffset} className="border p-1 bg-gray-50 font-medium">
@@ -1609,20 +1610,14 @@ function WebBookingPageInner() {
                     <table className="w-full border-collapse text-xs sm:text-sm" style={{ tableLayout: 'fixed' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} className="sm:w-16" />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
+                        {visibleDayOffsets.map(i => <col key={i} />)}
                       </colgroup>
                       <tbody>
                         {/* 時間ごとの行を生成 */}
                         {allTimeSlots.map(time => (
                           <tr key={time}>
                             <td className="border p-0.5 sm:p-1 text-[10px] sm:text-sm text-gray-600 text-center">{time}</td>
-                            {[0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
+                            {visibleDayOffsets.map(dayOffset => {
                               const date = addDays(weekStartDate, dayOffset)
                               const dateString = format(date, 'yyyy-MM-dd')
                               const slot = availableSlots.find(
@@ -1672,6 +1667,8 @@ function WebBookingPageInner() {
                     </table>
                   </div>
                 </div>
+                  )
+                })()}
 
                 {/* 凡例 */}
                 <div className="flex items-center space-x-4 text-xs text-gray-600">

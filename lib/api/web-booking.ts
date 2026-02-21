@@ -165,10 +165,37 @@ export async function getAvailableSlots(
         console.error(`空枠取得: ${dateString}のシフト取得エラー`, error)
       }
 
-      // 出勤しているスタッフのIDを抽出
-      const workingStaffIds = staffShifts
+      // 出勤しているスタッフのシフト情報を抽出（勤務時間含む）
+      const parseTimeToMinutes = (t: string | null | undefined): number | null => {
+        if (!t) return null
+        const [h, m] = t.split(':').map(Number)
+        return h * 60 + m
+      }
+
+      const workingStaffShifts = new Map<string, { startMinutes: number, endMinutes: number, breakStartMinutes: number | null, breakEndMinutes: number | null }>()
+      staffShifts
         .filter(shift => !shift.is_holiday && shift.shift_pattern_id !== null)
-        .map(shift => shift.staff_id)
+        .forEach(shift => {
+          const shiftPattern = (shift as any).shift_patterns
+          if (shiftPattern && shiftPattern.start_time && shiftPattern.end_time) {
+            workingStaffShifts.set(shift.staff_id, {
+              startMinutes: parseTimeToMinutes(shiftPattern.start_time) ?? 0,
+              endMinutes: parseTimeToMinutes(shiftPattern.end_time) ?? 24 * 60,
+              breakStartMinutes: parseTimeToMinutes(shiftPattern.break_start),
+              breakEndMinutes: parseTimeToMinutes(shiftPattern.break_end),
+            })
+          } else {
+            // シフトパターン詳細がない場合は終日勤務扱い
+            workingStaffShifts.set(shift.staff_id, {
+              startMinutes: 0,
+              endMinutes: 24 * 60,
+              breakStartMinutes: null,
+              breakEndMinutes: null,
+            })
+          }
+        })
+
+      const workingStaffIds = Array.from(workingStaffShifts.keys())
 
       console.log(`空枠取得: ${dateString}の出勤スタッフID`, workingStaffIds)
 
@@ -245,6 +272,22 @@ export async function getAvailableSlots(
                 // 出勤チェック
                 if (!workingStaffIds.includes(staffId)) {
                   continue
+                }
+
+                // シフト勤務時間チェック（スロット全体がシフト時間内か確認）
+                const staffShiftInfo = workingStaffShifts.get(staffId)
+                if (staffShiftInfo) {
+                  const slotEndTime = currentTimeMinutes + duration
+                  // スロットがシフト勤務時間外の場合はスキップ
+                  if (currentTimeMinutes < staffShiftInfo.startMinutes || slotEndTime > staffShiftInfo.endMinutes) {
+                    continue
+                  }
+                  // スロットがシフト休憩時間と重複する場合はスキップ
+                  if (staffShiftInfo.breakStartMinutes !== null && staffShiftInfo.breakEndMinutes !== null) {
+                    if (!(slotEndTime <= staffShiftInfo.breakStartMinutes || currentTimeMinutes >= staffShiftInfo.breakEndMinutes)) {
+                      continue
+                    }
+                  }
                 }
 
                 // このスタッフがこの時間に既存予約を持っているかチェック
@@ -386,10 +429,36 @@ export async function getAvailableSlotsForReschedule(
         console.error(`予約変更空枠取得: ${dateString}のシフト取得エラー`, error)
       }
 
-      // 出勤しているスタッフのIDを抽出
-      const workingStaffIds = staffShifts
+      // 出勤しているスタッフのシフト情報を抽出（勤務時間含む）
+      const parseTimeToMinutes = (t: string | null | undefined): number | null => {
+        if (!t) return null
+        const [h, m] = t.split(':').map(Number)
+        return h * 60 + m
+      }
+
+      const workingStaffShifts = new Map<string, { startMinutes: number, endMinutes: number, breakStartMinutes: number | null, breakEndMinutes: number | null }>()
+      staffShifts
         .filter(shift => !shift.is_holiday && shift.shift_pattern_id !== null)
-        .map(shift => shift.staff_id)
+        .forEach(shift => {
+          const shiftPattern = (shift as any).shift_patterns
+          if (shiftPattern && shiftPattern.start_time && shiftPattern.end_time) {
+            workingStaffShifts.set(shift.staff_id, {
+              startMinutes: parseTimeToMinutes(shiftPattern.start_time) ?? 0,
+              endMinutes: parseTimeToMinutes(shiftPattern.end_time) ?? 24 * 60,
+              breakStartMinutes: parseTimeToMinutes(shiftPattern.break_start),
+              breakEndMinutes: parseTimeToMinutes(shiftPattern.break_end),
+            })
+          } else {
+            workingStaffShifts.set(shift.staff_id, {
+              startMinutes: 0,
+              endMinutes: 24 * 60,
+              breakStartMinutes: null,
+              breakEndMinutes: null,
+            })
+          }
+        })
+
+      const workingStaffIds = Array.from(workingStaffShifts.keys())
 
       // 休憩時間を取得
       const dayBreakTimes = Array.isArray(breakTimes?.[dayOfWeek]) ? breakTimes[dayOfWeek] : []
@@ -448,27 +517,42 @@ export async function getAvailableSlotsForReschedule(
               if (!workingStaffIds.includes(staffId)) {
                 isAvailable = false
               } else {
-                // 担当者の予約重複チェック
+                // 担当者のシフト勤務時間チェック
+                const staffShiftInfo = workingStaffShifts.get(staffId)
                 const slotEnd = currentTimeMinutes + duration
-                const hasConflict = existingAppointments.some(apt => {
-                  if (apt.appointment_date !== dateString) return false
-                  if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
 
-                  const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
-                  const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+                if (staffShiftInfo) {
+                  if (currentTimeMinutes < staffShiftInfo.startMinutes || slotEnd > staffShiftInfo.endMinutes) {
+                    isAvailable = false
+                  } else if (staffShiftInfo.breakStartMinutes !== null && staffShiftInfo.breakEndMinutes !== null) {
+                    if (!(slotEnd <= staffShiftInfo.breakStartMinutes || currentTimeMinutes >= staffShiftInfo.breakEndMinutes)) {
+                      isAvailable = false
+                    }
+                  }
+                }
 
-                  return !(slotEnd <= aptStart || currentTimeMinutes >= aptEnd)
-                })
+                if (isAvailable) {
+                  // 担当者の予約重複チェック
+                  const hasConflict = existingAppointments.some(apt => {
+                    if (apt.appointment_date !== dateString) return false
+                    if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
 
-                if (hasConflict) {
-                  isAvailable = false
-                } else {
-                  const staff = allStaff.find(s => s.id === staffId)
-                  if (staff) {
-                    availableStaffList.push({
-                      id: staff.id,
-                      name: staff.name
-                    })
+                    const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
+                    const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+
+                    return !(slotEnd <= aptStart || currentTimeMinutes >= aptEnd)
+                  })
+
+                  if (hasConflict) {
+                    isAvailable = false
+                  } else {
+                    const staff = allStaff.find(s => s.id === staffId)
+                    if (staff) {
+                      availableStaffList.push({
+                        id: staff.id,
+                        name: staff.name
+                      })
+                    }
                   }
                 }
               }
