@@ -1043,12 +1043,12 @@ function WebBookingPageInner() {
           staff1_id: appointmentData.staff1_id
         })
 
-        // stepsがある場合、診療メニュー2, 3を設定
-        if (steps.length > 0) {
+        // stepsがある場合、診療メニュー2, 3を設定（steps[0]はstaff1_idで使用済みなので1から）
+        if (steps.length > 1) {
           // 各ステップごとに優先順位順に空いているスタッフを探す
-          for (let index = 0; index < steps.length && index < 2; index++) {
+          for (let index = 1; index < steps.length && index < 3; index++) {
             const step = steps[index]
-            const menuNumber = index + 2  // menu2, menu3なので+2
+            const menuNumber = index + 1  // steps[1]→menu2, steps[2]→menu3
             const stepMenuId = step.menu_id
 
             if (!stepMenuId) {
