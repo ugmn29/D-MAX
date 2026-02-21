@@ -17,7 +17,7 @@ import { authenticateReturningPatient, getPatientById } from '@/lib/api/patients
 import { getPatientWebBookingSettings } from '@/lib/api/patient-web-booking-settings'
 import { validateWebBookingToken, markTokenAsUsed } from '@/lib/api/web-booking-tokens'
 import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight, Phone } from 'lucide-react'
-import { format, addDays, startOfWeek, addWeeks } from 'date-fns'
+import { format, addDays, addWeeks } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { trackPageView, trackButtonClick, trackFormSubmit } from '@/lib/tracking/funnel-tracker'
 import { getStoredUTMData } from '@/lib/tracking/utm-tracker'
@@ -78,7 +78,7 @@ function WebBookingPageInner() {
   const [availableSlots, setAvailableSlots] = useState<any[]>([])
   const [showQuestionnaire, setShowQuestionnaire] = useState(false)
   const [bookingCompleted, setBookingCompleted] = useState(false) // 予約完了状態
-  const [weekStartDate, setWeekStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 })) // 月曜始まり
+  const [weekStartDate, setWeekStartDate] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d }) // 今日始まり
   const [timeSlotMinutes, setTimeSlotMinutes] = useState<number>(15)
   const [businessHours, setBusinessHours] = useState<any>({})
   const [allTimeSlots, setAllTimeSlots] = useState<string[]>([])
@@ -682,8 +682,9 @@ function WebBookingPageInner() {
   // 週の移動
   const goToPreviousWeek = () => {
     const newDate = addWeeks(weekStartDate, -1)
-    const today = startOfWeek(new Date(), { weekStartsOn: 1 })
-    // 今週より前には戻れない
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    // 今日より前には戻れない
     if (newDate >= today) {
       setWeekStartDate(newDate)
     }
@@ -1583,7 +1584,7 @@ function WebBookingPageInner() {
                     size="sm"
                     onClick={goToPreviousWeek}
                     className="px-2 py-1 text-xs shrink-0"
-                    disabled={weekStartDate <= startOfWeek(new Date(), { weekStartsOn: 1 })}
+                    disabled={weekStartDate <= new Date(new Date().setHours(0,0,0,0))}
                   >
                     <ChevronLeft className="w-3 h-3 mr-1" />
                     先週
