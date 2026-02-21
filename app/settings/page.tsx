@@ -1019,6 +1019,9 @@ export default function SettingsPage() {
   });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // 担当者フィルター（Web予約ステップ用）
+  const [staffPositionFilter, setStaffPositionFilter] = useState<string>("all");
+
   // マスタ設定の状態
   const [staffPositions, setStaffPositions] = useState<any[]>([]);
   const [patientNoteTypes, setPatientNoteTypes] = useState<any[]>([]);
@@ -10151,8 +10154,38 @@ export default function SettingsPage() {
                           <div>
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
+                              {/* 役職フィルター */}
+                              <div className="flex flex-wrap gap-1.5 mb-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setStaffPositionFilter("all")}
+                                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                                    staffPositionFilter === "all"
+                                      ? "bg-blue-500 text-white border-blue-500"
+                                      : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"
+                                  }`}
+                                >
+                                  全て
+                                </button>
+                                {staffPositions.map((pos) => (
+                                  <button
+                                    key={pos.id}
+                                    type="button"
+                                    onClick={() => setStaffPositionFilter(pos.id)}
+                                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                                      staffPositionFilter === pos.id
+                                        ? "bg-blue-500 text-white border-blue-500"
+                                        : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"
+                                    }`}
+                                  >
+                                    {pos.name}
+                                  </button>
+                                ))}
+                              </div>
                               <div className="flex flex-wrap gap-2 mb-3">
-                                {staff.map((s) => (
+                                {staff
+                                  .filter((s) => staffPositionFilter === "all" || s.position_id === staffPositionFilter)
+                                  .map((s) => (
                                   <label
                                     key={s.id}
                                     className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white cursor-pointer"
@@ -10708,8 +10741,38 @@ export default function SettingsPage() {
                           <div>
                             <Label className="text-xs mb-2 block">担当者</Label>
                             <div className="border rounded-lg p-3 bg-gray-50">
+                              {/* 役職フィルター */}
+                              <div className="flex flex-wrap gap-1.5 mb-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setStaffPositionFilter("all")}
+                                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                                    staffPositionFilter === "all"
+                                      ? "bg-blue-500 text-white border-blue-500"
+                                      : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"
+                                  }`}
+                                >
+                                  全て
+                                </button>
+                                {staffPositions.map((pos) => (
+                                  <button
+                                    key={pos.id}
+                                    type="button"
+                                    onClick={() => setStaffPositionFilter(pos.id)}
+                                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                                      staffPositionFilter === pos.id
+                                        ? "bg-blue-500 text-white border-blue-500"
+                                        : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"
+                                    }`}
+                                  >
+                                    {pos.name}
+                                  </button>
+                                ))}
+                              </div>
                               <div className="flex flex-wrap gap-2 mb-3">
-                                {staff.map((s) => (
+                                {staff
+                                  .filter((s) => staffPositionFilter === "all" || s.position_id === staffPositionFilter)
+                                  .map((s) => (
                                   <label
                                     key={s.id}
                                     className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white cursor-pointer"
