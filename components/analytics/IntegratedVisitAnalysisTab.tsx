@@ -610,6 +610,47 @@ export default function IntegratedVisitAnalysisTab({
                   </CardContent>
                 </Card>
               )}
+
+              {/* 問診表による来院理由 */}
+              {questionnaireData && questionnaireData.sources && questionnaireData.sources.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      問診表による来院理由
+                    </CardTitle>
+                    <p className="text-xs text-gray-500">問診回答 {questionnaireData.totalResponses}件</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {questionnaireData.sources.filter(s => s.count > 0).map((item) => (
+                        <div key={item.source}>
+                          <div className="flex items-center justify-between text-sm mb-1">
+                            <span className="text-gray-700">{item.source}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-400">
+                                前期 {item.previousCount}件
+                              </span>
+                              <span className={`text-xs flex items-center gap-0.5 ${item.change > 0 ? 'text-green-600' : item.change < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                {item.change > 0 ? <ArrowUpRight className="w-3 h-3" /> : item.change < 0 ? <ArrowDownRight className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                                {item.change > 0 ? '+' : ''}{item.change}
+                              </span>
+                              <span className="font-medium">{item.count}件</span>
+                              <span className="text-xs text-gray-400 w-10 text-right">{item.percentage.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-1.5">
+                            <div
+                              className="bg-green-500 h-1.5 rounded-full"
+                              style={{ width: `${item.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
