@@ -9,6 +9,7 @@ import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCanc
 import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
 import StaffAnalyticsTab from '@/components/analytics/StaffAnalyticsTab'
 import IntegratedVisitAnalysisTab from '@/components/analytics/IntegratedVisitAnalysisTab'
+import { SalesAnalyticsTab } from '@/components/analytics/SalesAnalyticsTab'
 import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function AnalyticsPage() {
@@ -723,22 +724,6 @@ export default function AnalyticsPage() {
             </>
           )}
 
-          {activeTab === 'sales' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>売上分析</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">売上分析機能</h3>
-                  <p className="text-gray-500">
-                    詳細な売上分析機能は開発中です。
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {activeTab === 'visits' && (
             <IntegratedVisitAnalysisTab
@@ -748,6 +733,15 @@ export default function AnalyticsPage() {
             />
           )}
         </>
+      )}
+
+      {/* 売上分析タブ */}
+      {activeTab === 'sales' && clinicId && (
+        <SalesAnalyticsTab
+          clinicId={clinicId}
+          startDate={startDate}
+          endDate={endDate}
+        />
       )}
 
       {/* トレーニング分析タブ */}

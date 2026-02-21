@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
-  TrendingUp, TrendingDown, Users, Target, DollarSign,
-  Calendar, Clock, XCircle, RefreshCw, Download,
+  TrendingUp, Users, Target, DollarSign,
+  Clock, RefreshCw, Download,
   FileText, Globe, ArrowUpRight, ArrowDownRight, Minus,
   Settings, Megaphone, Wallet, Activity, Stethoscope,
-  MousePointerClick, Link, QrCode, MapPin, BarChart3, Code, Link2
+  MousePointerClick, Link, QrCode, MapPin, Code, Link2
 } from 'lucide-react'
 import { exportToCSV, CSVColumn } from '@/lib/utils/export-csv'
 import VisitSourceAnalysisTab from './VisitSourceAnalysisTab'
@@ -23,7 +23,6 @@ import SNSLinkGenerator from './SNSLinkGenerator'
 import TabAnalysisTab from './TabAnalysisTab'
 import TabTrackingScriptGenerator from './TabTrackingScriptGenerator'
 import MenuBySourceTab from './MenuBySourceTab'
-import AcquisitionCharts from './AcquisitionCharts'
 import RegionalAnalysisTab from './RegionalAnalysisTab'
 import PatientDemographicsTab from './PatientDemographicsTab'
 import HPEmbedCodeGenerator from './HPEmbedCodeGenerator'
@@ -122,9 +121,8 @@ export default function IntegratedVisitAnalysisTab({
 }: IntegratedVisitAnalysisTabProps) {
   const [dataSource, setDataSource] = useState<'questionnaire' | 'web'>('web')
   const [activeSubTab, setActiveSubTab] = useState<
-    'overview' | 'charts' | 'time' | 'cancel' | 'repeat' | 'device' |
-    'funnel' | 'ltv' | 'roi' | 'ad-spend' | 'tab-analysis' | 'menu-by-source' |
-    'regional' | 'demographics' | 'settings'
+    'overview' | 'time' | 'repeat' | 'behavior' | 'marketing' |
+    'menu-by-source' | 'regional' | 'demographics' | 'settings'
   >('overview')
   const [activeSettingsTab, setActiveSettingsTab] = useState<'tag-settings' | 'tab-script' | 'client-url' | 'qr-code' | 'sns-link' | 'hp-embed' | 'ad-sources' | 'ad-integration'>('tag-settings')
   const [loading, setLoading] = useState(false)
@@ -335,17 +333,6 @@ export default function IntegratedVisitAnalysisTab({
                 媒体別
               </button>
               <button
-                onClick={() => setActiveSubTab('charts')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'charts'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4 inline-block mr-1" />
-                チャート
-              </button>
-              <button
                 onClick={() => setActiveSubTab('time')}
                 className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                   activeSubTab === 'time'
@@ -357,15 +344,15 @@ export default function IntegratedVisitAnalysisTab({
                 曜日・時間
               </button>
               <button
-                onClick={() => setActiveSubTab('cancel')}
+                onClick={() => setActiveSubTab('behavior')}
                 className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'cancel'
+                  activeSubTab === 'behavior'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <XCircle className="w-4 h-4 inline-block mr-1" />
-                キャンセル
+                <Activity className="w-4 h-4 inline-block mr-1" />
+                行動分析
               </button>
               <button
                 onClick={() => setActiveSubTab('repeat')}
@@ -379,70 +366,15 @@ export default function IntegratedVisitAnalysisTab({
                 リピート
               </button>
               <button
-                onClick={() => setActiveSubTab('device')}
+                onClick={() => setActiveSubTab('marketing')}
                 className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'device'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Target className="w-4 h-4 inline-block mr-1" />
-                デバイス
-              </button>
-              <button
-                onClick={() => setActiveSubTab('funnel')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'funnel'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Target className="w-4 h-4 inline-block mr-1" />
-                ファネル
-              </button>
-              <button
-                onClick={() => setActiveSubTab('ltv')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'ltv'
+                  activeSubTab === 'marketing'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 <TrendingUp className="w-4 h-4 inline-block mr-1" />
-                LTV
-              </button>
-              <button
-                onClick={() => setActiveSubTab('roi')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'roi'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <DollarSign className="w-4 h-4 inline-block mr-1" />
-                ROI/ROAS
-              </button>
-              <button
-                onClick={() => setActiveSubTab('ad-spend')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'ad-spend'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Wallet className="w-4 h-4 inline-block mr-1" />
-                広告費
-              </button>
-              <button
-                onClick={() => setActiveSubTab('tab-analysis')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeSubTab === 'tab-analysis'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Activity className="w-4 h-4 inline-block mr-1" />
-                タブ分析
+                マーケティング
               </button>
               <button
                 onClick={() => setActiveSubTab('menu-by-source')}
@@ -620,6 +552,64 @@ export default function IntegratedVisitAnalysisTab({
                   </div>
                 </CardContent>
               </Card>
+
+              {/* デバイス別 */}
+              {webData.by_device && webData.by_device.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>デバイス別分析（期間比較）</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">デバイス</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">当期間</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">前期間</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">増減</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">構成比</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">グラフ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {webData.by_device.map((device) => (
+                            <tr key={device.device} className="border-b hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-medium capitalize">{device.device}</td>
+                              <td className="px-4 py-3 text-sm text-right font-bold text-blue-600">
+                                {device.current_count}件
+                              </td>
+                              <td className="px-4 py-3 text-sm text-right text-gray-500">
+                                {device.previous_count}件
+                              </td>
+                              <td className={`px-4 py-3 text-sm text-right ${getChangeColor(device.change)}`}>
+                                <div className="flex items-center justify-end gap-1">
+                                  {getChangeIcon(device.change)}
+                                  {device.change > 0 ? '+' : ''}{device.change}
+                                  <span className="text-xs">
+                                    ({device.change_percentage > 0 ? '+' : ''}{device.change_percentage.toFixed(0)}%)
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-right">
+                                {device.percentage.toFixed(1)}%
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="w-32 bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className="bg-purple-500 h-2 rounded-full transition-all"
+                                    style={{ width: `${device.percentage}%` }}
+                                  ></div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
@@ -633,61 +623,6 @@ export default function IntegratedVisitAnalysisTab({
                 <TimeHeatmapChart data={webData.by_time} />
               </CardContent>
             </Card>
-          )}
-
-          {/* キャンセル分析タブ */}
-          {activeSubTab === 'cancel' && webData && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>流入元別キャンセル率</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">流入元</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">総予約数</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">キャンセル</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">無断キャンセル</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">キャンセル率</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">無断率</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">総キャンセル率</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {webData.by_cancel.map((item) => (
-                          <tr key={item.source} className="border-b hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium">{item.source}</td>
-                            <td className="px-4 py-3 text-sm text-right">{item.total_appointments}</td>
-                            <td className="px-4 py-3 text-sm text-right text-orange-600">{item.cancelled}</td>
-                            <td className="px-4 py-3 text-sm text-right text-red-600">{item.no_show}</td>
-                            <td className="px-4 py-3 text-sm text-right">{item.cancel_rate.toFixed(1)}%</td>
-                            <td className="px-4 py-3 text-sm text-right">{item.no_show_rate.toFixed(1)}%</td>
-                            <td className={`px-4 py-3 text-sm text-right font-bold ${
-                              item.total_cancel_rate > 20 ? 'text-red-600' :
-                              item.total_cancel_rate > 10 ? 'text-orange-600' : 'text-green-600'
-                            }`}>
-                              {item.total_cancel_rate.toFixed(1)}%
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-yellow-50 border-yellow-200">
-                <CardContent className="pt-4">
-                  <p className="text-sm text-yellow-800">
-                    <strong>ヒント:</strong> キャンセル率が高い媒体は、予約時の確認を強化するか、
-                    広告のターゲティングを見直すことで改善できる可能性があります。
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
           )}
 
           {/* リピート分析タブ */}
@@ -750,383 +685,325 @@ export default function IntegratedVisitAnalysisTab({
             </div>
           )}
 
-          {/* デバイス分析タブ */}
-          {activeSubTab === 'device' && webData && (
-            <Card>
-              <CardHeader>
-                <CardTitle>デバイス別分析（期間比較）</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">デバイス</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">当期間</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">前期間</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">増減</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">構成比</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">グラフ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {webData.by_device.map((device) => (
-                        <tr key={device.device} className="border-b hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium capitalize">{device.device}</td>
-                          <td className="px-4 py-3 text-sm text-right font-bold text-blue-600">
-                            {device.current_count}件
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-500">
-                            {device.previous_count}件
-                          </td>
-                          <td className={`px-4 py-3 text-sm text-right ${getChangeColor(device.change)}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              {getChangeIcon(device.change)}
-                              {device.change > 0 ? '+' : ''}{device.change}
-                              <span className="text-xs">
-                                ({device.change_percentage > 0 ? '+' : ''}{device.change_percentage.toFixed(0)}%)
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right">
-                            {device.percentage.toFixed(1)}%
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="w-32 bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-purple-500 h-2 rounded-full transition-all"
-                                style={{ width: `${device.percentage}%` }}
-                              ></div>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ファネル分析タブ */}
-          {activeSubTab === 'funnel' && (
-            <div className="space-y-6">
-              {/* ファネルKPI */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">総セッション数</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-gray-900">
-                      {funnelData?.total_sessions || 0}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">予約完了数</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
-                      {funnelData?.completed_sessions || 0}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">完了率</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {funnelData?.overall_completion_rate.toFixed(1) || 0}%
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* ファネルチャート */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>予約ファネル</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {funnelData && funnelData.overall_funnel.length > 0 ? (
-                      funnelData.overall_funnel.map((step) => (
-                        <div key={step.step_number} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
-                                {step.step_number}
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900">{step.step_label}</div>
-                                <div className="text-xs text-gray-500">{step.step_name}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              {step.drop_off_count > 0 && (
-                                <div className="text-xs text-red-600">
-                                  離脱: {step.drop_off_count} ({step.drop_off_rate.toFixed(1)}%)
+          {/* 行動分析タブ（ファネル＋タブ分析） */}
+          {activeSubTab === 'behavior' && (
+            <div className="space-y-8">
+              {/* ファネル分析 */}
+              <div>
+                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  予約ファネル分析
+                </h3>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">総セッション数</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {funnelData?.total_sessions || 0}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">予約完了数</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                          {funnelData?.completed_sessions || 0}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">完了率</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {funnelData?.overall_completion_rate.toFixed(1) || 0}%
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>予約ファネル</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {funnelData && funnelData.overall_funnel.length > 0 ? (
+                          funnelData.overall_funnel.map((step) => (
+                            <div key={step.step_number} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                                    {step.step_number}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-gray-900">{step.step_label}</div>
+                                    <div className="text-xs text-gray-500">{step.step_name}</div>
+                                  </div>
                                 </div>
-                              )}
-                              <div className="text-sm text-gray-500">
-                                {step.conversion_rate.toFixed(1)}%
+                                <div className="flex items-center gap-4">
+                                  {step.drop_off_count > 0 && (
+                                    <div className="text-xs text-red-600">
+                                      離脱: {step.drop_off_count} ({step.drop_off_rate.toFixed(1)}%)
+                                    </div>
+                                  )}
+                                  <div className="text-sm text-gray-500">
+                                    {step.conversion_rate.toFixed(1)}%
+                                  </div>
+                                  <div className="font-bold text-blue-600 w-16 text-right">
+                                    {step.session_count}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="font-bold text-blue-600 w-16 text-right">
-                                {step.session_count}
+                              <div className="w-full bg-gray-200 rounded-full h-3 relative">
+                                <div
+                                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all flex items-center justify-end pr-2"
+                                  style={{ width: `${step.conversion_rate}%` }}
+                                >
+                                  <span className="text-xs text-white font-medium">
+                                    {step.conversion_rate.toFixed(0)}%
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-3 relative">
-                            <div
-                              className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all flex items-center justify-end pr-2"
-                              style={{ width: `${step.conversion_rate}%` }}
-                            >
-                              <span className="text-xs text-white font-medium">
-                                {step.conversion_rate.toFixed(0)}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-center py-4">データがありません</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* LTV分析タブ */}
-          {activeSubTab === 'ltv' && (
-            <div className="space-y-6">
-              {/* エクスポートボタン */}
-              <div className="flex justify-end">
-                <Button onClick={exportLTVCSV} variant="outline">
-                  <Download className="w-4 h-4 mr-2" />
-                  CSVエクスポート
-                </Button>
-              </div>
-
-              {/* LTV KPI */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">総患者数</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-gray-900">
-                      {ltvData?.total_patients || 0}人
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">総売上</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
-                      ¥{(ltvData?.total_revenue || 0).toLocaleString()}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">平均LTV</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">
-                      ¥{(ltvData?.avg_ltv || 0).toLocaleString()}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* 流入元別LTV */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>流入元別LTV</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {ltvData && ltvData.source_ltv.length > 0 ? (
-                      ltvData.source_ltv.map((source, index) => (
-                        <div key={index} className="border-b pb-4 last:border-b-0">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm font-bold text-gray-400">#{index + 1}</span>
-                              <span className="font-medium text-gray-900">{source.source}</span>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm">
-                              <span className="text-gray-500">患者数: {source.patient_count}</span>
-                              <span className="text-gray-500">来院数: {source.avg_visit_count.toFixed(1)}</span>
-                              <span className="font-bold text-green-600">¥{source.avg_ltv.toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
-                            <div>総売上: ¥{source.total_revenue.toLocaleString()}</div>
-                            <div>平均来院単価: ¥{source.avg_revenue_per_visit.toLocaleString()}</div>
-                            <div>平均LTV: ¥{source.avg_ltv.toLocaleString()}</div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-center py-4">データがありません</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* ROI/ROAS分析タブ */}
-          {activeSubTab === 'roi' && (
-            <div className="space-y-6">
-              {/* エクスポートボタン */}
-              <div className="flex justify-end">
-                <Button onClick={exportROICSV} variant="outline">
-                  <Download className="w-4 h-4 mr-2" />
-                  CSVエクスポート
-                </Button>
-              </div>
-
-              {/* ROI KPI */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">総広告費</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-red-600">
-                      ¥{(roiData?.total_ad_spend || 0).toLocaleString()}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">総売上</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
-                      ¥{(roiData?.total_revenue || 0).toLocaleString()}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">ROI</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold ${(roiData?.overall_roi || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {(roiData?.overall_roi || 0).toFixed(1)}%
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">ROAS</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {(roiData?.overall_roas || 0).toFixed(2)}x
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* 流入元別ROI */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>流入元別ROI/ROAS</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">流入元</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">広告費</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">患者数</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">売上</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">ROI</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">ROAS</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">CPA</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {roiData && roiData.roi_by_source.length > 0 ? (
-                          roiData.roi_by_source.map((source, index) => (
-                            <tr key={index} className="border-b hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm font-medium">{source.source}</td>
-                              <td className="px-4 py-3 text-sm text-right">¥{source.ad_spend.toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm text-right">{source.patient_count}</td>
-                              <td className="px-4 py-3 text-sm text-right">¥{source.total_revenue.toLocaleString()}</td>
-                              <td className={`px-4 py-3 text-sm text-right font-bold ${source.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {source.roi.toFixed(1)}%
-                              </td>
-                              <td className="px-4 py-3 text-sm text-right font-bold text-blue-600">
-                                {source.roas.toFixed(2)}x
-                              </td>
-                              <td className="px-4 py-3 text-sm text-right">¥{source.cpa.toLocaleString()}</td>
-                            </tr>
                           ))
                         ) : (
-                          <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                              データがありません
-                            </td>
-                          </tr>
+                          <p className="text-gray-500 text-center py-4">データがありません</p>
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
 
-              {/* 説明 */}
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="pt-4">
-                  <div className="text-sm space-y-1">
-                    <p><strong>ROI (Return on Investment)</strong>: (売上 - 広告費) ÷ 広告費 × 100</p>
-                    <p><strong>ROAS (Return on Ad Spend)</strong>: 売上 ÷ 広告費</p>
-                    <p><strong>CPA (Cost Per Acquisition)</strong>: 広告費 ÷ 獲得患者数</p>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* タブクリック分析 */}
+              <div className="border-t pt-6">
+                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <MousePointerClick className="w-4 h-4" />
+                  タブクリック分析
+                </h3>
+                <TabAnalysisTab clinicId={clinicId} startDate={startDate} endDate={endDate} />
+              </div>
             </div>
           )}
 
-          {/* 広告費管理タブ */}
-          {activeSubTab === 'ad-spend' && (
-            <AdSpendManager clinicId={clinicId} startDate={startDate} endDate={endDate} />
-          )}
+          {/* マーケティングタブ（LTV・ROI・広告費） */}
+          {activeSubTab === 'marketing' && (
+            <div className="space-y-8">
+              {/* LTV分析 */}
+              <div>
+                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  顧客生涯価値（LTV）
+                </h3>
+                <div className="space-y-6">
+                  <div className="flex justify-end">
+                    <Button onClick={exportLTVCSV} variant="outline">
+                      <Download className="w-4 h-4 mr-2" />
+                      CSVエクスポート
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">総患者数</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {ltvData?.total_patients || 0}人
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">総売上</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                          ¥{(ltvData?.total_revenue || 0).toLocaleString()}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">平均LTV</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">
+                          ¥{(ltvData?.avg_ltv || 0).toLocaleString()}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>流入元別LTV</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {ltvData && ltvData.source_ltv.length > 0 ? (
+                          ltvData.source_ltv.map((source, index) => (
+                            <div key={index} className="border-b pb-4 last:border-b-0">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-bold text-gray-400">#{index + 1}</span>
+                                  <span className="font-medium text-gray-900">{source.source}</span>
+                                </div>
+                                <div className="flex items-center gap-4 text-sm">
+                                  <span className="text-gray-500">患者数: {source.patient_count}</span>
+                                  <span className="text-gray-500">来院数: {source.avg_visit_count.toFixed(1)}</span>
+                                  <span className="font-bold text-green-600">¥{source.avg_ltv.toLocaleString()}</span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                                <div>総売上: ¥{source.total_revenue.toLocaleString()}</div>
+                                <div>平均来院単価: ¥{source.avg_revenue_per_visit.toLocaleString()}</div>
+                                <div>平均LTV: ¥{source.avg_ltv.toLocaleString()}</div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-gray-500 text-center py-4">データがありません</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
 
-          {/* タブ分析タブ */}
-          {activeSubTab === 'tab-analysis' && (
-            <TabAnalysisTab clinicId={clinicId} startDate={startDate} endDate={endDate} />
+              {/* ROI/ROAS分析 */}
+              <div className="border-t pt-6">
+                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  ROI / ROAS 分析
+                </h3>
+                <div className="space-y-6">
+                  <div className="flex justify-end">
+                    <Button onClick={exportROICSV} variant="outline">
+                      <Download className="w-4 h-4 mr-2" />
+                      CSVエクスポート
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">総広告費</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-red-600">
+                          ¥{(roiData?.total_ad_spend || 0).toLocaleString()}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">総売上</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                          ¥{(roiData?.total_revenue || 0).toLocaleString()}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">ROI</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-2xl font-bold ${(roiData?.overall_roi || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(roiData?.overall_roi || 0).toFixed(1)}%
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">ROAS</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {(roiData?.overall_roas || 0).toFixed(2)}x
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>流入元別ROI/ROAS</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50 border-b">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">流入元</th>
+                              <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">広告費</th>
+                              <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">患者数</th>
+                              <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">売上</th>
+                              <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">ROI</th>
+                              <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">ROAS</th>
+                              <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">CPA</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {roiData && roiData.roi_by_source.length > 0 ? (
+                              roiData.roi_by_source.map((source, index) => (
+                                <tr key={index} className="border-b hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm font-medium">{source.source}</td>
+                                  <td className="px-4 py-3 text-sm text-right">¥{source.ad_spend.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm text-right">{source.patient_count}</td>
+                                  <td className="px-4 py-3 text-sm text-right">¥{source.total_revenue.toLocaleString()}</td>
+                                  <td className={`px-4 py-3 text-sm text-right font-bold ${source.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {source.roi.toFixed(1)}%
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-right font-bold text-blue-600">
+                                    {source.roas.toFixed(2)}x
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-right">¥{source.cpa.toLocaleString()}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                                  データがありません
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="pt-4">
+                      <div className="text-sm space-y-1">
+                        <p><strong>ROI (Return on Investment)</strong>: (売上 - 広告費) ÷ 広告費 × 100</p>
+                        <p><strong>ROAS (Return on Ad Spend)</strong>: 売上 ÷ 広告費</p>
+                        <p><strong>CPA (Cost Per Acquisition)</strong>: 広告費 ÷ 獲得患者数</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* 広告費管理 */}
+              <div className="border-t pt-6">
+                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Wallet className="w-4 h-4" />
+                  広告費管理
+                </h3>
+                <AdSpendManager clinicId={clinicId} startDate={startDate} endDate={endDate} />
+              </div>
+            </div>
           )}
 
           {/* 診療メニュー分析タブ */}
           {activeSubTab === 'menu-by-source' && (
             <MenuBySourceTab clinicId={clinicId} startDate={startDate} endDate={endDate} />
-          )}
-
-          {/* チャートタブ */}
-          {activeSubTab === 'charts' && (
-            <AcquisitionCharts
-              clinicId={clinicId}
-              dateRange={{ from: new Date(startDate), to: new Date(endDate) }}
-            />
           )}
 
           {/* 地域分析タブ */}

@@ -11,7 +11,8 @@ import {
   Folder,
   BarChart3,
   Stethoscope,
-  Microscope
+  Microscope,
+  TrendingUp
 } from 'lucide-react'
 import { SubKarteTab } from './subkarte-tab'
 import PatientTrainingTabs from '@/components/training/PatientTrainingTabs'
@@ -22,6 +23,7 @@ import { ExaminationTab } from './examination-tab'
 import { PatientInfoTab } from './patient-info-tab'
 import { AppointmentsNotificationsTab } from './appointments-notifications-tab'
 import { FilesDocumentsTab } from './files-documents-tab'
+import { PatientSalesTab } from './PatientSalesTab'
 
 interface PatientDetailTabsProps {
   patientId: string
@@ -36,7 +38,8 @@ const tabs = [
   { id: 'treatment-plan', label: '治療計画', icon: BarChart3, available: true },
   { id: 'training', label: 'トレーニング', icon: Target, available: true },
   { id: 'appointments-notifications', label: '予約・通知', icon: Calendar, available: true },
-  { id: 'files-documents', label: 'ファイル・文書', icon: Folder, available: true }
+  { id: 'files-documents', label: 'ファイル・文書', icon: Folder, available: true },
+  { id: 'sales', label: '売上履歴', icon: TrendingUp, available: true }
 ]
 
 export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
@@ -64,6 +67,8 @@ export function PatientDetailTabs({ patientId }: PatientDetailTabsProps) {
         return <FilesDocumentsTab patientId={patientId} />
       case 'treatment-plan':
         return <TreatmentPlanTab patientId={patientId} />
+      case 'sales':
+        return <PatientSalesTab patientId={patientId} clinicId={clinicId} />
       default:
         return <div>タブコンテンツが見つかりません</div>
     }
