@@ -44,6 +44,7 @@ interface WebBookingSettings {
   flow: {
     initialSelection: boolean
     menuSelection: boolean
+    staffSelection: boolean
     calendarDisplay: boolean
     patientInfo: boolean
     confirmation: boolean
@@ -109,6 +110,7 @@ function WebBookingPageInner() {
 
   // セクションへの参照
   const menuSectionRef = useRef<HTMLDivElement>(null)
+  const staffSectionRef = useRef<HTMLDivElement>(null)
   const calendarSectionRef = useRef<HTMLDivElement>(null)
   const patientInfoSectionRef = useRef<HTMLDivElement>(null)
   const confirmationSectionRef = useRef<HTMLDivElement>(null)
@@ -208,6 +210,7 @@ function WebBookingPageInner() {
           flow: {
             initialSelection: true,
             menuSelection: true,
+            staffSelection: false,
             calendarDisplay: true,
             patientInfo: true,
             confirmation: true
@@ -1600,14 +1603,15 @@ function WebBookingPageInner() {
                         <button
                           key={menu.id}
                           onClick={() => {
-                            setBookingData(prev => ({ ...prev, selectedMenu: menu.treatment_menu_id }))
+                            setBookingData(prev => ({ ...prev, selectedMenu: menu.treatment_menu_id, selectedStaff: '' }))
                             // メニュー選択イベントをトラッキング
                             trackButtonClick(clinicId, 'MENU_SELECTION', menu.display_name || menu.treatment_menu_name, {
                               menu_id: menu.treatment_menu_id,
                               duration: menu.duration,
                               is_new_patient: bookingData.isNewPatient
                             })
-                            setTimeout(() => scrollToSection(calendarSectionRef), 300)
+                            // 担当者選択が有効ならそちらへ、なければカレンダーへスクロール
+                            setTimeout(() => scrollToSection(webSettings.flow.staffSelection ? staffSectionRef : calendarSectionRef), 300)
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${
                             bookingData.selectedMenu === menu.treatment_menu_id
@@ -1627,6 +1631,70 @@ function WebBookingPageInner() {
                       ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ステップ2.5: 担当者選択（staffSelection有効時のみ） */}
+          {webSettings.flow.staffSelection && bookingData.selectedMenu && !isRescheduleMode && (
+            <Card ref={staffSectionRef}>
+              <CardHeader>
+                <CardTitle>担当者の選択</CardTitle>
+                <p className="text-sm text-gray-600">
+                  ご希望の担当者を選択してください（「指名なし」も選択できます）
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(() => {
+                  const selectedWebMenu = webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)
+                  const stepStaffIds = selectedWebMenu?.steps?.[0]?.staff_assignments?.map((sa: any) => sa.staff_id) || []
+                  const availableStaff = stepStaffIds.length > 0
+                    ? staff.filter(s => stepStaffIds.includes(s.id) && s.is_active !== false)
+                    : staff.filter(s => s.is_active !== false)
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* 指名なしオプション */}
+                      <button
+                        onClick={() => {
+                          setBookingData(prev => ({ ...prev, selectedStaff: '' }))
+                          setTimeout(() => scrollToSection(calendarSectionRef), 300)
+                        }}
+                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                          bookingData.selectedStaff === ''
+                            ? 'border-blue-500 bg-blue-50 shadow-md'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div>
+                          <h3 className="font-medium text-gray-900 mb-1">指名なし</h3>
+                          <p className="text-sm text-gray-600">自動で担当者を割り当てます</p>
+                        </div>
+                      </button>
+                      {/* スタッフ一覧 */}
+                      {availableStaff.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            setBookingData(prev => ({ ...prev, selectedStaff: s.id }))
+                            setTimeout(() => scrollToSection(calendarSectionRef), 300)
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            bookingData.selectedStaff === s.id
+                              ? 'border-blue-500 bg-blue-50 shadow-md'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div>
+                            <h3 className="font-medium text-gray-900 mb-1">{s.name}</h3>
+                            {s.position?.name && (
+                              <p className="text-sm text-gray-600">{s.position.name}</p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
               </CardContent>
             </Card>
           )}
