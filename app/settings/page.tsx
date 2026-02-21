@@ -1523,6 +1523,15 @@ export default function SettingsPage() {
   // ユニットデータの読み込み
   useEffect(() => {
     const loadUnitsAndStaff = async () => {
+      // Web予約タブでもユニットデータをロード
+      if (selectedCategory === "web" && unitsData.length === 0) {
+        try {
+          const data = await getUnits(clinicId);
+          setUnitsData(data);
+        } catch (error) {
+          console.error("ユニットデータ読み込みエラー:", error);
+        }
+      }
       if (selectedCategory === "units") {
         try {
           setStaffLoading(true);
