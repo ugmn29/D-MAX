@@ -847,6 +847,22 @@ function WebBookingPageInner() {
   // 予約確定
   const handleConfirmBooking = async () => {
     try {
+      // 初診患者の場合、必須フィールドのバリデーション
+      if (bookingData.isNewPatient) {
+        if (webSettings.patientInfoFields.phoneRequired && !bookingData.patientPhone.trim()) {
+          alert('電話番号は必須です。')
+          return
+        }
+        if (webSettings.patientInfoFields.emailRequired && !bookingData.patientEmail.trim()) {
+          alert('メールアドレスは必須です。')
+          return
+        }
+        if (!bookingData.patientName.trim()) {
+          alert('お名前は必須です。')
+          return
+        }
+      }
+
       // 予約変更モードかどうかで処理を分岐
       const isRescheduleWithOriginalMenu = isRescheduleMode && originalAppointmentData.menu1_id
 
@@ -1578,7 +1594,7 @@ function WebBookingPageInner() {
           )}
 
           {/* ステップ2: 診療メニュー選択（予約変更モードでは非表示） */}
-          {(bookingData.isNewPatient || isAuthenticated) && !isRescheduleMode && (
+          {webSettings.flow.menuSelection && (bookingData.isNewPatient || isAuthenticated) && !isRescheduleMode && (
             <Card ref={menuSectionRef}>
               <CardHeader>
                 <CardTitle>診療メニューの選択</CardTitle>
@@ -1700,7 +1716,7 @@ function WebBookingPageInner() {
           )}
 
           {/* ステップ3: カレンダー表示 */}
-          {(bookingData.isNewPatient || isAuthenticated) && (
+          {webSettings.flow.calendarDisplay && (bookingData.isNewPatient || isAuthenticated) && (
             <Card ref={calendarSectionRef}>
               <CardHeader>
                 <CardTitle>日時選択</CardTitle>
@@ -1867,7 +1883,7 @@ function WebBookingPageInner() {
           )}
 
           {/* ステップ4: 患者情報入力 */}
-          {bookingData.isNewPatient && (
+          {webSettings.flow.patientInfo && bookingData.isNewPatient && (
             <Card ref={patientInfoSectionRef}>
               <CardHeader>
                 <CardTitle>患者情報入力</CardTitle>
@@ -1933,7 +1949,7 @@ function WebBookingPageInner() {
           )}
 
           {/* ステップ5: 確認・確定 */}
-          {(bookingData.isNewPatient || isAuthenticated) && (
+          {webSettings.flow.confirmation && (bookingData.isNewPatient || isAuthenticated) && (
             <Card ref={confirmationSectionRef}>
               <CardHeader>
                 <CardTitle>{isRescheduleMode ? '変更内容確認' : '予約内容確認'}</CardTitle>
