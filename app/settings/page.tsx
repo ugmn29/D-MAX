@@ -998,6 +998,8 @@ export default function SettingsPage() {
     display_name: "",
     duration: 30,
     steps: [] as BookingStep[],
+    unit_mode: "all" as "all" | "specific",
+    unit_ids: [] as string[],
     allow_new_patient: true,
     allow_returning: true,
   });
@@ -2769,6 +2771,8 @@ export default function SettingsPage() {
       treatment_menu_color: menu.color,
       duration: newWebMenu.duration,
       steps: newWebMenu.steps,
+      unit_mode: newWebMenu.unit_mode,
+      unit_ids: newWebMenu.unit_ids,
       allow_new_patient: newWebMenu.allow_new_patient,
       allow_returning: newWebMenu.allow_returning,
     };
@@ -2787,6 +2791,8 @@ export default function SettingsPage() {
       display_name: "",
       duration: 30,
       steps: [],
+      unit_mode: "all",
+      unit_ids: [],
       allow_new_patient: true,
       allow_returning: true,
     });
@@ -2811,6 +2817,8 @@ export default function SettingsPage() {
       display_name: menu.display_name || "",
       duration: menu.duration || 30,
       steps: menu.steps || [],
+      unit_mode: menu.unit_mode || "all",
+      unit_ids: menu.unit_ids || [],
       allow_new_patient:
         menu.allow_new_patient !== undefined ? menu.allow_new_patient : true,
       allow_returning:
@@ -2867,6 +2875,8 @@ export default function SettingsPage() {
       treatment_menu_color: menu.color,
       duration: newWebMenu.duration,
       steps: newWebMenu.steps,
+      unit_mode: newWebMenu.unit_mode,
+      unit_ids: newWebMenu.unit_ids,
       allow_new_patient: newWebMenu.allow_new_patient,
       allow_returning: newWebMenu.allow_returning,
     };
@@ -2888,6 +2898,8 @@ export default function SettingsPage() {
       display_name: "",
       duration: 30,
       steps: [],
+      unit_mode: "all",
+      unit_ids: [],
       allow_new_patient: true,
       allow_returning: true,
     });
@@ -9823,6 +9835,8 @@ export default function SettingsPage() {
                   display_name: "",
                   duration: 30,
                   steps: [],
+                  unit_mode: "all",
+                  unit_ids: [],
                   allow_new_patient: true,
                   allow_returning: true,
                 });
@@ -10247,6 +10261,64 @@ export default function SettingsPage() {
                   )}
                 </div>
 
+                {/* 使用ユニット */}
+                <div>
+                  <Label className="mb-2 block text-base font-semibold">使用ユニット</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="unit_mode_main"
+                          checked={newWebMenu.unit_mode === 'all'}
+                          onChange={() => setNewWebMenu(prev => ({ ...prev, unit_mode: 'all' as const, unit_ids: [] }))}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">全ユニット</span>
+                      </label>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="unit_mode_main"
+                          checked={newWebMenu.unit_mode === 'specific'}
+                          onChange={() => setNewWebMenu(prev => ({ ...prev, unit_mode: 'specific' as const }))}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">ユニット指定</span>
+                      </label>
+                    </div>
+                    {newWebMenu.unit_mode === 'specific' && (
+                      <div className="border rounded-lg p-3 bg-gray-50">
+                        <div className="flex flex-wrap gap-2">
+                          {unitsData.filter(u => u.is_active !== false).map(u => (
+                            <label
+                              key={u.id}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={newWebMenu.unit_ids.includes(u.id)}
+                                onCheckedChange={(checked) => {
+                                  setNewWebMenu(prev => ({
+                                    ...prev,
+                                    unit_ids: checked
+                                      ? [...prev.unit_ids, u.id]
+                                      : prev.unit_ids.filter(id => id !== u.id)
+                                  }))
+                                }}
+                                className="shrink-0"
+                              />
+                              <span className="text-sm">{u.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                        {unitsData.filter(u => u.is_active !== false).length === 0 && (
+                          <p className="text-sm text-gray-500">ユニットが未登録です。設定 &gt; ユニット管理で追加してください。</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* 受付可能な患者 */}
                 <div>
                   <Label className="mb-2 block">受付可能な患者</Label>
@@ -10315,8 +10387,11 @@ export default function SettingsPage() {
                   treatment_menu_id: "",
                   treatment_menu_level2_id: "",
                   treatment_menu_level3_id: "",
+                  display_name: "",
                   duration: 30,
                   steps: [],
+                  unit_mode: "all",
+                  unit_ids: [],
                   allow_new_patient: true,
                   allow_returning: true,
                 });
@@ -10792,6 +10867,8 @@ export default function SettingsPage() {
                         display_name: "",
                       duration: 30,
                       steps: [],
+                      unit_mode: "all",
+                      unit_ids: [],
                       allow_new_patient: true,
                         allow_returning: true,
                       });
