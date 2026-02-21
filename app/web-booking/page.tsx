@@ -961,12 +961,26 @@ function WebBookingPageInner() {
       } else {
         // 通常のWeb予約: 診療メニュー1を設定
         appointmentData.menu1_id = bookingData.selectedMenu
+
+        // staff1_idの割り当て: ユーザー選択 > ステップ0のスタッフ自動割り当て
         if (bookingData.selectedStaff) {
           appointmentData.staff1_id = bookingData.selectedStaff
+        } else if (steps.length > 0 && steps[0].staff_assignments?.length > 0) {
+          // 最初のステップから空いているスタッフを自動割り当て
+          const firstStepStaff = findAvailableStaff(
+            steps[0].staff_assignments,
+            bookingData.selectedDate,
+            bookingData.selectedTime,
+            duration,
+            existingAppointments
+          )
+          if (firstStepStaff) {
+            appointmentData.staff1_id = firstStepStaff.staff_id
+          }
         }
         console.log('Web予約: 診療メニュー1を設定', {
           menu1_id: bookingData.selectedMenu,
-          staff1_id: bookingData.selectedStaff
+          staff1_id: appointmentData.staff1_id
         })
 
         // stepsがある場合、診療メニュー2, 3を設定

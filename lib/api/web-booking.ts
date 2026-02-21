@@ -294,7 +294,10 @@ export async function getAvailableSlots(
                 const slotEnd = currentTimeMinutes + duration
                 const hasConflict = existingAppointments.some(apt => {
                   if (apt.appointment_date !== dateString) return false
-                  if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
+                  // スタッフ未割当の予約（staff1_id/staff2_id/staff3_idが全てnull）は
+                  // どのスタッフのスロットでも重複として扱う
+                  const isUnassigned = !apt.staff1_id && !apt.staff2_id && !apt.staff3_id
+                  if (!isUnassigned && apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
 
                   const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
                   const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
@@ -535,7 +538,9 @@ export async function getAvailableSlotsForReschedule(
                   // 担当者の予約重複チェック
                   const hasConflict = existingAppointments.some(apt => {
                     if (apt.appointment_date !== dateString) return false
-                    if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
+                    // スタッフ未割当の予約は全スタッフの重複として扱う
+                    const isUnassigned = !apt.staff1_id && !apt.staff2_id && !apt.staff3_id
+                    if (!isUnassigned && apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
 
                     const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
                     const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
