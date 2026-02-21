@@ -810,7 +810,9 @@ function WebBookingPageInner() {
 
       const hasConflict = existingAppointments.some(apt => {
         if (apt.appointment_date !== date) return false
-        if (apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
+        // スタッフ未割当の予約は全スタッフの重複として扱う
+        const isUnassigned = !apt.staff1_id && !apt.staff2_id && !apt.staff3_id
+        if (!isUnassigned && apt.staff1_id !== staffId && apt.staff2_id !== staffId && apt.staff3_id !== staffId) return false
 
         const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
         const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
@@ -948,6 +950,28 @@ function WebBookingPageInner() {
         appointmentData.menu1_id = originalAppointmentData.menu1_id
         if (originalAppointmentData.staff_id) {
           appointmentData.staff1_id = originalAppointmentData.staff_id
+        } else {
+          // 元の予約にstaff_idがない場合、Web予約メニュー設定から自動割り当て
+          const rescheduleMenu = webBookingMenus.find(m => m.treatment_menu_id === originalAppointmentData.menu1_id)
+          if (rescheduleMenu?.steps?.length > 0 && rescheduleMenu.steps[0].staff_assignments?.length > 0) {
+            const autoStaff = findAvailableStaff(
+              rescheduleMenu.steps[0].staff_assignments,
+              bookingData.selectedDate,
+              bookingData.selectedTime,
+              duration,
+              existingAppointments
+            )
+            if (autoStaff) {
+              appointmentData.staff1_id = autoStaff.staff_id
+            } else {
+              // フォールバック: 優先度1のスタッフを割り当て
+              const fallback = [...rescheduleMenu.steps[0].staff_assignments].sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
+              if (fallback) {
+                appointmentData.staff1_id = fallback.staff_id
+                console.warn('予約変更: 全スタッフ埋まりのためフォールバック割り当て', fallback.staff_id)
+              }
+            }
+          }
         }
         // menu2_idも元の予約から引き継ぐ
         if (originalAppointmentData.menu2_id) {
@@ -976,6 +1000,13 @@ function WebBookingPageInner() {
           )
           if (firstStepStaff) {
             appointmentData.staff1_id = firstStepStaff.staff_id
+          } else {
+            // 全スタッフが埋まっている場合でも、優先度1のスタッフをフォールバックとして割り当て
+            const fallbackAssignment = [...steps[0].staff_assignments].sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
+            if (fallbackAssignment) {
+              appointmentData.staff1_id = fallbackAssignment.staff_id
+              console.warn('Web予約: 全スタッフ埋まりのためフォールバック割り当て', fallbackAssignment.staff_id)
+            }
           }
         }
         console.log('Web予約: 診療メニュー1を設定', {

@@ -375,7 +375,7 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
               />
             </div>
             <div>
-              <Label>担当者</Label>
+              <Label>担当者 <span className="text-red-500">*</span></Label>
               <Select value={appointmentData.staff1_id} onValueChange={(value) => setAppointmentData(prev => ({ ...prev, staff1_id: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="担当者を選択" />
@@ -410,7 +410,7 @@ export function AppointmentForm({ clinicId, selectedDate, selectedTime, onSave, 
           </Button>
           <Button 
             onClick={handleSave} 
-            disabled={saving || !appointmentData.patient_name || !appointmentData.start_time}
+            disabled={saving || !appointmentData.patient_name || !appointmentData.start_time || !appointmentData.staff1_id}
           >
             {saving ? '保存中...' : '予約作成'}
           </Button>
