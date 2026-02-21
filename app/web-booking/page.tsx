@@ -1615,14 +1615,9 @@ function WebBookingPageInner() {
                   </div>
                 )}
 
-                {/* 1週間分のカレンダー（今日以降のみ表示） */}
+                {/* 1週間分のカレンダー（常に7日分表示、過去日はグレーアウト） */}
                 {(() => {
-                  const today = new Date()
-                  today.setHours(0, 0, 0, 0)
-                  const visibleDayOffsets = [0, 1, 2, 3, 4, 5, 6].filter(dayOffset => {
-                    const date = addDays(weekStartDate, dayOffset)
-                    return date >= today
-                  })
+                  const visibleDayOffsets = [0, 1, 2, 3, 4, 5, 6]
                   return (
                 <div className="-mx-2 sm:mx-0">
                   {/* ヘッダー（固定） */}
