@@ -15,6 +15,7 @@ import { ArrowLeft, Save, Plus, Trash2, Edit3, Settings, ArrowRight, Stethoscope
 import { getClinicSettings, setClinicSetting, getClinic } from '@/lib/api/clinic'
 import { getTreatmentMenus, updateTreatmentMenu } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
+import { getUnits } from '@/lib/api/units'
 import { useClinicId } from '@/hooks/use-clinic-id'
 
 export default function WebReservationSettingsPage() {
@@ -54,9 +55,10 @@ export default function WebReservationSettingsPage() {
     }
   })
 
-  // 診療メニューとスタッフ
+  // 診療メニューとスタッフとユニット
   const [treatmentMenus, setTreatmentMenus] = useState<any[]>([])
   const [staff, setStaff] = useState<any[]>([])
+  const [units, setUnits] = useState<any[]>([])
 
   // Web予約メニュー
   const [webBookingMenus, setWebBookingMenus] = useState<any[]>([])
@@ -75,6 +77,8 @@ export default function WebReservationSettingsPage() {
     treatment_menu_id: '',
     duration: 30,
     staff_ids: [] as string[],
+    unit_mode: 'all' as 'all' | 'specific',
+    unit_ids: [] as string[],
     allow_new_patient: true,
     allow_returning: true,
     steps: [] as any[]
@@ -85,11 +89,12 @@ export default function WebReservationSettingsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        const [clinicData, settings, menus, staffData] = await Promise.all([
+        const [clinicData, settings, menus, staffData, unitsData] = await Promise.all([
           getClinic(clinicId),
           getClinicSettings(clinicId),
           getTreatmentMenus(clinicId),
-          getStaff(clinicId)
+          getStaff(clinicId),
+          getUnits(clinicId)
         ])
 
         setClinic(clinicData)
@@ -138,6 +143,7 @@ export default function WebReservationSettingsPage() {
         // レベル1の診療メニューのみ表示
         setTreatmentMenus(menus.filter(menu => menu.level === 1))
         setStaff(staffData)
+        setUnits(unitsData.filter((u: any) => u.is_active !== false))
       } catch (error) {
         console.error('データ読み込みエラー:', error)
       } finally {
@@ -214,6 +220,8 @@ export default function WebReservationSettingsPage() {
       treatment_menu_color: menu.color,
       duration: newWebMenu.duration,
       staff_ids: newWebMenu.staff_ids,
+      unit_mode: newWebMenu.unit_mode,
+      unit_ids: newWebMenu.unit_ids,
       allow_new_patient: newWebMenu.allow_new_patient,
       allow_returning: newWebMenu.allow_returning,
       steps: autoSteps // 自動生成されたstepsを使用
@@ -225,6 +233,8 @@ export default function WebReservationSettingsPage() {
       treatment_menu_id: '',
       duration: 30,
       staff_ids: [],
+      unit_mode: 'all',
+      unit_ids: [],
       allow_new_patient: true,
       allow_returning: true,
       steps: []
@@ -811,6 +821,16 @@ export default function WebReservationSettingsPage() {
                                 </div>
                               </div>
 
+                              {/* ユニット */}
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span className="font-medium">ユニット:</span>
+                                <span>
+                                  {menu.unit_mode === 'specific' && menu.unit_ids?.length > 0
+                                    ? menu.unit_ids.map((uid: string) => units.find(u => u.id === uid)?.name || uid).join(', ')
+                                    : '全ユニット'}
+                                </span>
+                              </div>
+
                               {/* 受付可能な患者 */}
                               <div className="flex items-center space-x-2 text-sm text-gray-600">
                                 <span className="font-medium">受付:</span>
@@ -913,6 +933,62 @@ export default function WebReservationSettingsPage() {
                         </Label>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* ユニット選択 */}
+                <div>
+                  <Label className="mb-2 block">使用ユニット</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="unit_mode"
+                          checked={newWebMenu.unit_mode === 'all'}
+                          onChange={() => setNewWebMenu(prev => ({ ...prev, unit_mode: 'all', unit_ids: [] }))}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">全ユニット</span>
+                      </label>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="unit_mode"
+                          checked={newWebMenu.unit_mode === 'specific'}
+                          onChange={() => setNewWebMenu(prev => ({ ...prev, unit_mode: 'specific' }))}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">ユニット指定</span>
+                      </label>
+                    </div>
+                    {newWebMenu.unit_mode === 'specific' && (
+                      <div className="grid grid-cols-3 gap-2 border rounded-lg p-3">
+                        {units.map(u => (
+                          <div key={u.id} className="flex items-center space-x-2 min-w-0">
+                            <Checkbox
+                              id={`new_menu_unit_${u.id}`}
+                              checked={newWebMenu.unit_ids.includes(u.id)}
+                              onCheckedChange={() => {
+                                setNewWebMenu(prev => ({
+                                  ...prev,
+                                  unit_ids: prev.unit_ids.includes(u.id)
+                                    ? prev.unit_ids.filter(id => id !== u.id)
+                                    : [...prev.unit_ids, u.id]
+                                }))
+                              }}
+                              className="shrink-0"
+                            />
+                            <Label htmlFor={`new_menu_unit_${u.id}`} className="text-sm truncate cursor-pointer">
+                              {u.name}
+                            </Label>
+                          </div>
+                        ))}
+                        {units.length === 0 && (
+                          <p className="text-sm text-gray-500 col-span-3">ユニットが未登録です。設定 &gt; ユニット管理で追加してください。</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

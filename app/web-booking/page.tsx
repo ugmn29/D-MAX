@@ -13,6 +13,7 @@ import { getTreatmentMenus } from '@/lib/api/treatment'
 import { getStaff } from '@/lib/api/staff'
 import { createAppointment } from '@/lib/api/appointments'
 import { getWeeklySlots, getWeeklySlotsForReschedule } from '@/lib/api/web-booking'
+import { getUnits, getStaffUnitPriorities } from '@/lib/api/units'
 import { authenticateReturningPatient, getPatientById } from '@/lib/api/patients'
 import { getPatientWebBookingSettings } from '@/lib/api/patient-web-booking-settings'
 import { validateWebBookingToken, markTokenAsUsed } from '@/lib/api/web-booking-tokens'
@@ -82,6 +83,10 @@ function WebBookingPageInner() {
   const [timeSlotMinutes, setTimeSlotMinutes] = useState<number>(15)
   const [businessHours, setBusinessHours] = useState<any>({})
   const [allTimeSlots, setAllTimeSlots] = useState<string[]>([])
+
+  // ユニット関連
+  const [clinicUnits, setClinicUnits] = useState<any[]>([])
+  const [staffUnitPrioritiesData, setStaffUnitPrioritiesData] = useState<any[]>([])
 
   // トークンベースWeb予約用のstate
   const [tokenData, setTokenData] = useState<any>(null)
@@ -163,11 +168,13 @@ function WebBookingPageInner() {
           }
         }
 
-        const [settings, menus, staffData, clinic] = await Promise.all([
+        const [settings, menus, staffData, clinic, unitsData, staffUnitPriorities] = await Promise.all([
           getClinicSettings(effectiveClinicId),
           getTreatmentMenus(effectiveClinicId),
           getStaff(effectiveClinicId),
-          getBusinessHours(effectiveClinicId)
+          getBusinessHours(effectiveClinicId),
+          getUnits(effectiveClinicId),
+          getStaffUnitPriorities(effectiveClinicId)
         ])
 
         console.log('Web予約: 取得した設定', settings)
@@ -304,6 +311,8 @@ function WebBookingPageInner() {
 
         setTreatmentMenus(menus)
         setStaff(staffData)
+        setClinicUnits(unitsData.filter((u: any) => u.is_active !== false))
+        setStaffUnitPrioritiesData(staffUnitPriorities)
 
         // 時間スロット設定と診療時間を保存
         setTimeSlotMinutes(settings.time_slot_minutes || 15)
@@ -1057,6 +1066,61 @@ function WebBookingPageInner() {
               }
             }
           }
+        }
+      }
+
+      // unit_id自動割り当て: スタッフの優先ユニット → メニュー対象ユニット → 全ユニットの順で空きを探す
+      if (!appointmentData.unit_id && clinicUnits.length > 0) {
+        const [aptStartH, aptStartM] = bookingData.selectedTime.split(':').map(Number)
+        const aptStartMin = aptStartH * 60 + aptStartM
+        const aptEndMin = aptStartMin + duration
+
+        // この時間帯に使用中のユニットIDを取得
+        const usedUnitIds = new Set(
+          existingAppointments
+            .filter(apt => {
+              if (apt.appointment_date !== bookingData.selectedDate) return false
+              if (!(apt as any).unit_id) return false
+              const s = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
+              const e = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+              return !(aptEndMin <= s || aptStartMin >= e)
+            })
+            .map(apt => (apt as any).unit_id)
+        )
+
+        // メニュー設定のユニット対象を決定
+        const menuUnitMode = selectedWebBookingMenu?.unit_mode
+        const menuUnitIds = selectedWebBookingMenu?.unit_ids || []
+        const targetUnits = menuUnitMode === 'specific' && menuUnitIds.length > 0
+          ? clinicUnits.filter(u => menuUnitIds.includes(u.id))
+          : clinicUnits
+
+        // スタッフの優先ユニットから空きを探す
+        let assignedUnitId: string | null = null
+        if (appointmentData.staff1_id) {
+          const staffPriorities = staffUnitPrioritiesData
+            .filter(p => p.staff_id === appointmentData.staff1_id && p.is_active)
+            .sort((a, b) => a.priority_order - b.priority_order)
+
+          for (const prio of staffPriorities) {
+            if (!usedUnitIds.has(prio.unit_id) && targetUnits.some(u => u.id === prio.unit_id)) {
+              assignedUnitId = prio.unit_id
+              break
+            }
+          }
+        }
+
+        // スタッフ優先ユニットで見つからない場合、対象ユニットから空きを探す
+        if (!assignedUnitId) {
+          const availableUnit = targetUnits.find(u => !usedUnitIds.has(u.id))
+          if (availableUnit) {
+            assignedUnitId = availableUnit.id
+          }
+        }
+
+        if (assignedUnitId) {
+          appointmentData.unit_id = assignedUnitId
+          console.log('Web予約: ユニット自動割り当て', assignedUnitId)
         }
       }
 

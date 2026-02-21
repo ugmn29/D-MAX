@@ -4,6 +4,7 @@ import { getStaff } from './staff'
 import { getAppointments } from './appointments'
 import { getClinicSettings } from './clinic'
 import { getStaffShiftsByDate } from './shifts'
+import { getUnits } from './units'
 import { format, addDays, startOfWeek, parse } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
@@ -105,6 +106,15 @@ export async function getAvailableSlots(
 
     // 予約時間
     const duration = bookingMenu.duration || 30
+
+    // ユニット空きチェック用: 対象ユニットIDを決定
+    const allUnits = await getUnits(clinicId)
+    const activeUnits = allUnits.filter((u: any) => u.is_active !== false)
+    const targetUnitIds: string[] = bookingMenu.unit_mode === 'specific' && bookingMenu.unit_ids?.length > 0
+      ? bookingMenu.unit_ids
+      : activeUnits.map((u: any) => u.id)
+
+    console.log('空枠取得: ユニットチェック', { unit_mode: bookingMenu.unit_mode, targetUnitIds })
 
     // 既存の予約を取得（キャンセルされた予約を除外）
     const allAppointments = await getAppointments(
@@ -239,8 +249,21 @@ export async function getAvailableSlots(
             return !(slotEndForBlock <= blockStart || currentTimeMinutes >= blockEnd)
           })
 
-          // 休憩時間またはブロック時間の場合は予約不可として追加
-          if (isBreakTime || isBlockedTime) {
+          // ユニット空きチェック: 対象ユニットのうち、この時間帯に空いているユニットがあるか
+          const slotEndForUnit = currentTimeMinutes + duration
+          const availableUnitIds = targetUnitIds.filter(unitId => {
+            return !existingAppointments.some(apt => {
+              if (apt.appointment_date !== dateString) return false
+              if ((apt as any).unit_id !== unitId) return false
+              const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
+              const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+              return !(slotEndForUnit <= aptStart || currentTimeMinutes >= aptEnd)
+            })
+          })
+          const hasAvailableUnit = targetUnitIds.length === 0 || availableUnitIds.length > 0
+
+          // 休憩時間またはブロック時間またはユニット空きなしの場合は予約不可として追加
+          if (isBreakTime || isBlockedTime || !hasAvailableUnit) {
             slots.push({
               date: dateString,
               time: timeString,
@@ -394,6 +417,10 @@ export async function getAvailableSlotsForReschedule(
       breakTimes = await getBreakTimes(clinicId)
     }
 
+    // ユニット空きチェック用: 全アクティブユニットを取得
+    const allUnitsForReschedule = await getUnits(clinicId)
+    const activeUnitIdsForReschedule = allUnitsForReschedule.filter((u: any) => u.is_active !== false).map((u: any) => u.id)
+
     // 既存の予約を取得（キャンセルされた予約を除外）
     const allAppointments = await getAppointments(
       clinicId,
@@ -502,7 +529,20 @@ export async function getAvailableSlotsForReschedule(
             return !(slotEndForBlock <= blockStart || currentTimeMinutes >= blockEnd)
           })
 
-          if (isBreakTime || isBlockedTime) {
+          // ユニット空きチェック
+          const slotEndForUnit2 = currentTimeMinutes + duration
+          const availableUnitIdsForSlot = activeUnitIdsForReschedule.filter(unitId => {
+            return !existingAppointments.some(apt => {
+              if (apt.appointment_date !== dateString) return false
+              if ((apt as any).unit_id !== unitId) return false
+              const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1])
+              const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1])
+              return !(slotEndForUnit2 <= aptStart || currentTimeMinutes >= aptEnd)
+            })
+          })
+          const hasAvailableUnitForReschedule = activeUnitIdsForReschedule.length === 0 || availableUnitIdsForSlot.length > 0
+
+          if (isBreakTime || isBlockedTime || !hasAvailableUnitForReschedule) {
             slots.push({
               date: dateString,
               time: timeString,
