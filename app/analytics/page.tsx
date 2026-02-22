@@ -42,38 +42,33 @@ export default function AnalyticsPage() {
   const loadAnalyticsData = async () => {
     if (!startDate || !endDate) return
 
-    try {
-      setLoading(true)
+    setLoading(true)
 
-      // 基本分析データを取得（比較タイプを渡す、期間は常に日別）
-      const data = await getAnalyticsData(clinicId, startDate, endDate, 'daily', comparisonType)
-      setAnalyticsData(data)
+    // 各APIを独立して実行し、1つが失敗しても他のデータは保持する
+    const [data, cancelData, timeSlotData, staffData, treatmentData] = await Promise.allSettled([
+      getAnalyticsData(clinicId, startDate, endDate, 'daily', comparisonType),
+      getCancelAnalysisData(clinicId, startDate, endDate),
+      getTimeSlotCancelAnalysis(clinicId, startDate, endDate),
+      getStaffCancelAnalysis(clinicId, startDate, endDate),
+      getTreatmentCancelAnalysis(clinicId, startDate, endDate),
+    ])
 
-      // キャンセル分析データを取得
-      const cancelData = await getCancelAnalysisData(clinicId, startDate, endDate)
-      setCancelAnalysisData(cancelData)
+    if (data.status === 'fulfilled') setAnalyticsData(data.value)
+    else { console.error('基本分析データ取得エラー:', data.reason); setAnalyticsData(null) }
 
-      // 詳細キャンセル分析データを取得
-      const timeSlotData = await getTimeSlotCancelAnalysis(clinicId, startDate, endDate)
-      setTimeSlotCancelData(timeSlotData)
+    if (cancelData.status === 'fulfilled') setCancelAnalysisData(cancelData.value)
+    else { console.error('キャンセル分析データ取得エラー:', cancelData.reason); setCancelAnalysisData(null) }
 
-      const staffData = await getStaffCancelAnalysis(clinicId, startDate, endDate)
-      setStaffCancelData(staffData)
+    if (timeSlotData.status === 'fulfilled') setTimeSlotCancelData(timeSlotData.value)
+    else { console.error('時間帯キャンセル分析エラー:', timeSlotData.reason); setTimeSlotCancelData([]) }
 
-      const treatmentData = await getTreatmentCancelAnalysis(clinicId, startDate, endDate)
-      setTreatmentCancelData(treatmentData)
+    if (staffData.status === 'fulfilled') setStaffCancelData(staffData.value)
+    else { console.error('スタッフキャンセル分析エラー:', staffData.reason); setStaffCancelData([]) }
 
-    } catch (error) {
-      console.error('分析データ取得エラー:', error)
-      // エラーが発生した場合はデフォルト値を設定
-      setAnalyticsData(null)
-      setCancelAnalysisData(null)
-      setTimeSlotCancelData([])
-      setStaffCancelData([])
-      setTreatmentCancelData([])
-    } finally {
-      setLoading(false)
-    }
+    if (treatmentData.status === 'fulfilled') setTreatmentCancelData(treatmentData.value)
+    else { console.error('診療メニューキャンセル分析エラー:', treatmentData.reason); setTreatmentCancelData([]) }
+
+    setLoading(false)
   }
 
   useEffect(() => {

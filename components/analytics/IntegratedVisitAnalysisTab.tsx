@@ -214,6 +214,11 @@ export default function IntegratedVisitAnalysisTab({
         const qData = await getVisitSourceAnalysis(clinicId, startDate, endDate)
         setQuestionnaireData(qData)
       } else {
+        // questionnaire モードでは web 関連データをリセット
+        setWebData(null)
+        setFunnelData(null)
+        setLtvData(null)
+        setRoiData(null)
         const data = await getVisitSourceAnalysis(clinicId, startDate, endDate)
         setQuestionnaireData(data)
       }
