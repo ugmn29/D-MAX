@@ -133,6 +133,14 @@ export default function IntegratedVisitAnalysisTab({
     total_sessions: number
     completed_sessions: number
     overall_completion_rate: number
+    funnel_by_source: {
+      source: string
+      utm_source: string
+      utm_medium: string
+      total_sessions: number
+      completed_sessions: number
+      completion_rate: number
+    }[]
   } | null>(null)
   const [ltvData, setLtvData] = useState<{
     source_ltv: SourceLTVData[]
@@ -812,6 +820,60 @@ export default function IntegratedVisitAnalysisTab({
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* 流入元別コンバージョン表 */}
+                  {funnelData && funnelData.funnel_by_source && funnelData.funnel_by_source.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">流入元別 タップ数・コンバージョン率</CardTitle>
+                        <p className="text-sm text-gray-500">QRスキャン・リンクタップ数と予約完了数の比較</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b">
+                              <tr>
+                                <th className="px-4 py-2 text-left font-medium text-gray-600">流入元</th>
+                                <th className="px-4 py-2 text-left font-medium text-gray-600">メディア</th>
+                                <th className="px-4 py-2 text-right font-medium text-gray-600">タップ数</th>
+                                <th className="px-4 py-2 text-right font-medium text-gray-600">予約完了数</th>
+                                <th className="px-4 py-2 text-right font-medium text-gray-600">CV率</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[...funnelData.funnel_by_source]
+                                .sort((a, b) => b.total_sessions - a.total_sessions)
+                                .map((row) => (
+                                  <tr key={row.source} className="border-b hover:bg-gray-50">
+                                    <td className="px-4 py-3 font-medium">{row.utm_source}</td>
+                                    <td className="px-4 py-3">
+                                      {row.utm_medium === 'QR' ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                          QR
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-500">{row.utm_medium}</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-bold text-gray-900">
+                                      {row.total_sessions.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-bold text-green-600">
+                                      {row.completed_sessions.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <span className={`font-bold ${row.completion_rate >= 30 ? 'text-green-600' : row.completion_rate >= 15 ? 'text-yellow-600' : 'text-red-500'}`}>
+                                        {row.completion_rate.toFixed(1)}%
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               )}
 

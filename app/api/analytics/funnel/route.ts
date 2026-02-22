@@ -94,15 +94,19 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 流入元別のファネル分析
+    // 流入元別のファネル分析（utm_source + utm_medium で区別）
     const sourceSessionSteps = new Map<string, Map<string, Set<number>>>()
+    const sourceMetaMap = new Map<string, { utm_source: string; utm_medium: string }>()
 
     data?.forEach((event) => {
-      const source = event.utm_source || 'organic'
-      if (!sourceSessionSteps.has(source)) {
-        sourceSessionSteps.set(source, new Map())
+      const utmSource = event.utm_source || 'organic'
+      const utmMedium = event.utm_medium || 'direct'
+      const sourceKey = `${utmSource}/${utmMedium}`
+      if (!sourceSessionSteps.has(sourceKey)) {
+        sourceSessionSteps.set(sourceKey, new Map())
+        sourceMetaMap.set(sourceKey, { utm_source: utmSource, utm_medium: utmMedium })
       }
-      const sourceSessions = sourceSessionSteps.get(source)!
+      const sourceSessions = sourceSessionSteps.get(sourceKey)!
       if (!sourceSessions.has(event.session_id)) {
         sourceSessions.set(event.session_id, new Set())
       }
@@ -110,7 +114,8 @@ export async function GET(request: NextRequest) {
     })
 
     const funnelBySource = Array.from(sourceSessionSteps.entries()).map(
-      ([source, sessions]) => {
+      ([sourceKey, sessions]) => {
+        const meta = sourceMetaMap.get(sourceKey)!
         const sourceStepCounts = new Map<number, number>()
         for (let step = 1; step <= 6; step++) {
           sourceStepCounts.set(step, 0)
@@ -126,7 +131,9 @@ export async function GET(request: NextRequest) {
         const completedSessions = sourceStepCounts.get(6) || 0
 
         return {
-          source,
+          source: sourceKey,
+          utm_source: meta.utm_source,
+          utm_medium: meta.utm_medium,
           total_sessions: sourceTotalSessions,
           completed_sessions: completedSessions,
           completion_rate:
