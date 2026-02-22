@@ -125,6 +125,8 @@ export default function IntegratedVisitAnalysisTab({
     'menu-by-source' | 'regional' | 'demographics' | 'settings'
   >('overview')
   const [activeSettingsTab, setActiveSettingsTab] = useState<'tag-settings' | 'tab-script' | 'client-url' | 'qr-code' | 'sns-link' | 'hp-embed' | 'ad-sources' | 'ad-integration'>('tag-settings')
+  const [behaviorInnerTab, setBehaviorInnerTab] = useState<'funnel' | 'tab-analysis'>('funnel')
+  const [marketingInnerTab, setMarketingInnerTab] = useState<'ltv' | 'roi' | 'ad-spend'>('ltv')
   const [loading, setLoading] = useState(false)
   const [webData, setWebData] = useState<ExtendedAnalyticsData | null>(null)
   const [questionnaireData, setQuestionnaireData] = useState<VisitSourceAnalysisResult | null>(null)
@@ -737,13 +739,32 @@ export default function IntegratedVisitAnalysisTab({
 
           {/* 行動分析タブ（ファネル＋タブ分析） */}
           {activeSubTab === 'behavior' && (
-            <div className="space-y-8">
+            <div className="space-y-4">
+              {/* 行動分析 内部タブ */}
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-6">
+                  {[
+                    { id: 'funnel', label: 'ファネル分析', icon: Target },
+                    { id: 'tab-analysis', label: 'タブクリック分析', icon: MousePointerClick },
+                  ].map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setBehaviorInnerTab(id as 'funnel' | 'tab-analysis')}
+                      className={`py-2.5 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-1.5 ${
+                        behaviorInnerTab === id
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
               {/* ファネル分析 */}
-              <div>
-                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Target className="w-4 h-4" />
-                  予約ファネル分析
-                </h3>
+              {behaviorInnerTab === 'funnel' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card>
@@ -829,28 +850,46 @@ export default function IntegratedVisitAnalysisTab({
                     </CardContent>
                   </Card>
                 </div>
-              </div>
+              )}
 
               {/* タブクリック分析 */}
-              <div className="border-t pt-6">
-                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <MousePointerClick className="w-4 h-4" />
-                  タブクリック分析
-                </h3>
+              {behaviorInnerTab === 'tab-analysis' && (
                 <TabAnalysisTab clinicId={clinicId} startDate={startDate} endDate={endDate} />
-              </div>
+              )}
             </div>
           )}
 
           {/* マーケティングタブ（LTV・ROI・広告費） */}
           {activeSubTab === 'marketing' && (
-            <div className="space-y-8">
+            <div className="space-y-4">
+              {/* マーケティング 内部タブ */}
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-6">
+                  {[
+                    { id: 'ltv', label: 'LTV分析', icon: TrendingUp },
+                    { id: 'roi', label: 'ROI / ROAS', icon: DollarSign },
+                    { id: 'ad-spend', label: '広告費管理', icon: Wallet },
+                  ].map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setMarketingInnerTab(id as 'ltv' | 'roi' | 'ad-spend')}
+                      className={`py-2.5 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-1.5 ${
+                        marketingInnerTab === id
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
               {/* LTV分析 */}
+              {marketingInnerTab === 'ltv' && (
               <div>
-                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  顧客生涯価値（LTV）
-                </h3>
+                <h3 className="sr-only">顧客生涯価値（LTV）</h3>
                 <div className="space-y-6">
                   <div className="flex justify-end">
                     <Button onClick={exportLTVCSV} variant="outline">
@@ -925,14 +964,11 @@ export default function IntegratedVisitAnalysisTab({
                   </Card>
                 </div>
               </div>
+              )}
 
               {/* ROI/ROAS分析 */}
-              <div className="border-t pt-6">
-                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  ROI / ROAS 分析
-                </h3>
-                <div className="space-y-6">
+              {marketingInnerTab === 'roi' && (
+              <div className="space-y-6">
                   <div className="flex justify-end">
                     <Button onClick={exportROICSV} variant="outline">
                       <Download className="w-4 h-4 mr-2" />
@@ -1038,16 +1074,12 @@ export default function IntegratedVisitAnalysisTab({
                     </CardContent>
                   </Card>
                 </div>
-              </div>
+              )}
 
               {/* 広告費管理 */}
-              <div className="border-t pt-6">
-                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Wallet className="w-4 h-4" />
-                  広告費管理
-                </h3>
+              {marketingInnerTab === 'ad-spend' && (
                 <AdSpendManager clinicId={clinicId} startDate={startDate} endDate={endDate} />
-              </div>
+              )}
             </div>
           )}
 
