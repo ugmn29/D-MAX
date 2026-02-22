@@ -6,12 +6,11 @@ import { Button } from '@/components/ui/button'
 import {
   TrendingUp, Users, Target, DollarSign,
   Clock, RefreshCw, Download,
-  FileText, Globe, ArrowUpRight, ArrowDownRight, Minus,
+  FileText, ArrowUpRight, ArrowDownRight, Minus,
   Settings, Megaphone, Wallet, Activity, Stethoscope,
   MousePointerClick, Link, QrCode, MapPin, Code, Link2
 } from 'lucide-react'
 import { exportToCSV, CSVColumn } from '@/lib/utils/export-csv'
-import VisitSourceAnalysisTab from './VisitSourceAnalysisTab'
 import { getVisitSourceAnalysis, type VisitSourceAnalysisResult } from '@/lib/api/visit-source-analysis'
 import TimeHeatmapChart from './TimeHeatmapChart'
 import AdSourcesManager from './AdSourcesManager'
@@ -119,7 +118,6 @@ export default function IntegratedVisitAnalysisTab({
   startDate,
   endDate
 }: IntegratedVisitAnalysisTabProps) {
-  const [dataSource, setDataSource] = useState<'questionnaire' | 'web'>('web')
   const [activeSubTab, setActiveSubTab] = useState<
     'overview' | 'time' | 'repeat' | 'behavior' | 'marketing' |
     'menu-by-source' | 'regional' | 'demographics' | 'settings'
@@ -170,60 +168,50 @@ export default function IntegratedVisitAnalysisTab({
 
   useEffect(() => {
     loadData()
-  }, [clinicId, startDate, endDate, dataSource])
+  }, [clinicId, startDate, endDate])
 
   const loadData = async () => {
     setLoading(true)
     try {
-      if (dataSource === 'web') {
-        // 拡張分析データを取得
-        const res = await fetch(
-          `/api/analytics/web-booking-extended?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
-        )
-        if (res.ok) {
-          const json = await res.json()
-          setWebData(json.data)
-        }
-
-        // ファネルデータを取得
-        const funnelRes = await fetch(
-          `/api/analytics/funnel?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
-        )
-        if (funnelRes.ok) {
-          const funnelJson = await funnelRes.json()
-          setFunnelData(funnelJson.data)
-        }
-
-        // LTVデータを取得
-        const ltvRes = await fetch(
-          `/api/analytics/ltv?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
-        )
-        if (ltvRes.ok) {
-          const ltvJson = await ltvRes.json()
-          setLtvData(ltvJson.data)
-        }
-
-        // ROIデータを取得
-        const roiRes = await fetch(
-          `/api/analytics/roi?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
-        )
-        if (roiRes.ok) {
-          const roiJson = await roiRes.json()
-          setRoiData(roiJson.data)
-        }
-
-        // 問診表の来院理由データを常に取得（媒体別タブに表示するため）
-        const qData = await getVisitSourceAnalysis(clinicId, startDate, endDate)
-        setQuestionnaireData(qData)
-      } else {
-        // questionnaire モードでは web 関連データをリセット
-        setWebData(null)
-        setFunnelData(null)
-        setLtvData(null)
-        setRoiData(null)
-        const data = await getVisitSourceAnalysis(clinicId, startDate, endDate)
-        setQuestionnaireData(data)
+      // 拡張分析データを取得
+      const res = await fetch(
+        `/api/analytics/web-booking-extended?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
+      )
+      if (res.ok) {
+        const json = await res.json()
+        setWebData(json.data)
       }
+
+      // ファネルデータを取得
+      const funnelRes = await fetch(
+        `/api/analytics/funnel?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
+      )
+      if (funnelRes.ok) {
+        const funnelJson = await funnelRes.json()
+        setFunnelData(funnelJson.data)
+      }
+
+      // LTVデータを取得
+      const ltvRes = await fetch(
+        `/api/analytics/ltv?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
+      )
+      if (ltvRes.ok) {
+        const ltvJson = await ltvRes.json()
+        setLtvData(ltvJson.data)
+      }
+
+      // ROIデータを取得
+      const roiRes = await fetch(
+        `/api/analytics/roi?clinic_id=${clinicId}&start_date=${startDate}&end_date=${endDate}`
+      )
+      if (roiRes.ok) {
+        const roiJson = await roiRes.json()
+        setRoiData(roiJson.data)
+      }
+
+      // 問診表の来院理由データを常に取得（媒体別タブに表示するため）
+      const qData = await getVisitSourceAnalysis(clinicId, startDate, endDate)
+      setQuestionnaireData(qData)
     } catch (error) {
       console.error('データ取得エラー:', error)
     } finally {
@@ -295,40 +283,15 @@ export default function IntegratedVisitAnalysisTab({
 
   return (
     <div className="space-y-6">
-      {/* データソース切り替え */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Button
-            variant={dataSource === 'web' ? 'default' : 'outline'}
-            onClick={() => setDataSource('web')}
-            className="flex items-center gap-2"
-          >
-            <Globe className="w-4 h-4" />
-            Web予約追跡
-          </Button>
-          <Button
-            variant={dataSource === 'questionnaire' ? 'default' : 'outline'}
-            onClick={() => setDataSource('questionnaire')}
-            className="flex items-center gap-2"
-          >
-            <FileText className="w-4 h-4" />
-            問診表回答
-          </Button>
-        </div>
+      {/* ヘッダー */}
+      <div className="flex items-center justify-end">
         <Button variant="outline" onClick={loadData}>
           <RefreshCw className="w-4 h-4 mr-2" />
           更新
         </Button>
       </div>
 
-      {/* 問診表ベースの場合は既存コンポーネントを使用 */}
-      {dataSource === 'questionnaire' && questionnaireData && (
-        <VisitSourceAnalysisTab data={questionnaireData} loading={loading} />
-      )}
-
-      {/* Web予約ベースの場合 */}
-      {dataSource === 'web' && (
-        <>
+      <>
           {/* サブタブ */}
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-4 overflow-x-auto">
@@ -1242,8 +1205,7 @@ export default function IntegratedVisitAnalysisTab({
               )}
             </div>
           )}
-        </>
-      )}
+      </>
     </div>
   )
 }
