@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target, Settings2, ChevronDown, ChevronUp } from 'lucide-react'
 import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCancelAnalysis, getStaffCancelAnalysis, getTreatmentCancelAnalysis, getTreatmentMenuStatsByParent, CancelAnalysisData, TimeSlotCancelData, StaffCancelData, TreatmentCancelData, TreatmentMenuStats } from '@/lib/api/analytics'
 import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
 import StaffAnalyticsTab from '@/components/analytics/StaffAnalyticsTab'
@@ -23,6 +24,7 @@ export default function AnalyticsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [activeTab, setActiveTab] = useState('basic')
+  const [showSettings, setShowSettings] = useState(false)
   const [comparisonType, setComparisonType] = useState<'previous' | 'same_period_last_year' | 'none'>('previous')
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null)
   const [currentLevel, setCurrentLevel] = useState<1 | 2 | 3>(1)
@@ -142,10 +144,31 @@ export default function AnalyticsPage() {
     <div className="container mx-auto p-6 space-y-6">
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">分析</h1>
+        <div className="flex items-center gap-3">
+          <BarChart3 className="w-7 h-7 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">分析</h1>
         </div>
-        <BarChart3 className="w-8 h-8 text-blue-600" />
+        <div className="flex items-center gap-3">
+          {/* 現在の設定を要約表示 */}
+          {startDate && endDate && (
+            <span className="text-sm text-gray-500 hidden sm:block">
+              {startDate} 〜 {endDate}
+              <span className="ml-2 text-gray-400">
+                ({comparisonType === 'previous' ? '前期間比' : comparisonType === 'same_period_last_year' ? '前年同期比' : '比較なし'})
+              </span>
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(v => !v)}
+            className="flex items-center gap-1.5"
+          >
+            <Settings2 className="w-4 h-4" />
+            分析設定
+            {showSettings ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </Button>
+        </div>
       </div>
 
       {/* タブナビゲーション */}
@@ -179,47 +202,48 @@ export default function AnalyticsPage() {
         </nav>
       </div>
 
-      {/* 期間選択とフィルター */}
-      <Card>
-        <CardHeader>
-          <CardTitle>分析設定</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="startDate">開始日</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+      {/* 分析設定パネル（折りたたみ） */}
+      {showSettings && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardContent className="pt-4 pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="startDate">開始日</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-white"
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate">終了日</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-white"
+                />
+              </div>
+              <div>
+                <Label htmlFor="comparison">比較対象</Label>
+                <select
+                  id="comparison"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={comparisonType}
+                  onChange={(e) => setComparisonType(e.target.value as 'previous' | 'same_period_last_year' | 'none')}
+                >
+                  <option value="previous">前期間</option>
+                  <option value="same_period_last_year">前年同期</option>
+                  <option value="none">比較なし</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="endDate">終了日</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="comparison">比較</Label>
-              <select
-                id="comparison"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={comparisonType}
-                onChange={(e) => setComparisonType(e.target.value as 'previous' | 'same_period_last_year' | 'none')}
-              >
-                <option value="previous">前期間</option>
-                <option value="same_period_last_year">前年同期</option>
-                <option value="none">比較なし</option>
-              </select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* タブコンテンツ */}
       {analyticsData && (
