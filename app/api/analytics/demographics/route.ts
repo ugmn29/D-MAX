@@ -250,7 +250,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const revenueByAge: { age: string; avgRevenue: number; topTreatment: string }[] = []
+    const revenueByAge: { age: string; avgRevenue: number; topTreatment: string; patientCount: number }[] = []
     for (const ageGroup of ['20代', '30代', '40代', '50代', '60代以上']) {
       const data = ageRevenueMap.get(ageGroup)
       if (data && data.count > 0) {
@@ -268,19 +268,36 @@ export async function GET(request: NextRequest) {
           age: ageGroup,
           avgRevenue: Math.round(data.totalRevenue / data.count),
           topTreatment,
+          patientCount: data.count,
         })
       }
     }
 
+    // 最多年齢層を計算
+    const mostCommonAgeGroup = ageDistribution.reduce(
+      (max, cur) => (cur.total > max.total ? cur : max),
+      { age: '-', male: 0, female: 0, total: 0 }
+    )
+    const mostCommonAge = mostCommonAgeGroup.total > 0 ? mostCommonAgeGroup.age : '-'
+
+    // 平均単価最高の年齢層
+    const highestRevenueAgeGroup = revenueByAge.reduce(
+      (max, cur) => (cur.avgRevenue > max.avgRevenue ? cur : max),
+      { age: '-', avgRevenue: 0, topTreatment: '-', patientCount: 0 }
+    )
+    const highestRevenueAge = highestRevenueAgeGroup.avgRevenue > 0 ? highestRevenueAgeGroup.age : '-'
+
     return NextResponse.json({
       data: {
         age_distribution: ageDistribution,
-        gender_data: genderData,
+        gender_distribution: genderData,
         age_by_source: ageBySource,
         revenue_by_age: revenueByAge,
         total_patients: patients?.length || 0,
         total_male: totalMale,
         total_female: totalFemale,
+        most_common_age: mostCommonAge,
+        highest_revenue_age: highestRevenueAge,
       }
     })
   } catch (error) {
