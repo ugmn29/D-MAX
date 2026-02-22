@@ -209,6 +209,10 @@ export default function IntegratedVisitAnalysisTab({
           const roiJson = await roiRes.json()
           setRoiData(roiJson.data)
         }
+
+        // 問診表の来院理由データを常に取得（媒体別タブに表示するため）
+        const qData = await getVisitSourceAnalysis(clinicId, startDate, endDate)
+        setQuestionnaireData(qData)
       } else {
         const data = await getVisitSourceAnalysis(clinicId, startDate, endDate)
         setQuestionnaireData(data)
