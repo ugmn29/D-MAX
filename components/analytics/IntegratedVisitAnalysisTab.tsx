@@ -137,11 +137,14 @@ export default function IntegratedVisitAnalysisTab({
       source: string
       utm_source: string
       utm_medium: string
+      utm_campaign: string | null
       total_sessions: number
       completed_sessions: number
       completion_rate: number
     }[]
   } | null>(null)
+  const [expandedFunnelRow, setExpandedFunnelRow] = useState<string | null>(null)
+  const [funnelBookings, setFunnelBookings] = useState<Record<string, any[]>>({})
   const [ltvData, setLtvData] = useState<{
     source_ltv: SourceLTVData[]
     total_patients: number
@@ -826,7 +829,7 @@ export default function IntegratedVisitAnalysisTab({
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-base">流入元別 タップ数・コンバージョン率</CardTitle>
-                        <p className="text-sm text-gray-500">QRスキャン・リンクタップ数と予約完了数の比較</p>
+                        <p className="text-sm text-gray-500">行をクリックすると予約一覧を表示します</p>
                       </CardHeader>
                       <CardContent>
                         <div className="overflow-x-auto">
@@ -835,6 +838,7 @@ export default function IntegratedVisitAnalysisTab({
                               <tr>
                                 <th className="px-4 py-2 text-left font-medium text-gray-600">流入元</th>
                                 <th className="px-4 py-2 text-left font-medium text-gray-600">メディア</th>
+                                <th className="px-4 py-2 text-left font-medium text-gray-600">キャンペーン</th>
                                 <th className="px-4 py-2 text-right font-medium text-gray-600">タップ数</th>
                                 <th className="px-4 py-2 text-right font-medium text-gray-600">予約完了数</th>
                                 <th className="px-4 py-2 text-right font-medium text-gray-600">CV率</th>
@@ -843,31 +847,103 @@ export default function IntegratedVisitAnalysisTab({
                             <tbody>
                               {[...funnelData.funnel_by_source]
                                 .sort((a, b) => b.total_sessions - a.total_sessions)
-                                .map((row) => (
-                                  <tr key={row.source} className="border-b hover:bg-gray-50">
-                                    <td className="px-4 py-3 font-medium">{row.utm_source}</td>
-                                    <td className="px-4 py-3">
-                                      {row.utm_medium === 'QR' ? (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                                          QR
-                                        </span>
-                                      ) : (
-                                        <span className="text-gray-500">{row.utm_medium}</span>
+                                .map((row) => {
+                                  const isExpanded = expandedFunnelRow === row.source
+                                  const rowBookings = funnelBookings[row.source]
+                                  return (
+                                    <>
+                                      <tr
+                                        key={row.source}
+                                        className="border-b hover:bg-gray-50 cursor-pointer"
+                                        onClick={async () => {
+                                          if (isExpanded) {
+                                            setExpandedFunnelRow(null)
+                                            return
+                                          }
+                                          setExpandedFunnelRow(row.source)
+                                          if (!funnelBookings[row.source]) {
+                                            const params = new URLSearchParams({
+                                              clinic_id: clinicId,
+                                              utm_source: row.utm_source,
+                                              utm_medium: row.utm_medium,
+                                              utm_campaign: row.utm_campaign ?? '',
+                                              ...(startDate ? { start_date: startDate } : {}),
+                                              ...(endDate ? { end_date: endDate } : {}),
+                                            })
+                                            const res = await fetch(`/api/analytics/funnel-bookings?${params}`)
+                                            if (res.ok) {
+                                              const json = await res.json()
+                                              setFunnelBookings(prev => ({ ...prev, [row.source]: json.data.bookings }))
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        <td className="px-4 py-3 font-medium">{row.utm_source}</td>
+                                        <td className="px-4 py-3">
+                                          {row.utm_medium === 'QR' ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">QR</span>
+                                          ) : (
+                                            <span className="text-gray-500">{row.utm_medium}</span>
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-500">
+                                          {row.utm_campaign || <span className="text-gray-300">—</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-bold text-gray-900">
+                                          {row.total_sessions.toLocaleString()}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-bold text-green-600">
+                                          {row.completed_sessions.toLocaleString()}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                          <span className={`font-bold ${row.completion_rate >= 30 ? 'text-green-600' : row.completion_rate >= 15 ? 'text-yellow-600' : 'text-red-500'}`}>
+                                            {row.completion_rate.toFixed(1)}%
+                                          </span>
+                                        </td>
+                                      </tr>
+                                      {isExpanded && (
+                                        <tr key={`${row.source}-detail`}>
+                                          <td colSpan={6} className="bg-gray-50 px-6 py-3">
+                                            {!rowBookings ? (
+                                              <p className="text-sm text-gray-500 py-2">読み込み中...</p>
+                                            ) : rowBookings.length === 0 ? (
+                                              <p className="text-sm text-gray-500 py-2">予約データがありません</p>
+                                            ) : (
+                                              <table className="w-full text-xs">
+                                                <thead>
+                                                  <tr className="text-gray-500">
+                                                    <th className="text-left pb-1 pr-4">患者名</th>
+                                                    <th className="text-left pb-1 pr-4">予約日時</th>
+                                                    <th className="text-left pb-1 pr-4">診療メニュー</th>
+                                                    <th className="text-left pb-1">担当者</th>
+                                                    <th className="text-left pb-1">ステータス</th>
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {rowBookings.map((b: any) => (
+                                                    <tr key={b.appointment_id} className="border-t border-gray-200">
+                                                      <td className="py-1.5 pr-4 font-medium">{b.patient_name || '—'}</td>
+                                                      <td className="py-1.5 pr-4 text-gray-600">
+                                                        {b.start_time ? new Date(b.start_time).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                      </td>
+                                                      <td className="py-1.5 pr-4">{b.menu_name}</td>
+                                                      <td className="py-1.5 pr-4 text-gray-600">{b.staff_name}</td>
+                                                      <td className="py-1.5">
+                                                        <span className={`px-1.5 py-0.5 rounded text-xs ${b.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : b.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                          {b.status === 'COMPLETED' ? '完了' : b.status === 'CANCELLED' ? 'キャンセル' : b.status === 'SCHEDULED' ? '予定' : b.status}
+                                                        </span>
+                                                      </td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            )}
+                                          </td>
+                                        </tr>
                                       )}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-bold text-gray-900">
-                                      {row.total_sessions.toLocaleString()}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-bold text-green-600">
-                                      {row.completed_sessions.toLocaleString()}
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                      <span className={`font-bold ${row.completion_rate >= 30 ? 'text-green-600' : row.completion_rate >= 15 ? 'text-yellow-600' : 'text-red-500'}`}>
-                                        {row.completion_rate.toFixed(1)}%
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
+                                    </>
+                                  )
+                                })}
                             </tbody>
                           </table>
                         </div>

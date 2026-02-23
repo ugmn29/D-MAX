@@ -94,17 +94,18 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 流入元別のファネル分析（utm_source + utm_medium で区別）
+    // 流入元別のファネル分析（utm_source + utm_medium + utm_campaign で区別）
     const sourceSessionSteps = new Map<string, Map<string, Set<number>>>()
-    const sourceMetaMap = new Map<string, { utm_source: string; utm_medium: string }>()
+    const sourceMetaMap = new Map<string, { utm_source: string; utm_medium: string; utm_campaign: string | null }>()
 
     data?.forEach((event) => {
       const utmSource = event.utm_source || 'organic'
       const utmMedium = event.utm_medium || 'direct'
-      const sourceKey = `${utmSource}/${utmMedium}`
+      const utmCampaign = event.utm_campaign || null
+      const sourceKey = `${utmSource}/${utmMedium}/${utmCampaign || ''}`
       if (!sourceSessionSteps.has(sourceKey)) {
         sourceSessionSteps.set(sourceKey, new Map())
-        sourceMetaMap.set(sourceKey, { utm_source: utmSource, utm_medium: utmMedium })
+        sourceMetaMap.set(sourceKey, { utm_source: utmSource, utm_medium: utmMedium, utm_campaign: utmCampaign })
       }
       const sourceSessions = sourceSessionSteps.get(sourceKey)!
       if (!sourceSessions.has(event.session_id)) {
@@ -134,6 +135,7 @@ export async function GET(request: NextRequest) {
           source: sourceKey,
           utm_source: meta.utm_source,
           utm_medium: meta.utm_medium,
+          utm_campaign: meta.utm_campaign,
           total_sessions: sourceTotalSessions,
           completed_sessions: completedSessions,
           completion_rate:
