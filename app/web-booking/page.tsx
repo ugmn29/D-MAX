@@ -21,7 +21,7 @@ import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight, Phone } 
 import { format, addDays, addWeeks } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { trackPageView, trackButtonClick, trackFormSubmit } from '@/lib/tracking/funnel-tracker'
-import { getStoredUTMData } from '@/lib/tracking/utm-tracker'
+import { captureAndStoreUTMData, getStoredUTMData } from '@/lib/tracking/utm-tracker'
 
 // デフォルトのクリニックID（searchParamsで上書き可能）
 const DEFAULT_CLINIC_ID = '11111111-1111-1111-1111-111111111111'
@@ -140,7 +140,8 @@ function WebBookingPageInner() {
 
   // ページビュートラッキング
   useEffect(() => {
-    // ランディングページビューを記録
+    // URLのUTMパラメータをsessionStorageに保存してからトラッキング
+    captureAndStoreUTMData()
     trackPageView(clinicId, 'LANDING', {
       page: 'web-booking',
       has_utm: getStoredUTMData() !== null
