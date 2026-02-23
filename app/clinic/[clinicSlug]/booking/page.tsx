@@ -5,6 +5,7 @@ interface BookingPageProps {
   params: {
     clinicSlug: string
   }
+  searchParams: { [key: string]: string | string[] | undefined }
 }
 
 // clinic_slugからclinic_idを取得
@@ -22,14 +23,19 @@ async function getClinicBySlug(slug: string) {
   return data
 }
 
-export default async function ClinicBookingPage({ params }: BookingPageProps) {
+export default async function ClinicBookingPage({ params, searchParams }: BookingPageProps) {
   const clinic = await getClinicBySlug(params.clinicSlug)
 
   if (!clinic) {
     notFound()
   }
 
-  // 既存のWeb予約ページにクリニックIDを渡してリダイレクト
-  // または、このページ内でWeb予約コンポーネントを表示
-  redirect(`/web-booking?clinic_id=${clinic.id}`)
+  // UTMパラメータを保持したままリダイレクト
+  const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']
+  const utmParts = utmKeys
+    .filter(key => searchParams[key])
+    .map(key => `${key}=${encodeURIComponent(String(searchParams[key]))}`)
+  const utmString = utmParts.length > 0 ? `&${utmParts.join('&')}` : ''
+
+  redirect(`/web-booking?clinic_id=${clinic.id}${utmString}`)
 }
