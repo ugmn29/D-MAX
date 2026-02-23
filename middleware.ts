@@ -25,6 +25,7 @@ const PUBLIC_PATHS = [
   '/api/patient-web-booking-settings',
   '/api/web-booking-tokens',
   '/api/tracking/save-acquisition',
+  '/api/r',
   // 問診票ページが使用するAPI
   '/api/questionnaire-responses',
   // トレーニング患者ページが使用するAPI
