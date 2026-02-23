@@ -21,7 +21,10 @@ interface SavedQR {
   utm_medium: string | null
   utm_campaign: string | null
   generated_url: string
+  destination_url: string | null
   qr_code_url: string | null
+  click_count: number | null
+  last_clicked_at: string | null
   created_at: string | null
 }
 
@@ -128,15 +131,17 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
   }
 
   const generateTrackingURL = () => {
-    const baseUrl = getBaseUrl()
-    if (!baseUrl) return ''
-    const params = new URLSearchParams()
+    const destUrl = getBaseUrl()
+    if (!destUrl) return ''
     const finalSource = source === 'custom' ? customSource : source
-    if (finalSource) params.append('utm_source', finalSource)
-    if (medium) params.append('utm_medium', medium)
-    if (campaign) params.append('utm_campaign', campaign)
-    const paramString = params.toString()
-    return paramString ? `${baseUrl}?${paramString}` : baseUrl
+    // /api/r 経由でタップを記録してからリダイレクト
+    const params = new URLSearchParams()
+    params.set('clinic_id', clinicId)
+    params.set('dest', destUrl)
+    if (finalSource) params.set('utm_source', finalSource)
+    if (medium) params.set('utm_medium', medium)
+    if (campaign) params.set('utm_campaign', campaign)
+    return `${dmaxBaseUrl}/api/r?${params.toString()}`
   }
 
   const handleGeneratePreview = async () => {
@@ -288,15 +293,17 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
                       <div className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{qr.generated_url}</div>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="text-lg font-semibold text-gray-800">{stat ? stat.total_sessions.toLocaleString() : '—'}</span>
+                      <span className="text-lg font-semibold text-gray-800">
+                        {qr.click_count != null ? qr.click_count.toLocaleString() : '0'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-lg font-semibold text-green-700">{stat ? stat.completed_sessions.toLocaleString() : '—'}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {stat ? (
-                        <span className={`text-sm font-bold ${stat.completion_rate >= 20 ? 'text-green-600' : stat.completion_rate >= 10 ? 'text-yellow-600' : 'text-gray-500'}`}>
-                          {stat.completion_rate.toFixed(1)}%
+                      {stat && qr.click_count ? (
+                        <span className={`text-sm font-bold ${(stat.completed_sessions / qr.click_count) * 100 >= 20 ? 'text-green-600' : (stat.completed_sessions / qr.click_count) * 100 >= 10 ? 'text-yellow-600' : 'text-gray-500'}`}>
+                          {((stat.completed_sessions / qr.click_count) * 100).toFixed(1)}%
                         </span>
                       ) : <span className="text-gray-400 text-sm">—</span>}
                     </td>
