@@ -57,8 +57,15 @@ const LINK_DESTINATIONS = [
   },
 ]
 
+interface FunnelStat {
+  total_sessions: number
+  completed_sessions: number
+  completion_rate: number
+}
+
 export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGeneratorProps) {
   const [savedQRs, setSavedQRs] = useState<SavedQR[]>([])
+  const [funnelStats, setFunnelStats] = useState<Map<string, FunnelStat>>(new Map())
   const [loadingList, setLoadingList] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -85,10 +92,28 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
   const loadSavedQRs = async () => {
     setLoadingList(true)
     try {
-      const res = await fetch(`/api/analytics/generated-links?clinic_id=${clinicId}&link_type=qr_code&limit=100`)
-      if (res.ok) {
-        const json = await res.json()
+      const [linksRes, funnelRes] = await Promise.all([
+        fetch(`/api/analytics/generated-links?clinic_id=${clinicId}&link_type=qr_code&limit=100`),
+        fetch(`/api/analytics/funnel?clinic_id=${clinicId}`),
+      ])
+      if (linksRes.ok) {
+        const json = await linksRes.json()
         setSavedQRs(json.data || [])
+      }
+      if (funnelRes.ok) {
+        const funnelJson = await funnelRes.json()
+        const bySource: Array<{ utm_source: string; utm_medium: string; utm_campaign: string | null; total_sessions: number; completed_sessions: number; completion_rate: number }> =
+          funnelJson.data?.funnel_by_source || []
+        const map = new Map<string, FunnelStat>()
+        for (const row of bySource) {
+          const key = `${row.utm_source}/${row.utm_medium}/${row.utm_campaign || ''}`
+          map.set(key, {
+            total_sessions: row.total_sessions,
+            completed_sessions: row.completed_sessions,
+            completion_rate: row.completion_rate,
+          })
+        }
+        setFunnelStats(map)
       }
     } finally {
       setLoadingList(false)
@@ -231,12 +256,18 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
                 <tr>
                   <th className="px-4 py-2.5 text-left font-medium text-gray-600">QRコード</th>
                   <th className="px-4 py-2.5 text-left font-medium text-gray-600">名前 / 設定</th>
+                  <th className="px-4 py-2.5 text-center font-medium text-gray-600">タップ数</th>
+                  <th className="px-4 py-2.5 text-center font-medium text-gray-600">予約完了</th>
+                  <th className="px-4 py-2.5 text-center font-medium text-gray-600">CV率</th>
                   <th className="px-4 py-2.5 text-left font-medium text-gray-600">作成日</th>
                   <th className="px-4 py-2.5 text-right font-medium text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {savedQRs.map((qr) => (
+                {savedQRs.map((qr) => {
+                  const statKey = `${qr.utm_source || 'organic'}/${qr.utm_medium || 'direct'}/${qr.utm_campaign || ''}`
+                  const stat = funnelStats.get(statKey)
+                  return (
                   <tr key={qr.id} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="px-4 py-3">
                       {qr.qr_code_url ? (
@@ -255,6 +286,19 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
                         {qr.utm_campaign && <span className="text-blue-600">/ {qr.utm_campaign}</span>}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{qr.generated_url}</div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-lg font-semibold text-gray-800">{stat ? stat.total_sessions.toLocaleString() : '—'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-lg font-semibold text-green-700">{stat ? stat.completed_sessions.toLocaleString() : '—'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {stat ? (
+                        <span className={`text-sm font-bold ${stat.completion_rate >= 20 ? 'text-green-600' : stat.completion_rate >= 10 ? 'text-yellow-600' : 'text-gray-500'}`}>
+                          {stat.completion_rate.toFixed(1)}%
+                        </span>
+                      ) : <span className="text-gray-400 text-sm">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {qr.created_at ? new Date(qr.created_at).toLocaleDateString('ja-JP') : '—'}
@@ -275,7 +319,8 @@ export default function QRCodeGenerator({ clinicId, clinicSlug }: QRCodeGenerato
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           )}
