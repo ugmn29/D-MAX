@@ -123,7 +123,7 @@ export default function IntegratedVisitAnalysisTab({
     'menu-by-source' | 'regional' | 'demographics' | 'settings'
   >('overview')
   const [activeSettingsTab, setActiveSettingsTab] = useState<'tag-settings' | 'tab-script' | 'client-url' | 'qr-code' | 'sns-link' | 'hp-embed' | 'ad-sources' | 'ad-integration'>('tag-settings')
-  const [behaviorInnerTab, setBehaviorInnerTab] = useState<'funnel' | 'tab-analysis'>('funnel')
+  const [behaviorInnerTab, setBehaviorInnerTab] = useState<'funnel' | 'tab-analysis' | 'qr-code'>('funnel')
   const [marketingInnerTab, setMarketingInnerTab] = useState<'ltv' | 'roi' | 'ad-spend'>('ltv')
   const [loading, setLoading] = useState(false)
   const [webData, setWebData] = useState<ExtendedAnalyticsData | null>(null)
@@ -721,10 +721,11 @@ export default function IntegratedVisitAnalysisTab({
                   {[
                     { id: 'funnel', label: 'ファネル分析', icon: Target },
                     { id: 'tab-analysis', label: 'タブクリック分析', icon: MousePointerClick },
+                    { id: 'qr-code', label: 'QRコード実績', icon: QrCode },
                   ].map(({ id, label, icon: Icon }) => (
                     <button
                       key={id}
-                      onClick={() => setBehaviorInnerTab(id as 'funnel' | 'tab-analysis')}
+                      onClick={() => setBehaviorInnerTab(id as 'funnel' | 'tab-analysis' | 'qr-code')}
                       className={`py-2.5 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-1.5 ${
                         behaviorInnerTab === id
                           ? 'border-blue-500 text-blue-600'
@@ -1020,6 +1021,11 @@ export default function IntegratedVisitAnalysisTab({
               {/* タブクリック分析 */}
               {behaviorInnerTab === 'tab-analysis' && (
                 <TabAnalysisTab clinicId={clinicId} startDate={startDate} endDate={endDate} />
+              )}
+
+              {/* QRコード実績 */}
+              {behaviorInnerTab === 'qr-code' && (
+                <QRCodeGenerator clinicId={clinicId} clinicSlug={clinicSlug} />
               )}
             </div>
           )}
