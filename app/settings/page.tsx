@@ -146,6 +146,7 @@ import {
 } from "@/lib/api/treatment";
 import { QuestionnaireEditModal } from "@/components/forms/questionnaire-edit-modal";
 import { DocumentTemplatesManager } from "@/components/settings/document-templates-manager";
+import { AuditLogViewer } from "@/components/settings/AuditLogViewer";
 import {
   getUnits,
   createUnit, 
@@ -375,6 +376,11 @@ const settingCategories = [
     id: "data-import",
     name: "データ移行",
     icon: RefreshCw,
+  },
+  {
+    id: "security",
+    name: "セキュリティ",
+    icon: Shield,
   },
 ];
 
@@ -3358,6 +3364,9 @@ export default function SettingsPage() {
         console.log("=== データ移行設定を保存中 ===");
         // データ移行はインポート処理のため、保存不要
         console.log("データ移行は保存不要です");
+      } else if (selectedCategory === "security") {
+        // セキュリティ（監査ログ）は読み取り専用のため保存不要
+        console.log("セキュリティタブは保存不要です");
       } else {
         console.warn("⚠ 不明なカテゴリ:", selectedCategory);
         showAlert(`不明なカテゴリです: ${selectedCategory}`, "error");
@@ -7579,6 +7588,11 @@ export default function SettingsPage() {
         {selectedCategory === "training" && renderTrainingSettings()}
         {selectedCategory === "patient-list" && renderPatientListSettings()}
         {selectedCategory === "data-import" && renderDataImportSettings()}
+        {selectedCategory === "security" && (
+          <div className="space-y-6">
+            <AuditLogViewer />
+          </div>
+        )}
         {selectedCategory === "staff" && (
           <div className="space-y-6">
             {/* スタッフ管理 */}

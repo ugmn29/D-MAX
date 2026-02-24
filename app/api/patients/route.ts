@@ -2,21 +2,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/prisma-client'
 import { convertDatesToStrings, convertArrayDatesToStrings, PatientGender } from '@/lib/prisma-helpers'
+import { verifyAuth } from '@/lib/auth/verify-request'
+import { writeAuditLog } from '@/lib/audit-log'
+import { patientCreateSchema, patientUpdateSchema } from '@/lib/validation/api-schemas'
 
 const DATE_FIELDS = ['created_at', 'updated_at', 'birth_date', 'training_last_login_at'] as const
 const DATE_ONLY_FIELDS = ['birth_date'] as const
 
-// GET: 患者一覧を取得
+// password_hash をレスポンスから除外するユーティリティ
+function excludePasswordHash<T extends { password_hash?: unknown }>(patient: T): Omit<T, 'password_hash'> {
+  const { password_hash: _ph, ...safe } = patient
+  return safe as Omit<T, 'password_hash'>
+}
+
+// GET: 患者一覧を取得（認証必須）
 export async function GET(request: NextRequest) {
+  // 認証確認
+  let user
   try {
-    const { searchParams } = new URL(request.url)
-    const clinicId = searchParams.get('clinic_id')
+    user = await verifyAuth(request)
+  } catch {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+  }
 
-    if (!clinicId) {
-      return NextResponse.json({ error: 'clinic_id is required' }, { status: 400 })
-    }
+  try {
+    // clinic_id はトークンから強制（クエリパラメータは無視）
+    const clinicId = user.clinicId
 
-    // Prismaで患者一覧を取得
     const prisma = getPrismaClient()
     const patients = await prisma.patients.findMany({
       where: {
@@ -27,42 +39,61 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Date型をISO文字列に変換
     const patientsWithStringDates = convertArrayDatesToStrings(patients, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
+    const safePatients = patientsWithStringDates.map(excludePasswordHash)
 
-    return NextResponse.json(patientsWithStringDates)
+    // 患者一覧閲覧を監査ログに記録
+    await writeAuditLog({
+      clinicId,
+      operatorId: user.staffId,
+      actionType: 'READ',
+      targetTable: 'patients',
+    })
+
+    return NextResponse.json(safePatients)
   } catch (error) {
-    console.error('患者API エラー:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[患者API] 一覧取得エラー:', error)
+    return NextResponse.json({ error: '処理中にエラーが発生しました' }, { status: 500 })
   }
 }
 
-// POST: 新しい患者を作成
+// POST: 新しい患者を作成（Web予約から公開 / スタッフからも利用可）
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const {
-      clinic_id,
-      patient_number,
-      last_name,
-      first_name,
-      last_name_kana,
-      first_name_kana,
-      birth_date,
-      gender,
-      phone,
-      email,
-      is_registered
-    } = body
 
-    if (!clinic_id || !last_name) {
-      return NextResponse.json({
-        error: 'clinic_id and last_name are required'
-      }, { status: 400 })
+    // 入力バリデーション（Zod）
+    const validation = patientCreateSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: '入力データが不正です', details: validation.error.flatten().fieldErrors },
+        { status: 400 }
+      )
     }
 
-    // Prismaで患者を作成
+    const { clinic_id, last_name, first_name, last_name_kana, first_name_kana,
+      birth_date, gender, phone, email } = body
+    const { patient_number, is_registered } = body
+
     const prisma = getPrismaClient()
+
+    // clinic_id が実在するクリニックであることを確認
+    const clinic = await prisma.clinics.findUnique({ where: { id: clinic_id } })
+    if (!clinic) {
+      return NextResponse.json({ error: '指定されたクリニックが見つかりません' }, { status: 400 })
+    }
+
+    // 認証済みスタッフの場合はclinic_idを強制
+    let operatorId: string | null = null
+    try {
+      const user = await verifyAuth(request)
+      if (user.clinicId !== clinic_id) {
+        return NextResponse.json({ error: 'このクリニックへのアクセス権限がありません' }, { status: 403 })
+      }
+      operatorId = user.staffId ?? null
+    } catch {
+      // Web予約からの非認証アクセスは許可（operatorIdはnull）
+    }
 
     // 診察券番号の生成（指定がない場合は連番で自動生成）
     let assignedPatientNumber = patient_number ? Number(patient_number) : null
@@ -73,7 +104,6 @@ export async function POST(request: NextRequest) {
         orderBy: { patient_number: 'asc' }
       })
       const numbers = existingPatients.map(p => p.patient_number as number).sort((a, b) => a - b)
-      // 欠番を探す
       assignedPatientNumber = numbers.length + 1
       for (let i = 0; i < numbers.length; i++) {
         if (numbers[i] !== i + 1) {
@@ -99,18 +129,36 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Date型をISO文字列に変換
-    const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
+    // 監査ログ（スタッフによる作成のみ記録）
+    if (operatorId) {
+      await writeAuditLog({
+        clinicId: clinic_id,
+        operatorId,
+        actionType: 'CREATE',
+        targetTable: 'patients',
+        targetRecordId: patient.id,
+        afterData: { patient_number: patient.patient_number, last_name, first_name },
+      })
+    }
 
-    return NextResponse.json(patientWithStringDates)
+    const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
+    return NextResponse.json(excludePasswordHash(patientWithStringDates))
   } catch (error) {
-    console.error('患者作成API エラー:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[患者API] 作成エラー:', error)
+    return NextResponse.json({ error: '処理中にエラーが発生しました' }, { status: 500 })
   }
 }
 
-// PUT: 患者を更新
+// PUT: 患者を更新（認証必須）
 export async function PUT(request: NextRequest) {
+  // 認証確認
+  let user
+  try {
+    user = await verifyAuth(request)
+  } catch {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const {
@@ -130,13 +178,27 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    // Prismaで患者を更新
+    // 入力バリデーション
+    const validation = patientUpdateSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: '入力データが不正です', details: validation.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
     const prisma = getPrismaClient()
 
-    // 更新データを構築
-    const updateData: any = {
-      updated_at: new Date()
+    // 更新前のレコードを取得（監査ログ用 + clinic_id確認）
+    const existing = await prisma.patients.findFirst({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
+    if (existing.clinic_id !== user.clinicId) {
+      return NextResponse.json({ error: 'このクリニックへのアクセス権限がありません' }, { status: 403 })
+    }
+
+    const updateData: any = { updated_at: new Date() }
 
     if (last_name !== undefined) updateData.last_name = last_name
     if (first_name !== undefined) updateData.first_name = first_name
@@ -153,24 +215,38 @@ export async function PUT(request: NextRequest) {
       data: updateData
     })
 
-    // Date型をISO文字列に変換
+    // 監査ログ（before/after付き）
+    await writeAuditLog({
+      clinicId: user.clinicId,
+      operatorId: user.staffId,
+      actionType: 'UPDATE',
+      targetTable: 'patients',
+      targetRecordId: id,
+      beforeData: { last_name: existing.last_name, first_name: existing.first_name, phone: existing.phone, email: existing.email },
+      afterData: { last_name: patient.last_name, first_name: patient.first_name, phone: patient.phone, email: patient.email },
+    })
+
     const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
-
-    return NextResponse.json(patientWithStringDates)
+    return NextResponse.json(excludePasswordHash(patientWithStringDates))
   } catch (error: any) {
-    console.error('患者更新API エラー:', error)
-
-    // Prisma P2025エラー: Record not found
+    console.error('[患者API] 更新エラー:', error)
     if (error?.code === 'P2025') {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
-
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: '処理中にエラーが発生しました' }, { status: 500 })
   }
 }
 
-// DELETE: 患者を削除
+// DELETE: 患者を削除（認証必須）
 export async function DELETE(request: NextRequest) {
+  // 認証確認
+  let user
+  try {
+    user = await verifyAuth(request)
+  } catch {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -179,21 +255,35 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    // Prismaで患者を削除
     const prisma = getPrismaClient()
-    await prisma.patients.delete({
-      where: { id }
+
+    // 削除前に所有権を確認（監査ログ用）
+    const existing = await prisma.patients.findFirst({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    }
+    if (existing.clinic_id !== user.clinicId) {
+      return NextResponse.json({ error: 'このクリニックへのアクセス権限がありません' }, { status: 403 })
+    }
+
+    await prisma.patients.delete({ where: { id } })
+
+    // 監査ログ（削除前データ付き）
+    await writeAuditLog({
+      clinicId: user.clinicId,
+      operatorId: user.staffId,
+      actionType: 'DELETE',
+      targetTable: 'patients',
+      targetRecordId: id,
+      beforeData: { last_name: existing.last_name, first_name: existing.first_name, patient_number: existing.patient_number },
     })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('患者削除API エラー:', error)
-
-    // Prisma P2025エラー: Record not found
+    console.error('[患者API] 削除エラー:', error)
     if (error?.code === 'P2025') {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
-
-    return NextResponse.json({ error: 'Failed to delete patient' }, { status: 500 })
+    return NextResponse.json({ error: '処理中にエラーが発生しました' }, { status: 500 })
   }
 }

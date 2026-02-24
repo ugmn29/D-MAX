@@ -2,19 +2,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/prisma-client'
 import { convertDatesToStrings, PatientGender } from '@/lib/prisma-helpers'
+import { verifyAuth } from '@/lib/auth/verify-request'
+import { writeAuditLog } from '@/lib/audit-log'
+import { patientUpdateSchema } from '@/lib/validation/api-schemas'
 
 const DATE_FIELDS = ['created_at', 'updated_at', 'birth_date', 'training_last_login_at', 'migrated_at', 'last_insurance_verification_date'] as const
 const DATE_ONLY_FIELDS = ['birth_date'] as const
 
-// GET: 患者詳細を取得
+function excludePasswordHash<T extends { password_hash?: unknown }>(patient: T): Omit<T, 'password_hash'> {
+  const { password_hash: _ph, ...safe } = patient
+  return safe as Omit<T, 'password_hash'>
+}
+
+// GET: 患者詳細を取得（認証必須）
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 認証確認
+  let user
+  try {
+    user = await verifyAuth(request)
+  } catch {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+  }
+
   try {
     const { id: patientId } = await params
-    const { searchParams } = new URL(request.url)
-    const clinicId = searchParams.get('clinic_id')
 
     if (!patientId) {
       return NextResponse.json(
@@ -25,13 +39,9 @@ export async function GET(
 
     const prisma = getPrismaClient()
 
-    const whereClause: any = { id: patientId }
-    if (clinicId) {
-      whereClause.clinic_id = clinicId
-    }
-
+    // clinic_id をトークンから強制（他クリニックの患者へのアクセスを阻止）
     const patient = await prisma.patients.findFirst({
-      where: whereClause
+      where: { id: patientId, clinic_id: user.clinicId }
     })
 
     if (!patient) {
@@ -41,23 +51,39 @@ export async function GET(
       )
     }
 
-    const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
+    // 監査ログ
+    await writeAuditLog({
+      clinicId: user.clinicId,
+      operatorId: user.staffId,
+      actionType: 'READ',
+      targetTable: 'patients',
+      targetRecordId: patientId,
+    })
 
-    return NextResponse.json(patientWithStringDates)
+    const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
+    return NextResponse.json(excludePasswordHash(patientWithStringDates))
   } catch (error) {
-    console.error('患者情報取得エラー:', error)
+    console.error('[患者詳細API] 取得エラー:', error)
     return NextResponse.json(
-      { error: '患者情報の取得に失敗しました' },
+      { error: '処理中にエラーが発生しました' },
       { status: 500 }
     )
   }
 }
 
-// PUT: 患者情報を更新
+// PUT: 患者情報を更新（認証必須）
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 認証確認
+  let user
+  try {
+    user = await verifyAuth(request)
+  } catch {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+  }
+
   try {
     const { id: patientId } = await params
     const body = await request.json()
@@ -70,14 +96,33 @@ export async function PUT(
       )
     }
 
+    // 入力バリデーション
+    const validation = patientUpdateSchema.safeParse(updateFields)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: '入力データが不正です', details: validation.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
     const prisma = getPrismaClient()
+
+    // 更新前のレコードを取得（所有権確認 + 監査ログ用）
+    const existing = await prisma.patients.findFirst({
+      where: { id: patientId, clinic_id: user.clinicId }
+    })
+    if (!existing) {
+      return NextResponse.json(
+        { error: '患者が見つかりません' },
+        { status: 404 }
+      )
+    }
 
     // 更新データを構築
     const updateData: any = {
       updated_at: new Date()
     }
 
-    // フィールドのマッピングと設定
     const directFields = [
       'last_name', 'first_name', 'last_name_kana', 'first_name_kana',
       'phone', 'email', 'postal_code', 'prefecture', 'city', 'address_line',
@@ -92,7 +137,6 @@ export async function PUT(
 
     for (const field of directFields) {
       if (updateFields[field] !== undefined) {
-        // 空文字列をnullに変換（制約対策）
         if (updateFields[field] === '' && ['preferred_contact_method', 'gender', 'email', 'birth_date'].includes(field)) {
           updateData[field] = null
         } else {
@@ -101,17 +145,14 @@ export async function PUT(
       }
     }
 
-    // 日付フィールドの変換
     if (updateFields.birth_date !== undefined) {
       updateData.birth_date = updateFields.birth_date ? new Date(updateFields.birth_date) : null
     }
 
-    // gender enumの変換
     if (updateFields.gender !== undefined) {
       updateData.gender = updateFields.gender ? PatientGender.fromDb(updateFields.gender) : null
     }
 
-    // フィールド名マッピング（旧名 -> 新名）
     if (updateFields.assigned_dh !== undefined) {
       updateData.primary_hygienist_id = updateFields.assigned_dh || null
     }
@@ -119,48 +160,58 @@ export async function PUT(
       updateData.primary_doctor_id = updateFields.primary_doctor || null
     }
 
-    // 仮登録に戻す場合、診察券番号をnullにして番号を解放
     if (updateFields.is_registered === false) {
       updateData.patient_number = null
     }
 
-    // Prismaで更新
-    const whereClause: any = { id: patientId }
-
     const patient = await prisma.patients.update({
-      where: whereClause,
+      where: { id: patientId },
       data: updateData
     })
 
+    // 監査ログ（before/after付き）
+    await writeAuditLog({
+      clinicId: user.clinicId,
+      operatorId: user.staffId,
+      actionType: 'UPDATE',
+      targetTable: 'patients',
+      targetRecordId: patientId,
+      beforeData: { last_name: existing.last_name, first_name: existing.first_name, phone: existing.phone, email: existing.email },
+      afterData: { last_name: patient.last_name, first_name: patient.first_name, phone: patient.phone, email: patient.email },
+    })
+
     const patientWithStringDates = convertDatesToStrings(patient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
-
-    return NextResponse.json(patientWithStringDates)
+    return NextResponse.json(excludePasswordHash(patientWithStringDates))
   } catch (error: any) {
-    console.error('患者更新エラー:', error)
-
+    console.error('[患者詳細API] 更新エラー:', error)
     if (error?.code === 'P2025') {
       return NextResponse.json(
         { error: '患者が見つかりません' },
         { status: 404 }
       )
     }
-
     return NextResponse.json(
-      { error: '患者情報の更新に失敗しました' },
+      { error: '処理中にエラーが発生しました' },
       { status: 500 }
     )
   }
 }
 
-// DELETE: 患者を削除
+// DELETE: 患者を削除（認証必須）
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 認証確認
+  let user
+  try {
+    user = await verifyAuth(request)
+  } catch {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+  }
+
   try {
     const { id: patientId } = await params
-    const { searchParams } = new URL(request.url)
-    const clinicId = searchParams.get('clinic_id')
 
     if (!patientId) {
       return NextResponse.json(
@@ -171,36 +222,42 @@ export async function DELETE(
 
     const prisma = getPrismaClient()
 
-    // clinic_idが指定されている場合、まず患者が該当クリニックに属するか確認
-    if (clinicId) {
-      const existing = await prisma.patients.findFirst({
-        where: { id: patientId, clinic_id: clinicId }
-      })
-      if (!existing) {
-        return NextResponse.json(
-          { error: '患者が見つかりません' },
-          { status: 404 }
-        )
-      }
-    }
-
-    await prisma.patients.delete({
-      where: { id: patientId }
+    // 削除前に所有権を確認（監査ログ用）
+    const existing = await prisma.patients.findFirst({
+      where: { id: patientId, clinic_id: user.clinicId }
     })
-
-    return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error('患者削除エラー:', error)
-
-    if (error?.code === 'P2025') {
+    if (!existing) {
       return NextResponse.json(
         { error: '患者が見つかりません' },
         { status: 404 }
       )
     }
 
+    await prisma.patients.delete({
+      where: { id: patientId }
+    })
+
+    // 監査ログ（削除前データ付き）
+    await writeAuditLog({
+      clinicId: user.clinicId,
+      operatorId: user.staffId,
+      actionType: 'DELETE',
+      targetTable: 'patients',
+      targetRecordId: patientId,
+      beforeData: { last_name: existing.last_name, first_name: existing.first_name, patient_number: existing.patient_number },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('[患者詳細API] 削除エラー:', error)
+    if (error?.code === 'P2025') {
+      return NextResponse.json(
+        { error: '患者が見つかりません' },
+        { status: 404 }
+      )
+    }
     return NextResponse.json(
-      { error: '患者の削除に失敗しました' },
+      { error: '処理中にエラーが発生しました' },
       { status: 500 }
     )
   }

@@ -6,9 +6,33 @@ import { convertDatesToStrings } from '@/lib/prisma-helpers'
 const DATE_FIELDS = ['created_at', 'updated_at', 'birth_date', 'training_last_login_at'] as const
 const DATE_ONLY_FIELDS = ['birth_date'] as const
 
+// メモリ内レートリミッター（同一IPから1分間に10回超の試行を遮断）
+const ipAttemptMap = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = ipAttemptMap.get(ip)
+  if (!entry || entry.resetAt < now) {
+    ipAttemptMap.set(ip, { count: 1, resetAt: now + 60_000 })
+    return true
+  }
+  if (entry.count >= 10) return false
+  entry.count++
+  return true
+}
+
 // POST: 再診患者の認証
 // 診察券番号 OR 電話番号 OR メールアドレス（いずれか1つ） + 生年月日で認証
 export async function POST(request: NextRequest) {
+  // レートリミット確認
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'しばらくしてから再度お試しください' },
+      { status: 429 }
+    )
+  }
+
   try {
     const body = await request.json()
     const { clinic_id, patient_number, phone, email, birthdate } = body
@@ -55,10 +79,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(null)
     }
 
-    const patientWithStringDates = convertDatesToStrings(matchedPatient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
+    // password_hash を除外してレスポンスを返す
+    const { password_hash: _ph, ...safePatient } = matchedPatient
+    const patientWithStringDates = convertDatesToStrings(safePatient as typeof matchedPatient, [...DATE_FIELDS], [...DATE_ONLY_FIELDS])
     return NextResponse.json(patientWithStringDates)
   } catch (error) {
-    console.error('患者認証API エラー:', error)
+    console.error('[患者認証API] エラー:', error)
     return NextResponse.json(null)
   }
 }
