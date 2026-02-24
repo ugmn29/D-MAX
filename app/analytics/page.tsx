@@ -182,61 +182,51 @@ export default function AnalyticsPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* ヘッダー（タイトル＋プリセットボタン＋設定を1行に） */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <BarChart3 className="w-7 h-7 text-blue-600" />
           <h1 className="text-2xl font-bold text-gray-900">分析</h1>
         </div>
-        <div className="flex items-center gap-3">
-          {/* 現在の設定を要約表示 */}
-          {startDate && endDate && (
-            <span className="text-sm text-gray-500 hidden sm:block">
-              {startDate} 〜 {endDate}
-              <span className="ml-2 text-gray-400">
-                ({comparisonType === 'previous' ? '前期間比' : comparisonType === 'same_period_last_year' ? '前年同期比' : '比較なし'})
-              </span>
-            </span>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowSettings(v => !v)}
-            className="flex items-center gap-1.5"
-          >
-            <Settings2 className="w-4 h-4" />
-            分析設定
-            {showSettings ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </Button>
-        </div>
-      </div>
-
-      {/* 期間プリセットボタン */}
-      <div className="flex flex-wrap items-center gap-2">
-        {['直近7日', '直近30日', '今月', '先月', '先々月', '今四半期', '今年', '去年'].map(preset => (
+        <div className="w-px h-6 bg-gray-200 flex-shrink-0 hidden sm:block" />
+        {/* 期間プリセットボタン */}
+        <div className="flex flex-wrap items-center gap-1.5 flex-1">
+          {['直近7日', '直近30日', '今月', '先月', '先々月', '今四半期', '今年', '去年'].map(preset => (
+            <button
+              key={preset}
+              onClick={() => applyPreset(preset)}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                selectedPreset === preset
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {preset}
+            </button>
+          ))}
           <button
-            key={preset}
-            onClick={() => applyPreset(preset)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              selectedPreset === preset
+            onClick={() => { setSelectedPreset('カスタム'); setShowSettings(true) }}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
+              selectedPreset === 'カスタム'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {preset}
+            <Settings2 className="w-3 h-3" />
+            カスタム
           </button>
-        ))}
-        <button
-          onClick={() => { setSelectedPreset('カスタム'); setShowSettings(true) }}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
-            selectedPreset === 'カスタム'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
+        </div>
+        {/* 分析設定ボタン */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowSettings(v => !v)}
+          className="flex items-center gap-1.5 flex-shrink-0"
         >
-          <Settings2 className="w-3.5 h-3.5" />
-          カスタム
-        </button>
+          <Settings2 className="w-4 h-4" />
+          分析設定
+          {showSettings ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </Button>
       </div>
 
       {/* タブナビゲーション */}
