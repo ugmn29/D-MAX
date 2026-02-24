@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Calendar, Users, Settings, BarChart3, Menu, MousePointerClick } from 'lucide-react'
+import { useState } from 'react'
+import { Calendar, Users, Settings, BarChart3, Menu, MousePointerClick, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +17,7 @@ const navigation = [
 
 export function Header() {
   const pathname = usePathname()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <header className="bg-white border-b border-shikabot-border sticky top-0 z-50">
@@ -66,12 +68,49 @@ export function Header() {
             </Button>
 
             {/* モバイルメニューボタン */}
-            <Button variant="ghost" size="icon" className="md:hidden">
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileMenuOpen(true)}>
               <Menu className="w-5 h-5" />
             </Button>
           </div>
         </div>
       </div>
+
+      {/* モバイルドロワー */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
+          <nav className="fixed top-0 left-0 h-full w-64 bg-white shadow-xl flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <span className="font-bold text-lg text-shikabot-primary-dark">Dスマート</span>
+              <button onClick={() => setMobileMenuOpen(false)} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            <div className="flex-1 py-2">
+              {navigation.map((item) => {
+                const Icon = item.icon
+                const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-6 py-4 text-base transition-colors',
+                      isActive
+                        ? 'bg-shikabot-light-blue text-shikabot-primary-dark font-medium'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    )}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                )
+              })}
+            </div>
+          </nav>
+        </div>
+      )}
     </header>
   )
 }

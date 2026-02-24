@@ -147,6 +147,7 @@ import {
 import { QuestionnaireEditModal } from "@/components/forms/questionnaire-edit-modal";
 import { DocumentTemplatesManager } from "@/components/settings/document-templates-manager";
 import { AuditLogViewer } from "@/components/settings/AuditLogViewer";
+import { ContractInfoTab } from "@/components/settings/ContractInfoTab";
 import {
   getUnits,
   createUnit, 
@@ -381,6 +382,11 @@ const settingCategories = [
     id: "security",
     name: "セキュリティ",
     icon: Shield,
+  },
+  {
+    id: "contract",
+    name: "契約・請求",
+    icon: CreditCard,
   },
 ];
 
@@ -7592,6 +7598,9 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <AuditLogViewer />
           </div>
+        )}
+        {selectedCategory === "contract" && (
+          <ContractInfoTab />
         )}
         {selectedCategory === "staff" && (
           <div className="space-y-6">

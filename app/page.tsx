@@ -230,8 +230,7 @@ export default function HomePage() {
   return (
     <div className="h-screen flex overflow-hidden">
       {/* 左側: メインカレンダー */}
-      <div className="flex-1">
-        
+      <div className="flex-1 min-w-0">
         <MainCalendar
           key={refreshKey}
           clinicId={clinicId}
@@ -252,7 +251,8 @@ export default function HomePage() {
         />
       </div>
 
-        {/* 右側: サイドバー */}
+      {/* 右側: サイドバー（PC/大きめのタブレットのみ表示） */}
+      <div className="hidden lg:block flex-shrink-0">
         <SidebarCalendar
           clinicId={clinicId}
           selectedDate={selectedDate}
@@ -266,6 +266,7 @@ export default function HomePage() {
           onPrivacyModeChange={setPrivacyMode}
           onRefresh={handleRefresh}
         />
+      </div>
     </div>
   )
 }

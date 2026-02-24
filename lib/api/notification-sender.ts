@@ -1,7 +1,15 @@
 // Migrated to Prisma API Routes
+import { Resend } from 'resend'
+import twilio from 'twilio'
 import { getNotificationSettings } from './notification-settings'
 import { PatientNotificationSchedule } from '@/types/notification'
 import { canReceiveNotification } from './patient-notification-preferences'
+
+// Dスマートサービスアカウントで一元送信
+const resend = new Resend(process.env.RESEND_API_KEY)
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null
 
 const baseUrl = typeof window === 'undefined'
   ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
@@ -72,35 +80,52 @@ async function sendLineNotification(
 }
 
 /**
- * メール送信
+ * メール送信（Resend経由、Dスマート一元送信）
  */
 async function sendEmailNotification(
   to: string,
   subject: string,
-  message: string,
-  settings: any
+  message: string
 ): Promise<boolean> {
   try {
-    // TODO: 実際のSMTPライブラリ（nodemailer等）を使用
-    console.log('メール送信:', { to, subject, message, settings })
+    if (!process.env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY が設定されていません')
+      return false
+    }
+    const { error } = await resend.emails.send({
+      from: 'Dスマート予約 <yoyaku@d-smart.jp>',
+      to,
+      subject,
+      text: message,
+    })
+    if (error) {
+      console.error('メール送信エラー:', error)
+      return false
+    }
     return true
   } catch (error) {
-    console.error('メール送信エラー:', error)
+    console.error('メール送信例外:', error)
     return false
   }
 }
 
 /**
- * SMS送信
+ * SMS送信（Twilio経由、初診患者向け）
  */
 async function sendSmsNotification(
   to: string,
-  message: string,
-  settings: any
+  message: string
 ): Promise<boolean> {
   try {
-    // TODO: 実際のSMS APIライブラリ（Twilio等）を使用
-    console.log('SMS送信:', { to, message, settings })
+    if (!twilioClient || !process.env.TWILIO_FROM_NUMBER) {
+      console.error('Twilio設定が不完全です（TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER）')
+      return false
+    }
+    await twilioClient.messages.create({
+      body: message,
+      from: process.env.TWILIO_FROM_NUMBER,
+      to,
+    })
     return true
   } catch (error) {
     console.error('SMS送信エラー:', error)
@@ -284,28 +309,26 @@ export async function sendNotification(
         }
       }
     } else if (schedule.send_channel === 'email') {
-      if (!settings.email.enabled) {
-        failureReason = 'メール設定が無効です'
+      if (!process.env.RESEND_API_KEY) {
+        failureReason = 'メール送信が設定されていません'
       } else if (!schedule.patients?.email) {
         failureReason = 'メールアドレスが登録されていません'
       } else {
         success = await sendEmailNotification(
           schedule.patients.email,
           '通知',
-          schedule.message,
-          settings.email
+          schedule.message
         )
       }
     } else if (schedule.send_channel === 'sms') {
-      if (!settings.sms.enabled) {
-        failureReason = 'SMS設定が無効です'
+      if (!twilioClient || !process.env.TWILIO_FROM_NUMBER) {
+        failureReason = 'SMS送信が設定されていません'
       } else if (!schedule.patients?.phone) {
         failureReason = '電話番号が登録されていません'
       } else {
         success = await sendSmsNotification(
           schedule.patients.phone,
-          schedule.message,
-          settings.sms
+          schedule.message
         )
       }
     }
