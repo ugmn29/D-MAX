@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target, Settings2, ChevronDown, ChevronUp } from 'lucide-react'
+import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target, Settings2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCancelAnalysis, getStaffCancelAnalysis, getTreatmentCancelAnalysis, getTreatmentMenuStatsByParent, CancelAnalysisData, TimeSlotCancelData, StaffCancelData, TreatmentCancelData, TreatmentMenuStats } from '@/lib/api/analytics'
 import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
 import StaffAnalyticsTab from '@/components/analytics/StaffAnalyticsTab'
 import IntegratedVisitAnalysisTab from '@/components/analytics/IntegratedVisitAnalysisTab'
 import { SalesAnalyticsTab } from '@/components/analytics/SalesAnalyticsTab'
 import { useClinicId } from '@/hooks/use-clinic-id'
+import RetentionCohortTab from '@/components/analytics/RetentionCohortTab'
 
 export default function AnalyticsPage() {
   const clinicId = useClinicId()
@@ -30,15 +31,54 @@ export default function AnalyticsPage() {
   const [currentLevel, setCurrentLevel] = useState<1 | 2 | 3>(1)
   const [drilldownMenus, setDrilldownMenus] = useState<TreatmentMenuStats[]>([])
   const [menuBreadcrumb, setMenuBreadcrumb] = useState<{id: string, name: string, level: number}[]>([])
+  const [selectedPreset, setSelectedPreset] = useState<string>('今月')
 
   // デフォルトの日付範囲を設定（今月）
   useEffect(() => {
     const today = new Date()
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
-    
+
     setEndDate(today.toISOString().split('T')[0])
     setStartDate(firstDay.toISOString().split('T')[0])
   }, [])
+
+  // 期間プリセットを適用
+  const applyPreset = (preset: string) => {
+    const today = new Date()
+    const fmt = (d: Date) => d.toISOString().split('T')[0]
+    let start: Date
+    let end: Date = new Date(today)
+
+    switch (preset) {
+      case '直近7日':
+        start = new Date(today); start.setDate(start.getDate() - 6); break
+      case '直近30日':
+        start = new Date(today); start.setDate(start.getDate() - 29); break
+      case '今月':
+        start = new Date(today.getFullYear(), today.getMonth(), 1); break
+      case '先月':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        end = new Date(today.getFullYear(), today.getMonth(), 0); break
+      case '先々月':
+        start = new Date(today.getFullYear(), today.getMonth() - 2, 1)
+        end = new Date(today.getFullYear(), today.getMonth() - 1, 0); break
+      case '今四半期': {
+        const q = Math.floor(today.getMonth() / 3)
+        start = new Date(today.getFullYear(), q * 3, 1); break
+      }
+      case '今年':
+        start = new Date(today.getFullYear(), 0, 1); break
+      case '去年':
+        start = new Date(today.getFullYear() - 1, 0, 1)
+        end = new Date(today.getFullYear() - 1, 11, 31); break
+      default:
+        return
+    }
+
+    setSelectedPreset(preset)
+    setStartDate(fmt(start))
+    setEndDate(fmt(end))
+  }
 
   // 分析データを取得
   const loadAnalyticsData = async () => {
@@ -171,15 +211,44 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      {/* 期間プリセットボタン */}
+      <div className="flex flex-wrap items-center gap-2">
+        {['直近7日', '直近30日', '今月', '先月', '先々月', '今四半期', '今年', '去年'].map(preset => (
+          <button
+            key={preset}
+            onClick={() => applyPreset(preset)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              selectedPreset === preset
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {preset}
+          </button>
+        ))}
+        <button
+          onClick={() => { setSelectedPreset('カスタム'); setShowSettings(true) }}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
+            selectedPreset === 'カスタム'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <Settings2 className="w-3.5 h-3.5" />
+          カスタム
+        </button>
+      </div>
+
       {/* タブナビゲーション */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-8 overflow-x-auto">
           {[
             { id: 'basic', label: '基本分析', icon: BarChart3 },
             { id: 'sales', label: '売上分析', icon: DollarSign },
             { id: 'staff', label: 'スタッフ分析', icon: Users },
             { id: 'visits', label: '来院経路分析', icon: Calendar },
             { id: 'cancellation', label: 'キャンセル分析', icon: Activity },
+            { id: 'retention', label: 'リテンション', icon: TrendingUp },
             { id: 'training', label: 'トレーニング', icon: Target }
           ].map((tab) => {
             const Icon = tab.icon
@@ -213,7 +282,7 @@ export default function AnalyticsPage() {
                   id="startDate"
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => { setStartDate(e.target.value); setSelectedPreset('カスタム') }}
                   className="bg-white"
                 />
               </div>
@@ -223,7 +292,7 @@ export default function AnalyticsPage() {
                   id="endDate"
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => { setEndDate(e.target.value); setSelectedPreset('カスタム') }}
                   className="bg-white"
                 />
               </div>
@@ -766,6 +835,15 @@ export default function AnalyticsPage() {
       {/* トレーニング分析タブ */}
       {activeTab === 'training' && (
         <TrainingAnalyticsTab />
+      )}
+
+      {/* リテンション分析タブ */}
+      {activeTab === 'retention' && clinicId && startDate && endDate && (
+        <RetentionCohortTab
+          clinicId={clinicId}
+          startDate={startDate}
+          endDate={endDate}
+        />
       )}
 
       {/* データなしの場合 */}
