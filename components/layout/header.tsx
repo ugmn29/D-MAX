@@ -24,9 +24,9 @@ export function Header() {
           {/* ロゴ */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
-              <h1 className="text-2xl font-bold text-shikabot-primary-dark">歯科Bot</h1>
+              <h1 className="text-2xl font-bold text-shikabot-primary-dark">Dスマート</h1>
               <span className="ml-2 text-sm text-gray-600 hidden sm:block">
-                AI搭載の歯科予約・管理システム
+                歯科医院管理システム
               </span>
             </Link>
           </div>
