@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity, Target, Settings2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { getAnalyticsData, AnalyticsData, getCancelAnalysisData, getTimeSlotCancelAnalysis, getStaffCancelAnalysis, getTreatmentCancelAnalysis, getTreatmentMenuStatsByParent, CancelAnalysisData, TimeSlotCancelData, StaffCancelData, TreatmentCancelData, TreatmentMenuStats } from '@/lib/api/analytics'
 import TrainingAnalyticsTab from '@/components/analytics/TrainingAnalyticsTab'
 import StaffAnalyticsTab from '@/components/analytics/StaffAnalyticsTab'
@@ -392,80 +393,92 @@ export default function AnalyticsPage() {
                 </Card>
               </div>
 
-              {/* 売上内訳 */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>売上内訳</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                          <span className="text-sm font-medium">保険診療</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-semibold">¥{analyticsData.kpi.insurance_sales.toLocaleString()}</div>
-                          <div className="text-xs text-gray-500">
-                            {((analyticsData.kpi.insurance_sales / analyticsData.kpi.total_sales) * 100).toFixed(0)}%
+              {/* 売上内訳（統合カード） */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>売上内訳</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {[
+                      { label: '保険診療', note: '医療保険適用', value: analyticsData.kpi.insurance_sales, color: 'bg-blue-500' },
+                      { label: '自費診療', note: '自由診療・美容', value: analyticsData.kpi.self_pay_sales, color: 'bg-green-500' },
+                    ].map(item => {
+                      const pct = analyticsData.kpi.total_sales > 0
+                        ? (item.value / analyticsData.kpi.total_sales) * 100
+                        : 0
+                      return (
+                        <div key={item.label}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                              <span className="text-sm font-medium">{item.label}</span>
+                              <span className="text-xs text-gray-400">{item.note}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-semibold text-sm">¥{item.value.toLocaleString()}</span>
+                              <span className="text-xs text-gray-500 ml-2">{pct.toFixed(0)}%</span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2.5">
+                            <div
+                              className={`${item.color} h-2.5 rounded-full transition-all`}
+                              style={{ width: `${pct}%` }}
+                            />
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-4 h-4 bg-green-500 rounded"></div>
-                          <span className="text-sm font-medium">自費診療</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-semibold">¥{analyticsData.kpi.self_pay_sales.toLocaleString()}</div>
-                          <div className="text-xs text-gray-500">
-                            {((analyticsData.kpi.self_pay_sales / analyticsData.kpi.total_sales) * 100).toFixed(0)}%
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>売上詳細</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">保険診療</span>
-                          <span className="text-sm text-gray-500">67%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div className="bg-blue-500 h-2 rounded-full" style={{ width: '67%' }}></div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">医療保険適用</p>
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">自費診療</span>
-                          <span className="text-sm text-gray-500">33%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div className="bg-green-500 h-2 rounded-full" style={{ width: '33%' }}></div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">自由診療・美容</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* 期間別売上推移 */}
               {analyticsData.aggregated_sales_trend && analyticsData.aggregated_sales_trend.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>売上推移（日別）</CardTitle>
+                    <CardTitle>売上推移</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-6">
+                    {/* 積み上げ棒グラフ */}
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart
+                        data={analyticsData.aggregated_sales_trend}
+                        margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 11, fill: '#6b7280' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tickFormatter={(v) => `¥${(v / 10000).toFixed(0)}万`}
+                          tick={{ fontSize: 11, fill: '#6b7280' }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={64}
+                        />
+                        <Tooltip
+                          formatter={(value: number, name: string) => [
+                            `¥${value.toLocaleString()}`,
+                            name === 'insurance_sales' ? '保険診療' : '自費診療',
+                          ]}
+                          labelStyle={{ fontWeight: 600 }}
+                          contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                        />
+                        <Legend
+                          formatter={(value) => value === 'insurance_sales' ? '保険診療' : '自費診療'}
+                          iconType="rect"
+                          wrapperStyle={{ fontSize: 12 }}
+                        />
+                        <Bar dataKey="insurance_sales" name="insurance_sales" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="self_pay_sales" name="self_pay_sales" stackId="a" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+
+                    {/* 詳細テーブル */}
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
