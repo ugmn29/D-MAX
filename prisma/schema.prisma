@@ -135,24 +135,6 @@ model ad_spend_records {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model advertising_costs {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id     String    @db.Uuid
-  campaign_name String    @db.VarChar(255)
-  platform      String    @db.VarChar(50)
-  cost          Int
-  period_start  DateTime  @db.Date
-  period_end    DateTime  @db.Date
-  utm_source    String?   @db.VarChar(100)
-  utm_medium    String?   @db.VarChar(100)
-  utm_campaign  String?   @db.VarChar(100)
-  created_at    DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
-  clinics       clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([clinic_id, period_start, period_end], map: "idx_advertising_costs_clinic_period")
-  @@schema("public")
-}
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -174,22 +156,6 @@ model appointment_logs {
   @@schema("public")
 }
 
-model appointment_staff {
-  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  appointment_id String       @db.Uuid
-  staff_id       String       @db.Uuid
-  is_primary     Boolean?     @default(false)
-  created_at     DateTime?    @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime?    @default(now()) @db.Timestamptz(6)
-  appointments   appointments @relation(fields: [appointment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  staff          staff        @relation(fields: [staff_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([appointment_id, staff_id])
-  @@index([appointment_id], map: "idx_appointment_staff_appointment_id")
-  @@index([is_primary], map: "idx_appointment_staff_is_primary")
-  @@index([staff_id], map: "idx_appointment_staff_staff_id")
-  @@schema("public")
-}
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -221,7 +187,6 @@ model appointments {
   block_color                                            String?
   block_text                                             String?
   appointment_logs                                       appointment_logs[]
-  appointment_staff                                      appointment_staff[]
   cancel_reasons                                         cancel_reasons?                  @relation(fields: [cancel_reason_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   staff_appointments_cancelled_byTostaff                 staff?                           @relation("appointments_cancelled_byTostaff", fields: [cancelled_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   clinics                                                clinics                          @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -359,7 +324,6 @@ model clinics {
   acquisition_source_master        acquisition_source_master[]
   ad_sources_master                ad_sources_master[]
   ad_spend_records                 ad_spend_records[]
-  advertising_costs                advertising_costs[]
   appointments                     appointments[]
   auto_reminder_rules              auto_reminder_rules?
   cancel_reasons                   cancel_reasons[]
@@ -370,8 +334,6 @@ model clinics {
   generated_links_history          generated_links_history[]
   hp_tab_click_events              hp_tab_click_events[]
   individual_holidays              individual_holidays[]
-  lab_orders                       lab_orders[]
-  labs                             labs[]
   line_invitation_codes            line_invitation_codes[]
   line_patient_linkages            line_patient_linkages[]
   line_qr_tokens                   line_qr_tokens[]
@@ -385,7 +347,6 @@ model clinics {
   notification_failure_logs        notification_failure_logs[]
   notification_templates           notification_templates[]
   operation_logs                   operation_logs[]
-  patient_acquisition_channels     patient_acquisition_channels[]
   patient_acquisition_sources      patient_acquisition_sources[]
   patient_geocode_cache            patient_geocode_cache[]
   patient_issue_records            patient_issue_records[]
@@ -398,15 +359,10 @@ model clinics {
   patients                         patients[]
   periodontal_examinations         periodontal_examinations[]
   questionnaires                   questionnaires[]
-  receipts                         receipts[]
   sales                            sales[]
   sales_import_history             sales_import_history[]
-  self_pay_treatments              self_pay_treatments[]
   shift_patterns                   shift_patterns[]
-  shifts                           shifts[]
   staff                            staff[]
-  staff_evaluation_results         staff_evaluation_results[]
-  staff_evaluation_settings        staff_evaluation_settings[]
   staff_positions                  staff_positions[]
   staff_shifts                     staff_shifts[]
   staff_unit_priorities            staff_unit_priorities[]
@@ -652,56 +608,6 @@ model issue_training_mappings {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model lab_orders {
-  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id         String          @db.Uuid
-  patient_id        String          @db.Uuid
-  medical_record_id String          @db.Uuid
-  lab_id            String          @db.Uuid
-  order_date        DateTime        @db.Date
-  due_date          DateTime        @db.Date
-  completed_date    DateTime?       @db.Date
-  items             Json?           @default("[]")
-  total_cost        Decimal?        @default(0) @db.Decimal(10, 2)
-  status            String          @default("ordered")
-  created_by        String          @db.Uuid
-  created_at        DateTime?       @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime?       @default(now()) @db.Timestamptz(6)
-  clinics           clinics         @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  staff             staff           @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  labs              labs            @relation(fields: [lab_id], references: [id], onUpdate: NoAction)
-  medical_records   medical_records @relation(fields: [medical_record_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  patients          patients        @relation(fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([clinic_id], map: "idx_lab_orders_clinic_id")
-  @@index([lab_id], map: "idx_lab_orders_lab_id")
-  @@index([medical_record_id], map: "idx_lab_orders_medical_record_id")
-  @@index([order_date(sort: Desc)], map: "idx_lab_orders_order_date")
-  @@index([patient_id], map: "idx_lab_orders_patient_id")
-  @@index([status], map: "idx_lab_orders_status")
-  @@schema("public")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model labs {
-  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id      String       @db.Uuid
-  name           String
-  postal_code    String?      @default("")
-  address        String?      @default("")
-  phone          String?      @default("")
-  email          String?      @default("")
-  contact_person String?      @default("")
-  is_active      Boolean?     @default(true)
-  created_at     DateTime?    @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime?    @default(now()) @db.Timestamptz(6)
-  lab_orders     lab_orders[]
-  clinics        clinics      @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([clinic_id], map: "idx_labs_clinic_id")
-  @@index([is_active], map: "idx_labs_is_active")
-  @@schema("public")
-}
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model line_conversation_states {
@@ -897,7 +803,6 @@ model medical_records {
   updated_at                              DateTime?           @default(now()) @db.Timestamptz(6)
   version                                 Int?                @default(1)
   snapshot_data                           Json?               @default("{}")
-  lab_orders                              lab_orders[]
   medical_documents                       medical_documents[]
   clinics                                 clinics             @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   staff_medical_records_created_byTostaff staff               @relation("medical_records_created_byTostaff", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1164,24 +1069,6 @@ model oral_function_assessments {
   @@schema("public")
 }
 
-model patient_acquisition_channels {
-  id                                                                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id                                                           String    @db.Uuid
-  patient_id                                                          String    @db.Uuid
-  acquisition_channel                                                 String    @db.VarChar(100)
-  utm_source                                                          String?   @db.VarChar(100)
-  utm_medium                                                          String?   @db.VarChar(100)
-  utm_campaign                                                        String?   @db.VarChar(100)
-  referral_patient_id                                                 String?   @db.Uuid
-  acquisition_date                                                    DateTime  @db.Date
-  created_at                                                          DateTime? @default(now()) @db.Timestamptz(6)
-  clinics                                                             clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  patients_patient_acquisition_channels_patient_idTopatients          patients  @relation("patient_acquisition_channels_patient_idTopatients", fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  patients_patient_acquisition_channels_referral_patient_idTopatients patients? @relation("patient_acquisition_channels_referral_patient_idTopatients", fields: [referral_patient_id], references: [id], onUpdate: NoAction)
-
-  @@index([clinic_id, acquisition_date], map: "idx_patient_acquisition_clinic_date")
-  @@schema("public")
-}
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -1518,12 +1405,9 @@ model patients {
   alert_notes                                                                             String?
   appointments                                                                            appointments[]
   device_accounts                                                                         device_accounts[]
-  lab_orders                                                                              lab_orders[]
   line_qr_tokens                                                                          line_qr_tokens[]
   line_user_links                                                                         line_user_links[]
   notification_failure_logs                                                               notification_failure_logs[]
-  patient_acquisition_channels_patient_acquisition_channels_patient_idTopatients          patient_acquisition_channels[]   @relation("patient_acquisition_channels_patient_idTopatients")
-  patient_acquisition_channels_patient_acquisition_channels_referral_patient_idTopatients patient_acquisition_channels[]   @relation("patient_acquisition_channels_referral_patient_idTopatients")
   patient_acquisition_sources                                                             patient_acquisition_sources[]
   patient_geocode_cache                                                                   patient_geocode_cache?
   patient_issue_records                                                                   patient_issue_records[]
@@ -1535,7 +1419,6 @@ model patients {
   staff_patients_primary_doctor_idTostaff                                                 staff?                           @relation("patients_primary_doctor_idTostaff", fields: [primary_doctor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   staff_patients_primary_hygienist_idTostaff                                              staff?                           @relation("patients_primary_hygienist_idTostaff", fields: [primary_hygienist_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   questionnaire_responses                                                                 questionnaire_responses[]
-  receipts                                                                                receipts[]
   sales                                                                                   sales[]
   subkarte_entries                                                                        subkarte_entries[]
   training_evaluations                                                                    training_evaluations[]
@@ -1615,16 +1498,6 @@ model periodontal_tooth_data {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model profiles {
-  id         String    @id @db.Uuid
-  username   String?   @unique
-  full_name  String?
-  avatar_url String?
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at DateTime? @default(now()) @db.Timestamptz(6)
-
-  @@schema("public")
-}
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model questionnaire_questions {
@@ -1690,37 +1563,6 @@ model questionnaires {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model receipts {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id            String    @db.Uuid
-  patient_id           String    @db.Uuid
-  year_month           String
-  medical_record_ids   String[]  @default([])
-  total_points         Int?      @default(0)
-  total_amount         Decimal?  @default(0) @db.Decimal(10, 2)
-  insurance_amount     Decimal?  @default(0) @db.Decimal(10, 2)
-  patient_amount       Decimal?  @default(0) @db.Decimal(10, 2)
-  status               String    @default("draft")
-  validation_errors    Json?     @default("[]")
-  submitted_at         DateTime? @db.Timestamptz(6)
-  submission_file_path String?
-  receipt_number       String?
-  audit_result         Json?
-  created_by           String    @db.Uuid
-  created_at           DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime? @default(now()) @db.Timestamptz(6)
-  clinics              clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  staff                staff     @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  patients             patients  @relation(fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([clinic_id, patient_id, year_month])
-  @@index([clinic_id], map: "idx_receipts_clinic_id")
-  @@index([patient_id], map: "idx_receipts_patient_id")
-  @@index([status], map: "idx_receipts_status")
-  @@index([submitted_at(sort: Desc)], map: "idx_receipts_submitted_at")
-  @@index([year_month(sort: Desc)], map: "idx_receipts_year_month")
-  @@schema("public")
-}
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -1793,27 +1635,6 @@ model sales_import_history {
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model self_pay_treatments {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id     String    @db.Uuid
-  code          String
-  name          String
-  description   String?   @default("")
-  price         Decimal   @db.Decimal(10, 2)
-  tax_rate      Decimal?  @default(0.10) @db.Decimal(3, 2)
-  category      String
-  is_active     Boolean?  @default(true)
-  display_order Int?      @default(0)
-  created_at    DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
-  clinics       clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([clinic_id, code])
-  @@index([category], map: "idx_self_pay_treatments_category")
-  @@index([clinic_id], map: "idx_self_pay_treatments_clinic_id")
-  @@index([is_active], map: "idx_self_pay_treatments_is_active")
-  @@schema("public")
-}
 
 model shift_patterns {
   id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1835,27 +1656,6 @@ model shift_patterns {
   @@schema("public")
 }
 
-model shifts {
-  id                                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id                             String    @db.Uuid
-  staff_id                              String    @db.Uuid
-  date                                  DateTime  @db.Date
-  start_time                            DateTime? @db.Time(6)
-  end_time                              DateTime? @db.Time(6)
-  break_start_time                      DateTime? @db.Time(6)
-  break_end_time                        DateTime? @db.Time(6)
-  pattern_name                          String?   @db.VarChar(50)
-  is_absent                             Boolean?  @default(false)
-  substitute_for_id                     String?   @db.Uuid
-  created_at                            DateTime? @default(now()) @db.Timestamptz(6)
-  clinics                               clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  staff_shifts_staff_idTostaff          staff     @relation("shifts_staff_idTostaff", fields: [staff_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  staff_shifts_substitute_for_idTostaff staff?    @relation("shifts_substitute_for_idTostaff", fields: [substitute_for_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@unique([clinic_id, staff_id, date])
-  @@index([clinic_id, date], map: "idx_shifts_clinic_date")
-  @@schema("public")
-}
 
 model staff {
   id                                                  String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1872,7 +1672,6 @@ model staff {
   created_at                                          DateTime?                        @default(now()) @db.Timestamptz(6)
   updated_at                                          DateTime?                        @default(now()) @db.Timestamptz(6)
   appointment_logs                                    appointment_logs[]
-  appointment_staff                                   appointment_staff[]
   appointments_appointments_cancelled_byTostaff       appointments[]                   @relation("appointments_cancelled_byTostaff")
   appointments_appointments_created_byTostaff         appointments[]                   @relation("appointments_created_byTostaff")
   appointments_appointments_staff1_idTostaff          appointments[]                   @relation("appointments_staff1_idTostaff")
@@ -1880,7 +1679,6 @@ model staff {
   appointments_appointments_staff3_idTostaff          appointments[]                   @relation("appointments_staff3_idTostaff")
   daily_memos                                         daily_memos[]
   generated_links_history                             generated_links_history[]
-  lab_orders                                          lab_orders[]
   line_invitation_codes                               line_invitation_codes[]
   medical_documents                                   medical_documents[]
   medical_records_medical_records_created_byTostaff   medical_records[]                @relation("medical_records_created_byTostaff")
@@ -1895,14 +1693,10 @@ model staff {
   patients_patients_primary_doctor_idTostaff          patients[]                       @relation("patients_primary_doctor_idTostaff")
   patients_patients_primary_hygienist_idTostaff       patients[]                       @relation("patients_primary_hygienist_idTostaff")
   periodontal_examinations                            periodontal_examinations[]
-  receipts                                            receipts[]
   sales                                               sales[]
   sales_import_history                                sales_import_history[]
-  shifts_shifts_staff_idTostaff                       shifts[]                         @relation("shifts_staff_idTostaff")
-  shifts_shifts_substitute_for_idTostaff              shifts[]                         @relation("shifts_substitute_for_idTostaff")
   clinics                                             clinics                          @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   staff_positions                                     staff_positions?                 @relation(fields: [position_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  staff_evaluation_results                            staff_evaluation_results[]
   staff_shifts                                        staff_shifts[]
   staff_unit_priorities                               staff_unit_priorities[]
   subkarte_entries                                    subkarte_entries[]
@@ -1911,43 +1705,6 @@ model staff {
   @@schema("public")
 }
 
-model staff_evaluation_results {
-  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id               String    @db.Uuid
-  staff_id                String    @db.Uuid
-  evaluation_period_start DateTime  @db.Date
-  evaluation_period_end   DateTime  @db.Date
-  metrics_data            Json
-  total_score             Decimal?  @db.Decimal(10, 2)
-  bonus_amount            Int?      @default(0)
-  created_at              DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime? @default(now()) @db.Timestamptz(6)
-  clinics                 clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  staff                   staff     @relation(fields: [staff_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([staff_id, evaluation_period_start, evaluation_period_end], map: "idx_staff_evaluation_results_staff_period")
-  @@schema("public")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model staff_evaluation_settings {
-  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clinic_id         String           @db.Uuid
-  metric_name       String           @db.VarChar(100)
-  metric_type       String           @db.VarChar(50)
-  weight_percentage Int              @default(0)
-  target_value      Decimal?         @db.Decimal(10, 2)
-  position_id       String?          @db.Uuid
-  evaluation_period String?          @default("monthly") @db.VarChar(20)
-  is_active         Boolean?         @default(true)
-  created_at        DateTime?        @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime?        @default(now()) @db.Timestamptz(6)
-  clinics           clinics          @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  staff_positions   staff_positions? @relation(fields: [position_id], references: [id], onUpdate: NoAction)
-
-  @@index([clinic_id], map: "idx_staff_evaluation_settings_clinic")
-  @@schema("public")
-}
 
 model staff_positions {
   id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1957,7 +1714,6 @@ model staff_positions {
   created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
   template_id               String?                     @db.Uuid
   staff                     staff[]
-  staff_evaluation_settings staff_evaluation_settings[]
   clinics                   clinics                     @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   system_staff_positions    system_staff_positions?     @relation(fields: [template_id], references: [id], onUpdate: NoAction)
 
