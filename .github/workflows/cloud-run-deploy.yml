@@ -66,6 +66,8 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npx prisma generate
+          # 既存DBのベースライン解決（初回のみ有効・2回目以降はスキップ）
+          npx prisma migrate resolve --applied "0_init" 2>/dev/null || true
           npx prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
