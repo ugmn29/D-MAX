@@ -6,11 +6,15 @@ import { getClinic } from './clinic'
 import { PatientNotificationSchedule } from '@/types/notification'
 import { canReceiveNotification } from './patient-notification-preferences'
 
-// Dスマートサービスアカウントで一元送信
-const resend = new Resend(process.env.RESEND_API_KEY)
-const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-  : null
+// Dスマートサービスアカウントで一元送信（ビルド時初期化を避けるため遅延生成）
+function getResendClient() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
+function getTwilioClient() {
+  return process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+    ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    : null
+}
 
 const baseUrl = typeof window === 'undefined'
   ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
@@ -95,7 +99,7 @@ async function sendEmailNotification(
       return false
     }
     const fromName = clinicName ? `${clinicName}（Dスマート予約）` : 'Dスマート予約'
-    const { error } = await resend.emails.send({
+    const { error } = await getResendClient().emails.send({
       from: `${fromName} <yoyaku@d-smart.jp>`,
       to,
       subject,
@@ -120,6 +124,7 @@ async function sendSmsNotification(
   message: string
 ): Promise<boolean> {
   try {
+    const twilioClient = getTwilioClient()
     if (!twilioClient || !process.env.TWILIO_FROM_NUMBER) {
       console.error('Twilio設定が不完全です（TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER）')
       return false
@@ -330,7 +335,7 @@ export async function sendNotification(
         )
       }
     } else if (schedule.send_channel === 'sms') {
-      if (!twilioClient || !process.env.TWILIO_FROM_NUMBER) {
+      if (!getTwilioClient() || !process.env.TWILIO_FROM_NUMBER) {
         failureReason = 'SMS送信が設定されていません'
       } else if (!schedule.patients?.phone) {
         failureReason = '電話番号が登録されていません'
