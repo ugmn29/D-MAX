@@ -148,6 +148,7 @@ import { QuestionnaireEditModal } from "@/components/forms/questionnaire-edit-mo
 import { DocumentTemplatesManager } from "@/components/settings/document-templates-manager";
 import { AuditLogViewer } from "@/components/settings/AuditLogViewer";
 import { ContractInfoTab } from "@/components/settings/ContractInfoTab";
+import { ChangePasswordSection } from "@/components/settings/change-password-section";
 import {
   getUnits,
   createUnit, 
@@ -7596,6 +7597,7 @@ export default function SettingsPage() {
         {selectedCategory === "data-import" && renderDataImportSettings()}
         {selectedCategory === "security" && (
           <div className="space-y-6">
+            <ChangePasswordSection />
             <AuditLogViewer />
           </div>
         )}

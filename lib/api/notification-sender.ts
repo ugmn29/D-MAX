@@ -2,6 +2,7 @@
 import { Resend } from 'resend'
 import twilio from 'twilio'
 import { getNotificationSettings } from './notification-settings'
+import { getClinic } from './clinic'
 import { PatientNotificationSchedule } from '@/types/notification'
 import { canReceiveNotification } from './patient-notification-preferences'
 
@@ -85,15 +86,17 @@ async function sendLineNotification(
 async function sendEmailNotification(
   to: string,
   subject: string,
-  message: string
+  message: string,
+  clinicName?: string
 ): Promise<boolean> {
   try {
     if (!process.env.RESEND_API_KEY) {
       console.error('RESEND_API_KEY が設定されていません')
       return false
     }
+    const fromName = clinicName ? `${clinicName}（Dスマート予約）` : 'Dスマート予約'
     const { error } = await resend.emails.send({
-      from: 'Dスマート予約 <yoyaku@d-smart.jp>',
+      from: `${fromName} <yoyaku@d-smart.jp>`,
       to,
       subject,
       text: message,
@@ -281,11 +284,16 @@ export async function sendNotification(
       return { success: false, error: '患者が通知受信を拒否' }
     }
 
-    // 通知設定を取得
-    const settings = await getNotificationSettings(clinicId)
+    // 通知設定・医院情報を取得
+    const [settings, clinic] = await Promise.all([
+      getNotificationSettings(clinicId),
+      getClinic(clinicId),
+    ])
     if (!settings) {
       throw new Error('通知設定が見つかりません')
     }
+
+    const clinicName = clinic?.name
 
     let success = false
     let failureReason = ''
@@ -317,7 +325,8 @@ export async function sendNotification(
         success = await sendEmailNotification(
           schedule.patients.email,
           '通知',
-          schedule.message
+          schedule.message,
+          clinicName
         )
       }
     } else if (schedule.send_channel === 'sms') {

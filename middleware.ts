@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+const ADMIN_PUBLIC_PATHS = ['/admin/login', '/api/admin/auth']
+
 const PUBLIC_PATHS = [
   '/login',
   '/questionnaire',
@@ -61,6 +63,21 @@ export function middleware(request: NextRequest) {
 
     response.headers.set('ngrok-skip-browser-warning', 'true')
     return response
+  }
+
+  // 管理者ルートの認証（/admin/*）
+  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+    // ログインページとログインAPIは公開
+    if (ADMIN_PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+      return NextResponse.next()
+    }
+    // 管理者セッションCookieの確認
+    const adminSession = request.cookies.get('__admin_session')?.value
+    const adminSecret = process.env.ADMIN_SESSION_SECRET
+    if (!adminSession || !adminSecret || adminSession !== adminSecret) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
+    return NextResponse.next()
   }
 
   // 公開ルートは認証チェックをスキップ
