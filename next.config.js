@@ -8,7 +8,7 @@
 const nextConfig = {
   output: 'standalone',
   images: {
-    domains: ['localhost', 'lofty-herlinda-compulsively.ngrok-free.dev'],
+    domains: ['localhost'],
   },
   typescript: {
     // 本番デプロイ時は型チェックを一時的に無効化

@@ -1,7 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
 
-export const runtime = 'edge'
 
 export async function GET(request: NextRequest) {
   const size = parseInt(request.nextUrl.searchParams.get('size') || '192')

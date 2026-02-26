@@ -1,9 +1,9 @@
-name: Vercel Auto Deploy
+name: Vercel Deploy (Manual Only)
 
+# Cloud Run に移行済みのため、手動実行のみに変更
+# 動作確認完了後はこのファイルごと削除してください
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
