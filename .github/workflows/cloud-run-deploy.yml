@@ -106,6 +106,7 @@ jobs:
             --set-env-vars "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}" \
             --set-env-vars "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" \
             --set-env-vars "ADMIN_SESSION_SECRET=${{ secrets.ADMIN_SESSION_SECRET }}" \
+            --set-env-vars "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}" \
             --project ${{ env.PROJECT_ID }}
 
       - name: Show deployed URL
