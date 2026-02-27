@@ -796,7 +796,6 @@ model medical_records {
   plan                                    String?             @default("")
   related_document_ids                    String[]            @default([])
   treatment_plan_id                       String?             @db.Uuid
-  receipt_id                              String?             @db.Uuid
   created_by                              String              @db.Uuid
   created_at                              DateTime?           @default(now()) @db.Timestamptz(6)
   updated_by                              String              @db.Uuid
