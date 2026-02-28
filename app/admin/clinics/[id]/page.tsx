@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw, FileText } from 'lucide-react'
 
 interface SeedResult {
   success: boolean
@@ -35,6 +35,10 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
     address_line: '',
     hp_url: '',
     status: 'active',
+    plan_name: 'スタンダード',
+    monthly_fee: 29800,
+    contract_start: '',
+    billing_email: '',
   })
 
   useEffect(() => {
@@ -52,6 +56,10 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
           address_line: data.address_line || '',
           hp_url: data.hp_url || '',
           status: data.status || 'active',
+          plan_name: data.plan_name || 'スタンダード',
+          monthly_fee: data.monthly_fee ?? 29800,
+          contract_start: data.contract_start || '',
+          billing_email: data.billing_email || '',
         })
       })
       .finally(() => setLoading(false))
@@ -208,6 +216,60 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
                   <option value="trial">トライアル</option>
                   <option value="suspended">停止中</option>
                 </select>
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
+            {saveSuccess && (
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                保存しました
+              </div>
+            )}
+
+            <Button type="submit" disabled={saving} className="w-full">
+              {saving ? '保存中...' : '変更を保存'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* 契約・プラン情報 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="w-4 h-4 text-purple-600" />
+            契約・プラン情報
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>プラン名</Label>
+                <Input value={form.plan_name} onChange={e => update('plan_name', e.target.value)} placeholder="スタンダード" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>月額（円）</Label>
+                <Input
+                  type="number"
+                  value={form.monthly_fee}
+                  onChange={e => update('monthly_fee', e.target.value)}
+                  placeholder="29800"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>契約開始日</Label>
+                <Input type="date" value={form.contract_start} onChange={e => update('contract_start', e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>請求先メール</Label>
+                <Input type="email" value={form.billing_email} onChange={e => update('billing_email', e.target.value)} placeholder={form.email} />
               </div>
             </div>
 
