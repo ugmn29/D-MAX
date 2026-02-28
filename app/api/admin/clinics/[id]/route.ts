@@ -43,8 +43,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({
       ...convertDatesToStrings(clinic, ['created_at']),
       clinic_settings: undefined,
-      plan_name: contractInfo.plan_name || 'スタンダード',
-      monthly_fee: contractInfo.monthly_fee ?? 29800,
+      plan_name: contractInfo.plan_name || null,
+      monthly_fee: contractInfo.monthly_fee != null ? contractInfo.monthly_fee : null,
       contract_start: contractInfo.contract_start || null,
       next_billing_date: contractInfo.next_billing_date || null,
       billing_email: contractInfo.billing_email || clinic.email || null,
@@ -112,8 +112,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           clinic_id: id,
           setting_key: 'contract_info',
           setting_value: {
-            plan_name: plan_name || 'スタンダード',
-            monthly_fee: Number(monthly_fee) || 29800,
+            plan_name: plan_name || null,
+            monthly_fee: monthly_fee !== undefined ? Number(monthly_fee) : null,
             contract_start: contract_start || null,
             billing_email: billing_email || email || null,
           },

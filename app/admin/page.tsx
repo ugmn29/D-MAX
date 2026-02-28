@@ -48,7 +48,7 @@ export default function AdminPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const totalMRR = clinics.reduce((sum, c) => sum + (c.monthly_fee || 0), 0)
+  const totalMRR = clinics.reduce((sum, c) => sum + (c.monthly_fee ?? 0), 0)
   const activeClinics = clinics.filter(c => c.status !== 'suspended').length
 
   if (loading) {
@@ -165,12 +165,13 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                          {clinic.plan_name}
-                        </span>
+                        {clinic.plan_name
+                          ? <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">{clinic.plan_name}</span>
+                          : <span className="text-gray-400 text-xs">—</span>
+                        }
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900">
-                        ¥{clinic.monthly_fee.toLocaleString('ja-JP')}
+                        {clinic.monthly_fee != null ? `¥${clinic.monthly_fee.toLocaleString('ja-JP')}` : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         {clinic.next_billing_date

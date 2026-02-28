@@ -35,8 +35,8 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
     address_line: '',
     hp_url: '',
     status: 'active',
-    plan_name: 'スタンダード',
-    monthly_fee: 29800,
+    plan_name: '',
+    monthly_fee: '' as any,
     contract_start: '',
     billing_email: '',
   })
@@ -56,8 +56,8 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
           address_line: data.address_line || '',
           hp_url: data.hp_url || '',
           status: data.status || 'active',
-          plan_name: data.plan_name || 'スタンダード',
-          monthly_fee: data.monthly_fee ?? 29800,
+          plan_name: data.plan_name || '',
+          monthly_fee: data.monthly_fee ?? '',
           contract_start: data.contract_start || '',
           billing_email: data.billing_email || '',
         })

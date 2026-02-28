@@ -17,8 +17,8 @@ function formatClinic(clinic: any) {
   return {
     ...convertDatesToStrings(clinic, ['created_at']),
     clinic_settings: undefined,
-    plan_name: contractInfo.plan_name || 'スタンダード',
-    monthly_fee: contractInfo.monthly_fee ?? 29800,
+    plan_name: contractInfo.plan_name || null,
+    monthly_fee: contractInfo.monthly_fee != null ? contractInfo.monthly_fee : null,
     contract_start: contractInfo.contract_start || null,
     next_billing_date: contractInfo.next_billing_date || null,
     billing_email: contractInfo.billing_email || clinic.email || null,
