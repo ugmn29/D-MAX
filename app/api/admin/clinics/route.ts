@@ -9,8 +9,11 @@ function isAdminAuthenticated(request: NextRequest): boolean {
 }
 
 function formatClinic(clinic: any) {
-  const settings = (clinic.clinic_settings as any)?.[0]?.settings || {}
-  const contractInfo = settings.contract_info || {}
+  // clinic_settings は key-value 構造: { setting_key, setting_value }
+  const contractRow = (clinic.clinic_settings as any[])?.find(
+    (s: any) => s.setting_key === 'contract_info'
+  )
+  const contractInfo = contractRow?.setting_value || {}
   return {
     ...convertDatesToStrings(clinic, ['created_at']),
     clinic_settings: undefined,
@@ -48,7 +51,8 @@ export async function GET(request: NextRequest) {
         prefecture: true,
         city: true,
         clinic_settings: {
-          select: { settings: true },
+          select: { setting_key: true, setting_value: true },
+          where: { setting_key: 'contract_info' },
         },
       },
       where: {
