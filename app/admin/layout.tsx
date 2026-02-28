@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Building2, Megaphone, LayoutDashboard, Settings, LogOut } from 'lucide-react'
+import { Building2, Megaphone, LayoutDashboard, Settings, LogOut, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
   { href: '/admin/clinics', label: 'クリニック管理', icon: Building2 },
+  { href: '/admin/plans', label: 'プラン管理', icon: DollarSign },
   { href: '/admin/announcements', label: 'お知らせ管理', icon: Megaphone },
   { href: '/admin/settings', label: '設定', icon: Settings },
 ]

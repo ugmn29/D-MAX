@@ -14,6 +14,13 @@ interface SeedResult {
   message: string
 }
 
+interface PlanMaster {
+  id: string
+  name: string
+  monthly_fee: number
+  is_active: boolean
+}
+
 export default function ClinicDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -24,6 +31,7 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
   const [error, setError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [seedResults, setSeedResults] = useState<Record<string, SeedResult> | null>(null)
+  const [plans, setPlans] = useState<PlanMaster[]>([])
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -42,27 +50,28 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
   })
 
   useEffect(() => {
-    fetch(`/api/admin/clinics/${id}`)
-      .then(r => r.json())
-      .then(data => {
-        setForm({
-          name: data.name || '',
-          slug: data.slug || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          postal_code: data.postal_code || '',
-          prefecture: data.prefecture || '',
-          city: data.city || '',
-          address_line: data.address_line || '',
-          hp_url: data.hp_url || '',
-          status: data.status || 'active',
-          plan_name: data.plan_name || '',
-          monthly_fee: data.monthly_fee ?? '',
-          contract_start: data.contract_start || '',
-          billing_email: data.billing_email || '',
-        })
+    Promise.all([
+      fetch(`/api/admin/clinics/${id}`).then(r => r.json()),
+      fetch('/api/admin/plans').then(r => r.json()),
+    ]).then(([data, planData]) => {
+      setForm({
+        name: data.name || '',
+        slug: data.slug || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        postal_code: data.postal_code || '',
+        prefecture: data.prefecture || '',
+        city: data.city || '',
+        address_line: data.address_line || '',
+        hp_url: data.hp_url || '',
+        status: data.status || 'active',
+        plan_name: data.plan_name || '',
+        monthly_fee: data.monthly_fee ?? '',
+        contract_start: data.contract_start || '',
+        billing_email: data.billing_email || '',
       })
-      .finally(() => setLoading(false))
+      if (Array.isArray(planData)) setPlans(planData.filter((p: PlanMaster) => p.is_active))
+    }).finally(() => setLoading(false))
   }, [id])
 
   const update = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
@@ -251,8 +260,25 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
           <form onSubmit={handleSave} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>プラン名</Label>
-                <Input value={form.plan_name} onChange={e => update('plan_name', e.target.value)} placeholder="スタンダード" />
+                <Label>プラン</Label>
+                {plans.length > 0 ? (
+                  <select
+                    value={form.plan_name}
+                    onChange={e => {
+                      const selected = plans.find(p => p.name === e.target.value)
+                      update('plan_name', e.target.value)
+                      if (selected) update('monthly_fee', String(selected.monthly_fee))
+                    }}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">—プランを選択—</option>
+                    {plans.map(p => (
+                      <option key={p.id} value={p.name}>{p.name} (¥{p.monthly_fee.toLocaleString('ja-JP')})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input value={form.plan_name} onChange={e => update('plan_name', e.target.value)} placeholder="スタンダード" />
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>月額（円）</Label>
