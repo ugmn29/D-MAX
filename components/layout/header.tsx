@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Calendar, Users, Settings, BarChart3, Menu, MousePointerClick, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { AnnouncementBanner } from './announcement-banner'
 
 const navigation = [
   { name: 'カレンダー', href: '/', icon: Calendar },
@@ -74,6 +75,9 @@ export function Header() {
           </div>
         </div>
       </div>
+
+      {/* お知らせバナー */}
+      <AnnouncementBanner />
 
       {/* モバイルドロワー */}
       {mobileMenuOpen && (

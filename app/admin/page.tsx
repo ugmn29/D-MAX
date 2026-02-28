@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Building2, Users, CreditCard, RefreshCw, TrendingUp, LogOut } from 'lucide-react'
+import { Building2, Users, CreditCard, RefreshCw, TrendingUp, ArrowRight } from 'lucide-react'
 
 interface ClinicRow {
   id: string
@@ -18,22 +18,19 @@ interface ClinicRow {
   contract_start: string | null
   next_billing_date: string | null
   billing_email: string | null
+  status: string | null
+}
+
+const statusConfig: Record<string, { label: string; className: string }> = {
+  active: { label: '稼働中', className: 'bg-blue-100 text-blue-700' },
+  trial: { label: 'トライアル', className: 'bg-yellow-100 text-yellow-700' },
+  suspended: { label: '停止中', className: 'bg-red-100 text-red-700' },
 }
 
 export default function AdminPage() {
-  const router = useRouter()
   const [clinics, setClinics] = useState<ClinicRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const handleLogout = async () => {
-    await fetch('/api/admin/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'logout' }),
-    })
-    router.push('/admin/login')
-  }
 
   useEffect(() => {
     fetch('/api/admin/clinics')
@@ -50,6 +47,7 @@ export default function AdminPage() {
   }, [])
 
   const totalMRR = clinics.reduce((sum, c) => sum + (c.monthly_fee || 0), 0)
+  const activeClinics = clinics.filter(c => c.status !== 'suspended').length
 
   if (loading) {
     return (
@@ -69,16 +67,10 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">HubDent 管理者ダッシュボード</h1>
-          <p className="text-sm text-gray-500 mt-1">契約クリニック一覧と売上サマリー</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={handleLogout} className="flex items-center gap-2">
-          <LogOut className="w-4 h-4" />
-          ログアウト
-        </Button>
+    <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">ダッシュボード</h1>
+        <p className="text-sm text-gray-500 mt-1">契約クリニック一覧と売上サマリー</p>
       </div>
 
       {/* サマリーカード */}
@@ -90,7 +82,9 @@ export default function AdminPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">契約医院数</p>
-              <p className="text-2xl font-bold text-gray-900">{clinics.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{clinics.length}
+                <span className="text-sm font-normal text-gray-400 ml-1">（稼働 {activeClinics}）</span>
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -126,11 +120,17 @@ export default function AdminPage() {
 
       {/* クリニック一覧テーブル */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Users className="w-5 h-5 text-blue-600" />
-            契約クリニック一覧
+            契約クリニック一覧（直近5件）
           </CardTitle>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/admin/clinics" className="flex items-center gap-1.5">
+              すべて表示
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -138,46 +138,49 @@ export default function AdminPage() {
               <thead>
                 <tr className="border-b bg-gray-50">
                   <th className="text-left px-4 py-3 font-medium text-gray-600">医院名</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">メール</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">電話</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">ステータス</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">プラン</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">月額</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">契約開始</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">次回更新</th>
                 </tr>
               </thead>
               <tbody>
-                {clinics.map((clinic, i) => (
-                  <tr
-                    key={clinic.id}
-                    className={`border-b last:border-0 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-900">{clinic.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{clinic.email || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600">{clinic.phone || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                        {clinic.plan_name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">
-                      ¥{clinic.monthly_fee.toLocaleString('ja-JP')}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {clinic.contract_start
-                        ? new Date(clinic.contract_start).toLocaleDateString('ja-JP')
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {clinic.next_billing_date
-                        ? new Date(clinic.next_billing_date).toLocaleDateString('ja-JP')
-                        : '—'}
-                    </td>
-                  </tr>
-                ))}
+                {clinics.slice(0, 5).map((clinic, i) => {
+                  const st = statusConfig[clinic.status ?? 'active'] ?? statusConfig.active
+                  return (
+                    <tr
+                      key={clinic.id}
+                      className={`border-b last:border-0 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        <Link href={`/admin/clinics/${clinic.id}`} className="hover:underline text-blue-700">
+                          {clinic.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${st.className}`}>
+                          {st.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                          {clinic.plan_name}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                        ¥{clinic.monthly_fee.toLocaleString('ja-JP')}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {clinic.next_billing_date
+                          ? new Date(clinic.next_billing_date).toLocaleDateString('ja-JP')
+                          : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
                 {clinics.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
                       クリニックデータがありません
                     </td>
                   </tr>

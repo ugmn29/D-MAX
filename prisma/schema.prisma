@@ -321,6 +321,7 @@ model clinics {
   slug                             String?                            @unique(map: "unique_clinic_slug")
   hp_url                           String?
   google_maps_api_key              String?
+  status                           String?                            @default("active")
   acquisition_source_master        acquisition_source_master[]
   ad_sources_master                ad_sources_master[]
   ad_spend_records                 ad_spend_records[]
@@ -2376,6 +2377,45 @@ enum appointment_status {
   COMPLETED       @map("終了")
   CANCELLED       @map("キャンセル")
 
+  @@schema("public")
+}
+
+model admin_accounts {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String   @unique @db.VarChar(255)
+  password_hash String
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model announcements {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String
+  content           String
+  type              String   @default("info")
+  target_all        Boolean  @default(true)
+  target_clinic_ids String[] @default([])
+  is_active         Boolean  @default(true)
+  start_at          DateTime @db.Timestamptz(6)
+  end_at            DateTime @db.Timestamptz(6)
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime? @default(now()) @db.Timestamptz(6)
+  announcement_reads announcement_reads[]
+
+  @@schema("public")
+}
+
+model announcement_reads {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  announcement_id String   @db.Uuid
+  clinic_id       String   @db.Uuid
+  staff_id        String   @db.Uuid
+  read_at         DateTime? @default(now()) @db.Timestamptz(6)
+  announcements   announcements @relation(fields: [announcement_id], references: [id], onDelete: Cascade)
+
+  @@unique([announcement_id, staff_id])
   @@schema("public")
 }
 

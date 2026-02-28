@@ -127,9 +127,17 @@ function LoginForm() {
             </Button>
           </form>
 
-          <p className="text-xs text-gray-400 text-center mt-6">
-            ログイン情報は管理者から提供されます
-          </p>
+          <div className="text-center mt-6 space-y-2">
+            <a
+              href="/login/reset-password"
+              className="text-xs text-blue-500 hover:text-blue-700 hover:underline"
+            >
+              パスワードをお忘れですか？
+            </a>
+            <p className="text-xs text-gray-400">
+              ログイン情報は管理者から提供されます
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getFirebaseAdmin } from '@/lib/firebase-admin'
+import { prisma } from '@/lib/prisma-client'
 
 interface VerifiedUser {
   uid: string
@@ -21,10 +22,23 @@ export async function verifyAuth(request: NextRequest): Promise<VerifiedUser> {
   const { adminAuth } = getFirebaseAdmin()
   const decoded = await adminAuth.verifyIdToken(token)
 
+  const clinicId = decoded.clinic_id as string
+
+  // 停止中クリニックはアクセス拒否
+  if (clinicId) {
+    const clinic = await prisma.clinics.findUnique({
+      where: { id: clinicId },
+      select: { status: true },
+    }).catch(() => null)
+    if (clinic?.status === 'suspended') {
+      throw new Error('このクリニックのアカウントは停止されています')
+    }
+  }
+
   return {
     uid: decoded.uid,
     email: decoded.email || '',
-    clinicId: decoded.clinic_id as string,
+    clinicId,
     role: (decoded.role as 'admin' | 'staff') || 'staff',
     staffId: decoded.staff_id as string,
   }
