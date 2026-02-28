@@ -9,7 +9,7 @@ function isAdminAuthenticated(request: NextRequest): boolean {
 }
 
 function formatClinic(clinic: any) {
-  const settings = (clinic.clinic_settings as any)?.settings || {}
+  const settings = (clinic.clinic_settings as any)?.[0]?.settings || {}
   const contractInfo = settings.contract_info || {}
   return {
     ...convertDatesToStrings(clinic, ['created_at']),
