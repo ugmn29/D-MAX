@@ -72,7 +72,7 @@ export default function AdminPage() {
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dスマート 管理者ダッシュボード</h1>
+          <h1 className="text-2xl font-bold text-gray-900">HubDent 管理者ダッシュボード</h1>
           <p className="text-sm text-gray-500 mt-1">契約クリニック一覧と売上サマリー</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleLogout} className="flex items-center gap-2">

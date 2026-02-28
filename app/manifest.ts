@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Dスマート',
-    short_name: 'Dスマート',
+    name: 'HubDent',
+    short_name: 'HubDent',
     description: '歯科医院管理システム',
     start_url: '/',
     display: 'standalone',

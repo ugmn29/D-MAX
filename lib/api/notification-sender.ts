@@ -6,7 +6,7 @@ import { getClinic } from './clinic'
 import { PatientNotificationSchedule } from '@/types/notification'
 import { canReceiveNotification } from './patient-notification-preferences'
 
-// Dスマートサービスアカウントで一元送信（ビルド時初期化を避けるため遅延生成）
+// HubDentサービスアカウントで一元送信（ビルド時初期化を避けるため遅延生成）
 function getResendClient() {
   return new Resend(process.env.RESEND_API_KEY)
 }
@@ -85,7 +85,7 @@ async function sendLineNotification(
 }
 
 /**
- * メール送信（Resend経由、Dスマート一元送信）
+ * メール送信（Resend経由、HubDent一元送信）
  */
 async function sendEmailNotification(
   to: string,
@@ -98,7 +98,7 @@ async function sendEmailNotification(
       console.error('RESEND_API_KEY が設定されていません')
       return false
     }
-    const fromName = clinicName ? `${clinicName}（Dスマート予約）` : 'Dスマート予約'
+    const fromName = clinicName ? `${clinicName}（HubDent予約）` : 'HubDent予約'
     const { error } = await getResendClient().emails.send({
       from: `${fromName} <yoyaku@d-smart.jp>`,
       to,

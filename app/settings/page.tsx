@@ -7299,7 +7299,7 @@ export default function SettingsPage() {
                       <div>
                         <div className="font-medium">新しい番号を自動採番</div>
                         <p className="text-sm text-gray-600">
-                          Dスマートで新しい患者番号を発行します。旧番号は参照用として保存されます。
+                          HubDentで新しい患者番号を発行します。旧番号は参照用として保存されます。
                         </p>
                         <div className="mt-2">
                           <label className="text-sm">

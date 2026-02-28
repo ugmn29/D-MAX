@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
               <Lock className="w-6 h-6 text-white" />
             </div>
           </div>
-          <CardTitle className="text-xl">Dスマート 管理者</CardTitle>
+          <CardTitle className="text-xl">HubDent 管理者</CardTitle>
           <p className="text-sm text-gray-500">管理者アカウントでログイン</p>
         </CardHeader>
         <CardContent>

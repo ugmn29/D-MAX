@@ -1,0 +1,2 @@
+GCP_WORKLOAD_IDENTITY_PROVIDER=projects/980897293854/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+GCP_SERVICE_ACCOUNT=github-actions-deploy@d-max-66011.iam.gserviceaccount.com

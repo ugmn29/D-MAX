@@ -78,7 +78,7 @@ export function ContractInfoTab() {
             <CreditCard className="h-5 w-5 text-blue-600" />
             契約・請求情報
           </CardTitle>
-          <p className="text-sm text-gray-500">Dスマートのご契約内容と請求先情報を管理します</p>
+          <p className="text-sm text-gray-500">HubDentのご契約内容と請求先情報を管理します</p>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

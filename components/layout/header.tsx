@@ -26,7 +26,7 @@ export function Header() {
           {/* ロゴ */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
-              <h1 className="text-2xl font-bold text-shikabot-primary-dark">Dスマート</h1>
+              <h1 className="text-2xl font-bold text-shikabot-primary-dark">HubDent</h1>
               <span className="ml-2 text-sm text-gray-600 hidden sm:block">
                 歯科医院管理システム
               </span>
@@ -81,7 +81,7 @@ export function Header() {
           <div className="fixed inset-0 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
           <nav className="fixed top-0 left-0 h-full w-64 bg-white shadow-xl flex flex-col">
             <div className="p-4 border-b flex items-center justify-between">
-              <span className="font-bold text-lg text-shikabot-primary-dark">Dスマート</span>
+              <span className="font-bold text-lg text-shikabot-primary-dark">HubDent</span>
               <button onClick={() => setMobileMenuOpen(false)} className="p-1 rounded hover:bg-gray-100">
                 <X className="w-5 h-5 text-gray-600" />
               </button>
