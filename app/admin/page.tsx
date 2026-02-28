@@ -34,15 +34,17 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetch('/api/admin/clinics')
-      .then(r => r.json())
-      .then(data => {
+      .then(async r => {
+        const data = await r.json()
         if (Array.isArray(data)) {
           setClinics(data)
+        } else if (r.status === 401) {
+          window.location.href = '/admin/login'
         } else {
-          setError('データの取得に失敗しました')
+          setError(`エラー(${r.status}): ${data?.error || JSON.stringify(data)}`)
         }
       })
-      .catch(() => setError('サーバーに接続できません'))
+      .catch(e => setError(`サーバーに接続できません: ${e.message}`))
       .finally(() => setLoading(false))
   }, [])
 
