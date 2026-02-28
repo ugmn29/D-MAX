@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw, FileText } from 'lucide-react'
+import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw, FileText, UserPlus, Users } from 'lucide-react'
 
 interface SeedResult {
   success: boolean
@@ -32,6 +32,11 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [seedResults, setSeedResults] = useState<Record<string, SeedResult> | null>(null)
   const [plans, setPlans] = useState<PlanMaster[]>([])
+  const [staffList, setStaffList] = useState<{ id: string; name: string; email: string | null; role: string; is_active: boolean }[]>([])
+  const [staffForm, setStaffForm] = useState({ name: '', email: '', password: '', role: 'admin' })
+  const [staffSaving, setStaffSaving] = useState(false)
+  const [staffError, setStaffError] = useState('')
+  const [staffSuccess, setStaffSuccess] = useState('')
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -53,7 +58,8 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
     Promise.all([
       fetch(`/api/admin/clinics/${id}`).then(r => r.json()),
       fetch('/api/admin/plans').then(r => r.json()),
-    ]).then(([data, planData]) => {
+      fetch(`/api/admin/clinics/${id}/staff`).then(r => r.json()),
+    ]).then(([data, planData, staffData]) => {
       setForm({
         name: data.name || '',
         slug: data.slug || '',
@@ -71,6 +77,7 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
         billing_email: data.billing_email || '',
       })
       if (Array.isArray(planData)) setPlans(planData.filter((p: PlanMaster) => p.is_active))
+      if (Array.isArray(staffData)) setStaffList(staffData)
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -127,6 +134,31 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
       setError('初期データ投入に失敗しました')
     } finally {
       setSeeding(false)
+    }
+  }
+
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setStaffError('')
+    setStaffSuccess('')
+    setStaffSaving(true)
+    try {
+      const res = await fetch(`/api/admin/clinics/${id}/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffForm),
+      })
+      const data = await res.json()
+      if (!res.ok) { setStaffError(data.error || '作成に失敗しました'); return }
+      setStaffSuccess(`アカウントを作成しました（${data.staff?.email}）`)
+      setStaffForm({ name: '', email: '', password: '', role: 'admin' })
+      // スタッフ一覧を再取得
+      const updated = await fetch(`/api/admin/clinics/${id}/staff`).then(r => r.json())
+      if (Array.isArray(updated)) setStaffList(updated)
+    } catch {
+      setStaffError('サーバーに接続できません')
+    } finally {
+      setStaffSaving(false)
     }
   }
 
@@ -314,6 +346,86 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
 
             <Button type="submit" disabled={saving} className="w-full">
               {saving ? '保存中...' : '変更を保存'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* スタッフアカウント */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="w-4 h-4 text-indigo-600" />
+            スタッフアカウント
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 既存スタッフ一覧 */}
+          {staffList.length > 0 && (
+            <div className="border rounded-md divide-y text-sm">
+              {staffList.map(s => (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2">
+                  <div>
+                    <span className="font-medium text-gray-900">{s.name}</span>
+                    <span className="text-gray-500 ml-2">{s.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${s.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {s.role === 'admin' ? '管理者' : 'スタッフ'}
+                    </span>
+                    {!s.is_active && <span className="text-xs text-gray-400">無効</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 新規スタッフ作成フォーム */}
+          <form onSubmit={handleCreateStaff} className="space-y-3 border rounded-md p-3 bg-gray-50">
+            <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+              <UserPlus className="w-4 h-4" />
+              新規アカウント作成
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">名前</Label>
+                <Input value={staffForm.name} onChange={e => setStaffForm(f => ({ ...f, name: e.target.value }))} placeholder="院長名" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">権限</Label>
+                <select
+                  value={staffForm.role}
+                  onChange={e => setStaffForm(f => ({ ...f, role: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                >
+                  <option value="admin">管理者</option>
+                  <option value="staff">スタッフ</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">メールアドレス</Label>
+                <Input type="email" value={staffForm.email} onChange={e => setStaffForm(f => ({ ...f, email: e.target.value }))} placeholder="clinic@example.com" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">パスワード（6文字以上）</Label>
+                <Input type="password" value={staffForm.password} onChange={e => setStaffForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" required />
+              </div>
+            </div>
+            {staffError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {staffError}
+              </div>
+            )}
+            {staffSuccess && (
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                {staffSuccess}
+              </div>
+            )}
+            <Button type="submit" disabled={staffSaving} size="sm" className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              {staffSaving ? '作成中...' : 'アカウントを作成'}
             </Button>
           </form>
         </CardContent>
