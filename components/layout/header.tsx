@@ -7,18 +7,22 @@ import { Calendar, Users, Settings, BarChart3, Menu, MousePointerClick, X } from
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { AnnouncementBanner } from './announcement-banner'
+import { useAuth } from '@/components/providers/auth-provider'
 
 const navigation = [
-  { name: 'カレンダー', href: '/', icon: Calendar },
-  { name: '患者管理', href: '/patients', icon: Users },
-  { name: 'Web予約', href: '/web-booking', icon: MousePointerClick },
-  { name: '分析', href: '/analytics', icon: BarChart3 },
-  { name: '設定', href: '/settings', icon: Settings },
+  { name: 'カレンダー', href: '/', icon: Calendar, adminOnly: false },
+  { name: '患者管理', href: '/patients', icon: Users, adminOnly: false },
+  { name: 'Web予約', href: '/web-booking', icon: MousePointerClick, adminOnly: false },
+  { name: '分析', href: '/analytics', icon: BarChart3, adminOnly: true },
+  { name: '設定', href: '/settings', icon: Settings, adminOnly: true },
 ]
 
 export function Header() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { role } = useAuth()
+
+  const visibleNavigation = navigation.filter(item => !item.adminOnly || role === 'admin')
 
   return (
     <header className="bg-white border-b border-shikabot-border sticky top-0 z-50">
@@ -36,7 +40,7 @@ export function Header() {
 
           {/* デスクトップナビゲーション */}
           <nav className="hidden md:flex space-x-1">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const Icon = item.icon
               const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
 
@@ -91,7 +95,7 @@ export function Header() {
               </button>
             </div>
             <div className="flex-1 py-2">
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const Icon = item.icon
                 const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
                 return (

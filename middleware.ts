@@ -3,6 +3,14 @@ import type { NextRequest } from 'next/server'
 
 const ADMIN_PUBLIC_PATHS = ['/admin/login', '/api/admin/auth']
 
+// 医院管理者(adminロール)のみアクセス可能なパス
+const CLINIC_ADMIN_ONLY_PATHS = [
+  '/settings',
+  '/analytics',
+  '/training/clinic/analytics',
+  '/training/clinic/settings',
+]
+
 const PUBLIC_PATHS = [
   '/login',
   '/questionnaire',
@@ -36,6 +44,25 @@ const PUBLIC_PATHS = [
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(p => pathname.startsWith(p))
+}
+
+function isClinicAdminOnlyPath(pathname: string): boolean {
+  return CLINIC_ADMIN_ONLY_PATHS.some(p => pathname.startsWith(p))
+}
+
+// JWTペイロードからroleを取得（署名検証なし・ルーティング目的のみ）
+// ※API内でverifyAuth()による完全な検証を行うため安全
+function getRoleFromToken(token: string): string | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+    const payload = JSON.parse(atob(padded))
+    return (payload.role as string) || null
+  } catch {
+    return null
+  }
 }
 
 export function middleware(request: NextRequest) {
@@ -95,6 +122,14 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', pathname)
     }
     return NextResponse.redirect(loginUrl)
+  }
+
+  // 医院管理者専用パスのロールチェック
+  if (isClinicAdminOnlyPath(pathname)) {
+    const role = getRoleFromToken(session)
+    if (role !== 'admin') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
   }
 
   // セッションCookieが存在する場合はアクセスを許可
