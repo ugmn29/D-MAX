@@ -12,8 +12,8 @@ interface ClinicRow {
   name: string
   email: string | null
   phone: string | null
-  plan_name: string
-  monthly_fee: number
+  plan_name: string | null
+  monthly_fee: number | null
   contract_start: string | null
   next_billing_date: string | null
   status: string
@@ -137,12 +137,13 @@ export default function AdminClinicsPage() {
                         <td className="px-4 py-3 text-gray-600">{clinic.email || '—'}</td>
                         <td className="px-4 py-3 text-gray-600">{clinic.phone || '—'}</td>
                         <td className="px-4 py-3">
-                          <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                            {clinic.plan_name}
-                          </span>
+                          {clinic.plan_name
+                            ? <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">{clinic.plan_name}</span>
+                            : <span className="text-gray-400">—</span>
+                          }
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-gray-900">
-                          ¥{clinic.monthly_fee.toLocaleString('ja-JP')}
+                          {clinic.monthly_fee != null ? `¥${clinic.monthly_fee.toLocaleString('ja-JP')}` : '—'}
                         </td>
                         <td className="px-4 py-3 text-gray-600">
                           {clinic.next_billing_date
