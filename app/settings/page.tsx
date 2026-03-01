@@ -417,6 +417,7 @@ export default function SettingsPage() {
   const [richMenuSubTab, setRichMenuSubTab] = useState<"registered" | "unregistered">("registered"); // リッチメニューのサブタブ
   const [questionnaireTab, setQuestionnaireTab] = useState("basic");
   const [trainingSubTab, setTrainingSubTab] = useState('patients');
+  const [securitySubTab, setSecuritySubTab] = useState('account');
   const [useQuestionnaire, setUseQuestionnaire] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -7599,10 +7600,32 @@ export default function SettingsPage() {
         {selectedCategory === "data-import" && renderDataImportSettings()}
         {selectedCategory === "security" && (
           <div className="space-y-6">
-            <UserProfileSection />
-            <StaffRoleManager />
-            <ChangePasswordSection />
-            <AuditLogViewer />
+            <div className="border-b border-gray-200">
+              <nav className="flex space-x-8">
+                {[
+                  { id: 'account', name: 'アカウント' },
+                  { id: 'role', name: '権限管理' },
+                  { id: 'password', name: 'パスワード変更' },
+                  { id: 'audit', name: '監査ログ' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSecuritySubTab(tab.id)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      securitySubTab === tab.id
+                        ? 'border-shikabot-primary text-shikabot-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.name}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            {securitySubTab === 'account' && <UserProfileSection />}
+            {securitySubTab === 'role' && <StaffRoleManager />}
+            {securitySubTab === 'password' && <ChangePasswordSection />}
+            {securitySubTab === 'audit' && <AuditLogViewer />}
           </div>
         )}
         {selectedCategory === "contract" && (
