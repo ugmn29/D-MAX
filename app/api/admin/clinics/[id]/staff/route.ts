@@ -16,13 +16,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id: clinicId } = await params
   try {
     const body = await request.json()
-    const { name, email, password, role = 'admin' } = body
+    const { name, email, role = 'admin' } = body
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: '名前・メール・パスワードは必須です' }, { status: 400 })
-    }
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'パスワードは6文字以上にしてください' }, { status: 400 })
+    if (!name || !email) {
+      return NextResponse.json({ error: '名前・メールアドレスは必須です' }, { status: 400 })
     }
 
     const prisma = getPrismaClient()
@@ -35,10 +32,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { adminAuth } = getFirebaseAdmin()
 
-    // Firebase Authユーザー作成
+    // Firebase Authユーザー作成（一時パスワードはランダム生成）
+    const tempPassword = crypto.randomUUID()
     let firebaseUser
     try {
-      firebaseUser = await adminAuth.createUser({ email, password, displayName: name })
+      firebaseUser = await adminAuth.createUser({ email, password: tempPassword, displayName: name })
     } catch (e: any) {
       const msg = e.code === 'auth/email-already-exists'
         ? 'このメールアドレスはすでに登録されています'
@@ -71,9 +69,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       role: role === 'admin' ? 'admin' : 'staff',
     })
 
+    // パスワード設定リンクを生成（スタッフ自身がパスワードを設定できるよう）
+    const passwordSetupLink = await adminAuth.generatePasswordResetLink(email)
+
     return NextResponse.json({
       ok: true,
       staff: { id: staff.id, name: staff.name, email: staff.email, role: staff.role },
+      passwordSetupLink,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
