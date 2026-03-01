@@ -15,18 +15,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const prisma = getPrismaClient()
   const results: Record<string, { success: boolean; message: string }> = {}
 
-  // 1. キャンセル理由
+  // 1. キャンセル理由（システムテンプレートと同期）
   try {
     const existing = await prisma.cancel_reasons.findMany({
       where: { clinic_id: clinicId },
-      select: { name: true },
+      select: { id: true, name: true, is_active: true },
     })
-    const existingNames = new Set(existing.map(r => r.name))
     const templates = await prisma.system_cancel_reasons.findMany({
       where: { is_active: true },
       orderBy: { sort_order: 'asc' },
     })
-    const newOnes = templates.filter(t => !existingNames.has(t.name))
+    const templateNames = new Set(templates.map(t => t.name))
+    const existingByName = new Map(existing.map(r => [r.name, r]))
+
+    // テンプレートにない既存レコードを無効化（appointments参照があるため削除ではなく無効化）
+    const toDeactivate = existing.filter(r => !templateNames.has(r.name) && r.is_active !== false)
+    if (toDeactivate.length > 0) {
+      await Promise.all(toDeactivate.map(r =>
+        prisma.cancel_reasons.update({ where: { id: r.id }, data: { is_active: false } })
+      ))
+    }
+
+    // テンプレートにあるが無効化されているものを再有効化
+    const toActivate = existing.filter(r => templateNames.has(r.name) && r.is_active === false)
+    if (toActivate.length > 0) {
+      await Promise.all(toActivate.map(r =>
+        prisma.cancel_reasons.update({ where: { id: r.id }, data: { is_active: true } })
+      ))
+    }
+
+    // 新規追加（名前が存在しないもの）
+    const newOnes = templates.filter(t => !existingByName.has(t.name))
     if (newOnes.length > 0) {
       await Promise.all(newOnes.map(t =>
         prisma.cancel_reasons.create({
@@ -41,7 +60,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
       ))
     }
-    results.cancel_reasons = { success: true, message: `${newOnes.length} 件投入` }
+
+    results.cancel_reasons = {
+      success: true,
+      message: `新規: ${newOnes.length}件, 無効化: ${toDeactivate.length}件, 再有効化: ${toActivate.length}件`,
+    }
   } catch (e: any) {
     results.cancel_reasons = { success: false, message: e.message || 'エラー' }
   }
