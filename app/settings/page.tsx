@@ -150,6 +150,7 @@ import { AuditLogViewer } from "@/components/settings/AuditLogViewer";
 import { ContractInfoTab } from "@/components/settings/ContractInfoTab";
 import { ChangePasswordSection } from "@/components/settings/change-password-section";
 import { StaffRoleManager } from "@/components/settings/staff-role-manager";
+import { UserProfileSection } from "@/components/settings/user-profile-section";
 import {
   getUnits,
   createUnit, 
@@ -7598,6 +7599,7 @@ export default function SettingsPage() {
         {selectedCategory === "data-import" && renderDataImportSettings()}
         {selectedCategory === "security" && (
           <div className="space-y-6">
+            <UserProfileSection />
             <StaffRoleManager />
             <ChangePasswordSection />
             <AuditLogViewer />
