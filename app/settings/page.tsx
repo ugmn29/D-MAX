@@ -106,6 +106,7 @@ import {
   createStaffPosition,
   updateStaffPosition,
   deleteStaffPosition,
+  CreateStaffResponse,
 } from "@/lib/api/staff";
 import {
   getPatientNoteTypes,
@@ -1034,6 +1035,8 @@ export default function SettingsPage() {
     position_id: "",
   });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [passwordSetupLink, setPasswordSetupLink] = useState<string | null>(null);
+  const [creatingStaff, setCreatingStaff] = useState(false);
 
   // 担当者フィルター（Web予約ステップ用）
   const [staffPositionFilter, setStaffPositionFilter] = useState<string>("all");
@@ -3272,7 +3275,7 @@ export default function SettingsPage() {
       } else if (selectedCategory === "staff") {
         console.log("=== スタッフ設定を保存中 ===");
 
-        // スタッフを一括保存
+        // スタッフを一括保存（新規作成は handleAddStaff で即時実行済み、ここでは更新・削除のみ）
         for (const member of staff) {
           if (member._deleted) {
             // 削除フラグが立っているスタッフを削除
@@ -3281,10 +3284,8 @@ export default function SettingsPage() {
               console.log(`✓ スタッフ削除: ${member.name}`);
             }
           } else if (member.id.startsWith('temp-') || member.id.startsWith('mock-staff-')) {
-            // 一時IDまたはモックIDのスタッフを新規作成
-            const { id, _deleted, position, created_at, ...memberData } = member;
-            const result = await createStaff(clinicId, memberData);
-            console.log(`✓ スタッフ作成: ${member.name}`, result);
+            // 一時IDのスタッフはスキップ（handleAddStaffで即時作成済み）
+            console.log(`⏭ スタッフスキップ（既に作成済み）: ${member.name}`);
           } else {
             // 既存スタッフを更新
             const { id, _deleted, position, clinic_id, created_at, updated_at, ...memberData } = member;
@@ -4232,37 +4233,46 @@ export default function SettingsPage() {
     }
   };
 
-  // スタッフ追加
-  const handleAddStaff = () => {
-    // APIを呼ばず、ローカル状態のみ更新（保存ボタンで一括保存）
-    console.log('=== スタッフ追加デバッグ ===');
-    console.log('newStaff.position_id:', newStaff.position_id);
-    console.log('staffPositions:', staffPositions);
-    const foundPosition = staffPositions.find(p => p.id === newStaff.position_id);
-    console.log('見つかった役職:', foundPosition);
+  // スタッフ追加（Firebase Authアカウントも同時に作成）
+  const handleAddStaff = async () => {
+    if (!newStaff.name.trim() || !newStaff.email.trim()) {
+      alert('名前とメールアドレスは必須です');
+      return;
+    }
+    setCreatingStaff(true);
+    try {
+      const result: CreateStaffResponse = await createStaff(clinicId, {
+        name: newStaff.name,
+        name_kana: newStaff.name_kana || undefined,
+        email: newStaff.email,
+        phone: newStaff.phone || undefined,
+        position_id: newStaff.position_id || undefined,
+        role: newStaff.role || 'staff',
+      });
 
-    const newStaffMember = {
-      id: `temp-staff-${Date.now()}`,
-      clinic_id: clinicId,
-      ...newStaff,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      // position情報を追加（表示用）
-      position: foundPosition || null,
-    };
+      // スタッフ一覧を再読み込み
+      const reloadedStaff = await getStaff(clinicId);
+      setStaff(reloadedStaff);
 
-    console.log('追加するスタッフ:', newStaffMember);
-    setStaff([...staff, newStaffMember]);
+      setNewStaff({
+        name: "",
+        name_kana: "",
+        email: "",
+        phone: "",
+        role: "staff",
+        position_id: "",
+      });
+      setShowAddStaff(false);
 
-    setNewStaff({
-      name: "",
-      name_kana: "",
-      email: "",
-      phone: "",
-      role: "staff",
-      position_id: "",
-    });
-    setShowAddStaff(false);
+      // パスワード設定リンクを表示
+      if (result.passwordSetupLink) {
+        setPasswordSetupLink(result.passwordSetupLink);
+      }
+    } catch (error: any) {
+      alert(error.message || 'スタッフの作成に失敗しました');
+    } finally {
+      setCreatingStaff(false);
+    }
   };
 
   // スタッフ編集
@@ -7780,11 +7790,12 @@ export default function SettingsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="staff_email">メールアドレス</Label>
+                        <Label htmlFor="staff_email">メールアドレス <span className="text-red-500">*</span></Label>
                         <Input
                           id="staff_email"
                           type="email"
                           value={newStaff.email}
+                          required
                         onChange={(e) =>
                           setNewStaff((prev) => ({
                             ...prev,
@@ -7836,23 +7847,48 @@ export default function SettingsPage() {
                       )}
                     </div>
 
+                    <p className="text-xs text-gray-500">
+                      スタッフにはログイン用のアカウントが自動作成されます。パスワード設定リンクが発行されます。
+                    </p>
+
                     <div className="flex justify-end pt-4">
                       <Button
-                        onClick={() => {
-                        console.log("追加ボタンがクリックされました");
-                        console.log("staffLoading:", staffLoading);
-                        console.log("newStaff.name:", newStaff.name);
-                        console.log(
-                          "newStaff.position_id:",
-                          newStaff.position_id,
-                        );
-                        console.log("newStaff全体:", newStaff);
-                        handleAddStaff();
-                        }}
-                        disabled={staffLoading || !newStaff.name}
+                        onClick={handleAddStaff}
+                        disabled={creatingStaff || !newStaff.name.trim() || !newStaff.email.trim()}
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                      {staffLoading ? "追加中..." : "追加"}
+                      {creatingStaff ? "作成中..." : "追加"}
+                      </Button>
+                    </div>
+                  </div>
+                </Modal>
+
+                {/* パスワード設定リンク表示モーダル */}
+                <Modal
+                  isOpen={!!passwordSetupLink}
+                  onClose={() => setPasswordSetupLink(null)}
+                  title="スタッフアカウント作成完了"
+                >
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-700">
+                      スタッフのアカウントが作成されました。以下のリンクをスタッフに共有して、パスワードを設定してもらってください。
+                    </p>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <p className="text-xs text-gray-500 mb-1">パスワード設定リンク</p>
+                      <p className="text-sm break-all font-mono">{passwordSetupLink}</p>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(passwordSetupLink || '');
+                          alert('リンクをコピーしました');
+                        }}
+                      >
+                        コピー
+                      </Button>
+                      <Button onClick={() => setPasswordSetupLink(null)}>
+                        閉じる
                       </Button>
                     </div>
                   </div>

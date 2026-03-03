@@ -1,50 +1,97 @@
 /**
  * Staff API Route - Prisma版
- * サーバーサイド専用
+ * スタッフ作成時にFirebase Authアカウントも同時に作成
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma/client'
 import { convertToDate } from '@/lib/prisma/helpers'
+import { verifyAdmin } from '@/lib/auth/verify-request'
+import { getFirebaseAdmin } from '@/lib/firebase-admin'
 
 export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const clinicId = searchParams.get('clinic_id')
+    // 管理者のみスタッフ作成可能
+    const admin = await verifyAdmin(request)
+    const clinicId = admin.clinicId
 
-    console.log('スタッフ作成リクエスト:', { clinicId })
+    const body = await request.json()
+    const { name, name_kana, email, phone, position_id, role = 'staff' } = body
 
-    if (!clinicId) {
-      console.error('バリデーションエラー: clinic_idが不足')
+    if (!name || !email) {
       return NextResponse.json(
-        { error: 'clinic_id is required' },
+        { error: '名前とメールアドレスは必須です' },
         { status: 400 }
       )
     }
 
-    const body = await request.json()
-    console.log('作成データ:', body)
+    const { adminAuth } = getFirebaseAdmin()
 
-    const newStaff = await prisma.staff.create({
-      data: {
-        ...body,
-        clinic_id: clinicId,
-        is_active: body.is_active ?? true
-      },
-      include: {
-        staff_positions: {
-          select: {
-            id: true,
-            name: true,
-            sort_order: true,
-            clinic_id: true,
-            created_at: true
+    // Firebase Authユーザー作成（一時パスワードはランダム生成）
+    const tempPassword = crypto.randomUUID()
+    let firebaseUser
+    try {
+      firebaseUser = await adminAuth.createUser({
+        email,
+        password: tempPassword,
+        displayName: name,
+      })
+    } catch (e: any) {
+      const msg = e.code === 'auth/email-already-exists'
+        ? 'このメールアドレスは既に登録されています'
+        : e.message
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
+
+    // DBにスタッフレコード作成
+    let newStaff
+    try {
+      newStaff = await prisma.staff.create({
+        data: {
+          clinic_id: clinicId,
+          name,
+          name_kana: name_kana || null,
+          email,
+          phone: phone || null,
+          position_id: position_id || null,
+          role: role === 'admin' ? 'admin' : 'staff',
+          is_active: true,
+        },
+        include: {
+          staff_positions: {
+            select: {
+              id: true,
+              name: true,
+              sort_order: true,
+              clinic_id: true,
+              created_at: true,
+            }
           }
         }
-      }
+      })
+    } catch (e: any) {
+      // ロールバック: Firebaseユーザーを削除
+      await adminAuth.deleteUser(firebaseUser.uid)
+      return NextResponse.json(
+        { error: `スタッフ作成失敗: ${e.message}` },
+        { status: 500 }
+      )
+    }
+
+    // Firebase Custom Claims設定
+    await adminAuth.setCustomUserClaims(firebaseUser.uid, {
+      clinic_id: clinicId,
+      staff_id: newStaff.id,
+      role: role === 'admin' ? 'admin' : 'staff',
     })
 
-    console.log('スタッフ作成成功:', newStaff.id)
+    // パスワード設定リンクを生成
+    let passwordSetupLink: string | null = null
+    try {
+      passwordSetupLink = await adminAuth.generatePasswordResetLink(email)
+    } catch {
+      // リンク生成失敗してもスタッフ作成自体は成功扱い
+    }
 
     const result = {
       id: newStaff.id,
@@ -65,23 +112,21 @@ export async function POST(request: NextRequest) {
         clinic_id: newStaff.staff_positions.clinic_id,
         created_at: convertToDate(newStaff.staff_positions.created_at).toISOString(),
         updated_at: convertToDate(newStaff.staff_positions.created_at).toISOString()
-      } : undefined
+      } : undefined,
+      passwordSetupLink,
     }
 
     return NextResponse.json(result)
   } catch (error: any) {
+    if (error.message === '管理者権限が必要です') {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
+    if (error.message === '認証トークンがありません') {
+      return NextResponse.json({ error: error.message }, { status: 401 })
+    }
     console.error('スタッフ作成エラー:', error)
-    console.error('エラー詳細:', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta
-    })
     return NextResponse.json(
-      {
-        error: 'スタッフの作成に失敗しました',
-        details: error.message,
-        code: error.code
-      },
+      { error: 'スタッフの作成に失敗しました' },
       { status: 500 }
     )
   }

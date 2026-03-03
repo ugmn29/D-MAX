@@ -28,11 +28,15 @@ export interface StaffPosition {
 export interface CreateStaffData {
   name: string
   name_kana?: string
-  email?: string
+  email: string
   phone?: string
   position_id?: string
   role: string
   is_active?: boolean
+}
+
+export interface CreateStaffResponse extends Staff {
+  passwordSetupLink?: string | null
 }
 
 export interface CreateStaffPositionData {
@@ -148,7 +152,7 @@ export async function getStaff(clinicId: string): Promise<Staff[]> {
 }
 
 // スタッフ作成
-export async function createStaff(clinicId: string, data: CreateStaffData): Promise<Staff> {
+export async function createStaff(clinicId: string, data: CreateStaffData): Promise<CreateStaffResponse> {
   // モックモードの場合はモックデータを生成して返す
   if (MOCK_MODE) {
     console.log('モックモード: スタッフを作成します', { clinicId, data })
