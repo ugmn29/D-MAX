@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --prefer-offline
 
 # ---- builder ----
 FROM node:22-slim AS builder
