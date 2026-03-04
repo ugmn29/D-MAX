@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw, FileText, UserPlus, Users } from 'lucide-react'
+import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw, FileText, UserPlus, Users, Upload } from 'lucide-react'
 
 interface SeedResult {
   success: boolean
@@ -496,6 +496,27 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
           >
             <Database className="w-4 h-4" />
             {seeding ? '投入中...' : '初期データを投入する'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* 患者データ移行 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Upload className="w-4 h-4 text-orange-600" />
+            患者データ移行
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-600 mb-4">
+            他社システムから患者データをCSVで一括インポートします。
+          </p>
+          <Button variant="outline" asChild className="w-full flex items-center gap-2">
+            <Link href={`/admin/clinics/${id}/import`}>
+              <RefreshCw className="w-4 h-4" />
+              データ移行ページへ
+            </Link>
           </Button>
         </CardContent>
       </Card>

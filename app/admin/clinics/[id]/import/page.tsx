@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, use } from "react"
 import Papa from "papaparse"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,9 +15,9 @@ import {
   AlertCircle,
   FileText,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowLeft
 } from "lucide-react"
-import { useClinicId } from '@/hooks/use-clinic-id'
 
 interface CSVData {
   headers: string[]
@@ -25,8 +26,8 @@ interface CSVData {
   rowCount: number
 }
 
-export default function DataImportPage() {
-  const clinicId = useClinicId()
+export default function ClinicDataImportPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const [activeTab, setActiveTab] = useState<'patients' | 'appointments' | 'history'>('patients')
   const [csvData, setCsvData] = useState<CSVData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -39,12 +40,10 @@ export default function DataImportPage() {
   const [validationWarnings, setValidationWarnings] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // データ検証関数
   const validateCSVData = useCallback((data: CSVData) => {
     const errors: string[] = []
     const warnings: string[] = []
 
-    // 必須フィールドのチェック（患者データの場合）
     const requiredFields = ['姓', '名', '生年月日']
     const missingFields = requiredFields.filter(field => !data.headers.includes(field))
 
@@ -52,7 +51,6 @@ export default function DataImportPage() {
       errors.push(`必須フィールドが不足しています: ${missingFields.join(', ')}`)
     }
 
-    // 患者番号フィールドの確認
     const patientNumberFields = ['患者番号', '診察券番号', 'ID', 'patient_number']
     const hasPatientNumber = patientNumberFields.some(field => data.headers.includes(field))
 
@@ -60,14 +58,12 @@ export default function DataImportPage() {
       warnings.push('患者番号フィールドが見つかりません。新規採番に変更することをお勧めします。')
     }
 
-    // データの整合性チェック
     if (data.rows.length === 0) {
       errors.push('データが含まれていません')
     } else if (data.rows.length > 10000) {
       warnings.push(`データ件数が多いため、処理に時間がかかる可能性があります（${data.rowCount}件）`)
     }
 
-    // 重複チェック（サンプル）
     const firstPatientNumberField = patientNumberFields.find(field => data.headers.includes(field))
     if (firstPatientNumberField) {
       const patientNumbers = data.rows.map(row => row[firstPatientNumberField]).filter(Boolean)
@@ -83,7 +79,6 @@ export default function DataImportPage() {
     return { errors, warnings }
   }, [numberHandling])
 
-  // ファイル処理関数
   const processFile = useCallback((file: File) => {
     if (!file.name.endsWith('.csv')) {
       alert('CSVファイルのみ対応しています')
@@ -92,21 +87,17 @@ export default function DataImportPage() {
 
     setIsProcessing(true)
 
-    // 文字コード自動検出のためにArrayBufferとして読み込み
     const reader = new FileReader()
 
     reader.onload = (e) => {
       const arrayBuffer = e.target?.result as ArrayBuffer
 
-      // UTF-8として試行
       let text = new TextDecoder('utf-8').decode(arrayBuffer)
 
-      // UTF-8でない場合はShift_JISとして試行
       if (text.includes('�')) {
         text = new TextDecoder('shift-jis').decode(arrayBuffer)
       }
 
-      // CSVをパース
       Papa.parse(text, {
         header: true,
         skipEmptyLines: true,
@@ -125,19 +116,10 @@ export default function DataImportPage() {
           }
 
           setCsvData(parsedData)
-
-          // データ検証を実行
           validateCSVData(parsedData)
-
           setIsProcessing(false)
-          console.log('CSVパース完了:', {
-            headers: results.meta.fields,
-            rowCount: results.data.length,
-            preview: results.data.slice(0, 3)
-          })
         },
-        error: (error) => {
-          console.error('CSV解析エラー:', error)
+        error: () => {
           alert('CSVファイルの解析に失敗しました')
           setIsProcessing(false)
         }
@@ -150,9 +132,8 @@ export default function DataImportPage() {
     }
 
     reader.readAsArrayBuffer(file)
-  }, [])
+  }, [validateCSVData])
 
-  // ドラッグ&ドロップハンドラ
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -181,7 +162,6 @@ export default function DataImportPage() {
     }
   }, [processFile])
 
-  // ファイル選択ハンドラ
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
@@ -189,7 +169,6 @@ export default function DataImportPage() {
     }
   }, [processFile])
 
-  // ファイル削除ハンドラ
   const handleRemoveFile = useCallback(() => {
     setCsvData(null)
     setValidationErrors([])
@@ -199,15 +178,18 @@ export default function DataImportPage() {
     }
   }, [])
 
-  // numberHandling変更時に再検証
-  useCallback(() => {
-    if (csvData) {
-      validateCSVData(csvData)
-    }
-  }, [csvData, numberHandling, validateCSVData])
-
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* 戻るリンク */}
+      <div>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/admin/clinics/${id}`} className="flex items-center gap-1.5 text-gray-500">
+            <ArrowLeft className="w-4 h-4" />
+            クリニック詳細に戻る
+          </Link>
+        </Button>
+      </div>
+
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <div>
