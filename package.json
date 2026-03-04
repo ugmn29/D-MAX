@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "dev": "next dev",
     "dev:local": "supabase start && next dev",
     "dev:production": "USE_PRODUCTION=true next dev -p 3001",
@@ -44,6 +47,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
+    "@react-pdf/renderer": "^4.3.2",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.38.0",
@@ -85,15 +89,18 @@
     "@types/react": "^18",
     "@types/react-big-calendar": "^1.8.4",
     "@types/react-dom": "^18",
+    "@vitest/coverage-v8": "^3.2.4",
     "autoprefixer": "^10.0.0",
     "dotenv": "^17.2.3",
     "eslint": "^8",
     "eslint-config-next": "14.0.0",
     "iconv-lite": "^0.7.0",
+    "next-test-api-route-handler": "^4.0.16",
     "postcss": "^8.0.0",
     "supabase": "^1.115.0",
     "tailwindcss": "^3.3.0",
     "tsx": "^4.20.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

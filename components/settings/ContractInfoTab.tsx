@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CreditCard, Save, RefreshCw, ExternalLink, Download, CheckCircle, AlertCircle, XCircle, FileText } from 'lucide-react'
+import { CreditCard, Save, RefreshCw, ExternalLink, Download, CheckCircle, AlertCircle, XCircle, FileText, Receipt } from 'lucide-react'
 import { useAuth } from '@/components/providers/auth-provider'
 
 interface ContractInfo {
@@ -68,6 +68,43 @@ export function ContractInfoTab() {
   const [invoicesLoading, setInvoicesLoading] = useState(false)
 
   const hasStripe = !!info.stripe_customer_id
+
+  // 月次請求書
+  const now = new Date()
+  const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth()
+  const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+  const [invoiceYear, setInvoiceYear] = useState(prevYear)
+  const [invoiceMonth, setInvoiceMonth] = useState(prevMonth)
+  const [monthlyData, setMonthlyData] = useState<{
+    plan_name: string
+    plan_fee: number
+    sms_count: number
+    sms_unit_price: number
+    sms_total: number
+    subtotal: number
+    tax: number
+    total: number
+  } | null>(null)
+  const [monthlyLoading, setMonthlyLoading] = useState(false)
+
+  const fetchMonthlyData = async (year: number, month: number) => {
+    if (!clinicId) return
+    setMonthlyLoading(true)
+    try {
+      const res = await fetch(`/api/clinics/${clinicId}/invoices/monthly?year=${year}&month=${month}`)
+      const data = await res.json()
+      if (!data.error) setMonthlyData(data)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setMonthlyLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (clinicId) fetchMonthlyData(invoiceYear, invoiceMonth)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId])
 
   useEffect(() => {
     if (!clinicId) return
@@ -252,6 +289,97 @@ export function ContractInfoTab() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* 月次請求書・領収書 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Receipt className="h-5 w-5 text-blue-600" />
+            月次請求書・領収書
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 年月セレクタ */}
+          <div className="flex items-center gap-3">
+            <select
+              className="border rounded-md px-3 py-1.5 text-sm"
+              value={invoiceYear}
+              onChange={e => setInvoiceYear(Number(e.target.value))}
+            >
+              {[now.getFullYear() - 1, now.getFullYear()].map(y => (
+                <option key={y} value={y}>{y}年</option>
+              ))}
+            </select>
+            <select
+              className="border rounded-md px-3 py-1.5 text-sm"
+              value={invoiceMonth}
+              onChange={e => setInvoiceMonth(Number(e.target.value))}
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                <option key={m} value={m}>{m}月</option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchMonthlyData(invoiceYear, invoiceMonth)}
+              disabled={monthlyLoading}
+              className="flex items-center gap-1"
+            >
+              {monthlyLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              表示
+            </Button>
+          </div>
+
+          {/* 請求内訳プレビュー */}
+          {monthlyData && (
+            <div className="bg-gray-50 rounded-md p-4 text-sm space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-gray-600">プラン（{monthlyData.plan_name}）</span>
+                <span>¥{monthlyData.plan_fee.toLocaleString('ja-JP')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">SMS送信料（{monthlyData.sms_count}通 × ¥{monthlyData.sms_unit_price}）</span>
+                <span>¥{monthlyData.sms_total.toLocaleString('ja-JP')}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1.5 mt-1.5">
+                <span className="text-gray-600">小計</span>
+                <span>¥{monthlyData.subtotal.toLocaleString('ja-JP')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">消費税（10%）</span>
+                <span>¥{monthlyData.tax.toLocaleString('ja-JP')}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1.5 mt-1.5 font-semibold">
+                <span>合計（税込）</span>
+                <span>¥{monthlyData.total.toLocaleString('ja-JP')}</span>
+              </div>
+            </div>
+          )}
+
+          {/* ダウンロードボタン */}
+          <div className="flex gap-3">
+            <a
+              href={clinicId ? `/api/clinics/${clinicId}/invoices/pdf?year=${invoiceYear}&month=${invoiceMonth}&type=invoice` : '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              請求書PDF
+            </a>
+            <a
+              href={clinicId ? `/api/clinics/${clinicId}/invoices/pdf?year=${invoiceYear}&month=${invoiceMonth}&type=receipt` : '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              領収書PDF
+            </a>
+          </div>
         </CardContent>
       </Card>
 

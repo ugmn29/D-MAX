@@ -862,6 +862,24 @@ function WebBookingPageInner() {
           alert('お名前は必須です。')
           return
         }
+
+        // 電話番号でweb予約NG患者を確認
+        if (bookingData.patientPhone.trim()) {
+          try {
+            const checkRes = await fetch(
+              `/api/patients/check-booking-status?phone=${encodeURIComponent(bookingData.patientPhone.trim())}&clinic_id=${clinicId}`
+            )
+            if (checkRes.ok) {
+              const checkData = await checkRes.json()
+              if (checkData.blocked) {
+                alert('大変申し訳ございませんが、こちらの電話番号ではWeb予約をご利用いただけません。お電話にてご予約ください。')
+                return
+              }
+            }
+          } catch (e) {
+            console.error('booking status check error:', e)
+          }
+        }
       }
 
       // 予約変更モードかどうかで処理を分岐

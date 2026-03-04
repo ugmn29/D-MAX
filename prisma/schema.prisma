@@ -2390,6 +2390,21 @@ model admin_accounts {
   @@schema("public")
 }
 
+model admin_system_settings {
+  id                       Int      @id @default(1)
+  issuer_company_name      String?
+  issuer_postal_code       String?
+  issuer_prefecture        String?
+  issuer_city              String?
+  issuer_address_line      String?
+  issuer_phone             String?
+  issuer_registration_number String?
+  sms_unit_price_jpy       Int      @default(10)
+  updated_at               DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
 model announcements {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title             String
