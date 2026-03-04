@@ -1,5 +1,5 @@
 # ---- deps ----
-FROM node:20-slim AS deps
+FROM node:22-slim AS deps
 
 RUN apt-get update && apt-get install -y \
   build-essential \
@@ -17,7 +17,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- builder ----
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 RUN apt-get update && apt-get install -y \
   build-essential \
@@ -69,7 +69,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # ---- runner ----
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 RUN apt-get update && apt-get install -y \
   libcairo2 \
