@@ -24,6 +24,7 @@ interface PlanMaster {
 export default function ClinicDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<'basic' | 'contract' | 'staff' | 'setup' | 'danger'>('basic')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -154,7 +155,6 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
       setStaffSuccess(`アカウントを作成しました（${data.staff?.email}）`)
       setPasswordSetupLink(data.passwordSetupLink || '')
       setStaffForm({ name: '', email: '', role: 'admin' })
-      // スタッフ一覧を再取得
       const updated = await fetch(`/api/admin/clinics/${id}/staff`).then(r => r.json())
       if (Array.isArray(updated)) setStaffList(updated)
     } catch {
@@ -180,6 +180,14 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
     training: 'トレーニングメニュー',
   }
 
+  const tabs = [
+    { id: 'basic', label: '基本情報', icon: Building2 },
+    { id: 'contract', label: '契約・プラン', icon: FileText },
+    { id: 'staff', label: 'スタッフ', icon: Users },
+    { id: 'setup', label: '初期設定', icon: Database },
+    { id: 'danger', label: '危険な操作', icon: Trash2 },
+  ] as const
+
   return (
     <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center gap-3">
@@ -201,349 +209,382 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
         </Button>
       </div>
 
-      {/* 基本情報編集 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Building2 className="w-4 h-4 text-blue-600" />
-            基本情報
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-1.5">
-                <Label>クリニック名</Label>
-                <Input value={form.name} onChange={e => update('name', e.target.value)} required />
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>スラッグ</Label>
-                <Input value={form.slug} onChange={e => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>メールアドレス</Label>
-                <Input type="email" value={form.email} onChange={e => update('email', e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>電話番号</Label>
-                <Input value={form.phone} onChange={e => update('phone', e.target.value)} />
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>WebサイトURL</Label>
-                <Input value={form.hp_url} onChange={e => update('hp_url', e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>郵便番号</Label>
-                <Input value={form.postal_code} onChange={e => update('postal_code', e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>都道府県</Label>
-                <Input value={form.prefecture} onChange={e => update('prefecture', e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>市区町村</Label>
-                <Input value={form.city} onChange={e => update('city', e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>番地・建物名</Label>
-                <Input value={form.address_line} onChange={e => update('address_line', e.target.value)} />
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>ステータス</Label>
-                <select
-                  value={form.status}
-                  onChange={e => update('status', e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                >
-                  <option value="active">稼働中</option>
-                  <option value="trial">トライアル</option>
-                  <option value="suspended">停止中</option>
-                </select>
-              </div>
-            </div>
+      {/* タブナビゲーション */}
+      <div className="flex space-x-1 border-b overflow-x-auto">
+        {tabs.map(({ id: tabId, label, icon: Icon }) => (
+          <button
+            key={tabId}
+            onClick={() => { setActiveTab(tabId); setError(''); setSaveSuccess(false) }}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === tabId
+                ? tabId === 'danger'
+                  ? 'border-red-500 text-red-600'
+                  : 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
 
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
-              </div>
-            )}
-            {saveSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                保存しました
-              </div>
-            )}
+      {/* タブコンテンツ */}
+      <div className="mt-2">
+        {activeTab === 'basic' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Building2 className="w-4 h-4 text-blue-600" />
+                基本情報
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 space-y-1.5">
+                    <Label>クリニック名</Label>
+                    <Input value={form.name} onChange={e => update('name', e.target.value)} required />
+                  </div>
+                  <div className="col-span-2 space-y-1.5">
+                    <Label>スラッグ</Label>
+                    <Input value={form.slug} onChange={e => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>メールアドレス</Label>
+                    <Input type="email" value={form.email} onChange={e => update('email', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>電話番号</Label>
+                    <Input value={form.phone} onChange={e => update('phone', e.target.value)} />
+                  </div>
+                  <div className="col-span-2 space-y-1.5">
+                    <Label>WebサイトURL</Label>
+                    <Input value={form.hp_url} onChange={e => update('hp_url', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>郵便番号</Label>
+                    <Input value={form.postal_code} onChange={e => update('postal_code', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>都道府県</Label>
+                    <Input value={form.prefecture} onChange={e => update('prefecture', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>市区町村</Label>
+                    <Input value={form.city} onChange={e => update('city', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>番地・建物名</Label>
+                    <Input value={form.address_line} onChange={e => update('address_line', e.target.value)} />
+                  </div>
+                  <div className="col-span-2 space-y-1.5">
+                    <Label>ステータス</Label>
+                    <select
+                      value={form.status}
+                      onChange={e => update('status', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="active">稼働中</option>
+                      <option value="trial">トライアル</option>
+                      <option value="suspended">停止中</option>
+                    </select>
+                  </div>
+                </div>
 
-            <Button type="submit" disabled={saving} className="w-full">
-              {saving ? '保存中...' : '変更を保存'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* 契約・プラン情報 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="w-4 h-4 text-purple-600" />
-            契約・プラン情報
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>プラン</Label>
-                {plans.length > 0 ? (
-                  <select
-                    value={form.plan_name}
-                    onChange={e => {
-                      const selected = plans.find(p => p.name === e.target.value)
-                      update('plan_name', e.target.value)
-                      if (selected) update('monthly_fee', String(selected.monthly_fee))
-                    }}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                  >
-                    <option value="">—プランを選択—</option>
-                    {plans.map(p => (
-                      <option key={p.id} value={p.name}>{p.name} (¥{p.monthly_fee.toLocaleString('ja-JP')})</option>
-                    ))}
-                  </select>
-                ) : (
-                  <Input value={form.plan_name} onChange={e => update('plan_name', e.target.value)} placeholder="スタンダード" />
+                {error && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {error}
+                  </div>
                 )}
-              </div>
-              <div className="space-y-1.5">
-                <Label>月額（円）</Label>
-                <Input
-                  type="number"
-                  value={form.monthly_fee}
-                  onChange={e => update('monthly_fee', e.target.value)}
-                  placeholder="29800"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>契約開始日</Label>
-                <Input type="date" value={form.contract_start} onChange={e => update('contract_start', e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>請求先メール</Label>
-                <Input type="email" value={form.billing_email} onChange={e => update('billing_email', e.target.value)} placeholder={form.email} />
-              </div>
-            </div>
-
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
-              </div>
-            )}
-            {saveSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                保存しました
-              </div>
-            )}
-
-            <Button type="submit" disabled={saving} className="w-full">
-              {saving ? '保存中...' : '変更を保存'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* スタッフアカウント */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="w-4 h-4 text-indigo-600" />
-            スタッフアカウント
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* 既存スタッフ一覧 */}
-          {staffList.length > 0 && (
-            <div className="border rounded-md divide-y text-sm">
-              {staffList.map(s => (
-                <div key={s.id} className="flex items-center justify-between px-3 py-2">
-                  <div>
-                    <span className="font-medium text-gray-900">{s.name}</span>
-                    <span className="text-gray-500 ml-2">{s.email}</span>
+                {saveSuccess && (
+                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    保存しました
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${s.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {s.role === 'admin' ? '管理者' : 'スタッフ'}
-                    </span>
-                    {!s.is_active && <span className="text-xs text-gray-400">無効</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                )}
 
-          {/* 新規スタッフ作成フォーム */}
-          <form onSubmit={handleCreateStaff} className="space-y-3 border rounded-md p-3 bg-gray-50">
-            <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-              <UserPlus className="w-4 h-4" />
-              新規アカウント作成
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">名前</Label>
-                <Input value={staffForm.name} onChange={e => setStaffForm(f => ({ ...f, name: e.target.value }))} placeholder="院長名" required />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">権限</Label>
-                <select
-                  value={staffForm.role}
-                  onChange={e => setStaffForm(f => ({ ...f, role: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                >
-                  <option value="admin">管理者</option>
-                  <option value="staff">スタッフ</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">メールアドレス</Label>
-                <Input type="email" value={staffForm.email} onChange={e => setStaffForm(f => ({ ...f, email: e.target.value }))} placeholder="clinic@example.com" required />
-              </div>
-            </div>
-            {staffError && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {staffError}
-              </div>
-            )}
-            {staffSuccess && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                  {staffSuccess}
-                </div>
-                {passwordSetupLink && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-2">
-                    <p className="text-xs text-blue-700 font-medium">パスワード設定リンク</p>
-                    <p className="text-xs text-blue-600">以下のリンクをスタッフに送付してください。スタッフはこのリンクから自分でパスワードを設定できます。</p>
-                    <div className="flex gap-2">
-                      <input
-                        readOnly
-                        value={passwordSetupLink}
-                        className="flex-1 text-xs bg-white border border-blue-200 rounded px-2 py-1 text-gray-600 truncate"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { navigator.clipboard.writeText(passwordSetupLink) }}
-                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap"
+                <Button type="submit" disabled={saving} className="w-full">
+                  {saving ? '保存中...' : '変更を保存'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'contract' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="w-4 h-4 text-purple-600" />
+                契約・プラン情報
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>プラン</Label>
+                    {plans.length > 0 ? (
+                      <select
+                        value={form.plan_name}
+                        onChange={e => {
+                          const selected = plans.find(p => p.name === e.target.value)
+                          update('plan_name', e.target.value)
+                          if (selected) update('monthly_fee', String(selected.monthly_fee))
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                       >
-                        コピー
-                      </button>
-                    </div>
+                        <option value="">—プランを選択—</option>
+                        {plans.map(p => (
+                          <option key={p.id} value={p.name}>{p.name} (¥{p.monthly_fee.toLocaleString('ja-JP')})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input value={form.plan_name} onChange={e => update('plan_name', e.target.value)} placeholder="スタンダード" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>月額（円）</Label>
+                    <Input
+                      type="number"
+                      value={form.monthly_fee}
+                      onChange={e => update('monthly_fee', e.target.value)}
+                      placeholder="29800"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>契約開始日</Label>
+                    <Input type="date" value={form.contract_start} onChange={e => update('contract_start', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>請求先メール</Label>
+                    <Input type="email" value={form.billing_email} onChange={e => update('billing_email', e.target.value)} placeholder={form.email} />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {error}
                   </div>
                 )}
-              </div>
-            )}
-            <Button type="submit" disabled={staffSaving} size="sm" className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              {staffSaving ? '作成中...' : 'アカウントを作成'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* 初期データ投入 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Database className="w-4 h-4 text-green-600" />
-            初期データ投入
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-gray-600">
-            このクリニックにデフォルトのマスタデータを投入します。既存のデータは変更されません。
-          </p>
-          <div className="grid grid-cols-2 gap-2 text-sm text-gray-500">
-            <div>・ キャンセル理由</div>
-            <div>・ 通知テンプレート（5件）</div>
-            <div>・ 問診票（3種）</div>
-            <div>・ トレーニングメニュー（31件）</div>
-          </div>
-
-          {seedResults && (
-            <div className="space-y-2 border rounded-md p-3 bg-gray-50">
-              {Object.entries(seedCategories).map(([key, label]) => {
-                const r = seedResults[key]
-                if (!r) return null
-                return (
-                  <div key={key} className="flex items-center gap-2 text-sm">
-                    {r.success
-                      ? <CheckCircle className="w-4 h-4 text-green-500" />
-                      : <AlertCircle className="w-4 h-4 text-red-500" />}
-                    <span className="font-medium">{label}</span>
-                    <span className="text-gray-500">{r.message}</span>
+                {saveSuccess && (
+                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    保存しました
                   </div>
-                )
-              })}
-            </div>
-          )}
+                )}
 
-          <Button
-            variant="outline"
-            onClick={handleSeed}
-            disabled={seeding}
-            className="w-full flex items-center gap-2"
-          >
-            <Database className="w-4 h-4" />
-            {seeding ? '投入中...' : '初期データを投入する'}
-          </Button>
-        </CardContent>
-      </Card>
+                <Button type="submit" disabled={saving} className="w-full">
+                  {saving ? '保存中...' : '変更を保存'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* 患者データ移行 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Upload className="w-4 h-4 text-orange-600" />
-            患者データ移行
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600 mb-4">
-            他社システムから患者データをCSVで一括インポートします。
-          </p>
-          <Button variant="outline" asChild className="w-full flex items-center gap-2">
-            <Link href={`/admin/clinics/${id}/import`}>
-              <RefreshCw className="w-4 h-4" />
-              データ移行ページへ
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+        {activeTab === 'staff' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Users className="w-4 h-4 text-indigo-600" />
+                スタッフアカウント
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {staffList.length > 0 && (
+                <div className="border rounded-md divide-y text-sm">
+                  {staffList.map(s => (
+                    <div key={s.id} className="flex items-center justify-between px-3 py-2">
+                      <div>
+                        <span className="font-medium text-gray-900">{s.name}</span>
+                        <span className="text-gray-500 ml-2">{s.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${s.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {s.role === 'admin' ? '管理者' : 'スタッフ'}
+                        </span>
+                        {!s.is_active && <span className="text-xs text-gray-400">無効</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-      {/* 削除 */}
-      <Card className="border-red-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-red-700">
-            <Trash2 className="w-4 h-4" />
-            危険な操作
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600 mb-4">
-            クリニックを削除すると、関連するすべてのデータが失われます。この操作は取り消せません。
-          </p>
-          <Button
-            variant="outline"
-            onClick={handleDelete}
-            disabled={deleting}
-            className="border-red-300 text-red-700 hover:bg-red-50 flex items-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? '削除中...' : 'このクリニックを削除'}
-          </Button>
-        </CardContent>
-      </Card>
+              <form onSubmit={handleCreateStaff} className="space-y-3 border rounded-md p-3 bg-gray-50">
+                <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                  <UserPlus className="w-4 h-4" />
+                  新規アカウント作成
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">名前</Label>
+                    <Input value={staffForm.name} onChange={e => setStaffForm(f => ({ ...f, name: e.target.value }))} placeholder="院長名" required />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">権限</Label>
+                    <select
+                      value={staffForm.role}
+                      onChange={e => setStaffForm(f => ({ ...f, role: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="admin">管理者</option>
+                      <option value="staff">スタッフ</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">メールアドレス</Label>
+                    <Input type="email" value={staffForm.email} onChange={e => setStaffForm(f => ({ ...f, email: e.target.value }))} placeholder="clinic@example.com" required />
+                  </div>
+                </div>
+                {staffError && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {staffError}
+                  </div>
+                )}
+                {staffSuccess && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
+                      <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                      {staffSuccess}
+                    </div>
+                    {passwordSetupLink && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-2">
+                        <p className="text-xs text-blue-700 font-medium">パスワード設定リンク</p>
+                        <p className="text-xs text-blue-600">以下のリンクをスタッフに送付してください。スタッフはこのリンクから自分でパスワードを設定できます。</p>
+                        <div className="flex gap-2">
+                          <input
+                            readOnly
+                            value={passwordSetupLink}
+                            className="flex-1 text-xs bg-white border border-blue-200 rounded px-2 py-1 text-gray-600 truncate"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { navigator.clipboard.writeText(passwordSetupLink) }}
+                            className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap"
+                          >
+                            コピー
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <Button type="submit" disabled={staffSaving} size="sm" className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  {staffSaving ? '作成中...' : 'アカウントを作成'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'setup' && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Database className="w-4 h-4 text-green-600" />
+                  初期データ投入
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  このクリニックにデフォルトのマスタデータを投入します。既存のデータは変更されません。
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-sm text-gray-500">
+                  <div>・ キャンセル理由</div>
+                  <div>・ 通知テンプレート（5件）</div>
+                  <div>・ 問診票（3種）</div>
+                  <div>・ トレーニングメニュー（31件）</div>
+                </div>
+
+                {seedResults && (
+                  <div className="space-y-2 border rounded-md p-3 bg-gray-50">
+                    {Object.entries(seedCategories).map(([key, label]) => {
+                      const r = seedResults[key]
+                      if (!r) return null
+                      return (
+                        <div key={key} className="flex items-center gap-2 text-sm">
+                          {r.success
+                            ? <CheckCircle className="w-4 h-4 text-green-500" />
+                            : <AlertCircle className="w-4 h-4 text-red-500" />}
+                          <span className="font-medium">{label}</span>
+                          <span className="text-gray-500">{r.message}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  onClick={handleSeed}
+                  disabled={seeding}
+                  className="w-full flex items-center gap-2"
+                >
+                  <Database className="w-4 h-4" />
+                  {seeding ? '投入中...' : '初期データを投入する'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Upload className="w-4 h-4 text-orange-600" />
+                  患者データ移行
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  他社システムから患者データをCSVで一括インポートします。
+                </p>
+                <Button variant="outline" asChild className="w-full flex items-center gap-2">
+                  <Link href={`/admin/clinics/${id}/import`}>
+                    <RefreshCw className="w-4 h-4" />
+                    データ移行ページへ
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'danger' && (
+          <Card className="border-red-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base text-red-700">
+                <Trash2 className="w-4 h-4" />
+                危険な操作
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-600 mb-4">
+                クリニックを削除すると、関連するすべてのデータが失われます。この操作は取り消せません。
+              </p>
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md mb-4">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="border-red-300 text-red-700 hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? '削除中...' : 'このクリニックを削除'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }

@@ -30,6 +30,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
 }
 
 export default function AdminSettingsPage() {
+  const [activeTab, setActiveTab] = useState<'password' | 'system'>('password')
+
   const [email, setEmail] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -121,175 +123,207 @@ export default function AdminSettingsPage() {
         <p className="text-sm text-gray-500 mt-1">管理者アカウントの設定を変更します</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Lock className="w-4 h-4 text-blue-600" />
-            パスワード変更
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">管理者メールアドレス</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="admin@d-smart.jp"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="currentPassword">現在のパスワード</Label>
-              <Input
-                id="currentPassword"
-                type="password"
-                value={currentPassword}
-                onChange={e => setCurrentPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="newPassword">新しいパスワード（8文字以上）</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">新しいパスワード（確認）</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
+      {/* タブナビゲーション */}
+      <div className="flex space-x-2 border-b">
+        <button
+          onClick={() => setActiveTab('password')}
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+            activeTab === 'password'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Lock className="w-4 h-4" />
+          パスワード変更
+        </button>
+        <button
+          onClick={() => setActiveTab('system')}
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+            activeTab === 'system'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          システム設定
+        </button>
+      </div>
 
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
+      {/* タブコンテンツ */}
+      <div className="mt-2">
+        {activeTab === 'password' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Lock className="w-4 h-4 text-blue-600" />
+                パスワード変更
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">管理者メールアドレス</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="admin@d-smart.jp"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="currentPassword">現在のパスワード</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="newPassword">新しいパスワード（8文字以上）</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirmPassword">新しいパスワード（確認）</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {error}
+                  </div>
+                )}
+                {success && (
+                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    パスワードを変更しました
+                  </div>
+                )}
+
+                <Button type="submit" disabled={loading} className="w-full">
+                  {loading ? '変更中...' : 'パスワードを変更'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'system' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Settings className="w-4 h-4 text-blue-600" />
+                システム設定
+              </CardTitle>
+              <p className="text-sm text-gray-500">請求書・領収書の発行者情報とSMS単価を設定します</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>発行者名（会社名）</Label>
+                  <Input
+                    value={sysSettings.issuer_company_name}
+                    onChange={e => setSysSettings(p => ({ ...p, issuer_company_name: e.target.value }))}
+                    placeholder="株式会社D-MAX"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>郵便番号</Label>
+                  <Input
+                    value={sysSettings.issuer_postal_code}
+                    onChange={e => setSysSettings(p => ({ ...p, issuer_postal_code: e.target.value }))}
+                    placeholder="000-0000"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>都道府県</Label>
+                  <Input
+                    value={sysSettings.issuer_prefecture}
+                    onChange={e => setSysSettings(p => ({ ...p, issuer_prefecture: e.target.value }))}
+                    placeholder="東京都"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>市区町村</Label>
+                  <Input
+                    value={sysSettings.issuer_city}
+                    onChange={e => setSysSettings(p => ({ ...p, issuer_city: e.target.value }))}
+                    placeholder="渋谷区"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>番地・建物名</Label>
+                  <Input
+                    value={sysSettings.issuer_address_line}
+                    onChange={e => setSysSettings(p => ({ ...p, issuer_address_line: e.target.value }))}
+                    placeholder="1-2-3 ○○ビル"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>電話番号</Label>
+                  <Input
+                    value={sysSettings.issuer_phone}
+                    onChange={e => setSysSettings(p => ({ ...p, issuer_phone: e.target.value }))}
+                    placeholder="03-0000-0000"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>適格請求書登録番号（任意）</Label>
+                  <Input
+                    value={sysSettings.issuer_registration_number}
+                    onChange={e => setSysSettings(p => ({ ...p, issuer_registration_number: e.target.value }))}
+                    placeholder="T1234567890123"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>SMS送信料（¥/通）</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={sysSettings.sms_unit_price_jpy}
+                    onChange={e => setSysSettings(p => ({ ...p, sms_unit_price_jpy: Number(e.target.value) }))}
+                  />
+                </div>
               </div>
-            )}
-            {success && (
-              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                パスワードを変更しました
+
+              {sysError && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {sysError}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <Button onClick={handleSysSettingsSave} disabled={sysSaving}>
+                  {sysSaving ? '保存中...' : '保存'}
+                </Button>
+                {sysSaved && (
+                  <span className="text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4" />
+                    保存しました
+                  </span>
+                )}
               </div>
-            )}
-
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? '変更中...' : 'パスワードを変更'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* システム設定（請求書発行者情報・SMS単価） */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Settings className="w-4 h-4 text-blue-600" />
-            システム設定
-          </CardTitle>
-          <p className="text-sm text-gray-500">請求書・領収書の発行者情報とSMS単価を設定します</p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5 md:col-span-2">
-              <Label>発行者名（会社名）</Label>
-              <Input
-                value={sysSettings.issuer_company_name}
-                onChange={e => setSysSettings(p => ({ ...p, issuer_company_name: e.target.value }))}
-                placeholder="株式会社D-MAX"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>郵便番号</Label>
-              <Input
-                value={sysSettings.issuer_postal_code}
-                onChange={e => setSysSettings(p => ({ ...p, issuer_postal_code: e.target.value }))}
-                placeholder="000-0000"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>都道府県</Label>
-              <Input
-                value={sysSettings.issuer_prefecture}
-                onChange={e => setSysSettings(p => ({ ...p, issuer_prefecture: e.target.value }))}
-                placeholder="東京都"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>市区町村</Label>
-              <Input
-                value={sysSettings.issuer_city}
-                onChange={e => setSysSettings(p => ({ ...p, issuer_city: e.target.value }))}
-                placeholder="渋谷区"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>番地・建物名</Label>
-              <Input
-                value={sysSettings.issuer_address_line}
-                onChange={e => setSysSettings(p => ({ ...p, issuer_address_line: e.target.value }))}
-                placeholder="1-2-3 ○○ビル"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>電話番号</Label>
-              <Input
-                value={sysSettings.issuer_phone}
-                onChange={e => setSysSettings(p => ({ ...p, issuer_phone: e.target.value }))}
-                placeholder="03-0000-0000"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>適格請求書登録番号（任意）</Label>
-              <Input
-                value={sysSettings.issuer_registration_number}
-                onChange={e => setSysSettings(p => ({ ...p, issuer_registration_number: e.target.value }))}
-                placeholder="T1234567890123"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>SMS送信料（¥/通）</Label>
-              <Input
-                type="number"
-                min={0}
-                value={sysSettings.sms_unit_price_jpy}
-                onChange={e => setSysSettings(p => ({ ...p, sms_unit_price_jpy: Number(e.target.value) }))}
-              />
-            </div>
-          </div>
-
-          {sysError && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {sysError}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <Button onClick={handleSysSettingsSave} disabled={sysSaving}>
-              {sysSaving ? '保存中...' : '保存'}
-            </Button>
-            {sysSaved && (
-              <span className="text-sm text-green-600 flex items-center gap-1">
-                <CheckCircle className="w-4 h-4" />
-                保存しました
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }
