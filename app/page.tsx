@@ -35,6 +35,9 @@ export default function HomePage() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const [showSettings, setShowSettings] = useState(false)
+  const [staffPermissions, setStaffPermissions] = useState<Record<string, boolean>>({
+    patients: true, analytics: false, settings: false
+  })
 
   // カレンダー更新処理
   const handleRefresh = useCallback(() => {
@@ -60,6 +63,9 @@ export default function HomePage() {
       setTimeSlotMinutes(numericTimeSlotMinutes)
       setDisplayItems(Array.isArray(settings.display_items) ? settings.display_items : [])
       setCellHeight(finalCellHeight)
+      if (settings.staff_permissions) {
+        setStaffPermissions(settings.staff_permissions)
+      }
       setSettingsLoaded(true)
     } catch (error) {
       console.error('設定読み込みエラー:', error)
@@ -265,6 +271,7 @@ export default function HomePage() {
           privacyMode={privacyMode}
           onPrivacyModeChange={setPrivacyMode}
           onRefresh={handleRefresh}
+          staffPermissions={staffPermissions}
         />
       </div>
     </div>

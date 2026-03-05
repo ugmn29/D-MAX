@@ -9,6 +9,7 @@ import { searchPatients } from '@/lib/api/patients'
 import { getDailyMemo, saveDailyMemo } from '@/lib/api/clinic'
 import { formatDateForDB } from '@/lib/utils/date'
 import { Patient, DailyMemo } from '@/types/database'
+import { useAuth } from '@/components/providers/auth-provider'
 
 interface SidebarCalendarProps {
   clinicId: string
@@ -22,6 +23,7 @@ interface SidebarCalendarProps {
   privacyMode?: boolean
   onPrivacyModeChange?: (enabled: boolean) => void
   onRefresh?: () => void
+  staffPermissions?: Record<string, boolean>
 }
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -41,8 +43,11 @@ export function SidebarCalendar({
   onDisplayModeChange,
   privacyMode = false,
   onPrivacyModeChange,
-  onRefresh
+  onRefresh,
+  staffPermissions
 }: SidebarCalendarProps) {
+  const { role } = useAuth()
+  const canSee = (key: string) => role === 'admin' || (staffPermissions?.[key] !== false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Patient[]>([])
@@ -350,6 +355,7 @@ export function SidebarCalendar({
               className="pl-8 h-8 text-sm relative z-10"
             />
           </div>
+          {canSee('patients') && (
           <button
             onClick={() => {
               // 設定ページで未保存の変更があるかチェック
@@ -369,6 +375,7 @@ export function SidebarCalendar({
             <Users className="w-3 h-3 text-gray-600" />
             <span className="text-xs text-gray-700 font-medium">患者</span>
           </button>
+          )}
         </div>
         
         {/* 検索結果 */}
@@ -468,6 +475,7 @@ export function SidebarCalendar({
           </button>
         )}
 
+        {canSee('settings') && (
         <button
           onClick={() => {
             // 設定ページで未保存の変更があるかチェック
@@ -486,6 +494,8 @@ export function SidebarCalendar({
         >
           <Settings className="w-4 h-4 text-gray-600" />
         </button>
+        )}
+        {canSee('analytics') && (
         <button
           onClick={() => {
             // 設定ページで未保存の変更があるかチェック
@@ -504,6 +514,7 @@ export function SidebarCalendar({
         >
           <BarChart3 className="w-4 h-4 text-gray-600" />
         </button>
+        )}
       </div>
     </div>
   )

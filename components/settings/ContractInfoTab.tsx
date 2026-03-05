@@ -60,6 +60,7 @@ function StripeStatusBadge({ status }: { status: string }) {
 
 export function ContractInfoTab() {
   const { clinicId } = useAuth()
+  const [contractTab, setContractTab] = useState<'info' | 'invoice'>('info')
   const [info, setInfo] = useState<ContractInfo>(DEFAULT_CONTRACT)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -165,6 +166,29 @@ export function ContractInfoTab() {
 
   return (
     <div className="space-y-6">
+      {/* サブタブナビ */}
+      <div className="border-b border-gray-200">
+        <nav className="flex space-x-8">
+          {([
+            { key: 'info', label: '契約・請求情報' },
+            { key: 'invoice', label: '月次請求書・領収書' },
+          ] as const).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setContractTab(tab.key)}
+              className={`py-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                contractTab === tab.key
+                  ? 'border-shikabot-primary text-shikabot-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {contractTab === 'info' && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -291,8 +315,9 @@ export function ContractInfoTab() {
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* 月次請求書・領収書 */}
+      {contractTab === 'invoice' && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -382,9 +407,10 @@ export function ContractInfoTab() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* インボイス一覧（Stripe連携済みの場合のみ） */}
-      {hasStripe && (
+      {contractTab === 'invoice' && hasStripe && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
