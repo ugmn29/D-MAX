@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CreditCard, Save, RefreshCw, ExternalLink, Download, CheckCircle, AlertCircle, XCircle, FileText, Receipt } from 'lucide-react'
 import { useAuth } from '@/components/providers/auth-provider'
+import { generateContractMonthList } from '@/lib/utils/contract-history'
 
 interface ContractInfo {
   plan_name: string
@@ -155,19 +156,7 @@ export function ContractInfoTab() {
   const formatDate = (ts: number) =>
     new Date(ts * 1000).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
 
-  // 契約開始月から現在月までの全月リストを降順で生成
-  const generateMonthList = (): { year: number; month: number }[] => {
-    if (!info.contract_start) return []
-    const start = new Date(info.contract_start)
-    const months: { year: number; month: number }[] = []
-    const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
-    const current = new Date(now.getFullYear(), now.getMonth(), 1)
-    while (cursor <= current) {
-      months.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 })
-      cursor.setMonth(cursor.getMonth() + 1)
-    }
-    return months.reverse()
-  }
+  const generateMonthList = () => generateContractMonthList(info.contract_start, now)
 
   if (loading) {
     return (
