@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw, FileText, UserPlus, Users, Upload } from 'lucide-react'
+import { ArrowLeft, Building2, AlertCircle, CheckCircle, Trash2, Database, CreditCard, RefreshCw, FileText, UserPlus, Users, Upload, Pencil, X } from 'lucide-react'
 
 interface SeedResult {
   success: boolean
@@ -40,6 +40,10 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
   const [staffSuccess, setStaffSuccess] = useState('')
   const [passwordSetupLink, setPasswordSetupLink] = useState('')
   const [staffEmailSent, setStaffEmailSent] = useState<boolean | null>(null)
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: 'admin' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -164,6 +168,49 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
       setStaffError('サーバーに接続できません')
     } finally {
       setStaffSaving(false)
+    }
+  }
+
+  const handleStartEdit = (s: { id: string; name: string; email: string | null; role: string }) => {
+    setEditingStaffId(s.id)
+    setEditForm({ name: s.name, email: s.email || '', role: s.role })
+    setEditError('')
+  }
+
+  const handleEditStaff = async (staffId: string) => {
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const res = await fetch(`/api/admin/clinics/${id}/staff/${staffId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      const data = await res.json()
+      if (!res.ok) { setEditError(data.error || '更新に失敗しました'); return }
+      setEditingStaffId(null)
+      const updated = await fetch(`/api/admin/clinics/${id}/staff`).then(r => r.json())
+      if (Array.isArray(updated)) setStaffList(updated)
+    } catch {
+      setEditError('サーバーに接続できません')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const handleDeleteStaff = async (staffId: string, name: string) => {
+    if (!window.confirm(`「${name}」のアカウントを完全に削除しますか？\nこの操作は取り消せません。`)) return
+    try {
+      const res = await fetch(`/api/admin/clinics/${id}/staff/${staffId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error || '削除に失敗しました')
+        return
+      }
+      const updated = await fetch(`/api/admin/clinics/${id}/staff`).then(r => r.json())
+      if (Array.isArray(updated)) setStaffList(updated)
+    } catch {
+      alert('サーバーに接続できません')
     }
   }
 
@@ -400,17 +447,75 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
               {staffList.length > 0 && (
                 <div className="border rounded-md divide-y text-sm">
                   {staffList.map(s => (
-                    <div key={s.id} className="flex items-center justify-between px-3 py-2">
-                      <div>
-                        <span className="font-medium text-gray-900">{s.name}</span>
-                        <span className="text-gray-500 ml-2">{s.email}</span>
+                    <div key={s.id}>
+                      <div className="flex items-center justify-between px-3 py-2">
+                        <div>
+                          <span className="font-medium text-gray-900">{s.name}</span>
+                          <span className="text-gray-500 ml-2">{s.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${s.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {s.role === 'admin' ? '管理者' : 'スタッフ'}
+                          </span>
+                          {!s.is_active && <span className="text-xs text-gray-400">無効</span>}
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(s)}
+                            className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                            title="編集"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteStaff(s.id, s.name)}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            title="削除"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${s.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {s.role === 'admin' ? '管理者' : 'スタッフ'}
-                        </span>
-                        {!s.is_active && <span className="text-xs text-gray-400">無効</span>}
-                      </div>
+                      {editingStaffId === s.id && (
+                        <div className="px-3 py-3 bg-blue-50 border-t space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">名前</Label>
+                              <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} required />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">権限</Label>
+                              <select
+                                value={editForm.role}
+                                onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                              >
+                                <option value="admin">管理者</option>
+                                <option value="staff">スタッフ</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1 col-span-2">
+                              <Label className="text-xs">メールアドレス</Label>
+                              <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} required />
+                            </div>
+                          </div>
+                          {editError && (
+                            <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-2 py-1.5 rounded">
+                              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                              {editError}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <Button size="sm" disabled={editSaving} onClick={() => handleEditStaff(s.id)}>
+                              {editSaving ? '保存中...' : '保存'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingStaffId(null)}>
+                              <X className="w-3.5 h-3.5 mr-1" />
+                              キャンセル
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
