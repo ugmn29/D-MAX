@@ -134,3 +134,17 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Safari and Chrome */
 }
+/* 印刷用スタイル */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-list {
+    width: 100%;
+  }
+
+  body {
+    background: white !important;
+  }
+}
