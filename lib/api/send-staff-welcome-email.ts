@@ -11,7 +11,7 @@ export async function sendStaffWelcomeEmail(params: {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
-      from: 'HubDent <noreply@d-smart.jp>',
+      from: 'HubDent (スタッフ案内) <yoyaku@d-smart.jp>',
       to: email,
       subject: `【HubDent】${clinicName} スタッフアカウントのご案内`,
       text: `${name} 様
