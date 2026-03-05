@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma/client'
 import { convertToDate } from '@/lib/prisma/helpers'
 import { verifyAdmin } from '@/lib/auth/verify-request'
 import { getFirebaseAdmin } from '@/lib/firebase-admin'
+import { sendStaffWelcomeEmail } from '@/lib/api/send-staff-welcome-email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,6 +94,20 @@ export async function POST(request: NextRequest) {
       // リンク生成失敗してもスタッフ作成自体は成功扱い
     }
 
+    // パスワード設定メールを自動送信
+    let emailSent = false
+    if (passwordSetupLink) {
+      const clinic = await prisma.clinics.findUnique({ where: { id: clinicId }, select: { name: true } })
+      if (clinic) {
+        emailSent = await sendStaffWelcomeEmail({
+          email,
+          name,
+          clinicName: clinic.name,
+          passwordSetupLink,
+        })
+      }
+    }
+
     const result = {
       id: newStaff.id,
       name: newStaff.name,
@@ -114,6 +129,7 @@ export async function POST(request: NextRequest) {
         updated_at: convertToDate(newStaff.staff_positions.created_at).toISOString()
       } : undefined,
       passwordSetupLink,
+      emailSent,
     }
 
     return NextResponse.json(result)

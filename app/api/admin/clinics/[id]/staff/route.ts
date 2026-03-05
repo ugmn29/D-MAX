@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/prisma-client'
 import { getFirebaseAdmin } from '@/lib/firebase-admin'
+import { sendStaffWelcomeEmail } from '@/lib/api/send-staff-welcome-email'
 
 function isAdminAuthenticated(request: NextRequest): boolean {
   const session = request.cookies.get('__admin_session')?.value
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const prisma = getPrismaClient()
 
     // クリニック存在確認
-    const clinic = await prisma.clinics.findUnique({ where: { id: clinicId }, select: { id: true } })
+    const clinic = await prisma.clinics.findUnique({ where: { id: clinicId }, select: { id: true, name: true } })
     if (!clinic) {
       return NextResponse.json({ error: 'クリニックが見つかりません' }, { status: 404 })
     }
@@ -72,10 +73,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // パスワード設定リンクを生成（スタッフ自身がパスワードを設定できるよう）
     const passwordSetupLink = await adminAuth.generatePasswordResetLink(email)
 
+    // パスワード設定メールを自動送信
+    const emailSent = await sendStaffWelcomeEmail({
+      email,
+      name,
+      clinicName: clinic.name,
+      passwordSetupLink,
+    })
+
     return NextResponse.json({
       ok: true,
       staff: { id: staff.id, name: staff.name, email: staff.email, role: staff.role },
       passwordSetupLink,
+      emailSent,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

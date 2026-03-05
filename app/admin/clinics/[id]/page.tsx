@@ -39,6 +39,7 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
   const [staffError, setStaffError] = useState('')
   const [staffSuccess, setStaffSuccess] = useState('')
   const [passwordSetupLink, setPasswordSetupLink] = useState('')
+  const [staffEmailSent, setStaffEmailSent] = useState<boolean | null>(null)
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -143,6 +144,7 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
     e.preventDefault()
     setStaffError('')
     setStaffSuccess('')
+    setStaffEmailSent(null)
     setStaffSaving(true)
     try {
       const res = await fetch(`/api/admin/clinics/${id}/staff`, {
@@ -154,6 +156,7 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
       if (!res.ok) { setStaffError(data.error || '作成に失敗しました'); return }
       setStaffSuccess(`アカウントを作成しました（${data.staff?.email}）`)
       setPasswordSetupLink(data.passwordSetupLink || '')
+      setStaffEmailSent(data.emailSent ?? null)
       setStaffForm({ name: '', email: '', role: 'admin' })
       const updated = await fetch(`/api/admin/clinics/${id}/staff`).then(r => r.json())
       if (Array.isArray(updated)) setStaffList(updated)
@@ -451,20 +454,30 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
                       <CheckCircle className="w-4 h-4 flex-shrink-0" />
                       {staffSuccess}
                     </div>
+                    {staffEmailSent === true && (
+                      <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-md">
+                        <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                        パスワード設定メールを送信しました
+                      </div>
+                    )}
                     {passwordSetupLink && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-2">
-                        <p className="text-xs text-blue-700 font-medium">パスワード設定リンク</p>
-                        <p className="text-xs text-blue-600">以下のリンクをスタッフに送付してください。スタッフはこのリンクから自分でパスワードを設定できます。</p>
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3 space-y-2">
+                        <p className="text-xs text-gray-700 font-medium">パスワード設定リンク（フォールバック）</p>
+                        <p className="text-xs text-gray-500">
+                          {staffEmailSent === false
+                            ? 'メール送信に失敗しました。以下のリンクを手動で送付してください。'
+                            : 'メールが届かない場合は以下のリンクをコピーして送付してください。'}
+                        </p>
                         <div className="flex gap-2">
                           <input
                             readOnly
                             value={passwordSetupLink}
-                            className="flex-1 text-xs bg-white border border-blue-200 rounded px-2 py-1 text-gray-600 truncate"
+                            className="flex-1 text-xs bg-white border border-gray-200 rounded px-2 py-1 text-gray-600 truncate"
                           />
                           <button
                             type="button"
                             onClick={() => { navigator.clipboard.writeText(passwordSetupLink) }}
-                            className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap"
+                            className="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 whitespace-nowrap"
                           >
                             コピー
                           </button>
