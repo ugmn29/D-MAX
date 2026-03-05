@@ -280,6 +280,13 @@ export async function getAnalyticsData(
 }
 
 // 比較期間を計算するヘルパー関数
+function fmtLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function calculateComparisonPeriod(
   startDate: string,
   endDate: string,
@@ -300,13 +307,24 @@ function calculateComparisonPeriod(
     prevEnd.setFullYear(prevEnd.getFullYear() - 1)
 
     return {
-      prevStartDate: prevStart.toISOString().split('T')[0],
-      prevEndDate: prevEnd.toISOString().split('T')[0],
+      prevStartDate: fmtLocal(prevStart),
+      prevEndDate: fmtLocal(prevEnd),
       comparisonLabel: '前年同期比'
     }
   }
 
   // 前期間（デフォルト）
+  // 開始日が月初（1日）の場合は前月まるごとを比較対象にする
+  if (start.getDate() === 1) {
+    const prevMonthEnd = new Date(start.getFullYear(), start.getMonth(), 0) // 前月末日
+    const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1) // 前月1日
+    return {
+      prevStartDate: fmtLocal(prevMonthStart),
+      prevEndDate: fmtLocal(prevMonthEnd),
+      comparisonLabel: '前月比'
+    }
+  }
+
   const periodDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
   const prevEnd = new Date(start)
   prevEnd.setDate(prevEnd.getDate() - 1)
@@ -314,8 +332,8 @@ function calculateComparisonPeriod(
   prevStart.setDate(prevStart.getDate() - periodDays + 1)
 
   return {
-    prevStartDate: prevStart.toISOString().split('T')[0],
-    prevEndDate: prevEnd.toISOString().split('T')[0],
+    prevStartDate: fmtLocal(prevStart),
+    prevEndDate: fmtLocal(prevEnd),
     comparisonLabel: '前期比'
   }
 }
