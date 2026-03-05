@@ -60,7 +60,7 @@ function StripeStatusBadge({ status }: { status: string }) {
 
 export function ContractInfoTab() {
   const { clinicId } = useAuth()
-  const [contractTab, setContractTab] = useState<'info' | 'invoice'>('info')
+  const [contractTab, setContractTab] = useState<'info' | 'invoice' | 'history'>('info')
   const [info, setInfo] = useState<ContractInfo>(DEFAULT_CONTRACT)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -155,6 +155,21 @@ export function ContractInfoTab() {
   const formatDate = (ts: number) =>
     new Date(ts * 1000).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
 
+  // 契約開始月から現在月までの全月リストを降順で生成
+  const generateMonthList = (): { year: number; month: number }[] => {
+    const start = info.contract_start
+      ? new Date(info.contract_start)
+      : new Date(now.getFullYear() - 2, 0, 1)
+    const months: { year: number; month: number }[] = []
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
+    const current = new Date(now.getFullYear(), now.getMonth(), 1)
+    while (cursor <= current) {
+      months.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 })
+      cursor.setMonth(cursor.getMonth() + 1)
+    }
+    return months.reverse()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40 text-gray-400">
@@ -172,6 +187,7 @@ export function ContractInfoTab() {
           {([
             { key: 'info', label: '契約・請求情報' },
             { key: 'invoice', label: '月次請求書・領収書' },
+            { key: 'history', label: '契約履歴' },
           ] as const).map(tab => (
             <button
               key={tab.key}
@@ -416,6 +432,144 @@ export function ContractInfoTab() {
             <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="h-5 w-5 text-blue-600" />
               請求書一覧
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {invoicesLoading ? (
+              <div className="flex items-center justify-center h-20 text-gray-400">
+                <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                読み込み中...
+              </div>
+            ) : invoices.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">請求書はありません</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-gray-500">
+                      <th className="text-left py-2 pr-4 font-medium">請求書番号</th>
+                      <th className="text-left py-2 pr-4 font-medium">ステータス</th>
+                      <th className="text-left py-2 pr-4 font-medium">金額</th>
+                      <th className="text-left py-2 pr-4 font-medium">対象期間</th>
+                      <th className="text-left py-2 font-medium">ダウンロード</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {invoices.map(inv => (
+                      <tr key={inv.id} className="hover:bg-gray-50">
+                        <td className="py-3 pr-4 font-mono text-xs">{inv.number || inv.id.slice(-8)}</td>
+                        <td className="py-3 pr-4">
+                          {inv.status && <StripeStatusBadge status={inv.status} />}
+                        </td>
+                        <td className="py-3 pr-4 font-medium">{formatAmount(inv.amount_paid, inv.currency)}</td>
+                        <td className="py-3 pr-4 text-gray-500 text-xs">
+                          {formatDate(inv.period_start)} 〜 {formatDate(inv.period_end)}
+                        </td>
+                        <td className="py-3">
+                          <div className="flex gap-3">
+                            {inv.hosted_invoice_url && (
+                              <a
+                                href={inv.hosted_invoice_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                表示
+                              </a>
+                            )}
+                            {inv.invoice_pdf && (
+                              <a
+                                href={inv.invoice_pdf}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                <Download className="w-3 h-3" />
+                                PDF
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {contractTab === 'history' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-5 w-5 text-blue-600" />
+              契約履歴
+            </CardTitle>
+            <p className="text-sm text-gray-500">
+              {info.contract_start
+                ? `${info.contract_start} から現在までの請求履歴`
+                : '過去2年間の請求履歴'}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-gray-500">
+                    <th className="text-left py-2 pr-4 font-medium">対象月</th>
+                    <th className="text-left py-2 pr-4 font-medium">プラン</th>
+                    <th className="text-left py-2 font-medium">ダウンロード</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {generateMonthList().map(({ year, month }) => (
+                    <tr key={`${year}-${month}`} className="hover:bg-gray-50">
+                      <td className="py-3 pr-4 font-medium">
+                        {year}年{month}月
+                      </td>
+                      <td className="py-3 pr-4 text-gray-600 text-xs">
+                        {info.plan_name}
+                      </td>
+                      <td className="py-3">
+                        <div className="flex gap-3">
+                          <a
+                            href={clinicId ? `/api/clinics/${clinicId}/invoices/pdf?year=${year}&month=${month}&type=invoice` : '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            <Download className="w-3 h-3" />
+                            請求書
+                          </a>
+                          <a
+                            href={clinicId ? `/api/clinics/${clinicId}/invoices/pdf?year=${year}&month=${month}&type=receipt` : '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-800"
+                          >
+                            <Download className="w-3 h-3" />
+                            領収書
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {contractTab === 'history' && hasStripe && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-5 w-5 text-blue-600" />
+              Stripe 請求書一覧
             </CardTitle>
           </CardHeader>
           <CardContent>
