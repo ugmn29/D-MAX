@@ -83,6 +83,61 @@ export async function setIndividualHoliday(clinicId: string, date: string, isHol
   }
 }
 
+// 時間帯休診の取得（月単位）
+export async function getIndividualHolidayTimeRanges(
+  clinicId: string,
+  year: number,
+  month: number
+): Promise<Record<string, { startTime: string; endTime: string }[]>> {
+  try {
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      : ''
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate()
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    const params = new URLSearchParams({ clinic_id: clinicId, start_date: startDate, end_date: endDate })
+    const response = await fetchWithRetry(`${baseUrl}/api/individual-holiday-time-ranges?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) return {}
+    return await response.json()
+  } catch {
+    return {}
+  }
+}
+
+// 時間帯休診の保存（該当日を一括置換）
+export async function setIndividualHolidayTimeRanges(
+  clinicId: string,
+  date: string,
+  ranges: { start_time: string; end_time: string }[]
+): Promise<void> {
+  const baseUrl = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
+  const response = await fetch(`${baseUrl}/api/individual-holiday-time-ranges`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clinic_id: clinicId, date, ranges })
+  })
+  if (!response.ok) throw new Error('時間帯休診の設定に失敗しました')
+}
+
+// 時間帯休診の全削除（該当日）
+export async function deleteIndividualHolidayTimeRanges(clinicId: string, date: string): Promise<void> {
+  const baseUrl = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
+  const response = await fetch(`${baseUrl}/api/individual-holiday-time-ranges`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clinic_id: clinicId, date })
+  })
+  if (!response.ok) throw new Error('時間帯休診の削除に失敗しました')
+}
+
 // 個別休診日の削除
 export async function deleteIndividualHoliday(clinicId: string, date: string): Promise<void> {
   try {

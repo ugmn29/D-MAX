@@ -10,11 +10,11 @@ import { getShiftPatterns } from '@/lib/api/shift-patterns'
 import { getStaffShifts, upsertStaffShift } from '@/lib/api/shifts'
 import { getStaff, saveStaffWeeklySchedule, getStaffWeeklySchedule, WeeklySchedule, getStaffPositions } from '@/lib/api/staff'
 import { getHolidays, setClinicSetting } from '@/lib/api/clinic'
-import { getIndividualHolidays, setIndividualHoliday } from '@/lib/api/individual-holidays'
+import { getIndividualHolidays, setIndividualHoliday, deleteIndividualHoliday, getIndividualHolidayTimeRanges, setIndividualHolidayTimeRanges, deleteIndividualHolidayTimeRanges } from '@/lib/api/individual-holidays'
 import { formatDateForDB } from '@/lib/utils/date'
 import { ShiftModal } from './shift-modal'
 import { StaffScheduleModal } from './staff-schedule-modal'
-import { DateHolidayModal } from './date-holiday-modal'
+import { DateHolidayModal, TimeRange, HolidayType } from './date-holiday-modal'
 import { BulkHolidayModal } from './bulk-holiday-modal'
 import { WorkingDayModal } from './working-day-modal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -51,6 +51,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
   const [showDateHolidayModal, setShowDateHolidayModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
   const [individualHolidays, setIndividualHolidays] = useState<Record<string, boolean>>({})
+  const [holidayTimeRanges, setHolidayTimeRanges] = useState<Record<string, TimeRange[]>>({})
   const [showBulkHolidayModal, setShowBulkHolidayModal] = useState(false)
   const [showWorkingDayModal, setShowWorkingDayModal] = useState(false)
   const [selectedWorkingDate, setSelectedWorkingDate] = useState('')
@@ -108,13 +109,14 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
 
       console.log('シフト表データ読み込み開始:', { clinicId, year, month })
 
-      const [staffData, positionsData, patternsData, shiftsData, holidaysData, individualHolidaysData] = await Promise.all([
+      const [staffData, positionsData, patternsData, shiftsData, holidaysData, individualHolidaysData, timeRangesData] = await Promise.all([
         getStaff(clinicId),
         getStaffPositions(clinicId),
         getShiftPatterns(clinicId),
         getStaffShifts(clinicId, year, month),
         getHolidays(clinicId),
-        getIndividualHolidays(clinicId, year, month)
+        getIndividualHolidays(clinicId, year, month),
+        getIndividualHolidayTimeRanges(clinicId, year, month)
       ])
 
       console.log('読み込んだデータ:', {
@@ -162,6 +164,7 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
       setShifts(shiftsData)
       setHolidays(holidaysData)
       setIndividualHolidays(individualHolidaysData)
+      setHolidayTimeRanges(timeRangesData)
     } catch (error) {
       console.error('データ読み込みエラー:', error)
     } finally {
@@ -228,18 +231,28 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     return shifts.find(s => s.staff_id === staffId && s.date === dateString)
   }
 
+  // 個別設定の休診タイプを取得（曜日設定は含まない）
+  const getHolidayTypeForDate = (dateString: string): HolidayType => {
+    if (individualHolidays.hasOwnProperty(dateString) && individualHolidays[dateString]) return 'full'
+    if (holidayTimeRanges[dateString]?.length > 0) return 'timeRange'
+    return 'none'
+  }
+
   // 日付ヘッダーのクリック（休診日/診療日設定モーダルを開く）
   const handleDateHeaderClick = (dateString: string) => {
     console.log('日付ヘッダークリック:', dateString)
-    const clickedDate = new Date(dateString)
-    const isCurrentlyHoliday = isHoliday(clickedDate)
-    
-    if (isCurrentlyHoliday) {
-      // 休診日の場合は診療日設定モーダルを開く
+    const holidayType = getHolidayTypeForDate(dateString)
+
+    if (holidayType === 'timeRange') {
+      // 時間帯休診 → DateHolidayModal（prefill）
+      setSelectedDate(dateString)
+      setShowDateHolidayModal(true)
+    } else if (isHoliday(new Date(dateString))) {
+      // 全日休診 or 曜日設定 → WorkingDayModal（削除）
       setSelectedWorkingDate(dateString)
       setShowWorkingDayModal(true)
     } else {
-      // 診療日の場合は休診日設定モーダルを開く
+      // 診療日 → DateHolidayModal（新規）
       setSelectedDate(dateString)
       setShowDateHolidayModal(true)
     }
@@ -296,22 +309,53 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
     }
   }
 
-  // 個別休診日保存
-  const handleDateHolidaySave = async (isHoliday: boolean) => {
+  // 個別休診日保存（全日 or 時間帯）
+  const handleDateHolidaySave = async (type: 'full' | 'timeRange', ranges?: TimeRange[]) => {
     try {
       setLoading(true)
-      await setIndividualHoliday(clinicId, selectedDate, isHoliday)
-      
-      // 個別休診日データを再読み込み
       const year = currentDate.getFullYear()
       const month = currentDate.getMonth() + 1
-      const individualHolidaysData = await getIndividualHolidays(clinicId, year, month)
-      setIndividualHolidays(individualHolidaysData)
-      
-      console.log('個別休診日を保存しました:', { date: selectedDate, isHoliday })
+
+      if (type === 'full') {
+        // 全日休診: 既存の時間帯休診を削除してから全日設定
+        await deleteIndividualHolidayTimeRanges(clinicId, selectedDate).catch(() => {})
+        await setIndividualHoliday(clinicId, selectedDate, true)
+      } else {
+        // 時間帯休診: 既存の全日休診を削除してから時間帯設定
+        await deleteIndividualHoliday(clinicId, selectedDate).catch(() => {})
+        await setIndividualHolidayTimeRanges(
+          clinicId,
+          selectedDate,
+          ranges!.map(r => ({ start_time: r.startTime, end_time: r.endTime }))
+        )
+      }
+
+      const [ihData, trData] = await Promise.all([
+        getIndividualHolidays(clinicId, year, month),
+        getIndividualHolidayTimeRanges(clinicId, year, month)
+      ])
+      setIndividualHolidays(ihData)
+      setHolidayTimeRanges(trData)
     } catch (error) {
       console.error('個別休診日保存エラー:', error)
       alert('休診日の設定に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 時間帯休診削除
+  const handleDateHolidayDelete = async () => {
+    try {
+      setLoading(true)
+      await deleteIndividualHolidayTimeRanges(clinicId, selectedDate)
+      const year = currentDate.getFullYear()
+      const month = currentDate.getMonth() + 1
+      const trData = await getIndividualHolidayTimeRanges(clinicId, year, month)
+      setHolidayTimeRanges(trData)
+    } catch (error) {
+      console.error('時間帯休診削除エラー:', error)
+      alert('時間帯休診の削除に失敗しました')
     } finally {
       setLoading(false)
     }
@@ -337,10 +381,14 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
       const year = currentDate.getFullYear()
       const month = currentDate.getMonth() + 1
       console.log('診療日設定: 個別休診日を再読み込み', { clinicId, year, month })
-      const individualHolidaysData = await getIndividualHolidays(clinicId, year, month)
+      const [individualHolidaysData, timeRangesData] = await Promise.all([
+        getIndividualHolidays(clinicId, year, month),
+        getIndividualHolidayTimeRanges(clinicId, year, month)
+      ])
       console.log('診療日設定: 取得した個別休診日データ:', individualHolidaysData)
       setIndividualHolidays(individualHolidaysData)
-      
+      setHolidayTimeRanges(timeRangesData)
+
       console.log('診療日設定を保存しました:', selectedWorkingDate)
     } catch (error) {
       console.error('診療日設定読み込みエラー:', error)
@@ -602,19 +650,29 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
                   </th>
                   {days.map((day) => {
                     const dayDate = new Date(day.dateString)
-                    const isHolidayDay = isHoliday(dayDate)
+                    const isFullHolidayDay = isHoliday(dayDate)
+                    const timeRangesForDay = holidayTimeRanges[day.dateString] || []
+                    const isTimeRangeDay = timeRangesForDay.length > 0 && !isFullHolidayDay
+                    const headerBg = isFullHolidayDay
+                      ? 'bg-gray-200'
+                      : isTimeRangeDay
+                      ? 'bg-amber-100'
+                      : 'bg-gray-50'
                     return (
                       <th
                         key={day.date}
-                        className={`border border-gray-300 px-0.5 py-2 text-xs font-medium text-center cursor-pointer min-w-[28px] hover:bg-gray-200 ${
-                          isHolidayDay ? 'bg-gray-200' : 'bg-gray-50'
-                        }`}
+                        className={`border border-gray-300 px-0.5 py-2 text-xs font-medium text-center cursor-pointer min-w-[32px] hover:bg-gray-200 ${headerBg}`}
                         onClick={() => handleDateHeaderClick(day.dateString)}
                       >
                         <div className={day.isSunday ? 'text-red-600' : day.isSaturday ? 'text-blue-600' : 'text-gray-900'}>{day.date}</div>
                         <div className={`text-xs ${day.isSunday ? 'text-red-500' : day.isSaturday ? 'text-blue-500' : 'text-gray-500'}`}>
                           {getDayName(day.dayOfWeek)}
                         </div>
+                        {isTimeRangeDay && (
+                          <div className="text-amber-700 leading-tight" style={{ fontSize: '9px' }}>
+                            {timeRangesForDay.map(r => `${r.startTime}-${r.endTime}`).join(' ')}
+                          </div>
+                        )}
                       </th>
                     )
                   })}
@@ -735,8 +793,10 @@ export function ShiftTable({ clinicId, refreshTrigger }: ShiftTableProps) {
             setSelectedDate('')
           }}
           date={selectedDate}
-          isCurrentlyHoliday={selectedDate ? isHoliday(new Date(selectedDate)) : false}
+          currentHolidayType={selectedDate ? getHolidayTypeForDate(selectedDate) : 'none'}
+          currentTimeRanges={selectedDate ? (holidayTimeRanges[selectedDate] || []) : []}
           onSave={handleDateHolidaySave}
+          onDelete={handleDateHolidayDelete}
         />
 
         {/* 一括休診日設定モーダル */}
