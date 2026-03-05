@@ -43,7 +43,7 @@ describe('sendStaffWelcomeEmail', () => {
 
     expect(mockEmailsSend).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: 'HubDent (スタッフ案内) <yoyaku@d-smart.jp>',
+        from: 'HubDent (スタッフ案内) <yoyaku@hubdent.net>',
         to: 'staff@example.com',
         subject: '【HubDent】テスト歯科クリニック スタッフアカウントのご案内',
         text: expect.stringContaining('https://reset.example.com/setup-link'),

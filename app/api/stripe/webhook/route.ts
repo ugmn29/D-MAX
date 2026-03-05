@@ -30,7 +30,7 @@ async function sendBillingEmail(to: string, subject: string, html: string) {
   if (!to) return
   const resend = getResend()
   await resend.emails.send({
-    from: 'HubDent <billing@d-smart.jp>',
+    from: 'HubDent <billing@hubdent.net>',
     to,
     subject,
     html,
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
               <tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">請求書番号</td><td style="padding:8px;border:1px solid #e5e7eb">${inv.number || '-'}</td></tr>
             </table>
             ${pdfLink}
-            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@d-smart.jp">support@d-smart.jp</a> までお問い合わせください。</p>
+            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@hubdent.net">support@hubdent.net</a> までお問い合わせください。</p>
             <p style="color:#6b7280;font-size:14px">HubDent サポートチーム</p>
           </div>`
         )
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
             <p>大変恐れ入りますが、HubDentのご利用料金のお支払い処理に失敗しました。</p>
             <p>クレジットカード情報をご確認のうえ、お支払い情報を更新してください。</p>
             <p>サービスが停止される前に、お早めのご対応をお願いいたします。</p>
-            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@d-smart.jp">support@d-smart.jp</a> までお問い合わせください。</p>
+            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@hubdent.net">support@hubdent.net</a> までお問い合わせください。</p>
             <p style="color:#6b7280;font-size:14px">HubDent サポートチーム</p>
           </div>`
         )
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
             <p>HubDentのトライアル期間が <strong>${trialEnd}</strong> に終了します。</p>
             <p>引き続きHubDentをご利用いただくために、お支払い情報をご確認ください。<br>
             トライアル期間終了後は自動的に有料プランへ移行します。</p>
-            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@d-smart.jp">support@d-smart.jp</a> までお問い合わせください。</p>
+            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@hubdent.net">support@hubdent.net</a> までお問い合わせください。</p>
             <p style="color:#6b7280;font-size:14px">HubDent サポートチーム</p>
           </div>`
         )
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
             <p>HubDentのサブスクリプションが解約されました。<br>
             これまでご利用いただきありがとうございました。</p>
             <p>またのご利用をお待ちしております。</p>
-            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@d-smart.jp">support@d-smart.jp</a> までお問い合わせください。</p>
+            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@hubdent.net">support@hubdent.net</a> までお問い合わせください。</p>
             <p style="color:#6b7280;font-size:14px">HubDent サポートチーム</p>
           </div>`
         )
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
               <tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">現在のプラン</td><td style="padding:8px;border:1px solid #e5e7eb">${planName}</td></tr>
               <tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">次回更新日</td><td style="padding:8px;border:1px solid #e5e7eb">${nextBilling}</td></tr>
             </table>
-            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@d-smart.jp">support@d-smart.jp</a> までお問い合わせください。</p>
+            <p style="color:#6b7280;font-size:14px">ご不明点は <a href="mailto:support@hubdent.net">support@hubdent.net</a> までお問い合わせください。</p>
             <p style="color:#6b7280;font-size:14px">HubDent サポートチーム</p>
           </div>`
         )

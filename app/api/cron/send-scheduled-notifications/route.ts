@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
           }
           const resend = new Resend(process.env.RESEND_API_KEY)
           const { error } = await resend.emails.send({
-            from: 'HubDent予約 <yoyaku@d-smart.jp>',
+            from: 'HubDent予約 <yoyaku@hubdent.net>',
             to: patient.email,
             subject: '通知',
             text: schedule.custom_message || '',

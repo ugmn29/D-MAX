@@ -16,7 +16,7 @@ export async function sendStaffWelcomeEmail(params: {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
-      from: 'HubDent (スタッフ案内) <yoyaku@d-smart.jp>',
+      from: 'HubDent (スタッフ案内) <yoyaku@hubdent.net>',
       to: email,
       subject: `【HubDent】${clinicName} スタッフアカウントのご案内`,
       text: `${name} 様
@@ -29,7 +29,7 @@ ${clinicName} のHubDentスタッフアカウントが作成されました。
 ${passwordSetupLink}
 
 パスワード設定後は以下のURLからログインできます：
-https://app.hubdent.jp/login
+https://hubdent.net/login
 
 ご不明点はシステム管理者にお問い合わせください。`,
     })

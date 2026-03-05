@@ -637,7 +637,7 @@ export function ContractInfoTab() {
       <Card className="bg-blue-50/50 border-blue-100">
         <CardContent className="pt-4 pb-4 text-sm text-blue-800">
           <p className="font-medium mb-1">お問い合わせ</p>
-          <p className="text-xs text-blue-700">プラン変更・解約・請求に関するご質問は <strong>support@d-smart.jp</strong> までご連絡ください</p>
+          <p className="text-xs text-blue-700">プラン変更・解約・請求に関するご質問は <strong>support@hubdent.net</strong> までご連絡ください</p>
         </CardContent>
       </Card>
     </div>

@@ -100,7 +100,7 @@ async function sendEmailNotification(
     }
     const fromName = clinicName ? `${clinicName}（HubDent予約）` : 'HubDent予約'
     const { error } = await getResendClient().emails.send({
-      from: `${fromName} <yoyaku@d-smart.jp>`,
+      from: `${fromName} <yoyaku@hubdent.net>`,
       to,
       subject,
       text: message,
