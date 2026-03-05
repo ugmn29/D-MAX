@@ -33,20 +33,28 @@ export default function AnalyticsPage() {
   const [drilldownMenus, setDrilldownMenus] = useState<TreatmentMenuStats[]>([])
   const [menuBreadcrumb, setMenuBreadcrumb] = useState<{id: string, name: string, level: number}[]>([])
   const [selectedPreset, setSelectedPreset] = useState<string>('今月')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  // ローカル日時を YYYY-MM-DD 形式にフォーマット（toISOString はUTC変換でズレるため使わない）
+  const fmtLocal = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
 
   // デフォルトの日付範囲を設定（今月）
   useEffect(() => {
     const today = new Date()
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
 
-    setEndDate(today.toISOString().split('T')[0])
-    setStartDate(firstDay.toISOString().split('T')[0])
+    setEndDate(fmtLocal(today))
+    setStartDate(fmtLocal(firstDay))
   }, [])
 
   // 期間プリセットを適用
   const applyPreset = (preset: string) => {
     const today = new Date()
-    const fmt = (d: Date) => d.toISOString().split('T')[0]
     let start: Date
     let end: Date = new Date(today)
 
@@ -77,8 +85,8 @@ export default function AnalyticsPage() {
     }
 
     setSelectedPreset(preset)
-    setStartDate(fmt(start))
-    setEndDate(fmt(end))
+    setStartDate(fmtLocal(start))
+    setEndDate(fmtLocal(end))
   }
 
   // 分析データを取得
@@ -119,6 +127,12 @@ export default function AnalyticsPage() {
       loadAnalyticsData()
     }
   }, [startDate, endDate, comparisonType, clinicId])
+
+  // 全データ更新
+  const handleRefreshAll = () => {
+    loadAnalyticsData()
+    setRefreshTrigger(v => v + 1)
+  }
 
   // メニュードリルダウン処理
   const handleMenuClick = async (menuId: string, menuName: string, level: number) => {
@@ -217,6 +231,17 @@ export default function AnalyticsPage() {
             カスタム
           </button>
         </div>
+        {/* 更新ボタン */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefreshAll}
+          disabled={loading}
+          className="flex items-center gap-1.5 flex-shrink-0"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          更新
+        </Button>
         {/* 分析設定ボタン */}
         <Button
           variant="outline"
@@ -821,6 +846,7 @@ export default function AnalyticsPage() {
               clinicId={clinicId}
               startDate={startDate}
               endDate={endDate}
+              refreshTrigger={refreshTrigger}
             />
           )}
         </>

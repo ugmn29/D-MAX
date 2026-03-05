@@ -31,6 +31,7 @@ interface IntegratedVisitAnalysisTabProps {
   clinicId: string
   startDate: string
   endDate: string
+  refreshTrigger?: number
 }
 
 interface ExtendedAnalyticsData {
@@ -116,7 +117,8 @@ interface ROIData {
 export default function IntegratedVisitAnalysisTab({
   clinicId,
   startDate,
-  endDate
+  endDate,
+  refreshTrigger
 }: IntegratedVisitAnalysisTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<
     'overview' | 'time' | 'repeat' | 'behavior' | 'marketing' |
@@ -180,7 +182,7 @@ export default function IntegratedVisitAnalysisTab({
 
   useEffect(() => {
     loadData()
-  }, [clinicId, startDate, endDate])
+  }, [clinicId, startDate, endDate, refreshTrigger])
 
   const loadData = async () => {
     setLoading(true)
@@ -295,15 +297,7 @@ export default function IntegratedVisitAnalysisTab({
 
   return (
     <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="flex items-center justify-end">
-        <Button variant="outline" onClick={loadData}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          更新
-        </Button>
-      </div>
-
-      <>
+<>
           {/* サブタブ */}
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-4 overflow-x-auto">
