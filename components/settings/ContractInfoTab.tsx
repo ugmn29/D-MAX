@@ -157,9 +157,8 @@ export function ContractInfoTab() {
 
   // 契約開始月から現在月までの全月リストを降順で生成
   const generateMonthList = (): { year: number; month: number }[] => {
-    const start = info.contract_start
-      ? new Date(info.contract_start)
-      : new Date(now.getFullYear() - 2, 0, 1)
+    if (!info.contract_start) return []
+    const start = new Date(info.contract_start)
     const months: { year: number; month: number }[] = []
     const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
     const current = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -508,11 +507,9 @@ export function ContractInfoTab() {
               <FileText className="h-5 w-5 text-blue-600" />
               契約履歴
             </CardTitle>
-            <p className="text-sm text-gray-500">
-              {info.contract_start
-                ? `${info.contract_start} から現在までの請求履歴`
-                : '過去2年間の請求履歴'}
-            </p>
+            {info.contract_start && (
+              <p className="text-sm text-gray-500">{info.contract_start} から現在までの請求履歴</p>
+            )}
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -524,6 +521,15 @@ export function ContractInfoTab() {
                     <th className="text-left py-2 font-medium">ダウンロード</th>
                   </tr>
                 </thead>
+                {!info.contract_start && (
+                  <tbody>
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-sm text-gray-400">
+                        契約開始日が設定されていません
+                      </td>
+                    </tr>
+                  </tbody>
+                )}
                 <tbody className="divide-y">
                   {generateMonthList().map(({ year, month }) => (
                     <tr key={`${year}-${month}`} className="hover:bg-gray-50">
