@@ -303,25 +303,23 @@ export async function sendNotification(
     let success = false
     let failureReason = ''
 
+    // 1. LINE連携を先に確認（常に優先）
+    const lineUserId = await getLineUserIdForPatient(schedule.patient_id)
+    // 2. LINE連携あり → LINE優先、なければスケジュールのチャンネル（デフォルト: email）
+    const effectiveChannel = lineUserId ? 'line' : (schedule.send_channel || 'email')
+
     // チャンネルに応じて送信
-    if (schedule.send_channel === 'line') {
+    if (effectiveChannel === 'line') {
       if (!settings.line.enabled || !settings.line.channel_access_token) {
         failureReason = 'LINE設定が無効です'
       } else {
-        // LINE User IDを取得
-        const lineUserId = await getLineUserIdForPatient(schedule.patient_id)
-
-        if (lineUserId) {
-          success = await sendLineNotification(
-            lineUserId,
-            schedule.message,
-            settings.line.channel_access_token
-          )
-        } else {
-          failureReason = 'LINE連携されていません'
-        }
+        success = await sendLineNotification(
+          lineUserId!,
+          schedule.message,
+          settings.line.channel_access_token
+        )
       }
-    } else if (schedule.send_channel === 'email') {
+    } else if (effectiveChannel === 'email') {
       if (!process.env.RESEND_API_KEY) {
         failureReason = 'メール送信が設定されていません'
       } else if (!schedule.patients?.email) {
@@ -334,7 +332,7 @@ export async function sendNotification(
           clinicName
         )
       }
-    } else if (schedule.send_channel === 'sms') {
+    } else if (effectiveChannel === 'sms') {
       if (!getTwilioClient() || !process.env.TWILIO_FROM_NUMBER) {
         failureReason = 'SMS送信が設定されていません'
       } else if (!schedule.patients?.phone) {
@@ -353,7 +351,7 @@ export async function sendNotification(
         schedule.id,
         schedule.patient_id,
         schedule.clinic_id,
-        schedule.send_channel
+        effectiveChannel
       )
 
       return { success: true }
@@ -364,7 +362,7 @@ export async function sendNotification(
         schedule.id,
         schedule.patient_id,
         schedule.clinic_id,
-        schedule.send_channel,
+        effectiveChannel,
         failureReason || '送信に失敗しました',
         retryCount
       )

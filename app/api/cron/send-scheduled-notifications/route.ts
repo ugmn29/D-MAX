@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/prisma-client'
+import { Resend } from 'resend'
 
 /**
  * GET /api/cron/send-scheduled-notifications
@@ -66,56 +67,74 @@ export async function GET(request: NextRequest) {
     // 各通知を処理
     for (const schedule of schedules) {
       try {
-        // LINEチャネルのみ処理（email, smsは別途実装が必要）
-        if (schedule.send_channel !== 'line') {
-          console.log(`スキップ（非LINE）: ${schedule.id}`)
+        // LINE連携を確認（常に優先）
+        const lineUserLink = await prisma.line_user_links.findFirst({
+          where: {
+            patient_id: schedule.patient_id,
+            clinic_id: schedule.clinic_id,
+            is_blocked: false
+          },
+          select: { line_user_id: true }
+        })
+        const lineUserId = lineUserLink?.line_user_id ?? null
+        const effectiveChannel = lineUserId ? 'line' : (schedule.send_channel || 'email')
+
+        if (effectiveChannel === 'line') {
+          // LINE通知を送信
+          const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/line/send-notification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clinic_id: schedule.clinic_id,
+              patient_id: schedule.patient_id,
+              notification_type: schedule.notification_type,
+              template_id: schedule.template_id,
+              custom_data: {
+                treatment_menu_name: schedule.treatment_menus?.name,
+                message: schedule.custom_message
+              }
+            })
+          })
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.message || 'LINE送信失敗')
+          }
+        } else if (effectiveChannel === 'email') {
+          // メール通知を送信（Resend経由）
+          if (!process.env.RESEND_API_KEY) {
+            throw new Error('RESEND_API_KEY が設定されていません')
+          }
+          const patient = await prisma.patients.findUnique({
+            where: { id: schedule.patient_id },
+            select: { email: true, name: true }
+          })
+          if (!patient?.email) {
+            throw new Error('メールアドレスが登録されていません')
+          }
+          const resend = new Resend(process.env.RESEND_API_KEY)
+          const { error } = await resend.emails.send({
+            from: 'HubDent予約 <yoyaku@d-smart.jp>',
+            to: patient.email,
+            subject: '通知',
+            text: schedule.custom_message || '',
+          })
+          if (error) throw new Error(error.message)
+        } else {
+          console.log(`スキップ（SMS未対応）: ${schedule.id}`)
           continue
         }
 
-        // Web予約URLを生成（該当する場合）
-        let webBookingUrl = null
-        const webBookingMenuIds = schedule.web_booking_menu_ids as any
-        if (webBookingMenuIds && webBookingMenuIds.length > 0) {
-          // TODO: Web予約トークンを生成してLIFF URLを作成
-          webBookingUrl = `${process.env.NEXT_PUBLIC_APP_URL}/web-booking?clinic_id=${schedule.clinic_id}`
-        }
-
-        // 治療メニュー名を取得
-        const treatmentMenuName = schedule.treatment_menus?.name
-
-        // LINE通知を送信
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/line/send-notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clinic_id: schedule.clinic_id,
-            patient_id: schedule.patient_id,
-            notification_type: schedule.notification_type,
-            template_id: schedule.template_id,
-            custom_data: {
-              treatment_menu_name: treatmentMenuName,
-              web_booking_url: webBookingUrl,
-              message: schedule.custom_message
-            }
-          })
+        // 送信成功: ステータスを更新
+        await prisma.patient_notification_schedules.update({
+          where: { id: schedule.id },
+          data: {
+            status: 'sent',
+            sent_at: new Date()
+          }
         })
 
-        if (response.ok) {
-          // 送信成功: ステータスを更新
-          await prisma.patient_notification_schedules.update({
-            where: { id: schedule.id },
-            data: {
-              status: 'sent',
-              sent_at: new Date()
-            }
-          })
-
-          successCount++
-          console.log(`送信成功: ${schedule.id}`)
-        } else {
-          const error = await response.json()
-          throw new Error(error.message || '送信失敗')
-        }
+        successCount++
+        console.log(`送信成功 [${effectiveChannel}]: ${schedule.id}`)
 
       } catch (error: any) {
         console.error(`通知送信エラー (${schedule.id}):`, error)
