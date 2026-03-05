@@ -27,6 +27,7 @@ const validParams = {
 describe('sendStaffWelcomeEmail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('RESEND_API_KEY', 're_test_key')
     mockEmailsSend.mockResolvedValue({ data: { id: 'email-id-123' }, error: null })
   })
 
@@ -67,5 +68,14 @@ describe('sendStaffWelcomeEmail', () => {
     const result = await sendStaffWelcomeEmail(validParams)
 
     expect(result).toBe(false)
+  })
+
+  it('TC-SWE005: RESEND_API_KEYが未設定 → false返却', async () => {
+    vi.stubEnv('RESEND_API_KEY', '')
+
+    const result = await sendStaffWelcomeEmail(validParams)
+
+    expect(result).toBe(false)
+    expect(mockEmailsSend).not.toHaveBeenCalled()
   })
 })

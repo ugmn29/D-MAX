@@ -8,6 +8,11 @@ export async function sendStaffWelcomeEmail(params: {
 }): Promise<boolean> {
   const { email, name, clinicName, passwordSetupLink } = params
 
+  if (!process.env.RESEND_API_KEY) {
+    console.error('[sendStaffWelcomeEmail] RESEND_API_KEY が設定されていません')
+    return false
+  }
+
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
@@ -30,12 +35,12 @@ https://app.hubdent.jp/login
     })
 
     if (error) {
-      console.error('Failed to send staff welcome email:', error)
+      console.error('[sendStaffWelcomeEmail] Resendエラー:', JSON.stringify(error))
       return false
     }
     return true
-  } catch (err) {
-    console.error('Failed to send staff welcome email:', err)
+  } catch (err: any) {
+    console.error('[sendStaffWelcomeEmail] 例外:', err?.message ?? err)
     return false
   }
 }
