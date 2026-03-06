@@ -583,6 +583,25 @@ export async function POST() {
 
       // その他
       {
+        training_name: 'C（乳犬歯）を母親に動かしてもらう手技',
+        description: '保護者がC（乳犬歯）を後ろから斜め45度方向にグラグラ動かす歯根膜弛緩訓練',
+        category: 'その他',
+        is_default: true,
+        default_action_seconds: 60,
+        default_rest_seconds: 0,
+        default_sets: 10,
+        instructions: [
+          '保護者の方が、お子さんのC（乳犬歯）を後ろから斜め45度方向に「グラグラ動かす」ようにします',
+          '1日10回程度行います',
+          'バイトアップと併用することで、2番（乳側切歯の後続永久歯）が起き上がってくる効果も期待できます'
+        ],
+        precautions: [
+          '無理に強く動かさないでください',
+          '痛みを感じたらすぐに中止してください',
+          '保護者の方が行う手技です'
+        ]
+      },
+      {
         training_name: 'マドラー法',
         description: 'マドラーを咬んだ状態で唇を閉じる口輪筋・舌尖挙上訓練',
         category: 'その他',
