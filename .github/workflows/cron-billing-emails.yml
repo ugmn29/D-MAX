@@ -1,0 +1,20 @@
+name: Cron Billing Emails
+
+on:
+  schedule:
+    # 毎日 00:00 UTC = 09:00 JST に実行
+    # 当日が契約更新日（contract_start の日）のクリニックへ前月分請求書メールを送信
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  send-billing-emails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send billing emails
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -f -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://hubdent.net/api/cron/send-billing-emails"

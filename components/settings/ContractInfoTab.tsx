@@ -32,10 +32,10 @@ interface Invoice {
 }
 
 const DEFAULT_CONTRACT: ContractInfo = {
-  plan_name: 'スタンダード',
+  plan_name: '',
   contract_start: '',
   next_billing_date: '',
-  monthly_fee: 29800,
+  monthly_fee: 0,
   billing_email: '',
 }
 
@@ -116,7 +116,9 @@ export function ContractInfoTab() {
       fetch(`/api/clinics/${clinicId}`).then(r => r.json()),
     ])
       .then(([settingsData, clinicData]) => {
-        const contractInfo = settingsData.contract_info
+        const settings = settingsData.settings || []
+        const contractRow = settings.find((s: any) => s.setting_key === 'contract_info')
+        const contractInfo = contractRow?.setting_value || null
         const clinicEmail: string = clinicData?.email || ''
         if (contractInfo) {
           setInfo({
@@ -149,7 +151,11 @@ export function ContractInfoTab() {
       await fetch('/api/clinic/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinic_id: clinicId, contract_info: info }),
+        body: JSON.stringify({
+          clinic_id: clinicId,
+          setting_key: 'contract_info',
+          setting_value: info,
+        }),
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -167,6 +173,18 @@ export function ContractInfoTab() {
     new Date(ts * 1000).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
 
   const generateMonthList = () => generateContractMonthList(info.contract_start, now)
+
+  const calcNextBillingDate = (contractStart: string): string => {
+    if (!contractStart) return ''
+    const start = new Date(contractStart)
+    const day = start.getDate()
+    const today = new Date()
+    const candidate = new Date(today.getFullYear(), today.getMonth(), day)
+    if (candidate <= today) {
+      candidate.setMonth(candidate.getMonth() + 1)
+    }
+    return candidate.toISOString().split('T')[0]
+  }
 
   if (loading) {
     return (
@@ -230,7 +248,7 @@ export function ContractInfoTab() {
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-gray-500 font-medium">次回更新日</p>
-                <p className="text-sm text-gray-900">{info.next_billing_date || '-'}</p>
+                <p className="text-sm text-gray-900">{info.next_billing_date || calcNextBillingDate(info.contract_start) || '-'}</p>
               </div>
               {info.stripe_status && (
                 <div className="space-y-1">
