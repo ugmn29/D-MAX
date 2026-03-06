@@ -29,6 +29,8 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  const [trainingSeedLoading, setTrainingSeedLoading] = useState(false)
+  const [trainingSeedResult, setTrainingSeedResult] = useState<{ success: boolean; message: string } | null>(null)
   const [error, setError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [seedResults, setSeedResults] = useState<Record<string, SeedResult> | null>(null)
@@ -141,6 +143,21 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
       setError('初期データ投入に失敗しました')
     } finally {
       setSeeding(false)
+    }
+  }
+
+  const handleTrainingSeed = async () => {
+    if (!confirm('デフォルトトレーニングを追加しますか？既存のトレーニングは変更されません。')) return
+    setTrainingSeedLoading(true)
+    setTrainingSeedResult(null)
+    try {
+      const res = await fetch('/api/training/clinic/seed', { method: 'POST' })
+      const data = await res.json()
+      setTrainingSeedResult({ success: data.success, message: data.message || 'エラーが発生しました' })
+    } catch {
+      setTrainingSeedResult({ success: false, message: 'サーバーに接続できません' })
+    } finally {
+      setTrainingSeedLoading(false)
     }
   }
 
@@ -646,6 +663,37 @@ export default function ClinicDetailPage({ params }: { params: Promise<{ id: str
                 >
                   <Database className="w-4 h-4" />
                   {seeding ? '投入中...' : '初期データを投入する'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Database className="w-4 h-4 text-blue-600" />
+                  デフォルトトレーニング追加
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  全クリニック共通のデフォルトトレーニングに新規追加分を反映します。既存のトレーニングは変更されません。
+                </p>
+                {trainingSeedResult && (
+                  <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md ${trainingSeedResult.success ? 'text-green-700 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+                    {trainingSeedResult.success
+                      ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                      : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+                    {trainingSeedResult.message}
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={handleTrainingSeed}
+                  disabled={trainingSeedLoading}
+                  className="w-full flex items-center gap-2"
+                >
+                  <Database className="w-4 h-4" />
+                  {trainingSeedLoading ? '追加中...' : 'デフォルトトレーニングを追加する'}
                 </Button>
               </CardContent>
             </Card>
