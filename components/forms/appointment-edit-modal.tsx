@@ -682,10 +682,16 @@ export function AppointmentEditModal({
         const initialData = getInitialAppointmentData()
 
         // 既存の予約データを設定
+        // durationがnullの場合はstart_time/end_timeから計算する
+        const apptStartTime = editingAppointment.start_time || initialData.start_time
+        const apptEndTime = editingAppointment.end_time || initialData.end_time
+        const calculatedDuration = apptStartTime && apptEndTime
+          ? timeToMinutes(apptEndTime) - timeToMinutes(apptStartTime)
+          : initialData.duration
         setAppointmentData({
-          start_time: editingAppointment.start_time || initialData.start_time,
-          end_time: editingAppointment.end_time || initialData.end_time,
-          duration: editingAppointment.duration || initialData.duration,
+          start_time: apptStartTime,
+          end_time: apptEndTime,
+          duration: editingAppointment.duration || calculatedDuration,
           menu1_id: editingAppointment.menu1_id || null,
           menu2_id: editingAppointment.menu2_id || null,
           menu3_id: editingAppointment.menu3_id || null,
@@ -805,6 +811,7 @@ export function AppointmentEditModal({
         }
       } else {
         setAppointmentData(getInitialAppointmentData())
+        setSelectedStaff([])
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
