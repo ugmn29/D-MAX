@@ -5,13 +5,15 @@ export async function POST() {
   try {
     const prisma = getPrismaClient()
 
-    // 既存のデフォルトトレーニングを削除
-    await prisma.trainings.deleteMany({
-      where: { is_default: true }
+    // 既存のデフォルトトレーニング名を取得
+    const existing = await prisma.trainings.findMany({
+      where: { is_default: true },
+      select: { training_name: true }
     })
+    const existingNames = new Set(existing.map(t => t.training_name))
 
     // 資料に基づいたトレーニングデータ
-    const trainings = [
+    const allTrainings = [
       // 舌系の訓練
       {
         training_name: '「あ」の口の確認',
@@ -577,24 +579,51 @@ export async function POST() {
           'むせないように気をつけてください',
           '最初は少量の水から始めてください'
         ]
+      },
+
+      // その他
+      {
+        training_name: 'マドラー法',
+        description: 'マドラーを咬んだ状態で唇を閉じる口輪筋・舌尖挙上訓練',
+        category: 'その他',
+        is_default: true,
+        default_action_seconds: 3600,
+        default_rest_seconds: 0,
+        default_sets: 1,
+        instructions: [
+          'コーヒー用のマドラー（ストローは曲がるため不適）を用意します',
+          '乳犬歯部（上の乳犬歯の遠心唇側部分）にマドラーを咬ませます（ずれにくい位置）',
+          '舌尖をマドラーの上に載せます（難しければ咬んでいるだけでも効果あり）',
+          'その状態で唇を上下水平に閉じます',
+          '1日1時間程度を目標に継続します'
+        ],
+        precautions: [
+          'ストローは曲がるためコーヒー用マドラーを使用してください',
+          '無理に舌を載せようとしなくて大丈夫です',
+          '痛みを感じたらすぐに中止してください'
+        ]
       }
     ]
 
-    // Prisma createMany で一括挿入
-    const result = await prisma.trainings.createMany({
-      data: trainings
-    })
+    // 既存に存在しないものだけ挿入
+    const newTrainings = allTrainings.filter(t => !existingNames.has(t.training_name))
 
-    // 挿入されたデータを取得して返す
-    const insertedData = await prisma.trainings.findMany({
-      where: { is_default: true },
-      orderBy: { created_at: 'asc' }
+    if (newTrainings.length === 0) {
+      return NextResponse.json({
+        success: true,
+        count: 0,
+        message: '追加対象の新規トレーニングはありませんでした'
+      })
+    }
+
+    const result = await prisma.trainings.createMany({
+      data: newTrainings
     })
 
     return NextResponse.json({
       success: true,
       count: result.count,
-      message: `${result.count}件のトレーニングを登録しました`
+      message: `${result.count}件のトレーニングを新規登録しました`
     })
   } catch (error: any) {
     console.error('エラー:', error)
