@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma/client'
 import { convertToDate } from '@/lib/prisma/helpers'
+import { getFirebaseAdmin } from '@/lib/firebase-admin'
 
 export async function PATCH(
   request: NextRequest,
@@ -28,6 +29,12 @@ export async function PATCH(
 
     const body = await request.json()
     console.log('更新データ:', body)
+
+    // メール変更時のFirebase Auth同期のために旧メールを取得
+    const existingStaff = await prisma.staff.findFirst({
+      where: { id: staffId, clinic_id: clinicId },
+      select: { email: true },
+    })
 
     const updatedStaff = await prisma.staff.update({
       where: {
@@ -52,6 +59,21 @@ export async function PATCH(
     })
 
     console.log('スタッフ更新成功:', updatedStaff.id)
+
+    // メールが変わった場合はFirebase Authも更新
+    const newEmail = body.email
+    if (existingStaff?.email && newEmail && newEmail !== existingStaff.email) {
+      try {
+        const { adminAuth } = getFirebaseAdmin()
+        const firebaseUser = await adminAuth.getUserByEmail(existingStaff.email)
+        await adminAuth.updateUser(firebaseUser.uid, { email: newEmail })
+      } catch (err: any) {
+        if (err.code === 'auth/email-already-exists') {
+          return NextResponse.json({ error: 'このメールアドレスはすでに使用されています' }, { status: 400 })
+        }
+        console.error('Firebase Authメール更新に失敗しました:', err)
+      }
+    }
 
     const result = {
       id: updatedStaff.id,

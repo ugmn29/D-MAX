@@ -111,11 +111,21 @@ export function ContractInfoTab() {
   useEffect(() => {
     if (!clinicId) return
     setLoading(true)
-    fetch(`/api/clinic/settings?clinic_id=${clinicId}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.contract_info) {
-          setInfo({ ...DEFAULT_CONTRACT, ...data.contract_info })
+    Promise.all([
+      fetch(`/api/clinic/settings?clinic_id=${clinicId}`).then(r => r.json()),
+      fetch(`/api/clinics/${clinicId}`).then(r => r.json()),
+    ])
+      .then(([settingsData, clinicData]) => {
+        const contractInfo = settingsData.contract_info
+        const clinicEmail: string = clinicData?.email || ''
+        if (contractInfo) {
+          setInfo({
+            ...DEFAULT_CONTRACT,
+            ...contractInfo,
+            billing_email: contractInfo.billing_email || clinicEmail,
+          })
+        } else {
+          setInfo({ ...DEFAULT_CONTRACT, billing_email: clinicEmail })
         }
       })
       .catch(console.error)
@@ -202,112 +212,43 @@ export function ContractInfoTab() {
           <p className="text-sm text-gray-500">HubDentのご契約内容と請求先情報を管理します</p>
         </CardHeader>
         <CardContent className="space-y-5">
-          {/* Stripe連携済みの場合: 情報を読み取り専用で表示 */}
-          {hasStripe ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-medium">プラン</p>
-                  <p className="text-sm font-semibold text-gray-900">{info.plan_name}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-medium">月額費用（税別）</p>
-                  <p className="text-sm font-semibold text-gray-900">
-                    ¥{info.monthly_fee.toLocaleString('ja-JP')}
-                  </p>
-                </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 font-medium">プラン</p>
+                <p className="text-sm font-semibold text-gray-900">{info.plan_name || '-'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 font-medium">月額費用（税別）</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {info.monthly_fee ? `¥${info.monthly_fee.toLocaleString('ja-JP')}` : '-'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 font-medium">契約開始日</p>
+                <p className="text-sm text-gray-900">{info.contract_start || '-'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 font-medium">次回更新日</p>
+                <p className="text-sm text-gray-900">{info.next_billing_date || '-'}</p>
+              </div>
+              {info.stripe_status && (
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500 font-medium">ステータス</p>
-                  {info.stripe_status ? (
-                    <StripeStatusBadge status={info.stripe_status} />
-                  ) : (
-                    <p className="text-sm text-gray-500">-</p>
-                  )}
+                  <StripeStatusBadge status={info.stripe_status} />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-medium">次回更新日</p>
-                  <p className="text-sm text-gray-900">{info.next_billing_date || '-'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-medium">契約開始日</p>
-                  <p className="text-sm text-gray-900">{info.contract_start || '-'}</p>
-                </div>
-              </div>
-
-              <div className="border-t pt-4 space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">請求先メールアドレス</label>
-                <input
-                  type="email"
-                  className="w-full border rounded-md px-3 py-2 text-sm"
-                  value={info.billing_email}
-                  onChange={e => setInfo(p => ({ ...p, billing_email: e.target.value }))}
-                  placeholder="billing@clinic.com"
-                />
-                <div className="pt-2 flex items-center gap-3">
-                  <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
-                    <Save className="w-4 h-4" />
-                    {saving ? '保存中...' : '保存'}
-                  </Button>
-                  {saved && <span className="text-sm text-green-600">保存しました</span>}
-                </div>
-              </div>
+              )}
             </div>
-          ) : (
-            /* Stripe未連携: 手動入力フォーム */
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">プラン名</label>
-                  <input
-                    type="text"
-                    className="w-full border rounded-md px-3 py-2 text-sm"
-                    value={info.plan_name}
-                    onChange={e => setInfo(p => ({ ...p, plan_name: e.target.value }))}
-                    placeholder="スタンダード"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">月額費用（税別）</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">¥</span>
-                    <input
-                      type="number"
-                      className="w-full border rounded-md pl-7 pr-3 py-2 text-sm"
-                      value={info.monthly_fee}
-                      onChange={e => setInfo(p => ({ ...p, monthly_fee: Number(e.target.value) }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">契約開始日</label>
-                  <input
-                    type="date"
-                    className="w-full border rounded-md px-3 py-2 text-sm"
-                    value={info.contract_start}
-                    onChange={e => setInfo(p => ({ ...p, contract_start: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">次回更新日</label>
-                  <input
-                    type="date"
-                    className="w-full border rounded-md px-3 py-2 text-sm"
-                    value={info.next_billing_date}
-                    onChange={e => setInfo(p => ({ ...p, next_billing_date: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">請求先メールアドレス</label>
-                  <input
-                    type="email"
-                    className="w-full border rounded-md px-3 py-2 text-sm"
-                    value={info.billing_email}
-                    onChange={e => setInfo(p => ({ ...p, billing_email: e.target.value }))}
-                    placeholder="billing@clinic.com"
-                  />
-                </div>
-              </div>
 
+            <div className="border-t pt-4 space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">請求先メールアドレス</label>
+              <input
+                type="email"
+                className="w-full border rounded-md px-3 py-2 text-sm"
+                value={info.billing_email}
+                onChange={e => setInfo(p => ({ ...p, billing_email: e.target.value }))}
+                placeholder="billing@clinic.com"
+              />
               <div className="pt-2 flex items-center gap-3">
                 <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
                   <Save className="w-4 h-4" />
@@ -316,7 +257,7 @@ export function ContractInfoTab() {
                 {saved && <span className="text-sm text-green-600">保存しました</span>}
               </div>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
       )}

@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server'
 
 const mockAdminAuth = vi.hoisted(() => ({
   getUserByEmail: vi.fn(),
+  updateUser: vi.fn(),
   setCustomUserClaims: vi.fn(),
   deleteUser: vi.fn(),
 }))
@@ -133,6 +134,34 @@ describe('PUT /api/admin/clinics/[id]/staff/[staffId]', () => {
     const res = await PUT(req, mockParams)
 
     expect(res.status).toBe(400)
+  })
+
+  it('TC-ASD011: メールが変わった場合 → Firebase Auth updateUser呼ばれる → 200', async () => {
+    const newEmail = 'new@clinic.com'
+    mockAdminAuth.getUserByEmail.mockResolvedValue({ uid: 'firebase-uid-xyz' })
+    mockAdminAuth.updateUser.mockResolvedValue(undefined)
+    mockPrisma.staff.update.mockResolvedValue({ ...existingStaff, email: newEmail })
+
+    const req = makeRequest('PUT', { name: '山田太郎', email: newEmail, role: 'staff' })
+    const res = await PUT(req, mockParams)
+
+    expect(res.status).toBe(200)
+    expect(mockAdminAuth.getUserByEmail).toHaveBeenCalledWith('taro@clinic.com')
+    expect(mockAdminAuth.updateUser).toHaveBeenCalledWith('firebase-uid-xyz', { email: newEmail })
+    expect(mockAdminAuth.setCustomUserClaims).not.toHaveBeenCalled()
+  })
+
+  it('TC-ASD012: メール変更時にauth/email-already-exists → 400', async () => {
+    const error = Object.assign(new Error('Email already in use'), { code: 'auth/email-already-exists' })
+    mockAdminAuth.getUserByEmail.mockResolvedValue({ uid: 'firebase-uid-xyz' })
+    mockAdminAuth.updateUser.mockRejectedValue(error)
+
+    const req = makeRequest('PUT', { name: '山田太郎', email: 'taken@clinic.com', role: 'staff' })
+    const res = await PUT(req, mockParams)
+
+    expect(res.status).toBe(400)
+    const data = await res.json()
+    expect(data.error).toBe('このメールアドレスはすでに使用されています')
   })
 })
 

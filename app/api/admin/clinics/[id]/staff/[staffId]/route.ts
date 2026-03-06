@@ -40,19 +40,26 @@ export async function PUT(request: NextRequest, { params }: Params) {
       data: { name, email, role: newRole },
     })
 
-    // ロールが変わった場合はFirebase Custom Claimsも更新
-    if (existing.role !== newRole && existing.email) {
+    // メールまたはロールが変わった場合はFirebaseも更新
+    if (existing.email && (email !== existing.email || existing.role !== newRole)) {
       try {
         const { adminAuth } = getFirebaseAdmin()
         const firebaseUser = await adminAuth.getUserByEmail(existing.email)
-        await adminAuth.setCustomUserClaims(firebaseUser.uid, {
-          clinic_id: clinicId,
-          staff_id: staffId,
-          role: newRole,
-        })
-      } catch {
-        // Claims更新失敗はスタッフ更新自体の成功には影響しない
-        console.error('Firebase Custom Claims更新に失敗しました')
+        if (email !== existing.email) {
+          await adminAuth.updateUser(firebaseUser.uid, { email })
+        }
+        if (existing.role !== newRole) {
+          await adminAuth.setCustomUserClaims(firebaseUser.uid, {
+            clinic_id: clinicId,
+            staff_id: staffId,
+            role: newRole,
+          })
+        }
+      } catch (err: any) {
+        if (err.code === 'auth/email-already-exists') {
+          return NextResponse.json({ error: 'このメールアドレスはすでに使用されています' }, { status: 400 })
+        }
+        console.error('Firebase更新に失敗しました:', err)
       }
     }
 
