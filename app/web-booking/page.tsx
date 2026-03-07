@@ -620,7 +620,8 @@ function WebBookingPageInner() {
       setAvailableSlots(slots)
     } catch (error) {
       console.error('空き枠取得エラー:', error)
-      alert('空き枠の取得に失敗しました')
+      const msg = error instanceof Error ? error.message : String(error)
+      alert(`空き枠の取得に失敗しました\n詳細: ${msg}`)
     }
   }
 
