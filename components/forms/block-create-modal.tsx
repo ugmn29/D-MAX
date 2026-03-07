@@ -527,8 +527,8 @@ export function BlockCreateModal({
     return options
   }
 
-  // 所要時間の選択肢
-  const durationOptions = [15, 30, 45, 60, 90, 120, 180, 240]
+  // 所要時間の選択肢（timeSlotMinutesの倍数、最大20スロット分）
+  const durationOptions = Array.from({ length: 20 }, (_, i) => (i + 1) * timeSlotMinutes)
 
   if (!isOpen) return null
 
