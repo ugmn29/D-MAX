@@ -54,6 +54,7 @@ interface BlockCreateModalProps {
   selectedStaffIndex?: number
   selectedUnitIndex?: number
   timeSlotMinutes?: number
+  selectedTimeSlots?: string[]
   workingStaff?: WorkingStaff[]
   allStaff?: AllStaff[]  // 全スタッフリスト（出勤チェック用）
   units?: Unit[]
@@ -84,6 +85,7 @@ export function BlockCreateModal({
   selectedStaffIndex,
   selectedUnitIndex,
   timeSlotMinutes = 15,
+  selectedTimeSlots = [],
   workingStaff = [],
   allStaff = [],
   units = [],
@@ -151,7 +153,7 @@ export function BlockCreateModal({
         setStartTime(selectedTime)
         setSelectedColor('red')
         setBlockText('')
-        setDuration(timeSlotMinutes)
+        setDuration(selectedTimeSlots.length > 0 ? selectedTimeSlots.length * timeSlotMinutes : timeSlotMinutes)
 
         // スタッフの初期選択（複数選択なので空配列で開始）
         if (selectedStaffIndex !== undefined && workingStaff[selectedStaffIndex]) {
@@ -170,7 +172,7 @@ export function BlockCreateModal({
         }
       }
     }
-  }, [isOpen, selectedTime, selectedStaffIndex, selectedUnitIndex, workingStaff, units, editingBlock])
+  }, [isOpen, selectedTime, selectedTimeSlots, selectedStaffIndex, selectedUnitIndex, workingStaff, units, editingBlock])
 
   // スタッフ選択のトグル
   const toggleStaffSelection = (staffId: string) => {

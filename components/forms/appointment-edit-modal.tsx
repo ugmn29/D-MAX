@@ -3539,6 +3539,7 @@ export function AppointmentEditModal({
         selectedStaffIndex={selectedStaffIndex}
         selectedUnitIndex={selectedUnitIndex}
         timeSlotMinutes={timeSlotMinutes}
+        selectedTimeSlots={selectedTimeSlots}
         workingStaff={workingStaff}
         allStaff={allStaff}
         units={units}
