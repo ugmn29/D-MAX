@@ -151,7 +151,7 @@ export function BlockCreateModal({
         setStartTime(selectedTime)
         setSelectedColor('red')
         setBlockText('')
-        setDuration(30)
+        setDuration(timeSlotMinutes)
 
         // スタッフの初期選択（複数選択なので空配列で開始）
         if (selectedStaffIndex !== undefined && workingStaff[selectedStaffIndex]) {
