@@ -925,10 +925,11 @@ function WebBookingPageInner() {
       const steps = isRescheduleWithOriginalMenu ? [] : (selectedWebBookingMenu?.steps || [])
       console.log('Web予約: ステップ情報', steps)
 
-      // 既存予約を取得（キャンセル除外）
-      const { getAppointments } = await import('@/lib/api/appointments')
-      const allAppointments = await getAppointments(clinicId, bookingData.selectedDate, bookingData.selectedDate)
-      const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
+      // 既存予約を取得（キャンセル除外）- 認証不要の公開API使用
+      const apptParams = new URLSearchParams({ clinic_id: clinicId, start_date: bookingData.selectedDate, end_date: bookingData.selectedDate })
+      const apptRes = await fetch(`/api/web-booking/appointments?${apptParams.toString()}`)
+      const allAppointments = apptRes.ok ? await apptRes.json() : []
+      const existingAppointments = allAppointments.filter((apt: any) => apt.status !== 'キャンセル')
       console.log('Web予約: 既存予約データ', existingAppointments.length, '件')
 
       // 所要時間を決定（予約変更モードでは元の予約の所要時間を優先）
