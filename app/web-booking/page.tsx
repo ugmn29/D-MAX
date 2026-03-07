@@ -18,7 +18,7 @@ import { authenticateReturningPatient, getPatientById } from '@/lib/api/patients
 import { getPatientWebBookingSettings } from '@/lib/api/patient-web-booking-settings'
 import { validateWebBookingToken, markTokenAsUsed } from '@/lib/api/web-booking-tokens'
 import { Calendar, Clock, User, CheckCircle, ChevronLeft, ChevronRight, Phone } from 'lucide-react'
-import { format, addDays, addWeeks } from 'date-fns'
+import { format, addDays, addWeeks, parse } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { trackPageView, trackButtonClick, trackFormSubmit } from '@/lib/tracking/funnel-tracker'
 import { captureAndStoreUTMData, getStoredUTMData } from '@/lib/tracking/utm-tracker'
@@ -1895,7 +1895,7 @@ function WebBookingPageInner() {
                 {bookingData.selectedDate && bookingData.selectedTime && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <div className="text-sm font-medium text-blue-900">
-                      選択中: {format(new Date(bookingData.selectedDate), 'yyyy年MM月dd日(E)', { locale: ja })} {bookingData.selectedTime}
+                      選択中: {format(parse(bookingData.selectedDate, 'yyyy-MM-dd', new Date()), 'yyyy年MM月dd日(E)', { locale: ja })} {bookingData.selectedTime}
                     </div>
                   </div>
                 )}
