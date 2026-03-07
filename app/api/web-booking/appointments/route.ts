@@ -6,6 +6,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/prisma/client'
 
+const STATUS_MAP: Record<string, string> = {
+  'NOT_YET_ARRIVED': '未来院',
+  'LATE': '遅刻',
+  'CHECKED_IN': '来院済み',
+  'IN_TREATMENT': '診療中',
+  'PAYMENT': '会計',
+  'COMPLETED': '終了',
+  'CANCELLED': 'キャンセル',
+}
+
+function formatTime(time: Date | null | undefined): string | null {
+  if (!time) return null
+  return time.toISOString().substring(11, 16)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -55,7 +70,15 @@ export async function GET(request: NextRequest) {
       ]
     })
 
-    return NextResponse.json(appointments)
+    const result = appointments.map((apt) => ({
+      ...apt,
+      appointment_date: apt.appointment_date.toISOString().split('T')[0], // YYYY-MM-DD
+      start_time: formatTime(apt.start_time),
+      end_time: formatTime(apt.end_time),
+      status: apt.status ? (STATUS_MAP[apt.status] ?? apt.status) : null,
+    }))
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('[web-booking/appointments] 取得エラー:', error)
     return NextResponse.json({ error: '処理中にエラーが発生しました' }, { status: 500 })
