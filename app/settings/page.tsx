@@ -10437,13 +10437,6 @@ export default function SettingsPage() {
               </div>
             </Modal>
 
-          {/* Web予約設定保存ボタン */}
-          <div className="flex justify-end pt-6 border-t border-gray-200">
-            <Button onClick={handleSaveWebSettings} size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Save className="w-4 h-4 mr-2" />
-              Web予約設定を保存
-            </Button>
-          </div>
           </div>
         )}
         {selectedCategory === "notification" && (
