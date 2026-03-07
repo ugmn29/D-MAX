@@ -706,7 +706,7 @@ function WebBookingPageInner() {
   const goToNextWeek = () => {
     const newDate = addWeeks(weekStartDate, 1)
     const today = new Date()
-    const maxDate = addDays(today, webSettings?.reservationPeriod || 60)
+    const maxDate = addDays(today, webSettings?.reservationPeriod || 30)
     // 予約可能期間を超えて進めない
     if (newDate <= maxDate) {
       setWeekStartDate(newDate)
@@ -1764,7 +1764,7 @@ function WebBookingPageInner() {
                     size="sm"
                     onClick={goToNextWeek}
                     className="px-2 py-1 text-xs shrink-0"
-                    disabled={addWeeks(weekStartDate, 1) > addDays(new Date(), webSettings?.reservationPeriod || 60)}
+                    disabled={addWeeks(weekStartDate, 1) > addDays(new Date(), webSettings?.reservationPeriod || 30)}
                   >
                     次週
                     <ChevronRight className="w-3 h-3 ml-1" />
@@ -1834,7 +1834,7 @@ function WebBookingPageInner() {
                               const isSelected = bookingData.selectedDate === dateString && bookingData.selectedTime === time
 
                               // 予約可能期間を超えているかチェック
-                              const maxDate = addDays(new Date(), webSettings?.reservationPeriod || 60)
+                              const maxDate = addDays(new Date(), webSettings?.reservationPeriod || 30)
                               const isWithinPeriod = date <= maxDate
 
                               // 現在の日時より過去かどうかをチェック
