@@ -34,6 +34,9 @@ const PUBLIC_PATHS = [
   '/api/patients',
   '/api/patient-web-booking-settings',
   '/api/web-booking-tokens',
+  '/api/web-booking',
+  '/api/units',
+  '/api/staff-unit-priorities',
   '/api/tracking/save-acquisition',
   '/api/r',
   // 問診票ページが使用するAPI
