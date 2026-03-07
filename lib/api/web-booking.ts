@@ -1,10 +1,25 @@
 // Migrated to Prisma API Routes
 import { getTreatmentMenus } from './treatment'
 import { getStaff } from './staff'
-import { getAppointments } from './appointments'
 import { getClinicSettings } from './clinic'
 import { getStaffShiftsByDate } from './shifts'
 import { getUnits } from './units'
+
+/**
+ * Web予約用の公開予約取得（認証不要エンドポイント）
+ */
+async function getPublicAppointments(clinicId: string, startDate: string, endDate: string) {
+  const params = new URLSearchParams({ clinic_id: clinicId, start_date: startDate, end_date: endDate })
+  const baseUrl = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    : ''
+  const response = await fetch(`${baseUrl}/api/web-booking/appointments?${params.toString()}`)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || '予約データの取得に失敗しました')
+  }
+  return response.json()
+}
 import { format, addDays, startOfWeek, parse } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
@@ -117,12 +132,12 @@ export async function getAvailableSlots(
     console.log('空枠取得: ユニットチェック', { unit_mode: bookingMenu.unit_mode, targetUnitIds })
 
     // 既存の予約を取得（キャンセルされた予約を除外）
-    const allAppointments = await getAppointments(
+    const allAppointments = await getPublicAppointments(
       clinicId,
       format(startDate, 'yyyy-MM-dd'),
       format(endDate, 'yyyy-MM-dd')
     )
-    const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
+    const existingAppointments = allAppointments.filter((apt: any) => apt.status !== 'キャンセル')
 
     // ブロック（is_block: true）を抽出
     const blockAppointments = existingAppointments.filter(apt => (apt as any).is_block === true)
@@ -422,12 +437,12 @@ export async function getAvailableSlotsForReschedule(
     const activeUnitIdsForReschedule = allUnitsForReschedule.filter((u: any) => u.is_active !== false).map((u: any) => u.id)
 
     // 既存の予約を取得（キャンセルされた予約を除外）
-    const allAppointments = await getAppointments(
+    const allAppointments = await getPublicAppointments(
       clinicId,
       format(startDate, 'yyyy-MM-dd'),
       format(endDate, 'yyyy-MM-dd')
     )
-    const existingAppointments = allAppointments.filter(apt => apt.status !== 'キャンセル')
+    const existingAppointments = allAppointments.filter((apt: any) => apt.status !== 'キャンセル')
 
     // ブロック（is_block: true）を抽出
     const blockAppointments = existingAppointments.filter(apt => (apt as any).is_block === true)
