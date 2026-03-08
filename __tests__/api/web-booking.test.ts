@@ -25,11 +25,12 @@ vi.mock('@/lib/prisma-client', () => ({
   getPrismaClient: vi.fn(() => mockPrisma),
 }))
 
+// restoreMocks: true のため vi.mock factory 内の mockImplementation がリセットされる。
+// Resend インスタンスを固定オブジェクトとして hoisted し、常に同じオブジェクトを返すことで回避。
 const mockResendSend = vi.hoisted(() => vi.fn())
+const mockResendInstance = vi.hoisted(() => ({ emails: { send: mockResendSend } }))
 vi.mock('resend', () => ({
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: { send: mockResendSend },
-  })),
+  Resend: vi.fn(() => mockResendInstance),
 }))
 
 // ── テスト本体 ────────────────────────────────────────────────────

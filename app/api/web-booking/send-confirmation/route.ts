@@ -5,7 +5,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = 'noreply@hubdent.net'
 
 export async function POST(request: NextRequest) {
@@ -21,6 +20,8 @@ export async function POST(request: NextRequest) {
       console.warn('[web-booking/send-confirmation] RESEND_API_KEY が設定されていません')
       return NextResponse.json({ sent: false, reason: 'RESEND_API_KEY not set' })
     }
+
+    const resend = new Resend(process.env.RESEND_API_KEY)
 
     const clinicDisplayName = clinicName || 'クリニック'
     const subject = `【${clinicDisplayName}】ご予約確認`
