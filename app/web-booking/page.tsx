@@ -1931,8 +1931,11 @@ function WebBookingPageInner() {
                         onChange={(e) => {
                           const newPhone = e.target.value
                           setBookingData(prev => ({ ...prev, patientPhone: newPhone }))
-                          // 名前と電話番号が両方入力されたら確認セクションへスクロール
-                          if (bookingData.patientName && newPhone) {
+                          // 必須項目が全て揃ったら確認セクションへスクロール
+                          const nameOk = !!bookingData.patientName.trim()
+                          const phoneOk = !webSettings.patientInfoFields.phoneRequired || !!newPhone.trim()
+                          const emailOk = !webSettings.patientInfoFields.emailRequired || !!bookingData.patientEmail.trim()
+                          if (nameOk && phoneOk && emailOk) {
                             setTimeout(() => scrollToSection(confirmationSectionRef), 500)
                           }
                         }}
@@ -1950,7 +1953,17 @@ function WebBookingPageInner() {
                       id="patientEmail"
                       type="email"
                       value={bookingData.patientEmail}
-                      onChange={(e) => setBookingData(prev => ({ ...prev, patientEmail: e.target.value }))}
+                      onChange={(e) => {
+                        const newEmail = e.target.value
+                        setBookingData(prev => ({ ...prev, patientEmail: newEmail }))
+                        // 必須項目が全て揃ったら確認セクションへスクロール
+                        const nameOk = !!bookingData.patientName.trim()
+                        const phoneOk = !webSettings.patientInfoFields.phoneRequired || !!bookingData.patientPhone.trim()
+                        const emailOk = !webSettings.patientInfoFields.emailRequired || !!newEmail.trim()
+                        if (nameOk && phoneOk && emailOk) {
+                          setTimeout(() => scrollToSection(confirmationSectionRef), 500)
+                        }
+                      }}
                       placeholder="例: tanaka@example.com"
                     />
                   </div>
@@ -1970,7 +1983,15 @@ function WebBookingPageInner() {
           )}
 
           {/* ステップ5: 確認・確定 */}
-          {webSettings.flow.confirmation && (bookingData.isNewPatient || isAuthenticated) && (
+          {webSettings.flow.confirmation && (bookingData.isNewPatient || isAuthenticated) &&
+            // 初診の場合は必須項目が全て入力されるまで表示しない
+            (!bookingData.isNewPatient || (
+              bookingData.patientName.trim() &&
+              bookingData.selectedDate &&
+              bookingData.selectedTime &&
+              (!webSettings.patientInfoFields.phoneRequired || bookingData.patientPhone.trim()) &&
+              (!webSettings.patientInfoFields.emailRequired || bookingData.patientEmail.trim())
+            )) && (
             <Card ref={confirmationSectionRef}>
               <CardHeader>
                 <CardTitle>{isRescheduleMode ? '変更内容確認' : '予約内容確認'}</CardTitle>
