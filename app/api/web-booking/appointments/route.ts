@@ -62,7 +62,6 @@ export async function GET(request: NextRequest) {
         staff3_id: true,
         unit_id: true,
         is_block: true,
-        duration: true,
       },
       orderBy: [
         { appointment_date: 'asc' },
