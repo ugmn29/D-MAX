@@ -283,11 +283,27 @@ export async function getAppointmentById(
 /**
  * 予約を作成（Prisma版）
  */
+const BLOCK_PATIENT_ID = '00000000-0000-0000-0000-000000000000'
+
 export async function createAppointment(
   clinicId: string,
   appointmentData: AppointmentInsert
 ): Promise<Appointment> {
   const prisma = getPrismaClient()
+
+  // ブロック用の特殊patient_idが指定された場合、患者レコードを自動作成
+  if (appointmentData.is_block && appointmentData.patient_id === BLOCK_PATIENT_ID) {
+    await prisma.patients.upsert({
+      where: { id: BLOCK_PATIENT_ID },
+      create: {
+        id: BLOCK_PATIENT_ID,
+        clinic_id: clinicId,
+        last_name: 'ブロック',
+        first_name: '用',
+      },
+      update: {}
+    })
+  }
 
   const appointment = await prisma.appointments.create({
     data: {
