@@ -59,9 +59,9 @@ interface BlockCreateModalProps {
   allStaff?: AllStaff[]  // 全スタッフリスト（出勤チェック用）
   units?: Unit[]
   appointments?: ExistingAppointment[]  // 既存の予約リスト（重複チェック用）
-  onSave: (blockData: any) => void
-  onSaveMultiple?: (blockDataArray: any[]) => void  // 複数ブロック保存用
-  onUpdate?: (blockId: string, blockData: any) => void
+  onSave: (blockData: any) => void | Promise<void>
+  onSaveMultiple?: (blockDataArray: any[]) => void | Promise<void>  // 複数ブロック保存用
+  onUpdate?: (blockId: string, blockData: any) => void | Promise<void>
   onDelete?: (blockId: string) => void
   editingBlock?: EditingBlock | null
 }

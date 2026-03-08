@@ -3546,13 +3546,13 @@ export function AppointmentEditModal({
         allStaff={allStaff}
         units={units}
         appointments={appointments}
-        onSave={(blockData) => {
-          onBlockSave(blockData)
+        onSave={async (blockData) => {
+          await onBlockSave(blockData)
           setShowBlockModal(false)
           onClose()
         }}
-        onSaveMultiple={onBlockSaveMultiple ? (blockDataArray) => {
-          onBlockSaveMultiple(blockDataArray)
+        onSaveMultiple={onBlockSaveMultiple ? async (blockDataArray) => {
+          await onBlockSaveMultiple(blockDataArray)
           setShowBlockModal(false)
           onClose()
         } : undefined}

@@ -2998,72 +2998,26 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           console.log('カレンダーの日付を変更:', date)
         }}
         onBlockSave={async (blockData) => {
-          try {
-            console.log('ブロック保存:', blockData)
-            // ブロックを作成
-            const savedBlock = await createAppointment(clinicId, {
+          await createAppointment(clinicId, {
+            ...blockData,
+            appointment_date: formatDateForDB(selectedDate)
+          })
+          // 予約一覧を再読み込み
+          const dateString = formatDateForDB(selectedDate)
+          const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+          setAppointments(updatedAppointments)
+        }}
+        onBlockSaveMultiple={async (blockDataArray) => {
+          for (const blockData of blockDataArray) {
+            await createAppointment(clinicId, {
               ...blockData,
               appointment_date: formatDateForDB(selectedDate)
             })
-            console.log('ブロック作成完了:', savedBlock)
-
-            // モーダルを閉じる
-            setShowAppointmentModal(false)
-            setEditingAppointment(null)
-
-            // 選択状態をリセット
-            setSelectedTimeSlots([])
-            setSelectionStart(null)
-            setSelectionEnd(null)
-            setSelectedCell(null)
-            setSelectedCells([])
-            setIsSelectingCells(false)
-            setSelectedStaffIndex(undefined)
-            setSelectedUnitIndex(undefined)
-
-            // 予約一覧を再読み込み
-            const dateString = formatDateForDB(selectedDate)
-            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
-            setAppointments(updatedAppointments)
-          } catch (error) {
-            console.error('ブロック保存エラー:', error)
-            alert('ブロックの保存に失敗しました')
           }
-        }}
-        onBlockSaveMultiple={async (blockDataArray) => {
-          try {
-            console.log('複数ブロック保存:', blockDataArray.length, '件')
-            // 複数ブロックを作成
-            for (const blockData of blockDataArray) {
-              await createAppointment(clinicId, {
-                ...blockData,
-                appointment_date: formatDateForDB(selectedDate)
-              })
-            }
-            console.log('複数ブロック作成完了')
-
-            // モーダルを閉じる
-            setShowAppointmentModal(false)
-            setEditingAppointment(null)
-
-            // 選択状態をリセット
-            setSelectedTimeSlots([])
-            setSelectionStart(null)
-            setSelectionEnd(null)
-            setSelectedCell(null)
-            setSelectedCells([])
-            setIsSelectingCells(false)
-            setSelectedStaffIndex(undefined)
-            setSelectedUnitIndex(undefined)
-
-            // 予約一覧を再読み込み
-            const dateString = formatDateForDB(selectedDate)
-            const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
-            setAppointments(updatedAppointments)
-          } catch (error) {
-            console.error('複数ブロック保存エラー:', error)
-            alert('複数ブロックの保存に失敗しました')
-          }
+          // 予約一覧を再読み込み
+          const dateString = formatDateForDB(selectedDate)
+          const updatedAppointments = await getAppointmentsByDate(clinicId, dateString)
+          setAppointments(updatedAppointments)
         }}
       />
 
