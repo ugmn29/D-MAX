@@ -1204,6 +1204,29 @@ function WebBookingPageInner() {
         }
       }
 
+      // 確認メール送信（メールアドレスがある場合）
+      if (bookingData.patientEmail.trim()) {
+        try {
+          const selectedWebMenu = webBookingMenus.find(m => m.treatment_menu_id === bookingData.selectedMenu)
+          const menuName = selectedWebMenu?.display_name || selectedWebMenu?.treatment_menu_name || ''
+          await fetch('/api/web-booking/send-confirmation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              patientEmail: bookingData.patientEmail.trim(),
+              patientName: bookingData.patientName,
+              clinicName: webSettings.clinicName || '',
+              appointmentDate: bookingData.selectedDate,
+              appointmentTime: bookingData.selectedTime,
+              menuName,
+            }),
+          })
+        } catch (e) {
+          console.error('確認メール送信エラー:', e)
+          // メール送信失敗は予約完了に影響しない
+        }
+      }
+
       // 予約完了画面を表示
       setBookingCompleted(true)
 
@@ -2053,10 +2076,15 @@ function WebBookingPageInner() {
                   )}
                 </div>
 
-                <div className="flex justify-center">
-                  <Button onClick={handleConfirmBooking} size="lg" className="w-full max-w-xs">
-                    {isRescheduleMode ? '予約を変更する' : '予約確定'}
-                  </Button>
+                <div className="space-y-2">
+                  <p className="text-center text-sm text-gray-500">
+                    上記内容でよろしければボタンを押してください
+                  </p>
+                  <div className="flex justify-center">
+                    <Button onClick={handleConfirmBooking} size="lg" className="w-full max-w-xs">
+                      {isRescheduleMode ? '予約を変更する' : '予約を確定する'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
