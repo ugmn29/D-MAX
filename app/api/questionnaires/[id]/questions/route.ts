@@ -31,9 +31,16 @@ export async function PUT(
         }
       })
 
-      // 新しい質問を挿入
+      // 新しい質問を挿入（section_name + question_text の重複を除去）
       if (questions.length > 0) {
-        const questionsToInsert = questions.map((q: any) => {
+        const seen = new Set<string>()
+        const deduped = (questions as any[]).filter((q: any) => {
+          const key = `${q.section_name || ''}||${q.question_text}`
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        const questionsToInsert = deduped.map((q: any) => {
           const questionData: any = {
             questionnaire_id: questionnaireId,
             section_name: q.section_name,
