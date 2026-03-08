@@ -3054,9 +3054,11 @@ export function AppointmentEditModal({
                 <table className="w-full">
                   <tbody>
                     {(() => {
-                      // 出勤しているスタッフのみをフィルタリング
+                      // 出勤しているスタッフのみをフィルタリング（シフト未設定時は全スタッフを表示）
                       const workingStaffIds = workingStaff.map(ws => ws.staff.id)
-                      const availableStaff = staff.filter(member => workingStaffIds.includes(member.id))
+                      const availableStaff = workingStaff.length > 0
+                        ? staff.filter(member => workingStaffIds.includes(member.id))
+                        : staff
 
                       if (availableStaff.length === 0) {
                         return (
