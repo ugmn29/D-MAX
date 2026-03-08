@@ -221,8 +221,10 @@ export async function getAvailableSlots(
         })
 
       const workingStaffIds = Array.from(workingStaffShifts.keys())
+      // シフトデータが存在するかフラグ（存在しない場合は全スタッフ出勤扱い）
+      const hasShiftData = staffShifts.length > 0
 
-      console.log(`空枠取得: ${dateString}の出勤スタッフID`, workingStaffIds)
+      console.log(`空枠取得: ${dateString}の出勤スタッフID`, workingStaffIds, 'シフトデータあり:', hasShiftData)
 
       // 休憩時間を取得
       const dayBreakTimes = Array.isArray(breakTimes?.[dayOfWeek]) ? breakTimes[dayOfWeek] : []
@@ -307,8 +309,8 @@ export async function getAvailableSlots(
               for (const assignment of sortedAssignments) {
                 const staffId = assignment.staff_id
 
-                // 出勤チェック
-                if (!workingStaffIds.includes(staffId)) {
+                // 出勤チェック（シフトデータがある場合のみ。なければ全スタッフ出勤扱い）
+                if (hasShiftData && !workingStaffIds.includes(staffId)) {
                   continue
                 }
 
@@ -504,6 +506,8 @@ export async function getAvailableSlotsForReschedule(
         })
 
       const workingStaffIds = Array.from(workingStaffShifts.keys())
+      // シフトデータが存在するかフラグ（存在しない場合は全スタッフ出勤扱い）
+      const hasShiftDataForReschedule = staffShifts.length > 0
 
       // 休憩時間を取得
       const dayBreakTimes = Array.isArray(breakTimes?.[dayOfWeek]) ? breakTimes[dayOfWeek] : []
@@ -571,8 +575,8 @@ export async function getAvailableSlotsForReschedule(
             const availableStaffList: any[] = []
 
             if (staffId) {
-              // 担当者出勤チェック
-              if (!workingStaffIds.includes(staffId)) {
+              // 担当者出勤チェック（シフトデータがある場合のみ。なければ出勤扱い）
+              if (hasShiftDataForReschedule && !workingStaffIds.includes(staffId)) {
                 isAvailable = false
               } else {
                 // 担当者のシフト勤務時間チェック
