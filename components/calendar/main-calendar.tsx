@@ -451,8 +451,11 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
       if (existingAppointment.id === appointment.id) return false // 自分自身は除外
       if (existingAppointment.status === 'キャンセル') return false // キャンセルされた予約は除外
 
-      // 同じスタッフまたは同じユニットの予約のみチェック
-      const isSameStaffOrUnit = displayMode === 'staff'
+      // クリニック全体ブロック（staff1_id=null）は全スタッフ/ユニットに対して競合
+      const isClinicWideBlock = (existingAppointment as any).is_block === true && !existingAppointment.staff1_id
+
+      // 同じスタッフまたは同じユニットの予約のみチェック（またはクリニック全体ブロック）
+      const isSameStaffOrUnit = isClinicWideBlock || (displayMode === 'staff'
         ? (
           // staff1_idの比較（nullでない場合のみ）
           (appointment.staff1_id && (
@@ -473,7 +476,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
             existingAppointment.staff3_id === appointment.staff3_id
           ))
         )
-        : (existingAppointment.unit_id && appointment.unit_id && existingAppointment.unit_id === appointment.unit_id)
+        : (existingAppointment.unit_id && appointment.unit_id && existingAppointment.unit_id === appointment.unit_id))
 
       if (!isSameStaffOrUnit) return false // 異なるスタッフ/ユニットは除外
 

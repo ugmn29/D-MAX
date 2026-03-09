@@ -373,9 +373,20 @@ export function QuestionnaireForm({ clinicId, patientId, appointmentId, question
 
       console.log('抽出結果 - 名前:', patientName, ', 電話:', patientPhone)
 
+      // 非必須フィールドが空の場合は「なし」を設定
+      const filledFormData: { [key: string]: any } = { ...formData }
+      sortedQuestions.forEach(q => {
+        if (!isQuestionRequired(q) && shouldShowQuestion(q)) {
+          const val = filledFormData[q.id]
+          if (!val || (Array.isArray(val) && val.length === 0) || val === '') {
+            filledFormData[q.id] = 'なし'
+          }
+        }
+      })
+
       // 患者情報を自動で追加
       const enhancedFormData = {
-        ...formData,
+        ...filledFormData,
         patient_name: patientName,
         patient_name_kana: patientNameKana,
         patient_phone: patientPhone,

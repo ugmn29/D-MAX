@@ -30,11 +30,9 @@ import {
   Highlighter,
   FileCode,
   Info,
-  Square,
-  Ban
+  Square
 } from 'lucide-react'
 import { getPatients, createPatient } from '@/lib/api/patients'
-import { getPatientWebBookingSettings, upsertPatientWebBookingSettings } from '@/lib/api/patient-web-booking-settings'
 import { BlockCreateModal } from '@/components/forms/block-create-modal'
 import { PatientForm } from '@/components/patients/patient-form'
 import { getTreatmentMenus } from '@/lib/api/treatment'
@@ -153,9 +151,6 @@ export function AppointmentEditModal({
   const [searchResults, setSearchResults] = useState<PatientSearchResult[]>([])
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [showNewPatientForm, setShowNewPatientForm] = useState(false)
-  const [webBookingEnabled, setWebBookingEnabled] = useState<boolean | null>(null)
-  const [webBookingLoading, setWebBookingLoading] = useState(false)
-  
   // 診療メニュー
   const [treatmentMenus, setTreatmentMenus] = useState<TreatmentMenu[]>([])
   const [selectedMenu1, setSelectedMenu1] = useState<TreatmentMenu | null>(null)
@@ -1001,17 +996,6 @@ export function AppointmentEditModal({
     loadPatientAppointments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPatient?.id, isOpen, clinicId])
-
-  // web予約設定を取得
-  useEffect(() => {
-    if (!selectedPatient?.id || !clinicId) {
-      setWebBookingEnabled(null)
-      return
-    }
-    getPatientWebBookingSettings(selectedPatient.id, clinicId).then(settings => {
-      setWebBookingEnabled(settings ? settings.web_booking_enabled : true)
-    }).catch(() => setWebBookingEnabled(null))
-  }, [selectedPatient?.id, clinicId])
 
   // メモテンプレートを取得
   useEffect(() => {
@@ -2085,42 +2069,6 @@ export function AppointmentEditModal({
                         )}
                       </div>
 
-                      {/* web予約NG設定（本登録済み患者のみ） */}
-                      {selectedPatient.is_registered && webBookingEnabled !== null && (
-                        <div className="mt-2 flex items-center gap-2">
-                          {webBookingEnabled === false && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-200">
-                              <Ban className="w-3 h-3" />
-                              web予約NG
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            disabled={webBookingLoading}
-                            onClick={async () => {
-                              if (!selectedPatient?.id) return
-                              setWebBookingLoading(true)
-                              try {
-                                await upsertPatientWebBookingSettings(selectedPatient.id, clinicId, {
-                                  web_booking_enabled: !webBookingEnabled,
-                                })
-                                setWebBookingEnabled(!webBookingEnabled)
-                              } catch (e) {
-                                console.error(e)
-                              } finally {
-                                setWebBookingLoading(false)
-                              }
-                            }}
-                            className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                              webBookingEnabled
-                                ? 'text-red-600 border-red-200 hover:bg-red-50'
-                                : 'text-gray-600 border-gray-200 hover:bg-gray-50'
-                            } disabled:opacity-50`}
-                          >
-                            {webBookingLoading ? '...' : webBookingEnabled ? 'web予約NGにする' : 'web予約NG解除'}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   ) : null}
 
