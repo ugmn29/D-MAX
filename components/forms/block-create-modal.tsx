@@ -537,7 +537,7 @@ export function BlockCreateModal({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? "ブロック編集" : "ブロック作成"}
-      size="md"
+      size="medium"
     >
       <div className="space-y-4">
         {/* 色選択とテキスト入力 */}
