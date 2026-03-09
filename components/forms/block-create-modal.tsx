@@ -179,7 +179,11 @@ export function BlockCreateModal({
         }
       }
     }
-  }, [isOpen, selectedTime, selectedTimeSlots, selectedStaffIndex, selectedUnitIndex, workingStaff, units, editingBlock])
+  // isOpen と editingBlock のみを依存に: モーダルが開いた時・編集対象が変わった時だけ初期化する
+  // workingStaff/units/selectedTimeSlots 等を依存に含めると、それらが変化するたびに
+  // ユーザーの入力がリセットされてしまうため意図的に除外する
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editingBlock])
 
   // スタッフ選択のトグル
   const toggleStaffSelection = (staffId: string) => {
