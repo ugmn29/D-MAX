@@ -66,6 +66,13 @@ interface BlockCreateModalProps {
   editingBlock?: EditingBlock | null
 }
 
+// デフォルト空配列（レンダリングごとに新しい参照が生成されるのを防ぐ）
+const EMPTY_STRING_ARRAY: string[] = []
+const EMPTY_WORKING_STAFF: WorkingStaff[] = []
+const EMPTY_ALL_STAFF: AllStaff[] = []
+const EMPTY_UNITS: Unit[] = []
+const EMPTY_APPOINTMENTS: ExistingAppointment[] = []
+
 // ブロックの色定義（2行×3列）
 const BLOCK_COLORS = [
   { id: 'red', name: '赤', color: '#EF4444', bgClass: 'bg-red-500' },
@@ -85,11 +92,11 @@ export function BlockCreateModal({
   selectedStaffIndex,
   selectedUnitIndex,
   timeSlotMinutes = 15,
-  selectedTimeSlots = [],
-  workingStaff = [],
-  allStaff = [],
-  units = [],
-  appointments = [],
+  selectedTimeSlots = EMPTY_STRING_ARRAY,
+  workingStaff = EMPTY_WORKING_STAFF,
+  allStaff = EMPTY_ALL_STAFF,
+  units = EMPTY_UNITS,
+  appointments = EMPTY_APPOINTMENTS,
   onSave,
   onSaveMultiple,
   onUpdate,
