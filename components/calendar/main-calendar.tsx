@@ -149,6 +149,16 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
   // ブロック編集モーダル
   const [showBlockEditModal, setShowBlockEditModal] = useState(false)
   const [editingBlock, setEditingBlock] = useState<Appointment | null>(null)
+  // editingBlockをメモ化してBlockCreateModalへの不要な再レンダリングを防ぐ
+  const editingBlockForModal = useMemo(() => editingBlock ? {
+    id: editingBlock.id,
+    start_time: editingBlock.start_time,
+    end_time: editingBlock.end_time,
+    block_color: (editingBlock as any).block_color,
+    block_text: (editingBlock as any).block_text,
+    staff1_id: editingBlock.staff1_id,
+    unit_id: editingBlock.unit_id
+  } : null, [editingBlock])
 
   // ドラッグ量表示関連
   const [dragDelta, setDragDelta] = useState<{ x: number; y: number; timeSlots: number } | null>(null)
@@ -3046,15 +3056,7 @@ export function MainCalendar({ clinicId, selectedDate, onDateChange, timeSlotMin
           is_block: (apt as any).is_block,
           status: apt.status
         }))}
-        editingBlock={editingBlock ? {
-          id: editingBlock.id,
-          start_time: editingBlock.start_time,
-          end_time: editingBlock.end_time,
-          block_color: (editingBlock as any).block_color,
-          block_text: (editingBlock as any).block_text,
-          staff1_id: editingBlock.staff1_id,
-          unit_id: editingBlock.unit_id
-        } : null}
+        editingBlock={editingBlockForModal}
         onSave={async (blockData) => {
           try {
             console.log('ブロック新規作成:', blockData)
