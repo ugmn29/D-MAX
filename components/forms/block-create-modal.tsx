@@ -146,6 +146,14 @@ export function BlockCreateModal({
     if (isOpen) {
       setShowNonWorkingWarning(false)
       setNonWorkingStaffNames([])
+      // 役職グループをデフォルトで全展開
+      const positions = Object.keys(
+        (allStaff.length > 0 ? allStaff : workingStaff.map(ws => ws.staff)).reduce((acc: Record<string, boolean>, s) => {
+          acc[s.position || '未設定'] = true
+          return acc
+        }, {})
+      )
+      setExpandedPositions(positions)
 
       if (editingBlock) {
         // 編集モード: 既存データをセット
@@ -658,7 +666,7 @@ export function BlockCreateModal({
               </div>
               <div className="border rounded-lg p-2 max-h-60 overflow-y-auto space-y-1">
                 {Object.entries(getStaffByPosition()).map(([position, staffList]) => {
-                  const isHovered = hoveredPosition === position
+                  const isExpanded = expandedPositions.includes(position)
                   const positionStaffIds = staffList.map(s => s.id)
                   const selectedCount = positionStaffIds.filter(id => selectedStaffIds.includes(id)).length
                   const allSelected = selectedCount === staffList.length
@@ -668,17 +676,16 @@ export function BlockCreateModal({
                     <div
                       key={position}
                       className="rounded-lg overflow-hidden"
-                      onMouseEnter={() => setHoveredPosition(position)}
-                      onMouseLeave={() => setHoveredPosition(null)}
                     >
                       {/* 役職ヘッダー */}
                       <div
                         className={`flex items-center justify-between p-2 cursor-pointer transition-colors ${
-                          isHovered ? 'bg-gray-100' : 'hover:bg-gray-50'
+                          isExpanded ? 'bg-gray-100' : 'hover:bg-gray-50'
                         }`}
+                        onClick={() => togglePositionExpand(position)}
                       >
                         <div className="flex items-center space-x-2">
-                          {isHovered ? (
+                          {isExpanded ? (
                             <ChevronDown className="w-4 h-4 text-gray-500" />
                           ) : (
                             <ChevronRight className="w-4 h-4 text-gray-500" />
@@ -696,13 +703,14 @@ export function BlockCreateModal({
                           <Checkbox
                             checked={allSelected}
                             className={someSelected ? 'data-[state=checked]:bg-blue-300' : ''}
-                            onCheckedChange={() => togglePositionStaff(position)}
+                            onCheckedChange={(e) => { e.stopPropagation?.(); togglePositionStaff(position) }}
+                            onClick={(e) => e.stopPropagation()}
                           />
                         </div>
                       </div>
 
-                      {/* スタッフリスト（ホバー時に表示） */}
-                      {isHovered && (
+                      {/* スタッフリスト（展開時に表示） */}
+                      {isExpanded && (
                         <div className="bg-gray-50 border-t border-gray-100">
                           {staffList.map((staff) => {
                             const isWorking = workingStaffIds.includes(staff.id)
