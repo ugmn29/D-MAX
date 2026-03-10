@@ -28,7 +28,7 @@ const TRAINING_FLOW_CATEGORIES = [
         step: 1,
         checkPoint: "『あ』の口ができるか？",
         description: "口を大きく開けて『あ』の形が作れるか確認",
-        trainingNames: ["『あ』の口の確認"]
+        trainingNames: ["「あ」の口の確認"]
       },
       {
         step: 2,
