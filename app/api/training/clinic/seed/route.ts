@@ -542,6 +542,46 @@ export async function POST() {
         ]
       },
       {
+        training_name: '舌小帯伸ばし',
+        description: '舌の裏のひも（舌小帯）を伸ばす練習',
+        category: '舌系の訓練',
+        is_default: true,
+        default_action_seconds: 10,
+        default_rest_seconds: 5,
+        default_sets: 5,
+        instructions: [
+          '口を大きく開けます',
+          '舌先を上の前歯の裏に当てます',
+          '舌をできるだけ上に持ち上げます',
+          'その状態を10秒保持します',
+          'リラックスして繰り返します'
+        ],
+        precautions: [
+          '無理に伸ばしすぎないでください',
+          '痛みを感じたらすぐに中止してください'
+        ]
+      },
+      {
+        training_name: 'チューブ吸い',
+        description: 'チューブを使って口の吸引力を鍛える練習',
+        category: '吸引',
+        is_default: true,
+        default_action_seconds: 10,
+        default_rest_seconds: 5,
+        default_sets: 5,
+        instructions: [
+          'チューブを口にくわえます',
+          '唇でチューブをしっかり挟みます',
+          '息を吸い込み、チューブをつぶすように吸います',
+          '5〜10秒保持します',
+          'ゆっくり息を抜きます'
+        ],
+        precautions: [
+          '過度に強く吸いすぎないでください',
+          'めまいを感じたらすぐに中止してください'
+        ]
+      },
+      {
         training_name: 'ブクブクうがい',
         description: '口の中で水をブクブクさせる練習',
         category: 'うがい',

@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
     const trainingsData = await prisma.trainings.findMany({
       where: {
         is_deleted: false,
-        clinic_id: null,
+        ...(clinicId
+          ? { OR: [{ clinic_id: null }, { clinic_id: clinicId }] }
+          : { clinic_id: null }),
       },
       orderBy: [
         { category: 'asc' },

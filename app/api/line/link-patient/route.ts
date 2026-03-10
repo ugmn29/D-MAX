@@ -205,7 +205,12 @@ export async function POST(request: NextRequest) {
       // リッチメニューエラーは無視（後で手動切り替え可能）
     }
 
+    // カスタム通知設定を確認
+    const { canReceiveNotification } = await import('@/lib/api/patient-notification-preferences')
+    const canReceiveLinkNotification = await canReceiveNotification(patient.id, patient.clinic_id, 'custom').catch(() => true)
+
     // LINE連携完了通知を送信
+    if (canReceiveLinkNotification) {
     try {
       console.log('📨 LINE連携完了通知送信開始')
 
@@ -274,6 +279,7 @@ export async function POST(request: NextRequest) {
     } catch (notificationError) {
       console.error('❌ LINE連携完了通知送信例外:', notificationError)
       // 通知エラーは無視（連携自体は成功しているため）
+    }
     }
 
     // 成功レスポンス

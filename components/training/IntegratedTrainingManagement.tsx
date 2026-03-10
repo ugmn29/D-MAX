@@ -15,19 +15,25 @@ const CATEGORY_GROUPS = {
     name: '舌のトレーニング',
     icon: '👅',
     color: 'blue',
-    categories: ['舌訓練', '舌位置', '柔軟性'],
+    categories: ['舌系の訓練', '舌の運動'],
   },
   lips: {
     name: '口唇のトレーニング',
     icon: '👄',
     color: 'pink',
-    categories: ['筋力訓練', '基礎訓練', 'リラックス', '呼吸訓練'],
+    categories: ['口唇系の訓練', '唇の運動', '頬の運動'],
   },
   bite: {
-    name: '咬合力のトレーニング',
+    name: '咬合力・歯列のトレーニング',
     icon: '🦷',
     color: 'green',
-    categories: ['総合訓練', '顎訓練'],
+    categories: ['咬合力系の訓練', '歯列改善系の訓練'],
+  },
+  other: {
+    name: 'その他のトレーニング',
+    icon: '🏃',
+    color: 'blue',
+    categories: ['発音', '口の開閉', '吸引', 'うがい', 'その他'],
   },
 } as const
 

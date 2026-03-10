@@ -315,7 +315,7 @@ export async function createAppointmentConfirmationNotification(
     : ''
 
   // 患者の通知受信設定をチェック
-  const canReceive = await canReceiveNotification(patientId, clinicId, 'appointment_confirmation')
+  const canReceive = await canReceiveNotification(patientId, clinicId, 'appointment_change')
   if (!canReceive) {
     console.log(`患者 ${patientId} は予約確定通知の受信を拒否しているため、通知を作成しません`)
     return
