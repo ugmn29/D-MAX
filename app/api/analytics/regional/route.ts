@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // medical_records から売上・診療項目を取得
+    // medical_records から売上を取得
     const medicalRecordWhere: Record<string, unknown> = {
       clinic_id: clinicId,
       patient_id: { in: patientIds },
@@ -126,35 +126,56 @@ export async function GET(request: NextRequest) {
         patient_id: true,
         patient_copay_amount: true,
         self_pay_amount: true,
-        treatments: true,
       },
     })
 
     // 患者ごとの売上を集計
     const patientRevenueMap = new Map<string, number>()
-    // 患者ごとの診療項目を集計
-    const patientTreatmentMap = new Map<string, Map<string, number>>()
-
     for (const record of medicalRecords || []) {
-      const patientId = record.patient_id
-
-      // 売上集計（窓口負担 + 自費）
       const copay = record.patient_copay_amount ? Number(record.patient_copay_amount) : 0
       const selfPay = record.self_pay_amount ? Number(record.self_pay_amount) : 0
-      const current = patientRevenueMap.get(patientId) || 0
-      patientRevenueMap.set(patientId, current + copay + selfPay)
+      const current = patientRevenueMap.get(record.patient_id) || 0
+      patientRevenueMap.set(record.patient_id, current + copay + selfPay)
+    }
 
-      // 診療項目集計
+    // appointments から予約メニュー名を取得（診療項目フィルター用）
+    const appointmentWhere: Record<string, unknown> = {
+      clinic_id: clinicId,
+      patient_id: { in: patientIds },
+      menu1_id: { not: null },
+    }
+    if (startDate || endDate) {
+      const timeFilter: Record<string, unknown> = {}
+      if (startDate) timeFilter.gte = new Date(startDate)
+      if (endDate) timeFilter.lte = new Date(endDate)
+      appointmentWhere.start_time = timeFilter
+    }
+
+    const appointmentsWithMenus = await prisma.appointments.findMany({
+      where: appointmentWhere,
+      select: {
+        patient_id: true,
+        treatment_menus_appointments_menu1_idTotreatment_menus: { select: { name: true } },
+        treatment_menus_appointments_menu2_idTotreatment_menus: { select: { name: true } },
+        treatment_menus_appointments_menu3_idTotreatment_menus: { select: { name: true } },
+      },
+    })
+
+    // 患者ごとの予約メニューを集計
+    const patientTreatmentMap = new Map<string, Map<string, number>>()
+    for (const appt of appointmentsWithMenus || []) {
+      const patientId = appt.patient_id
       if (!patientTreatmentMap.has(patientId)) {
         patientTreatmentMap.set(patientId, new Map())
       }
-      const treatmentCount = patientTreatmentMap.get(patientId)!
-      const treatmentsJson = record.treatments as Array<{ treatment_name?: string }> | null
-      if (Array.isArray(treatmentsJson)) {
-        for (const t of treatmentsJson) {
-          if (t.treatment_name) {
-            treatmentCount.set(t.treatment_name, (treatmentCount.get(t.treatment_name) || 0) + 1)
-          }
+      const menuCount = patientTreatmentMap.get(patientId)!
+      for (const menu of [
+        appt.treatment_menus_appointments_menu1_idTotreatment_menus,
+        appt.treatment_menus_appointments_menu2_idTotreatment_menus,
+        appt.treatment_menus_appointments_menu3_idTotreatment_menus,
+      ]) {
+        if (menu?.name) {
+          menuCount.set(menu.name, (menuCount.get(menu.name) || 0) + 1)
         }
       }
     }
