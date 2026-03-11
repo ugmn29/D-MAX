@@ -209,11 +209,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 未処理の患者を取得
+    // 未処理の患者を取得（住所カラムのいずれかに値があれば対象）
     const patients = await prisma.patients.findMany({
       where: {
         clinic_id: clinicId,
-        prefecture: { not: null },
+        OR: [
+          { prefecture: { not: null } },
+          { address: { not: null } },
+        ],
       },
       select: {
         id: true,
