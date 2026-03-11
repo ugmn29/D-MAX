@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Training } from '@/types/training'
 import { EvaluationProgressSummary } from '@/types/evaluation'
 
@@ -9,35 +9,52 @@ interface IntegratedTrainingManagementProps {
   clinicId: string
 }
 
-// カテゴリーマッピング
-const CATEGORY_GROUPS = {
-  tongue: {
+// フォールバック用のハードコードグループ
+const FALLBACK_GROUPS = [
+  {
+    id: 'tongue',
     name: '舌のトレーニング',
     icon: '👅',
     color: 'blue',
+    sort_order: 0,
     categories: ['舌系の訓練', '舌の運動'],
   },
-  lips: {
+  {
+    id: 'lips',
     name: '口唇のトレーニング',
     icon: '👄',
     color: 'pink',
+    sort_order: 1,
     categories: ['口唇系の訓練', '唇の運動', '頬の運動'],
   },
-  bite: {
+  {
+    id: 'bite',
     name: '咬合力・歯列のトレーニング',
     icon: '🦷',
     color: 'green',
+    sort_order: 2,
     categories: ['咬合力系の訓練', '歯列改善系の訓練'],
   },
-  other: {
+  {
+    id: 'other',
     name: 'その他のトレーニング',
     icon: '🏃',
     color: 'blue',
+    sort_order: 3,
     categories: ['発音', '口の開閉', '吸引', 'うがい', 'その他'],
   },
-} as const
+]
 
-type CategoryGroup = keyof typeof CATEGORY_GROUPS
+interface TrainingGroup {
+  id: string
+  name: string
+  icon: string
+  color: string
+  sort_order: number
+  // DB由来の場合はitemsを持つ、フォールバックの場合はcategories
+  categories?: string[]
+  items?: { id: string; training_id: string; training: Training }[]
+}
 
 interface TrainingWithStatus extends Training {
   is_prescribed: boolean
@@ -63,21 +80,56 @@ export default function IntegratedTrainingManagement({
   patientId,
   clinicId,
 }: IntegratedTrainingManagementProps) {
-  const [activeCategory, setActiveCategory] = useState<CategoryGroup>('tongue')
+  const [activeGroupId, setActiveGroupId] = useState<string>('tongue')
   const [allTrainings, setAllTrainings] = useState<TrainingWithStatus[]>([])
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null)
+  const [groups, setGroups] = useState<TrainingGroup[]>(FALLBACK_GROUPS)
+  const [usingDbGroups, setUsingDbGroups] = useState(false)
+
+  const loadGroups = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/training/clinic/groups?clinicId=${clinicId}`)
+      if (!res.ok) return
+
+      const { groups: dbGroups } = await res.json()
+      if (dbGroups && dbGroups.length > 0) {
+        setGroups(dbGroups)
+        setUsingDbGroups(true)
+        setActiveGroupId(dbGroups[0].id)
+      } else {
+        // グループ未設定なら自動シード
+        await fetch(`/api/training/clinic/seed-groups?clinicId=${clinicId}`, { method: 'POST' })
+        // シード後に再取得
+        const res2 = await fetch(`/api/training/clinic/groups?clinicId=${clinicId}`)
+        if (res2.ok) {
+          const { groups: seeded } = await res2.json()
+          if (seeded && seeded.length > 0) {
+            setGroups(seeded)
+            setUsingDbGroups(true)
+            setActiveGroupId(seeded[0].id)
+          }
+        }
+      }
+    } catch {
+      // フォールバックのままにする
+    }
+  }, [clinicId])
+
+  useEffect(() => {
+    loadGroups()
+  }, [loadGroups])
 
   useEffect(() => {
     loadAllData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId])
 
   const loadAllData = async () => {
     setIsLoading(true)
     try {
-      // API経由で全データを一括取得
       const response = await fetch(`/api/training/training-management?patientId=${patientId}&clinicId=${clinicId}`)
       const result = await response.json()
 
@@ -96,7 +148,6 @@ export default function IntegratedTrainingManagement({
         activeMenuData?.menu_trainings?.map((mt: any) => [mt.training_id, mt.id]) || []
       )
 
-      // トレーニングごとの評価情報を集計
       const evaluationMap = new Map<string, EvaluationProgressSummary>()
       progressData?.forEach((evaluation: any) => {
         if (!evaluationMap.has(evaluation.training_id)) {
@@ -119,7 +170,6 @@ export default function IntegratedTrainingManagement({
         }
       })
 
-      // トレーニングデータと評価情報を統合
       const trainingsWithStatus: TrainingWithStatus[] = (trainingsData || []).map((training: any) => {
         const evalInfo = evaluationMap.get(training.id)
         return {
@@ -142,10 +192,17 @@ export default function IntegratedTrainingManagement({
     }
   }
 
-  // カテゴリーでフィルタリング
-  const getCategoryTrainings = (category: CategoryGroup) => {
-    const categories = CATEGORY_GROUPS[category].categories
-    return allTrainings.filter((t) => categories.includes(t.category || ''))
+  // グループのトレーニングを取得
+  const getGroupTrainings = (group: TrainingGroup): TrainingWithStatus[] => {
+    if (usingDbGroups && group.items) {
+      // DB由来: itemsのtraining_idで絞り込む
+      const trainingIds = new Set(group.items.map((item) => item.training_id))
+      return allTrainings.filter((t) => trainingIds.has(t.id))
+    } else {
+      // フォールバック: カテゴリ名で絞り込む
+      const cats = group.categories || []
+      return allTrainings.filter((t) => cats.includes(t.category || ''))
+    }
   }
 
   // トレーニングの処方
@@ -230,9 +287,9 @@ export default function IntegratedTrainingManagement({
     return <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">-</span>
   }
 
-  // カテゴリーのカラークラス
-  const getCategoryColorClasses = (category: CategoryGroup) => {
-    const colorMap = {
+  // カラークラス
+  const getColorClasses = (color: string) => {
+    const colorMap: Record<string, { border: string; bg: string; hover: string; text: string; button: string }> = {
       blue: {
         border: 'border-blue-200',
         bg: 'bg-blue-50',
@@ -255,7 +312,7 @@ export default function IntegratedTrainingManagement({
         button: 'bg-green-600 hover:bg-green-700',
       },
     }
-    return colorMap[CATEGORY_GROUPS[category].color]
+    return colorMap[color] || colorMap.blue
   }
 
   if (isLoading) {
@@ -266,26 +323,25 @@ export default function IntegratedTrainingManagement({
     )
   }
 
-  const categoryTrainings = getCategoryTrainings(activeCategory)
-  const colors = getCategoryColorClasses(activeCategory)
+  const activeGroup = groups.find((g) => g.id === activeGroupId) || groups[0]
+  const groupTrainings = activeGroup ? getGroupTrainings(activeGroup) : []
+  const colors = getColorClasses(activeGroup?.color || 'blue')
 
   return (
     <div className="space-y-6">
-      {/* カテゴリータブ */}
+      {/* グループタブ */}
       <div className="border-b border-gray-200">
-        <div className="flex gap-2">
-          {(Object.keys(CATEGORY_GROUPS) as CategoryGroup[]).map((key) => {
-            const group = CATEGORY_GROUPS[key]
-            const trainings = getCategoryTrainings(key)
-            const prescribed = trainings.filter((t) => t.is_prescribed).length
+        <div className="flex gap-2 flex-wrap">
+          {groups.map((group) => {
+            const trainings = getGroupTrainings(group)
             const completed = trainings.filter((t) => t.is_completed).length
 
             return (
               <button
-                key={key}
-                onClick={() => setActiveCategory(key)}
+                key={group.id}
+                onClick={() => setActiveGroupId(group.id)}
                 className={`px-4 py-3 font-medium text-sm transition-colors flex items-center gap-2 ${
-                  activeCategory === key
+                  activeGroupId === group.id
                     ? 'text-blue-600 border-b-2 border-blue-600'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
@@ -304,20 +360,20 @@ export default function IntegratedTrainingManagement({
       {/* トレーニング一覧 */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <span className="text-2xl">{CATEGORY_GROUPS[activeCategory].icon}</span>
-          {CATEGORY_GROUPS[activeCategory].name}
+          <span className="text-2xl">{activeGroup?.icon}</span>
+          {activeGroup?.name}
           <span className="text-sm font-normal text-gray-600">
-            （{categoryTrainings.filter((t) => t.is_prescribed).length}件処方中）
+            （{groupTrainings.filter((t) => t.is_prescribed).length}件処方中）
           </span>
         </h3>
 
-        {categoryTrainings.length === 0 ? (
+        {groupTrainings.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            このカテゴリーにトレーニングがありません
+            このグループにトレーニングがありません
           </div>
         ) : (
           <div className="space-y-3">
-            {categoryTrainings.map((training) => (
+            {groupTrainings.map((training) => (
               <div
                 key={training.id}
                 className={`bg-white rounded-lg border-2 ${
@@ -400,7 +456,7 @@ export default function IntegratedTrainingManagement({
                         className={`flex-1 px-4 py-2 ${colors.button} text-white rounded-lg font-medium`}
                       >
                         ➕ 処方する
-                        </button>
+                      </button>
                     )}
                   </div>
                 )}

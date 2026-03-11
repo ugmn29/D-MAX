@@ -6623,6 +6623,8 @@ export default function SettingsPage() {
       { id: 'patients', name: '患者管理', icon: '👤' },
       { id: 'trainings', name: 'トレーニング一覧', icon: '🏋️' },
       { id: 'analytics', name: '分析', icon: '📊' },
+      { id: 'groups', name: 'タブグループ設定', icon: '🗂️' },
+      { id: 'protocols', name: 'プロトコル設定', icon: '📋' },
     ];
 
     return (
@@ -6677,6 +6679,28 @@ export default function SettingsPage() {
               className="w-full border-0 rounded-lg"
               style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}
               title="分析"
+            />
+          </div>
+        )}
+
+        {trainingSubTab === 'groups' && (
+          <div className="w-full">
+            <iframe
+              src="/training/clinic/settings/groups"
+              className="w-full border-0 rounded-lg"
+              style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}
+              title="タブグループ設定"
+            />
+          </div>
+        )}
+
+        {trainingSubTab === 'protocols' && (
+          <div className="w-full">
+            <iframe
+              src="/training/clinic/settings/protocols"
+              className="w-full border-0 rounded-lg"
+              style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}
+              title="プロトコル設定"
             />
           </div>
         )}

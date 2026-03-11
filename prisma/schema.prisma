@@ -375,6 +375,8 @@ model clinics {
   training_menus                   training_menus[]
   training_records                 training_records[]
   trainings                        trainings[]
+  training_groups                  training_groups[]
+  training_protocols               training_protocols[]
   treatment_menus                  treatment_menus[]
   units                            units[]
   visual_examinations              visual_examinations[]
@@ -2111,6 +2113,8 @@ model trainings {
   template_trainings             template_trainings[]
   training_evaluations           training_evaluations[]
   training_records               training_records[]
+  training_group_items           training_group_items[]
+  training_protocol_step_items   training_protocol_step_items[]
   clinics                        clinics?                         @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([clinic_id], map: "idx_trainings_clinic", where: raw("(is_deleted = false)"))
@@ -2476,6 +2480,82 @@ enum patient_gender {
   female
   other
 
+  @@schema("public")
+}
+
+model training_groups {
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id  String                 @db.Uuid
+  name       String                 @db.VarChar(100)
+  icon       String                 @default("📋") @db.VarChar(10)
+  color      String                 @default("blue") @db.VarChar(50)
+  sort_order Int                    @default(0)
+  is_active  Boolean                @default(true)
+  created_at DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at DateTime?              @default(now()) @db.Timestamptz(6)
+  clinics    clinics                @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  items      training_group_items[]
+
+  @@index([clinic_id], map: "idx_training_groups_clinic")
+  @@schema("public")
+}
+
+model training_group_items {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id    String          @db.Uuid
+  training_id String          @db.Uuid
+  sort_order  Int             @default(0)
+  created_at  DateTime?       @default(now()) @db.Timestamptz(6)
+  group       training_groups @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  training    trainings       @relation(fields: [training_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([group_id, training_id], map: "training_group_items_group_training_unique")
+  @@index([group_id], map: "idx_training_group_items_group")
+  @@schema("public")
+}
+
+model training_protocols {
+  id                 String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id          String                    @db.Uuid
+  name               String                    @db.VarChar(100)
+  description        String?
+  sort_order         Int                       @default(0)
+  is_active          Boolean                   @default(true)
+  is_parallel_layout Boolean                   @default(false)
+  created_at         DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?                 @default(now()) @db.Timestamptz(6)
+  clinics            clinics                   @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  steps              training_protocol_steps[]
+
+  @@index([clinic_id], map: "idx_training_protocols_clinic")
+  @@schema("public")
+}
+
+model training_protocol_steps {
+  id              String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  protocol_id     String                         @db.Uuid
+  step_number     Int                            @default(1)
+  checkpoint_name String                         @db.VarChar(200)
+  description     String?
+  created_at      DateTime?                      @default(now()) @db.Timestamptz(6)
+  protocol        training_protocols             @relation(fields: [protocol_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  items           training_protocol_step_items[]
+
+  @@index([protocol_id], map: "idx_training_protocol_steps_protocol")
+  @@schema("public")
+}
+
+model training_protocol_step_items {
+  id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  step_id     String                  @db.Uuid
+  training_id String                  @db.Uuid
+  sort_order  Int                     @default(0)
+  created_at  DateTime?               @default(now()) @db.Timestamptz(6)
+  step        training_protocol_steps @relation(fields: [step_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  training    trainings               @relation(fields: [training_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([step_id, training_id], map: "training_protocol_step_items_step_training_unique")
+  @@index([step_id], map: "idx_training_protocol_step_items_step")
   @@schema("public")
 }
 
