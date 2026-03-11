@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { GoogleMap, useJsApiLoader, InfoWindow } from '@react-google-maps/api'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { MapPin, TrendingUp, Users, DollarSign, AlertCircle, RefreshCw, Loader2 } from 'lucide-react'
+import { MapPin, TrendingUp, Users, DollarSign, AlertCircle, RefreshCw, Loader2, Filter } from 'lucide-react'
 
 interface RegionalAnalysisTabProps {
   clinicId: string
@@ -41,7 +41,7 @@ interface RegionalApiResponse {
 }
 
 const MAP_CONTAINER_STYLE = { width: '100%', height: '400px' }
-const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 } // 東京
+const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }
 const DEFAULT_ZOOM = 10
 
 export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAnalysisTabProps) {
@@ -54,6 +54,7 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
   const [needsGeocoding, setNeedsGeocoding] = useState(false)
   const [geocodedCount, setGeocodedCount] = useState(0)
   const [infoWindowArea, setInfoWindowArea] = useState<AreaData | null>(null)
+  const [treatmentFilter, setTreatmentFilter] = useState<string>('all')
 
   const mapRef = useRef<google.maps.Map | null>(null)
   const clustererRef = useRef<MarkerClusterer | null>(null)
@@ -76,13 +77,9 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
       })
 
       const response = await fetch(`/api/analytics/regional?${params}`)
-
-      if (!response.ok) {
-        throw new Error('データの取得に失敗しました')
-      }
+      if (!response.ok) throw new Error('データの取得に失敗しました')
 
       const result: RegionalApiResponse = await response.json()
-
       setAreaData(result.data.areas)
       setNeedsGeocoding(result.data.needs_geocoding)
       setGeocodedCount(result.data.geocoded_count)
@@ -97,18 +94,36 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
     fetchData()
   }, [fetchData])
 
+  // 全診療名リスト（フィルター用）
+  const allTreatmentNames = useMemo(() => {
+    const nameSet = new Set<string>()
+    for (const area of areaData) {
+      for (const t of area.topTreatments) {
+        nameSet.add(t.name)
+      }
+    }
+    return Array.from(nameSet).sort()
+  }, [areaData])
+
+  // フィルター適用済みエリアデータ
+  const filteredAreaData = useMemo(() => {
+    if (treatmentFilter === 'all') return areaData
+    return areaData.filter(area =>
+      area.topTreatments.some(t => t.name === treatmentFilter)
+    )
+  }, [areaData, treatmentFilter])
+
   // マーカーをマップに描画
   useEffect(() => {
     if (!mapRef.current || !isLoaded) return
 
-    // 既存マーカーをクリア
     markersRef.current.forEach(m => m.setMap(null))
     markersRef.current = []
     if (clustererRef.current) {
       clustererRef.current.clearMarkers()
     }
 
-    const geocodedAreas = areaData.filter(a => a.latitude && a.longitude)
+    const geocodedAreas = filteredAreaData.filter(a => a.latitude && a.longitude)
     if (geocodedAreas.length === 0) return
 
     const maxCount = Math.max(...geocodedAreas.map(a => a.patientCount), 1)
@@ -122,9 +137,9 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale,
-          fillColor: '#3B82F6',
+          fillColor: treatmentFilter !== 'all' ? '#10B981' : '#3B82F6',
           fillOpacity: opacity,
-          strokeColor: '#1D4ED8',
+          strokeColor: treatmentFilter !== 'all' ? '#065F46' : '#1D4ED8',
           strokeWeight: 1.5,
         },
         title: `${area.city} ${area.district || ''} (${area.patientCount}名)`,
@@ -139,33 +154,25 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
     })
 
     markersRef.current = markers
+    clustererRef.current = new MarkerClusterer({ map: mapRef.current, markers })
 
-    clustererRef.current = new MarkerClusterer({
-      map: mapRef.current,
-      markers,
-    })
-
-    // 地図の表示範囲を患者データに合わせる
-    const bounds = new google.maps.LatLngBounds()
-    geocodedAreas.forEach(a => bounds.extend({ lat: a.latitude!, lng: a.longitude! }))
-    mapRef.current.fitBounds(bounds)
-  }, [areaData, isLoaded])
+    if (geocodedAreas.length > 0) {
+      const bounds = new google.maps.LatLngBounds()
+      geocodedAreas.forEach(a => bounds.extend({ lat: a.latitude!, lng: a.longitude! }))
+      mapRef.current.fitBounds(bounds)
+    }
+  }, [filteredAreaData, isLoaded, treatmentFilter])
 
   // バッチジオコーディング実行
   const runGeocoding = async () => {
     setGeocoding(true)
     setError(null)
-
     try {
-      const response = await fetch(`/api/analytics/geocode?clinic_id=${clinicId}`, {
-        method: 'GET',
-      })
-
+      const response = await fetch(`/api/analytics/geocode?clinic_id=${clinicId}`, { method: 'GET' })
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'ジオコーディングに失敗しました')
       }
-
       const result = await response.json()
       await fetchData()
       alert(`${result.processed}件の住所を処理しました（未処理: ${result.total_uncached}件）`)
@@ -176,7 +183,7 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
     }
   }
 
-  const sortedData = [...areaData].sort((a, b) => {
+  const sortedData = [...filteredAreaData].sort((a, b) => {
     switch (sortBy) {
       case 'patientCount': return b.patientCount - a.patientCount
       case 'revenue': return b.totalRevenue - a.totalRevenue
@@ -186,12 +193,12 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
   })
 
   const totalStats = {
-    totalPatients: areaData.reduce((sum, a) => sum + a.patientCount, 0),
-    totalNewPatients: areaData.reduce((sum, a) => sum + a.newPatientCount, 0),
-    totalRevenue: areaData.reduce((sum, a) => sum + a.totalRevenue, 0),
+    totalPatients: filteredAreaData.reduce((sum, a) => sum + a.patientCount, 0),
+    totalNewPatients: filteredAreaData.reduce((sum, a) => sum + a.newPatientCount, 0),
+    totalRevenue: filteredAreaData.reduce((sum, a) => sum + a.totalRevenue, 0),
   }
 
-  const maxPatientCount = Math.max(...areaData.map(a => a.patientCount), 1)
+  const maxPatientCount = Math.max(...filteredAreaData.map(a => a.patientCount), 1)
 
   if (loading && areaData.length === 0) {
     return (
@@ -221,7 +228,6 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
         </Button>
       </div>
 
-      {/* エラー表示 */}
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="w-4 h-4" />
@@ -229,7 +235,6 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
         </Alert>
       )}
 
-      {/* ジオコーディング案内 */}
       {needsGeocoding && (
         <Alert className="border-amber-200 bg-amber-50">
           <AlertCircle className="w-4 h-4 text-amber-600" />
@@ -248,13 +253,55 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
         </Alert>
       )}
 
+      {/* 診療内容フィルター */}
+      {allTreatmentNames.length > 0 && (
+        <Card className={treatmentFilter !== 'all' ? 'border-green-300 bg-green-50' : ''}>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <Filter className="w-4 h-4" />
+                診療内容で絞り込み:
+              </div>
+              <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="すべての診療" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">すべての診療</SelectItem>
+                  {allTreatmentNames.map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {treatmentFilter !== 'all' && (
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-green-100 text-green-800 border-green-300">
+                    「{treatmentFilter}」を受けた患者の地域
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTreatmentFilter('all')}
+                    className="text-xs h-7"
+                  >
+                    クリア
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* サマリーカード */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">分析対象患者</p>
+                <p className="text-sm text-gray-600">
+                  {treatmentFilter !== 'all' ? `「${treatmentFilter}」患者` : '分析対象患者'}
+                </p>
                 <p className="text-2xl font-bold">{totalStats.totalPatients}名</p>
                 {geocodedCount > 0 && (
                   <p className="text-xs text-gray-500">座標取得済み: {geocodedCount}名</p>
@@ -291,7 +338,7 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">分析エリア数</p>
-                <p className="text-2xl font-bold">{areaData.length}箇所</p>
+                <p className="text-2xl font-bold">{filteredAreaData.length}箇所</p>
               </div>
               <MapPin className="w-8 h-8 text-purple-500" />
             </div>
@@ -299,11 +346,13 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
         </Card>
       </div>
 
-      {areaData.length === 0 ? (
+      {filteredAreaData.length === 0 ? (
         <Alert>
           <AlertCircle className="w-4 h-4" />
           <AlertDescription>
-            地域データがありません。患者の住所情報が登録されているか確認してください。
+            {treatmentFilter !== 'all'
+              ? `「${treatmentFilter}」を受けた患者の地域データがありません。`
+              : '地域データがありません。患者の住所情報が登録されているか確認してください。'}
           </AlertDescription>
         </Alert>
       ) : (
@@ -311,7 +360,14 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
           {/* Google マップ */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">患者分布マップ</CardTitle>
+              <CardTitle className="text-lg">
+                患者分布マップ
+                {treatmentFilter !== 'all' && (
+                  <span className="ml-2 text-sm font-normal text-green-600">
+                    （{treatmentFilter}）
+                  </span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {isLoaded ? (
@@ -320,11 +376,7 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
                   center={DEFAULT_CENTER}
                   zoom={DEFAULT_ZOOM}
                   onLoad={map => { mapRef.current = map }}
-                  options={{
-                    streetViewControl: false,
-                    mapTypeControl: false,
-                    fullscreenControl: true,
-                  }}
+                  options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: true }}
                 >
                   {infoWindowArea && infoWindowArea.latitude && infoWindowArea.longitude && (
                     <InfoWindow
@@ -344,6 +396,14 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
                           )}
                           {infoWindowArea.avgDistance != null && infoWindowArea.avgDistance > 0 && (
                             <p>医院からの距離: <strong>{infoWindowArea.avgDistance.toFixed(1)}km</strong></p>
+                          )}
+                          {infoWindowArea.topTreatments.length > 0 && (
+                            <div className="mt-1 pt-1 border-t border-gray-200">
+                              <p className="font-medium">主な診療:</p>
+                              {infoWindowArea.topTreatments.slice(0, 3).map(t => (
+                                <p key={t.name} className="text-gray-600">・{t.name}（{t.count}件）</p>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -429,6 +489,28 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
                         売上: ¥{area.totalRevenue.toLocaleString()}（平均: ¥{area.avgRevenue.toLocaleString()}）
                       </div>
                     )}
+
+                    {/* 診療内容タグ */}
+                    {area.topTreatments.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {area.topTreatments.slice(0, 3).map(t => (
+                          <span
+                            key={t.name}
+                            className={`text-xs px-2 py-0.5 rounded-full cursor-pointer transition-colors ${
+                              treatmentFilter === t.name
+                                ? 'bg-green-200 text-green-800'
+                                : 'bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setTreatmentFilter(treatmentFilter === t.name ? 'all' : t.name)
+                            }}
+                          >
+                            {t.name} {t.count}件
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -476,11 +558,16 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
 
             {selectedArea.topTreatments && selectedArea.topTreatments.length > 0 && (
               <div className="mt-4">
-                <h4 className="font-medium mb-2">人気の診療内容</h4>
+                <h4 className="font-medium mb-2">診療内容（クリックで地図をフィルタリング）</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedArea.topTreatments.map((treatment) => (
-                    <Badge key={treatment.name} variant="secondary">
-                      {treatment.name} ({treatment.count}件)
+                    <Badge
+                      key={treatment.name}
+                      variant={treatmentFilter === treatment.name ? 'default' : 'secondary'}
+                      className="cursor-pointer"
+                      onClick={() => setTreatmentFilter(treatmentFilter === treatment.name ? 'all' : treatment.name)}
+                    >
+                      {treatment.name}（{treatment.count}件）
                     </Badge>
                   ))}
                 </div>
@@ -490,13 +577,12 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
         </Card>
       )}
 
-      {/* 活用ヒント */}
       <Alert>
         <AlertDescription className="text-sm">
           <strong>活用ヒント:</strong>
           <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>診療内容フィルター</strong>: 特定の治療を受けた患者がどの地域から来ているか確認できます</li>
             <li><strong>患者数が多い地域</strong>: ポスティングチラシの重点エリアに設定</li>
-            <li><strong>患者数が少ない地域</strong>: 新規開拓のターゲットエリアとして検討</li>
             <li><strong>売上が高い地域</strong>: 高単価メニューの訴求が効果的</li>
             <li><strong>新規が多い地域</strong>: 広告効果が高い可能性あり</li>
           </ul>
