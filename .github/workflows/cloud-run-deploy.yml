@@ -107,6 +107,7 @@ jobs:
             --set-env-vars "ADMIN_SESSION_SECRET=${{ secrets.ADMIN_SESSION_SECRET }}" \
             --set-env-vars "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}" \
             --set-env-vars "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" \
+            --set-env-vars "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" \
             --project ${{ env.PROJECT_ID }}
 
       - name: Show deployed URL

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { GoogleMap, useJsApiLoader, InfoWindow } from '@react-google-maps/api'
+import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -38,6 +40,10 @@ interface RegionalApiResponse {
   }
 }
 
+const MAP_CONTAINER_STYLE = { width: '100%', height: '400px' }
+const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 } // 東京
+const DEFAULT_ZOOM = 10
+
 export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAnalysisTabProps) {
   const [areaData, setAreaData] = useState<AreaData[]>([])
   const [loading, setLoading] = useState(false)
@@ -47,8 +53,15 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
   const [selectedArea, setSelectedArea] = useState<AreaData | null>(null)
   const [needsGeocoding, setNeedsGeocoding] = useState(false)
   const [geocodedCount, setGeocodedCount] = useState(0)
-  const [totalPatients, setTotalPatients] = useState(0)
-  const mapRef = useRef<HTMLDivElement>(null)
+  const [infoWindowArea, setInfoWindowArea] = useState<AreaData | null>(null)
+
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const clustererRef = useRef<MarkerClusterer | null>(null)
+  const markersRef = useRef<google.maps.Marker[]>([])
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+  })
 
   // データ取得
   const fetchData = useCallback(async () => {
@@ -73,7 +86,6 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
       setAreaData(result.data.areas)
       setNeedsGeocoding(result.data.needs_geocoding)
       setGeocodedCount(result.data.geocoded_count)
-      setTotalPatients(result.data.total_patients)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
@@ -84,6 +96,60 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // マーカーをマップに描画
+  useEffect(() => {
+    if (!mapRef.current || !isLoaded) return
+
+    // 既存マーカーをクリア
+    markersRef.current.forEach(m => m.setMap(null))
+    markersRef.current = []
+    if (clustererRef.current) {
+      clustererRef.current.clearMarkers()
+    }
+
+    const geocodedAreas = areaData.filter(a => a.latitude && a.longitude)
+    if (geocodedAreas.length === 0) return
+
+    const maxCount = Math.max(...geocodedAreas.map(a => a.patientCount), 1)
+
+    const markers = geocodedAreas.map(area => {
+      const scale = 8 + (area.patientCount / maxCount) * 16
+      const opacity = 0.5 + (area.patientCount / maxCount) * 0.5
+
+      const marker = new google.maps.Marker({
+        position: { lat: area.latitude!, lng: area.longitude! },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale,
+          fillColor: '#3B82F6',
+          fillOpacity: opacity,
+          strokeColor: '#1D4ED8',
+          strokeWeight: 1.5,
+        },
+        title: `${area.city} ${area.district || ''} (${area.patientCount}名)`,
+      })
+
+      marker.addListener('click', () => {
+        setInfoWindowArea(area)
+        setSelectedArea(area)
+      })
+
+      return marker
+    })
+
+    markersRef.current = markers
+
+    clustererRef.current = new MarkerClusterer({
+      map: mapRef.current,
+      markers,
+    })
+
+    // 地図の表示範囲を患者データに合わせる
+    const bounds = new google.maps.LatLngBounds()
+    geocodedAreas.forEach(a => bounds.extend({ lat: a.latitude!, lng: a.longitude! }))
+    mapRef.current.fitBounds(bounds)
+  }, [areaData, isLoaded])
 
   // バッチジオコーディング実行
   const runGeocoding = async () => {
@@ -101,10 +167,7 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
       }
 
       const result = await response.json()
-
-      // 成功したら再度データを取得
       await fetchData()
-
       alert(`${result.processed}件の住所を処理しました（未処理: ${result.total_uncached}件）`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ジオコーディングエラー')
@@ -115,14 +178,10 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
 
   const sortedData = [...areaData].sort((a, b) => {
     switch (sortBy) {
-      case 'patientCount':
-        return b.patientCount - a.patientCount
-      case 'revenue':
-        return b.totalRevenue - a.totalRevenue
-      case 'newPatient':
-        return b.newPatientCount - a.newPatientCount
-      default:
-        return 0
+      case 'patientCount': return b.patientCount - a.patientCount
+      case 'revenue': return b.totalRevenue - a.totalRevenue
+      case 'newPatient': return b.newPatientCount - a.newPatientCount
+      default: return 0
     }
   })
 
@@ -156,17 +215,10 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
             患者の住所データから地域別の流入・売上を分析します
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchData}
-            disabled={loading}
-          >
-            <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-            更新
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+          <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+          更新
+        </Button>
       </div>
 
       {/* エラー表示 */}
@@ -185,22 +237,11 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
             <span className="text-amber-800">
               住所から座標への変換が未完了の患者がいます。ジオコーディングを実行すると、より詳細な地域分析が可能になります。
             </span>
-            <Button
-              size="sm"
-              onClick={runGeocoding}
-              disabled={geocoding}
-              className="ml-4"
-            >
+            <Button size="sm" onClick={runGeocoding} disabled={geocoding} className="ml-4">
               {geocoding ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                  処理中...
-                </>
+                <><Loader2 className="w-4 h-4 mr-1 animate-spin" />処理中...</>
               ) : (
-                <>
-                  <MapPin className="w-4 h-4 mr-1" />
-                  ジオコーディング実行
-                </>
+                <><MapPin className="w-4 h-4 mr-1" />ジオコーディング実行</>
               )}
             </Button>
           </AlertDescription>
@@ -216,9 +257,7 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
                 <p className="text-sm text-gray-600">分析対象患者</p>
                 <p className="text-2xl font-bold">{totalStats.totalPatients}名</p>
                 {geocodedCount > 0 && (
-                  <p className="text-xs text-gray-500">
-                    座標取得済み: {geocodedCount}名
-                  </p>
+                  <p className="text-xs text-gray-500">座標取得済み: {geocodedCount}名</p>
                 )}
               </div>
               <Users className="w-8 h-8 text-blue-500" />
@@ -269,89 +308,55 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
         </Alert>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* ヒートマップ表示エリア */}
+          {/* Google マップ */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">患者分布ヒートマップ</CardTitle>
+              <CardTitle className="text-lg">患者分布マップ</CardTitle>
             </CardHeader>
             <CardContent>
-              <div
-                ref={mapRef}
-                className="h-[400px] bg-gray-100 rounded-lg flex items-center justify-center relative overflow-hidden"
-              >
-                {/* 簡易的なヒートマップ表示 */}
-                <div className="absolute inset-0 p-4">
-                  <svg viewBox="0 0 400 400" className="w-full h-full">
-                    {/* 背景 */}
-                    <rect x="0" y="0" width="400" height="400" fill="#e5e7eb" />
-
-                    {/* ヒートマップポイント */}
-                    {areaData.slice(0, 12).map((area, index) => {
-                      // 緯度経度がある場合は相対位置を計算
-                      let x: number, y: number
-                      if (area.latitude && area.longitude && areaData.some(a => a.latitude)) {
-                        const lats = areaData.filter(a => a.latitude).map(a => a.latitude!)
-                        const lngs = areaData.filter(a => a.longitude).map(a => a.longitude!)
-                        const minLat = Math.min(...lats)
-                        const maxLat = Math.max(...lats)
-                        const minLng = Math.min(...lngs)
-                        const maxLng = Math.max(...lngs)
-
-                        const latRange = maxLat - minLat || 0.01
-                        const lngRange = maxLng - minLng || 0.01
-
-                        x = 50 + ((area.longitude - minLng) / lngRange) * 300
-                        y = 50 + ((maxLat - area.latitude) / latRange) * 300
-                      } else {
-                        // 座標がない場合はグリッド配置
-                        x = 80 + (index % 4) * 80
-                        y = 80 + Math.floor(index / 4) * 100
-                      }
-
-                      const radius = Math.min((area.patientCount / maxPatientCount) * 50 + 15, 60)
-                      const opacity = 0.3 + (area.patientCount / maxPatientCount) * 0.5
-
-                      return (
-                        <g key={`${area.prefecture}-${area.city}-${area.district}`}>
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r={radius}
-                            fill={`rgba(239, 68, 68, ${opacity})`}
-                            className="cursor-pointer hover:stroke-red-600 hover:stroke-2"
-                            onClick={() => setSelectedArea(area)}
-                          />
-                          <text
-                            x={x}
-                            y={y}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            className="text-xs font-medium fill-gray-800 pointer-events-none"
-                            style={{ fontSize: '10px' }}
-                          >
-                            {area.district || area.city}
-                          </text>
-                        </g>
-                      )
-                    })}
-                  </svg>
+              {isLoaded ? (
+                <GoogleMap
+                  mapContainerStyle={MAP_CONTAINER_STYLE}
+                  center={DEFAULT_CENTER}
+                  zoom={DEFAULT_ZOOM}
+                  onLoad={map => { mapRef.current = map }}
+                  options={{
+                    streetViewControl: false,
+                    mapTypeControl: false,
+                    fullscreenControl: true,
+                  }}
+                >
+                  {infoWindowArea && infoWindowArea.latitude && infoWindowArea.longitude && (
+                    <InfoWindow
+                      position={{ lat: infoWindowArea.latitude, lng: infoWindowArea.longitude }}
+                      onCloseClick={() => setInfoWindowArea(null)}
+                    >
+                      <div className="p-2 min-w-[160px]">
+                        <p className="font-bold text-sm">
+                          {infoWindowArea.city} {infoWindowArea.district || ''}
+                        </p>
+                        <p className="text-xs text-gray-500">{infoWindowArea.prefecture}</p>
+                        <div className="mt-2 space-y-1 text-xs">
+                          <p>患者数: <strong>{infoWindowArea.patientCount}名</strong></p>
+                          <p>新規: <strong>{infoWindowArea.newPatientCount}名</strong></p>
+                          {infoWindowArea.totalRevenue > 0 && (
+                            <p>売上: <strong>¥{infoWindowArea.totalRevenue.toLocaleString()}</strong></p>
+                          )}
+                          {infoWindowArea.avgDistance != null && infoWindowArea.avgDistance > 0 && (
+                            <p>医院からの距離: <strong>{infoWindowArea.avgDistance.toFixed(1)}km</strong></p>
+                          )}
+                        </div>
+                      </div>
+                    </InfoWindow>
+                  )}
+                </GoogleMap>
+              ) : (
+                <div className="h-[400px] bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 </div>
-
-                {/* 凡例 */}
-                <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow p-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full bg-red-200" />
-                    <span>少</span>
-                    <div className="w-4 h-4 rounded-full bg-red-400" />
-                    <span>中</span>
-                    <div className="w-4 h-4 rounded-full bg-red-600" />
-                    <span>多</span>
-                  </div>
-                </div>
-              </div>
-
+              )}
               <p className="text-xs text-gray-500 mt-2">
-                円の大きさは患者数を表しています。クリックで詳細を表示します。
+                マーカーをクリックすると詳細を表示します。ズームインすると町名・番地レベルで確認できます。
               </p>
             </CardContent>
           </Card>
@@ -383,7 +388,14 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
                         ? 'border-blue-500 bg-blue-50'
                         : 'hover:bg-gray-50'
                     }`}
-                    onClick={() => setSelectedArea(area)}
+                    onClick={() => {
+                      setSelectedArea(area)
+                      if (area.latitude && area.longitude && mapRef.current) {
+                        mapRef.current.panTo({ lat: area.latitude, lng: area.longitude })
+                        mapRef.current.setZoom(15)
+                        setInfoWindowArea(area)
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -393,21 +405,16 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
                           {index + 1}
                         </span>
                         <div>
-                          <p className="font-medium">
-                            {area.city} {area.district || ''}
-                          </p>
+                          <p className="font-medium">{area.city} {area.district || ''}</p>
                           <p className="text-xs text-gray-500">{area.prefecture}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-blue-600">{area.patientCount}名</p>
-                        <p className="text-xs text-gray-500">
-                          新規 {area.newPatientCount}名
-                        </p>
+                        <p className="text-xs text-gray-500">新規 {area.newPatientCount}名</p>
                       </div>
                     </div>
 
-                    {/* 進捗バー */}
                     <div className="mt-2">
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
@@ -417,11 +424,9 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
                       </div>
                     </div>
 
-                    {/* 売上表示 */}
                     {area.totalRevenue > 0 && (
                       <div className="mt-2 text-xs text-gray-600">
-                        売上: ¥{area.totalRevenue.toLocaleString()}
-                        （平均: ¥{area.avgRevenue.toLocaleString()}）
+                        売上: ¥{area.totalRevenue.toLocaleString()}（平均: ¥{area.avgRevenue.toLocaleString()}）
                       </div>
                     )}
                   </div>
@@ -453,19 +458,15 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
               </div>
               <div className="p-4 bg-amber-50 rounded-lg">
                 <p className="text-sm text-gray-600">総売上</p>
-                <p className="text-2xl font-bold text-amber-600">
-                  ¥{selectedArea.totalRevenue.toLocaleString()}
-                </p>
+                <p className="text-2xl font-bold text-amber-600">¥{selectedArea.totalRevenue.toLocaleString()}</p>
               </div>
               <div className="p-4 bg-purple-50 rounded-lg">
                 <p className="text-sm text-gray-600">平均単価</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  ¥{selectedArea.avgRevenue.toLocaleString()}
-                </p>
+                <p className="text-2xl font-bold text-purple-600">¥{selectedArea.avgRevenue.toLocaleString()}</p>
               </div>
             </div>
 
-            {selectedArea.avgDistance !== undefined && selectedArea.avgDistance > 0 && (
+            {selectedArea.avgDistance != null && selectedArea.avgDistance > 0 && (
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-600">
                   医院からの平均距離: <strong>{selectedArea.avgDistance.toFixed(1)}km</strong>
