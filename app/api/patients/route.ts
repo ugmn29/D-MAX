@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
     const prisma = getPrismaClient()
     const patients = await prisma.patients.findMany({
       where: {
-        clinic_id: clinicId
+        clinic_id: clinicId,
+        id: { not: '00000000-0000-0000-0000-000000000000' }, // ブロック用ダミー患者を除外
       },
       orderBy: {
         patient_number: 'asc'

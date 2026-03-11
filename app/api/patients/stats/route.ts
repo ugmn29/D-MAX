@@ -13,17 +13,19 @@ export async function GET(request: NextRequest) {
     }
 
     const prisma = getPrismaClient()
+    const BLOCK_PATIENT_ID = '00000000-0000-0000-0000-000000000000'
 
-    // 全患者数を取得
+    // 全患者数を取得（ブロック用ダミー患者を除外）
     const total = await prisma.patients.count({
-      where: { clinic_id: clinicId }
+      where: { clinic_id: clinicId, id: { not: BLOCK_PATIENT_ID } }
     })
 
-    // 本登録済み患者数を取得
+    // 本登録済み患者数を取得（ブロック用ダミー患者を除外）
     const registered = await prisma.patients.count({
       where: {
         clinic_id: clinicId,
-        is_registered: true
+        is_registered: true,
+        id: { not: BLOCK_PATIENT_ID },
       }
     })
 
