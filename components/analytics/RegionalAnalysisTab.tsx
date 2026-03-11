@@ -91,10 +91,8 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
     setError(null)
 
     try {
-      const response = await fetch('/api/analytics/geocode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinic_id: clinicId }),
+      const response = await fetch(`/api/analytics/geocode?clinic_id=${clinicId}`, {
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -107,7 +105,7 @@ export default function RegionalAnalysisTab({ clinicId, dateRange }: RegionalAna
       // 成功したら再度データを取得
       await fetchData()
 
-      alert(`${result.processed}件の住所を処理しました（成功: ${result.success}, 失敗: ${result.failed}）`)
+      alert(`${result.processed}件の住所を処理しました（未処理: ${result.total_uncached}件）`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ジオコーディングエラー')
     } finally {
