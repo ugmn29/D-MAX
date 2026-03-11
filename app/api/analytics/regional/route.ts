@@ -108,81 +108,54 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 売上データを取得
-    // 注: appointmentsテーブルにtotal_feeフィールドは存在しないため、売上は0として処理
-    const revenueWhere: Record<string, unknown> = {
+    // medical_records から売上・診療項目を取得
+    const medicalRecordWhere: Record<string, unknown> = {
       clinic_id: clinicId,
       patient_id: { in: patientIds },
-      status: 'COMPLETED' as const,
     }
     if (startDate || endDate) {
-      const timeFilter: Record<string, unknown> = {}
-      if (startDate) timeFilter.gte = new Date(startDate)
-      if (endDate) timeFilter.lte = new Date(endDate)
-      revenueWhere.start_time = timeFilter
+      const dateFilter: Record<string, unknown> = {}
+      if (startDate) dateFilter.gte = new Date(startDate)
+      if (endDate) dateFilter.lte = new Date(endDate)
+      medicalRecordWhere.visit_date = dateFilter
     }
 
-    const revenueData = await prisma.appointments.findMany({
-      where: revenueWhere,
+    const medicalRecords = await prisma.medical_records.findMany({
+      where: medicalRecordWhere,
       select: {
         patient_id: true,
+        patient_copay_amount: true,
+        self_pay_amount: true,
+        treatments: true,
       },
     })
 
-    // 患者ごとの売上を集計（total_feeがないため0として処理）
+    // 患者ごとの売上を集計
     const patientRevenueMap = new Map<string, number>()
-    for (const appointment of revenueData || []) {
-      const current = patientRevenueMap.get(appointment.patient_id) || 0
-      patientRevenueMap.set(appointment.patient_id, current + 0)
-    }
-
-    // 診療メニューデータを取得
-    // appointment_menusテーブルはPrismaスキーマに存在しないため、
-    // appointmentsのmenu1_id/menu2_id/menu3_idを使って治療メニューを取得
-    const appointmentMenuWhere: Record<string, unknown> = {
-      clinic_id: clinicId,
-      OR: [
-        { menu1_id: { not: null } },
-        { menu2_id: { not: null } },
-        { menu3_id: { not: null } },
-      ],
-    }
-    if (startDate || endDate) {
-      const timeFilter: Record<string, unknown> = {}
-      if (startDate) timeFilter.gte = new Date(startDate)
-      if (endDate) timeFilter.lte = new Date(endDate)
-      appointmentMenuWhere.start_time = timeFilter
-    }
-
-    const appointmentsWithMenus = await prisma.appointments.findMany({
-      where: appointmentMenuWhere,
-      select: {
-        patient_id: true,
-        treatment_menus_appointments_menu1_idTotreatment_menus: { select: { name: true } },
-        treatment_menus_appointments_menu2_idTotreatment_menus: { select: { name: true } },
-        treatment_menus_appointments_menu3_idTotreatment_menus: { select: { name: true } },
-      },
-    })
-
-    // 患者ごとの診療メニューを集計
+    // 患者ごとの診療項目を集計
     const patientTreatmentMap = new Map<string, Map<string, number>>()
-    for (const item of appointmentsWithMenus || []) {
-      const patientId = item.patient_id
+
+    for (const record of medicalRecords || []) {
+      const patientId = record.patient_id
+
+      // 売上集計（窓口負担 + 自費）
+      const copay = record.patient_copay_amount ? Number(record.patient_copay_amount) : 0
+      const selfPay = record.self_pay_amount ? Number(record.self_pay_amount) : 0
+      const current = patientRevenueMap.get(patientId) || 0
+      patientRevenueMap.set(patientId, current + copay + selfPay)
+
+      // 診療項目集計
       if (!patientTreatmentMap.has(patientId)) {
         patientTreatmentMap.set(patientId, new Map())
       }
       const treatmentCount = patientTreatmentMap.get(patientId)!
-      if (item.treatment_menus_appointments_menu1_idTotreatment_menus?.name) {
-        const name = item.treatment_menus_appointments_menu1_idTotreatment_menus.name
-        treatmentCount.set(name, (treatmentCount.get(name) || 0) + 1)
-      }
-      if (item.treatment_menus_appointments_menu2_idTotreatment_menus?.name) {
-        const name = item.treatment_menus_appointments_menu2_idTotreatment_menus.name
-        treatmentCount.set(name, (treatmentCount.get(name) || 0) + 1)
-      }
-      if (item.treatment_menus_appointments_menu3_idTotreatment_menus?.name) {
-        const name = item.treatment_menus_appointments_menu3_idTotreatment_menus.name
-        treatmentCount.set(name, (treatmentCount.get(name) || 0) + 1)
+      const treatmentsJson = record.treatments as Array<{ treatment_name?: string }> | null
+      if (Array.isArray(treatmentsJson)) {
+        for (const t of treatmentsJson) {
+          if (t.treatment_name) {
+            treatmentCount.set(t.treatment_name, (treatmentCount.get(t.treatment_name) || 0) + 1)
+          }
+        }
       }
     }
 
